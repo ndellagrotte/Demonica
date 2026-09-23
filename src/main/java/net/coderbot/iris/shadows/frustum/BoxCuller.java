@@ -1,9 +1,12 @@
 package net.coderbot.iris.shadows.frustum;
 
-import net.minecraft.util.AxisAlignedBB;
+
+import lombok.Setter;
+import net.minecraft.util.math.AxisAlignedBB;
 
 public class BoxCuller {
-	private double maxDistance;
+	@Setter
+    private double maxDistance;
 
 	private double minAllowedX;
 	private double maxAllowedX;
@@ -16,11 +19,7 @@ public class BoxCuller {
 		this.maxDistance = maxDistance;
 	}
 
-	public void setMaxDistance(double maxDistance) {
-		this.maxDistance = maxDistance;
-	}
-
-	public void setPosition(double cameraX, double cameraY, double cameraZ) {
+    public void setPosition(double cameraX, double cameraY, double cameraZ) {
 		this.minAllowedX = cameraX - maxDistance;
 		this.maxAllowedX = cameraX + maxDistance;
 		this.minAllowedY = cameraY - maxDistance;
@@ -57,5 +56,12 @@ public class BoxCuller {
 		}
 
 		return maxZ < -this.maxDistance || minZ > this.maxDistance;
+	}
+
+	/** Returns whether every point of a view-relative box remains within this culler's distance bounds. */
+	public boolean isFullyInsideSodium(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+		return minX >= -this.maxDistance && maxX <= this.maxDistance
+				&& minY >= -this.maxDistance && maxY <= this.maxDistance
+				&& minZ >= -this.maxDistance && maxZ <= this.maxDistance;
 	}
 }

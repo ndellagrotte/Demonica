@@ -1,5 +1,6 @@
 package net.coderbot.iris.pipeline.transform;
 
+import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 import org.taumc.glsl.Transformer;
 
@@ -13,8 +14,10 @@ class CeleritasTransformer {
 
         switch (parameters.type) {
             case FRAGMENT:
-            case GEOMETRY:
                 transformFragment(transformer, parameters);
+                break;
+            case GEOMETRY:
+                transformGeometry(transformer, parameters);
                 break;
             case VERTEX:
                 transformVertex(transformer, parameters);
@@ -38,12 +41,24 @@ class CeleritasTransformer {
         transformer.prependMain("_celeritas_init();");
         transformShared(transformer, parameters);
 
+        // Eclipse-style terrain packs displace worldpos in the vertex stage and emit it as
+        // gl_Position. Celeritas still needs clip space, so project the displaced world
+        // position here and let the geometry stage pass the clip position through.
+        transformer.replaceExpression(
+            "vec4(worldpos, 0.0)",
+            "iris_ProjectionMatrix * gbufferModelView * vec4(worldpos, 1.0)"
+        );
+
         final Map<String, String> vertexReplacements = new HashMap<>();
         vertexReplacements.put("gl_Vertex", "_celeritas_getVertexPosition()");
         vertexReplacements.put("gl_MultiTexCoord0", "vec4(_vert_tex_diffuse_coord, 0.0, 1.0)");
         vertexReplacements.put("gl_MultiTexCoord1", "iris_LightTexCoord");
         vertexReplacements.put("gl_MultiTexCoord2", "iris_LightTexCoord");
         vertexReplacements.forEach(transformer::replaceExpression);
+
+        if (transformer.hasVariable("chunkOffset")) {
+            transformer.removeVariable("chunkOffset");
+        }
 
         final Map<String, String> vertexRenames = new HashMap<>();
         vertexRenames.put("gl_Color", "_vert_color");
@@ -57,6 +72,17 @@ class CeleritasTransformer {
 
     public static void transformFragment(Transformer transformer, Parameters parameters) {
         transformShared(transformer, parameters);
+    }
+
+    private static void transformGeometry(Transformer transformer, Parameters parameters) {
+        transformShared(transformer, parameters);
+
+        // The geometry stage above is written for the pack's world-space vertex output.
+        // Celeritas now receives clip-space positions, so it must not reproject them.
+        transformer.replaceExpression(
+            "toClipSpace3(mat3(gbufferModelView) * vec3(vertex) + gbufferModelView[3].xyz)",
+            "vertex"
+        );
     }
 
     private static void transformShared(Transformer transformer, Parameters parameters) {

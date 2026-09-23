@@ -10,17 +10,17 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.resources.I18n;
-import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.text.TextFormatting;
 import org.jetbrains.annotations.Nullable;
 
 public class HeaderEntry extends BaseEntry {
 
-    public static final String BACK_BUTTON_TEXT = EnumChatFormatting.ITALIC + "< " + I18n.format("options.iris.back");
-    public static final String RESET_BUTTON_TEXT_INACTIVE = EnumChatFormatting.GRAY + I18n.format("options.iris.reset");
-    public static final String RESET_BUTTON_TEXT_ACTIVE = EnumChatFormatting.YELLOW + I18n.format("options.iris.reset");
+    public static final String BACK_BUTTON_TEXT = TextFormatting.ITALIC + "< " + I18n.format("options.iris.back");
+    public static final String RESET_BUTTON_TEXT_INACTIVE = TextFormatting.GRAY + I18n.format("options.iris.reset");
+    public static final String RESET_BUTTON_TEXT_ACTIVE = TextFormatting.YELLOW + I18n.format("options.iris.reset");
 
-    public static final String RESET_HOLD_SHIFT_TOOLTIP = EnumChatFormatting.BOLD + I18n.format("options.iris.reset.tooltip.holdShift");
-    public static final String RESET_TOOLTIP = EnumChatFormatting.RED + I18n.format("options.iris.reset.tooltip");
+    public static final String RESET_HOLD_SHIFT_TOOLTIP = TextFormatting.BOLD + I18n.format("options.iris.reset.tooltip.holdShift");
+    public static final String RESET_TOOLTIP = TextFormatting.RED + I18n.format("options.iris.reset.tooltip");
     public static final String IMPORT_TOOLTIP = I18n.format("options.iris.importSettings.tooltip");
     //				.withStyle(style -> style.withColor(TextColor.fromRgb(0x4da6ff)));
     public static final String EXPORT_TOOLTIP = I18n.format("options.iris.exportSettings.tooltip");
@@ -146,7 +146,7 @@ public class HeaderEntry extends BaseEntry {
         //			// https://github.com/IrisShaders/Iris/issues/1258
         //			if (Minecraft.getMinecraft().isFullScreen()) {
         //				this.screen.displayNotification(
-        //					"" + EnumChatFormatting.RED + EnumChatFormatting.BOLD + I18n.format("options.iris.mustDisableFullscreen");
+        //					"" + TextFormatting.RED + TextFormatting.BOLD + I18n.format("options.iris.mustDisableFullscreen");
         //				return false;
         //			}
         //

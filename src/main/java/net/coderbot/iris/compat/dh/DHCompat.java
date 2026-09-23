@@ -1,5 +1,6 @@
 package net.coderbot.iris.compat.dh;
 
+import com.gtnewhorizon.gtnhlib.compat.Mods;
 import com.gtnewhorizons.angelica.rendering.RenderingState;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
@@ -48,13 +49,7 @@ public class DHCompat {
     }
 
     public static void run() {
-        try {
-            Class.forName("com.seibel.distanthorizons.DistantHorizonsTweaker");
-            dhPresent = true;
-        }
-        catch (Exception e) {
-            dhPresent = false;
-        }
+        dhPresent = isDistantHorizonsLoaded();
         try {
             if (dhPresent) {
                 LodRendererEvents.setupEventHandlers();
@@ -67,6 +62,10 @@ public class DHCompat {
                 throw new RuntimeException("DH found, but one or more API methods are missing. Iris requires DH [2.0.4] or DH API version [1.1.0] or newer. Please make sure you are on the latest version of DH and Iris.", e);
             }
         }
+    }
+
+    public static boolean isDistantHorizonsLoaded() {
+        return Mods.DISTANTHORIZONS;
     }
 
     public static boolean lastPackIncompatible() {

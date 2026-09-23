@@ -1,7 +1,6 @@
 package net.coderbot.iris.gui;
 
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
-import cpw.mods.fml.client.config.GuiUtils;
 import lombok.Getter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
@@ -65,13 +64,13 @@ public final class GuiUtil {
         GLStateManager.enableTexture();
 
 		// Top left section
-		GuiUtils.drawTexturedModalRect(x, y, 0, vOffset, halfWidth, halfHeight, 0);
+		Gui.drawModalRectWithCustomSizedTexture(x, y, 0, vOffset, halfWidth, halfHeight, 256, 256);
 		// Top right section
-		GuiUtils.drawTexturedModalRect(x + halfWidth, y, 200 - (width - halfWidth), vOffset, width - halfWidth, halfHeight, 0);
+		Gui.drawModalRectWithCustomSizedTexture(x + halfWidth, y, 200 - (width - halfWidth), vOffset, width - halfWidth, halfHeight, 256, 256);
 		// Bottom left section
-		GuiUtils.drawTexturedModalRect(x, y + halfHeight, 0, vOffset + (20 - (height - halfHeight)), halfWidth, height - halfHeight, 0);
+		Gui.drawModalRectWithCustomSizedTexture(x, y + halfHeight, 0, vOffset + (20 - (height - halfHeight)), halfWidth, height - halfHeight, 256, 256);
 		// Bottom right section
-		GuiUtils.drawTexturedModalRect(x + halfWidth, y + halfHeight, 200 - (width - halfWidth), vOffset + (20 - (height - halfHeight)), width - halfWidth, height - halfHeight, 0);
+		Gui.drawModalRectWithCustomSizedTexture(x + halfWidth, y + halfHeight, 200 - (width - halfWidth), vOffset + (20 - (height - halfHeight)), width - halfWidth, height - halfHeight, 256, 256);
 	}
 
 	/**
@@ -200,7 +199,7 @@ public final class GuiUtil {
             GLStateManager.enableTexture();
 
 			// Draw the texture to the screen
-			GuiUtils.drawTexturedModalRect(x, y, u, v, width, height, 256);
+			Gui.drawModalRectWithCustomSizedTexture(x, y, u, v, width, height, 256, 256);
 		}
 
     }

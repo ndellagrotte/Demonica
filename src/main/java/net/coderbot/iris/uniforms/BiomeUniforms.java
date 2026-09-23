@@ -5,33 +5,16 @@ import com.gtnewhorizons.angelica.compat.iris.ModdedBiomeDetector;
 import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.parsing.BiomeCategories;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.MathHelper;
-import net.minecraft.world.biome.BiomeGenBase;
-import net.minecraft.world.biome.BiomeGenBeach;
-import net.minecraft.world.biome.BiomeGenDesert;
-import net.minecraft.world.biome.BiomeGenEnd;
-import net.minecraft.world.biome.BiomeGenForest;
-import net.minecraft.world.biome.BiomeGenHell;
-import net.minecraft.world.biome.BiomeGenHills;
-import net.minecraft.world.biome.BiomeGenJungle;
-import net.minecraft.world.biome.BiomeGenMesa;
-import net.minecraft.world.biome.BiomeGenMushroomIsland;
-import net.minecraft.world.biome.BiomeGenMutated;
-import net.minecraft.world.biome.BiomeGenOcean;
-import net.minecraft.world.biome.BiomeGenPlains;
-import net.minecraft.world.biome.BiomeGenRiver;
-import net.minecraft.world.biome.BiomeGenSavanna;
-import net.minecraft.world.biome.BiomeGenSnow;
-import net.minecraft.world.biome.BiomeGenStoneBeach;
-import net.minecraft.world.biome.BiomeGenSwamp;
-import net.minecraft.world.biome.BiomeGenTaiga;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.biome.Biome;
 import net.minecraftforge.common.BiomeDictionary;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Locale;
 
 import static net.coderbot.iris.gl.uniform.UniformUpdateFrequency.PER_TICK;
 
@@ -41,7 +24,7 @@ public class BiomeUniforms {
     private static final Minecraft client = Minecraft.getMinecraft();
 
     // Cache to avoid multiple biome lookups per tick
-    private static BiomeGenBase cachedBiome = null;
+    private static Biome cachedBiome = null;
     private static long cachedWorldTime = -1;
     private static int cachedPlayerX = Integer.MIN_VALUE;
     private static int cachedPlayerZ = Integer.MIN_VALUE;
@@ -54,25 +37,25 @@ public class BiomeUniforms {
                 .uniform1i(PER_TICK, "biome_category", BiomeUniforms::getBiomeCategory)
                 .uniform1i(PER_TICK, "biome_precipitation", BiomeUniforms::getBiomePrecipitation)
                 .uniform1f(PER_TICK, "rainfall", BiomeUniforms::getBiomeRainfall)
-                .uniform1f(PER_TICK, "temperature", BiomeUniforms::getBiomeTemperature);
+                .uniform1f(PER_TICK, "temperature", () -> BiomeUniforms.getBiomeTemperature());
     }
 
     /**
      * Gets the current biome, with caching to avoid repeated lookups within the same tick.
      * Returns null if player or world is not available.
      */
-    private static BiomeGenBase getCachedBiome() {
-        if (client.thePlayer == null || client.theWorld == null) {
+    private static Biome getCachedBiome() {
+        if (client.player == null || client.world == null) {
             return null;
         }
 
-        final long worldTime = client.theWorld.getTotalWorldTime();
-        final int playerX = MathHelper.floor_double(client.thePlayer.posX);
-        final int playerZ = MathHelper.floor_double(client.thePlayer.posZ);
+        final long worldTime = client.world.getTotalWorldTime();
+        final int playerX = MathHelper.floor(client.player.posX);
+        final int playerZ = MathHelper.floor(client.player.posZ);
 
         // Invalidate cache if time or position changed
         if (cachedBiome == null || cachedWorldTime != worldTime || cachedPlayerX != playerX || cachedPlayerZ != playerZ) {
-            cachedBiome = client.theWorld.getBiomeGenForCoords(playerX, playerZ);
+            cachedBiome = client.world.getBiome(new BlockPos(playerX, 0, playerZ));
             cachedWorldTime = worldTime;
             cachedPlayerX = playerX;
             cachedPlayerZ = playerZ;
@@ -81,44 +64,55 @@ public class BiomeUniforms {
         return cachedBiome;
     }
 
-    public static int getBiomePrecipitation() {
-        final BiomeGenBase biome = getCachedBiome();
+    static int getBiomePrecipitation(Biome biome, BlockPos pos) {
         if (biome == null) {
             return 0;
         }
 
-        if (!biome.enableRain && !biome.enableSnow) {
+        if (!biome.canRain() && !biome.isSnowyBiome()) {
             return 0;
         }
 
-        final float temp = biome.getFloatTemperature(
-                MathHelper.floor_double(client.thePlayer.posX),
-                MathHelper.floor_double(client.thePlayer.posY),
-                MathHelper.floor_double(client.thePlayer.posZ));
+        final float temp = biome.getTemperature(pos);
 
         return temp > 0.15F ? 1 : 2;
     }
 
+    public static int getBiomePrecipitation() {
+        final Biome biome = getCachedBiome();
+        if (biome == null) {
+            return 0;
+        }
+
+        final BlockPos pos = new BlockPos(
+                MathHelper.floor(client.player.posX),
+                MathHelper.floor(client.player.posY),
+                MathHelper.floor(client.player.posZ));
+        return getBiomePrecipitation(biome, pos);
+    }
+
     public static float getBiomeRainfall() {
-        final BiomeGenBase biome = getCachedBiome();
-        return biome != null ? biome.rainfall : 0.0F;
+        final Biome biome = getCachedBiome();
+        return biome != null ? biome.getRainfall() : 0.0F;
+    }
+
+    static float getBiomeTemperature(Biome biome) {
+        return biome != null ? biome.getDefaultTemperature() : 0.0F;
     }
 
     public static float getBiomeTemperature() {
-        final BiomeGenBase biome = getCachedBiome();
-        return biome != null ? biome.temperature : 0.0F;
+        return getBiomeTemperature(getCachedBiome());
     }
 
     /**
      * Biome ids in 1.7.10 are not unique, instead of this the biome category should be used
      */
     public static int getBiomeId() {
-        final BiomeGenBase biome = getCachedBiome();
-        return biome != null ? biome.biomeID : 0;
+        final Biome biome = getCachedBiome();
+        return biome != null ? Biome.getIdForBiome(biome) : 0;
     }
 
-    public static int getBiomeCategory() {
-        final BiomeGenBase biome = getCachedBiome();
+    static int getBiomeCategory(Biome biome) {
         if (biome == null) {
             return BiomeCategories.NONE.ordinal();
         }
@@ -137,7 +131,7 @@ public class BiomeUniforms {
             final String categoryName = (category >= 0 && category < categories.length)
                 ? categories[category].name()
                 : "INVALID(" + category + ")";
-            LOGGER.debug("Cached biome category for '{}': {}", biome.biomeName, categoryName);
+            LOGGER.debug("Cached biome category for '{}': {}", biome.getBiomeName(), categoryName);
 
             return category;
         }
@@ -146,25 +140,25 @@ public class BiomeUniforms {
         return determineBiomeCategory(biome);
     }
 
-    private static int determineBiomeCategory(BiomeGenBase biome) {
-        BiomeGenBase lookupBiome = biome;
-        if (biome instanceof BiomeGenMutated mutated && mutated.baseBiome != null) {
-            lookupBiome = mutated.baseBiome;
-        }
+    public static int getBiomeCategory() {
+        return getBiomeCategory(getCachedBiome());
+    }
+
+    private static int determineBiomeCategory(Biome biome) {
+        final Biome lookupBiome = biome;
 
         BiomeCategories category = null;
 
         // Tier 1: Hardcoded vanilla biome IDs
-        // biomes not in the biomeGenArray are also not registered to the forge biomeDictionary
-        if (Arrays.asList(BiomeGenBase.getBiomeGenArray()).contains(biome)) {
-            category = getVanillaBiomeCategory(lookupBiome.biomeID);
+        if (isVanillaBiome(biome)) {
+            category = getVanillaBiomeCategory(Biome.getIdForBiome(lookupBiome));
 
             if (category != null) {
                 return category.ordinal();
             }
 
             // Tier 2: forge BiomeDictionary detection
-            if (BiomeDictionary.isBiomeRegistered(biome)) {
+            if (BiomeDictionary.hasAnyType(biome)) {
                 category = detectBiomeByBiomeDictionary(biome);
             }
         }
@@ -257,32 +251,35 @@ public class BiomeUniforms {
         };
     }
 
-    private static final Map<Class<? extends BiomeGenBase>, BiomeCategories> VANILLA_CLASS_MAP = createVanillaClassMap();
+    private static final Map<Class<? extends Biome>, BiomeCategories> VANILLA_CLASS_MAP = createVanillaClassMap();
 
-    private static Map<Class<? extends BiomeGenBase>, BiomeCategories> createVanillaClassMap() {
-        final Map<Class<? extends BiomeGenBase>, BiomeCategories> map = new HashMap<>();
+    private static Map<Class<? extends Biome>, BiomeCategories> createVanillaClassMap() {
+        final Map<Class<? extends Biome>, BiomeCategories> map = new HashMap<>();
         // Most specific first (subclasses before superclasses)
-        map.put(BiomeGenStoneBeach.class, BiomeCategories.BEACH);
-        map.put(BiomeGenBeach.class, BiomeCategories.BEACH);
-        map.put(BiomeGenMushroomIsland.class, BiomeCategories.MUSHROOM);
-        map.put(BiomeGenOcean.class, BiomeCategories.OCEAN);
-        map.put(BiomeGenPlains.class, BiomeCategories.PLAINS);
-        map.put(BiomeGenDesert.class, BiomeCategories.DESERT);
-        map.put(BiomeGenHills.class, BiomeCategories.EXTREME_HILLS);
-        map.put(BiomeGenForest.class, BiomeCategories.FOREST);
-        map.put(BiomeGenTaiga.class, BiomeCategories.TAIGA);
-        map.put(BiomeGenSwamp.class, BiomeCategories.SWAMP);
-        map.put(BiomeGenRiver.class, BiomeCategories.RIVER);
-        map.put(BiomeGenHell.class, BiomeCategories.NETHER);
-        map.put(BiomeGenEnd.class, BiomeCategories.THE_END);
-        map.put(BiomeGenSnow.class, BiomeCategories.ICY);
-        map.put(BiomeGenJungle.class, BiomeCategories.JUNGLE);
-        map.put(BiomeGenSavanna.class, BiomeCategories.SAVANNA);
-        map.put(BiomeGenMesa.class, BiomeCategories.MESA);
+        map.put(net.minecraft.world.biome.BiomeStoneBeach.class, BiomeCategories.BEACH);
+        map.put(net.minecraft.world.biome.BiomeBeach.class, BiomeCategories.BEACH);
+        map.put(net.minecraft.world.biome.BiomeMushroomIsland.class, BiomeCategories.MUSHROOM);
+        map.put(net.minecraft.world.biome.BiomeOcean.class, BiomeCategories.OCEAN);
+        map.put(net.minecraft.world.biome.BiomePlains.class, BiomeCategories.PLAINS);
+        map.put(net.minecraft.world.biome.BiomeDesert.class, BiomeCategories.DESERT);
+        map.put(net.minecraft.world.biome.BiomeHills.class, BiomeCategories.EXTREME_HILLS);
+        map.put(net.minecraft.world.biome.BiomeForest.class, BiomeCategories.FOREST);
+        map.put(net.minecraft.world.biome.BiomeForestMutated.class, BiomeCategories.FOREST);
+        map.put(net.minecraft.world.biome.BiomeTaiga.class, BiomeCategories.TAIGA);
+        map.put(net.minecraft.world.biome.BiomeSwamp.class, BiomeCategories.SWAMP);
+        map.put(net.minecraft.world.biome.BiomeRiver.class, BiomeCategories.RIVER);
+        map.put(net.minecraft.world.biome.BiomeHell.class, BiomeCategories.NETHER);
+        map.put(net.minecraft.world.biome.BiomeEnd.class, BiomeCategories.THE_END);
+        map.put(net.minecraft.world.biome.BiomeSnow.class, BiomeCategories.ICY);
+        map.put(net.minecraft.world.biome.BiomeJungle.class, BiomeCategories.JUNGLE);
+        map.put(net.minecraft.world.biome.BiomeSavanna.class, BiomeCategories.SAVANNA);
+        map.put(net.minecraft.world.biome.BiomeSavannaMutated.class, BiomeCategories.SAVANNA);
+        map.put(net.minecraft.world.biome.BiomeMesa.class, BiomeCategories.MESA);
+        map.put(net.minecraft.world.biome.BiomeVoid.class, BiomeCategories.NONE);
         return map;
     }
 
-    private static BiomeCategories detectVanillaBiomeByClass(BiomeGenBase biome) {
+    private static BiomeCategories detectVanillaBiomeByClass(Biome biome) {
         // Direct class lookup (O(1) for exact matches)
         final BiomeCategories direct = VANILLA_CLASS_MAP.get(biome.getClass());
         if (direct != null) {
@@ -290,7 +287,7 @@ public class BiomeUniforms {
         }
 
         // Fallback: instanceof checks for subclasses (modded biomes extending vanilla)
-        for (Map.Entry<Class<? extends BiomeGenBase>, BiomeCategories> entry : VANILLA_CLASS_MAP.entrySet()) {
+        for (Map.Entry<Class<? extends Biome>, BiomeCategories> entry : VANILLA_CLASS_MAP.entrySet()) {
             if (entry.getKey().isInstance(biome)) {
                 return entry.getValue();
             }
@@ -299,14 +296,15 @@ public class BiomeUniforms {
         return null;
     }
 
-    private static BiomeCategories detectModdedBiome(BiomeGenBase biome) {
+    private static BiomeCategories detectModdedBiome(Biome biome) {
         return ModdedBiomeDetector.detectModdedBiome(biome);
     }
 
-    private static BiomeCategories detectBiomeByName(BiomeGenBase biome) {
-        if (biome.biomeName == null) return null;
+    private static BiomeCategories detectBiomeByName(Biome biome) {
+        final String biomeName = biome.getBiomeName();
+        if (biomeName == null) return null;
 
-        final String name = biome.biomeName.toLowerCase();
+        final String name = biomeName.toLowerCase(Locale.ROOT);
 
         // Check for keywords in biome names
         // Priority order matters - check more specific terms first
@@ -345,22 +343,22 @@ public class BiomeUniforms {
         return null;
     }
 
-    private static BiomeCategories detectBiomeByProperties(BiomeGenBase biome) {
-        final float temp = biome.temperature;
-        final float rain = biome.rainfall;
+    private static BiomeCategories detectBiomeByProperties(Biome biome) {
+        final float temp = biome.getDefaultTemperature();
+        final float rain = biome.getRainfall();
 
         // Very cold biomes with snow
-        if (temp <= 0.0F && biome.enableSnow) {
+        if (temp <= 0.0F && biome.isSnowyBiome()) {
             return BiomeCategories.ICY;
         }
 
         // Hot, dry biomes
-        if (temp >= 2.0F && !biome.enableRain) {
+        if (temp >= 2.0F && !biome.canRain()) {
             return BiomeCategories.DESERT;
         }
 
         // Warm, dry biomes (savanna-like)
-        if (temp >= 1.0F && rain <= 0.1F && !biome.enableRain) {
+        if (temp >= 1.0F && rain <= 0.1F && !biome.canRain()) {
             return BiomeCategories.SAVANNA;
         }
 
@@ -390,38 +388,40 @@ public class BiomeUniforms {
     /**
      * Use the forge BiomeDictionary when available
      */
-    private static BiomeCategories detectBiomeByBiomeDictionary(BiomeGenBase biome) {
-
-        var biomeDictTypes = Arrays.asList(BiomeDictionary.getTypesForBiome(biome));
-
-        if (biomeDictTypes.contains(BiomeDictionary.Type.SAVANNA)) {
+    private static BiomeCategories detectBiomeByBiomeDictionary(Biome biome) {
+        if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.SAVANNA)) {
             return BiomeCategories.SAVANNA;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.JUNGLE)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.JUNGLE)) {
             return BiomeCategories.JUNGLE;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.NETHER)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.NETHER)) {
             return BiomeCategories.NETHER;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.END)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.END)) {
             return BiomeCategories.THE_END;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.MUSHROOM)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.MUSHROOM)) {
             return BiomeCategories.MUSHROOM;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.OCEAN)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.OCEAN)) {
             return BiomeCategories.OCEAN;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.RIVER)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.RIVER)) {
             return BiomeCategories.RIVER;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.MESA)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.MESA)) {
             return BiomeCategories.MESA;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.FOREST)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.FOREST)) {
             return BiomeCategories.FOREST;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.PLAINS)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.PLAINS)) {
             return BiomeCategories.PLAINS;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.MOUNTAIN)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.MOUNTAIN)) {
             return BiomeCategories.MOUNTAIN;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.SWAMP)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.SWAMP)) {
             return BiomeCategories.SWAMP;
-        } else if (biomeDictTypes.contains(BiomeDictionary.Type.SANDY)) {
+        } else if (BiomeDictionary.hasType(biome, BiomeDictionary.Type.SANDY)) {
             return BiomeCategories.DESERT;
         }
 
         return null;
+    }
+
+    private static boolean isVanillaBiome(Biome biome) {
+        return biome.getRegistryName() != null
+                && "minecraft".equals(biome.getRegistryName().getNamespace());
     }
 }

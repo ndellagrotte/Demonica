@@ -29,6 +29,12 @@ public class IrisConfig {
 	private boolean enableShaders;
 
 	/**
+	 * Set by button/API toggles before a reload. initialize() must keep
+	 * this value instead of re-deriving it from the on-disk properties.
+	 */
+	private boolean enableShadersExplicitlySet;
+
+	/**
 	 * If the update notification should be disabled or not.
 	 */
 	private boolean disableUpdateMessage;
@@ -55,6 +61,11 @@ public class IrisConfig {
 	 */
 	public void initialize() throws IOException {
 		load();
+		// With no shader pack selected there is nothing to render, so keep the
+		// enable switch off instead of inheriting the "enabled by default" state.
+		if (shaderPackName == null && !enableShadersExplicitlySet) {
+			enableShaders = false;
+		}
 		if (!Files.exists(propertiesPath)) {
 			save();
 		}
@@ -107,6 +118,7 @@ public class IrisConfig {
 	 */
 	public void setShadersEnabled(boolean enabled) {
 		this.enableShaders = enabled;
+		this.enableShadersExplicitlySet = true;
 	}
 
 	public boolean areDebugOptionsEnabled() {
@@ -130,7 +142,11 @@ public class IrisConfig {
 			properties.load(is);
 		}
 		shaderPackName = properties.getProperty("shaderPack");
-		enableShaders = !"false".equals(properties.getProperty("enableShaders"));
+		// A toggle issued before a reload (button/API) wins over the on-disk value;
+		// only derive the flag from disk when no explicit value is pending.
+		if (!enableShadersExplicitlySet) {
+			enableShaders = !"false".equals(properties.getProperty("enableShaders"));
+		}
 		enableDebugOptions = "true".equals(properties.getProperty("enableDebugOptions"));
 		disableUpdateMessage = "true".equals(properties.getProperty("disableUpdateMessage"));
         // TODO: GUI

@@ -1,8 +1,8 @@
 package net.coderbot.iris.gui.element.widget;
 
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
-import cpw.mods.fml.client.config.GuiUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.util.ResourceLocation;
 
 import java.util.function.Consumer;
@@ -24,14 +24,14 @@ public class IrisImageButton extends IrisButton {
 
 
     @Override
-    public void drawButton(Minecraft mc, int mouseX, int mouseY) {
+    public void drawButton(Minecraft mc, int mouseX, int mouseY, float partialTicks) {
         if(!this.visible) {
             return;
         }
 
         int yTex = this.yTexStart;
-        this.field_146123_n/*isMouseOver*/ = mouseX >= this.xPosition && mouseY >= this.yPosition && mouseX < this.xPosition + this.width && mouseY < this.yPosition + this.height;
-        if(this.getHoverState(this.field_146123_n) == 2) {
+        this.hovered = mouseX >= this.x && mouseY >= this.y && mouseX < this.x + this.width && mouseY < this.y + this.height;
+        if(this.getHoverState(this.hovered) == 2) {
             yTex += this.yDiffTex;
         }
 
@@ -44,7 +44,7 @@ public class IrisImageButton extends IrisButton {
         mc.getTextureManager().bindTexture(this.textureLocation);
 
         // Draw the texture to the screen
-        GuiUtils.drawTexturedModalRect(this.xPosition, this.yPosition, this.xTexStart, yTex, width, height, 256);
+        Gui.drawModalRectWithCustomSizedTexture(this.x, this.y, this.xTexStart, yTex, width, height, 256, 256);
 
     }
 

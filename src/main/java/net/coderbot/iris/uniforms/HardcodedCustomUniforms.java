@@ -1,12 +1,11 @@
 package net.coderbot.iris.uniforms;
 
-import com.gtnewhorizons.angelica.config.AngelicaConfig;
 import com.gtnewhorizons.angelica.rendering.RenderingState;
 import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.gl.uniform.UniformUpdateFrequency;
+import net.coderbot.iris.parsing.BiomeCategories;
 import net.coderbot.iris.uniforms.transforms.SmoothedFloat;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.entity.player.EntityPlayer;
 import org.joml.Math;
 import org.joml.Vector3d;
@@ -17,18 +16,8 @@ import org.joml.Vector3d;
 // mostly working under Iris.
 public class HardcodedCustomUniforms {
 	private static final Minecraft client = Minecraft.getMinecraft();
-    // TODO: Biome
-//	private static Biome storedBiome;
 
 	public static void addHardcodedCustomUniforms(UniformHolder holder, FrameUpdateNotifier updateNotifier) {
-		updateNotifier.addListener(() -> {
-//			if (Minecraft.getMinecraft().level != null) {
-//				storedBiome = Minecraft.getMinecraft().level.getBiome(Minecraft.getMinecraft().getCameraEntity().blockPosition());
-//			} else {
-//				storedBiome = null;
-//			}
-		});
-
 		CameraUniforms.CameraPositionTracker tracker = new CameraUniforms.CameraPositionTracker(updateNotifier);
 
         final SmoothedFloat eyeInCave = new SmoothedFloat(6, 12, HardcodedCustomUniforms::getEyeInCave, updateNotifier);
@@ -57,22 +46,9 @@ public class HardcodedCustomUniforms {
 		holder.uniform1f(UniformUpdateFrequency.PER_FRAME, "rainFactor", rainStrengthS);
 
 		// The following uniforms are Sildur's specific.
-		holder.uniform1f(UniformUpdateFrequency.PER_FRAME, "inSwamp", new SmoothedFloat(5, 5, () -> {
-            return 0;
-//			if (storedBiome == null) {
-//				return 0;
-//			} else {
-//				return storedBiome.getBiomeCategory() == Biome.BiomeCategory.SWAMP ? 1 : 0;
-//			}
-		}, updateNotifier));
-		holder.uniform1f(UniformUpdateFrequency.PER_FRAME, "BiomeTemp", () -> {
-            return 0;
-//			if (storedBiome == null) {
-//				return 0;
-//			} else {
-//				return storedBiome.getTemperature(Minecraft.getMinecraft().getCameraEntity().blockPosition());
-//			}
-		});
+		holder.uniform1f(UniformUpdateFrequency.PER_FRAME, "inSwamp", new SmoothedFloat(5, 5,
+			() -> BiomeUniforms.getBiomeCategory() == BiomeCategories.SWAMP.ordinal() ? 1 : 0, updateNotifier));
+		holder.uniform1f(UniformUpdateFrequency.PER_FRAME, "BiomeTemp", () -> BiomeUniforms.getBiomeTemperature());
 
 		// The following uniforms are specific to Super Duper Vanilla Shaders.
 		holder.uniform1f(UniformUpdateFrequency.PER_FRAME, "day", HardcodedCustomUniforms::getDay);
@@ -94,16 +70,16 @@ public class HardcodedCustomUniforms {
 	}
 
 	private static float getBurnFactor() {
-        final EntityPlayer player = Minecraft.getMinecraft().thePlayer;
+        final EntityPlayer player = Minecraft.getMinecraft().player;
         return player.fire > 0 && !player.isImmuneToFire() ? 1.0f : 0f;
 	}
 
 	private static float getSneakFactor() {
-		return Minecraft.getMinecraft().thePlayer.isSneaking() ? 1.0f : 0f;
+		return Minecraft.getMinecraft().player.isSneaking() ? 1.0f : 0f;
 	}
 
 	private static float getHurtFactor() {
-		final EntityPlayer player = Minecraft.getMinecraft().thePlayer;
+		final EntityPlayer player = Minecraft.getMinecraft().player;
 		return player.hurtTime > 0 || player.deathTime > 0 ? 0.4f : 0f;
 	}
 
@@ -120,7 +96,7 @@ public class HardcodedCustomUniforms {
 	}
 
 	private static float getEyeSkyBrightness() {
-        final int eyeBrightness = client.renderViewEntity.getBrightnessForRender(CapturedRenderingState.INSTANCE.getTickDelta());
+        final int eyeBrightness = client.getRenderViewEntity().getBrightnessForRender();
         return (eyeBrightness & 0xffff);
 //		if (client.cameraEntity == null || client.level == null) {
 //			return 0;
@@ -159,8 +135,7 @@ public class HardcodedCustomUniforms {
 	}
 
 	private static int getWorldDayTime() {
-        final WorldClient world = Minecraft.getMinecraft().theWorld;
-        return (int) ((AngelicaConfig.useTotalWorldTime ? world.getTotalWorldTime() : world.getWorldTime()) % 24000L);
+		return WorldTimeUniforms.getWorldDayTime();
 //		Level level = Minecraft.getMinecraft().theWorld;
 //		long  timeOfDay = level.getDayTime();
 //		long dayTime = ((DimensionTypeAccessor) level.dimensionType()).getFixedTime().orElse(timeOfDay % 24000L);
@@ -183,17 +158,7 @@ public class HardcodedCustomUniforms {
 	}
 
 	private static float getRawPrecipitation() {
-        // TODO: Biome
-//		if (storedBiome == null) {
-//			return 0;
-//		}
-				return 0;
-//		Biome.Precipitation precipitation = storedBiome.getPrecipitation();
-//        return switch (precipitation) {
-//            case RAIN -> 1;
-//            case SNOW -> 2;
-//            default -> 0;
-//        };
+		return BiomeUniforms.getBiomePrecipitation();
 	}
 
 	private static float getBlindFactor() {

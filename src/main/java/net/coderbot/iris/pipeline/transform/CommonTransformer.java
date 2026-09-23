@@ -22,6 +22,14 @@ public class CommonTransformer {
 		if (parameters.type == ShaderType.VERTEX) {
 			root.injectVariable("out vec4 iris_FrontColor;");
 			root.rename("gl_FrontColor", "iris_FrontColor");
+			// Legacy packs read gl_Color in the composite vertex stage (e.g. Sildur's
+			// Enhanced Default). The full-screen quad has no color attribute, so map it
+			// to the same white-initialized out variable that gl_FrontColor uses.
+			// Only COMPOSITE: other patches map gl_Color themselves (ATTRIBUTES to the
+			// vertex color / modulator, Celeritas and DH terrain to _vert_color).
+			if (parameters.patch == Patch.COMPOSITE) {
+				root.rename("gl_Color", "iris_FrontColor");
+			}
 			root.prependMain("iris_FrontColor = vec4(1.0);");
 		} else if (parameters.type == ShaderType.FRAGMENT) {
 			root.injectVariable("in vec4 iris_FrontColor;");
@@ -55,8 +63,8 @@ public class CommonTransformer {
 			root.rename("texture", "gtexture");
 		}
 
-		if (root.hasVariable("angelica_renamed_texture")) {
-			root.rename("angelica_renamed_texture", "gtexture");
+		if (root.hasVariable("actinium_renamed_texture")) {
+			root.rename("actinium_renamed_texture", "gtexture");
 		}
 
 		if (root.containsCall("gcolor") && root.hasVariable("gcolor")) {
@@ -74,20 +82,21 @@ public class CommonTransformer {
 		root.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES);
 		root.renameAndWrapShadow("shadow2D", "texture");
 		root.renameAndWrapShadow("shadow2DLod", "textureLod");
+		AdaptiveShadowBoundsTransformer.transform(root, parameters.type);
 
 		if (parameters.patch == Patch.ATTRIBUTES && parameters.type == ShaderType.VERTEX) {
-			root.injectVariable("uniform bool angelica_ClipPlanesEnabled;");
-			root.injectVariable("uniform vec4 angelica_ClipPlane[8];");
+			root.injectVariable("uniform bool actinium_ClipPlanesEnabled;");
+			root.injectVariable("uniform vec4 actinium_ClipPlane[8];");
 			root.appendMain(
-				"{ if (angelica_ClipPlanesEnabled) { vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex; "
-				+ "gl_ClipDistance[0] = dot(angelica_ClipPlane[0], _cp_ep); "
-				+ "gl_ClipDistance[1] = dot(angelica_ClipPlane[1], _cp_ep); "
-				+ "gl_ClipDistance[2] = dot(angelica_ClipPlane[2], _cp_ep); "
-				+ "gl_ClipDistance[3] = dot(angelica_ClipPlane[3], _cp_ep); "
-				+ "gl_ClipDistance[4] = dot(angelica_ClipPlane[4], _cp_ep); "
-				+ "gl_ClipDistance[5] = dot(angelica_ClipPlane[5], _cp_ep); "
-				+ "gl_ClipDistance[6] = dot(angelica_ClipPlane[6], _cp_ep); "
-				+ "gl_ClipDistance[7] = dot(angelica_ClipPlane[7], _cp_ep); } }"
+				"{ if (actinium_ClipPlanesEnabled) { vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex; "
+				+ "gl_ClipDistance[0] = dot(actinium_ClipPlane[0], _cp_ep); "
+				+ "gl_ClipDistance[1] = dot(actinium_ClipPlane[1], _cp_ep); "
+				+ "gl_ClipDistance[2] = dot(actinium_ClipPlane[2], _cp_ep); "
+				+ "gl_ClipDistance[3] = dot(actinium_ClipPlane[3], _cp_ep); "
+				+ "gl_ClipDistance[4] = dot(actinium_ClipPlane[4], _cp_ep); "
+				+ "gl_ClipDistance[5] = dot(actinium_ClipPlane[5], _cp_ep); "
+				+ "gl_ClipDistance[6] = dot(actinium_ClipPlane[6], _cp_ep); "
+				+ "gl_ClipDistance[7] = dot(actinium_ClipPlane[7], _cp_ep); } }"
 			);
 		}
 	}

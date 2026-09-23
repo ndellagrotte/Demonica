@@ -24,7 +24,7 @@ public class TextureExporter {
 		GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
 		nativeImage.downloadTexture(level, false);
 
-		File dir = new File(Minecraft.getMinecraft().mcDataDir, directory);
+		File dir = new File(Minecraft.getMinecraft().gameDir, directory);
 		dir.mkdirs();
 		File file = new File(dir, filename);
 

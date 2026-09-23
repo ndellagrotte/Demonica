@@ -72,7 +72,7 @@ public final class IdMapUniforms {
 		}
 
 		public void update() {
-			EntityPlayer player = Minecraft.getMinecraft().thePlayer;
+			EntityPlayer player = Minecraft.getMinecraft().player;
 
 			if (player == null) {
 				// Not valid when the player doesn't exist
@@ -94,11 +94,11 @@ public final class IdMapUniforms {
 				return;
 			}
 
-			ResourceLocation heldItemId = new ResourceLocation(Item.itemRegistry.getNameForObject(heldItem));
-			intID = itemIdMap.applyAsInt(new NamespacedId(heldItemId.getResourceDomain(), heldItemId.getResourcePath()));
+			ResourceLocation heldItemId = Item.REGISTRY.getNameForObject(heldItem);
+			intID = itemIdMap.getInt(new NamespacedId(heldItemId.getNamespace(), heldItemId.getPath()));
 
 			IrisItemLightProvider lightProvider = (IrisItemLightProvider) heldItem;
-			lightValue = lightProvider.getLightEmission(Minecraft.getMinecraft().thePlayer, heldStack);
+			lightValue = lightProvider.getLightEmission(Minecraft.getMinecraft().player, heldStack);
 
 			if (applyOldHandLight) {
 				lightProvider = applyOldHandLighting(player, lightProvider);
@@ -119,7 +119,7 @@ public final class IdMapUniforms {
 			}
 
 			IrisItemLightProvider lightProvider = (IrisItemLightProvider) offHandItem;
-			int newEmission = lightProvider.getLightEmission(Minecraft.getMinecraft().thePlayer,  offHandStack);
+			int newEmission = lightProvider.getLightEmission(Minecraft.getMinecraft().player,  offHandStack);
 
 			if (lightValue < newEmission) {
 				lightValue = newEmission;

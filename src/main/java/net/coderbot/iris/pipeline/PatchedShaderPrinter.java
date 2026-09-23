@@ -42,7 +42,7 @@ public class PatchedShaderPrinter {
 		if (!prettyPrintShaders && !Iris.getIrisConfig().areDebugOptionsEnabled()) {
 			return;
 		}
-		final Path debugOutDir = Minecraft.getMinecraft().mcDataDir.toPath().resolve("patched_shaders");
+		final Path debugOutDir = Minecraft.getMinecraft().gameDir.toPath().resolve("patched_shaders");
 		if (!outputLocationCleared) {
 			try {
 				if (Files.exists(debugOutDir)) {

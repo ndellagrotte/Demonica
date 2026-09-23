@@ -3,7 +3,6 @@ package net.coderbot.iris.texture.util;
 import com.gtnewhorizon.gtnhlib.bytebuf.MemoryStack;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.OpenGlHelper;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
@@ -18,7 +17,7 @@ public class TextureManipulationUtil {
 	public static void fillWithColor(int textureId, int maxLevel, int rgba) {
         try(final MemoryStack stack = stackPush()) {
             if (colorFillFBO == -1) {
-                colorFillFBO = OpenGlHelper.func_153165_e/*glGenFramebuffers*/();
+                colorFillFBO = GL30.glGenFramebuffers();
             }
 
             final int previousFramebufferId = GLStateManager.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
@@ -26,9 +25,9 @@ public class TextureManipulationUtil {
             GLStateManager.glGetFloat(GL11.GL_COLOR_CLEAR_VALUE, previousClearColorBuffer);
             final int previousTextureId = GLStateManager.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
             final IntBuffer previousViewportBuffer = stack.mallocInt(4);
-            GLStateManager.glGetInteger(GL11.GL_VIEWPORT, previousViewportBuffer);
+            GL11.glGetIntegerv(GL11.GL_VIEWPORT, previousViewportBuffer);
 
-            OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_FRAMEBUFFER, colorFillFBO);
+            GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER, colorFillFBO);
             GLStateManager.glClearColor(
                 (rgba >> 24 & 0xFF) / 255.0f,
                 (rgba >> 16 & 0xFF) / 255.0f,
@@ -46,7 +45,7 @@ public class TextureManipulationUtil {
                     textureId,
                     level);
                 GLStateManager.glClear(GL11.GL_COLOR_BUFFER_BIT);
-                if (Minecraft.isRunningOnMac) {
+                if (Minecraft.IS_RUNNING_ON_MAC) {
                     GLStateManager.glGetError();
                 }
 
@@ -58,7 +57,7 @@ public class TextureManipulationUtil {
                     level);
             }
 
-            OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_FRAMEBUFFER, previousFramebufferId);
+            GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebufferId);
             GLStateManager.glClearColor(
                 previousClearColorBuffer.get(0),
                 previousClearColorBuffer.get(1),

@@ -4,7 +4,7 @@ import net.coderbot.iris.gui.NavigationController;
 import net.coderbot.iris.gui.element.widget.AbstractElementWidget;
 import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.util.MathHelper;
+import net.minecraft.util.math.MathHelper;
 
 import java.util.List;
 
@@ -43,9 +43,9 @@ public class ElementRowEntry extends BaseEntry {
     }
 
     public int getHoveredWidget(int mouseX) {
-        final float positionAcrossWidget = ((float) MathHelper.clamp_int(mouseX - cachedPosX, 0, cachedWidth)) / cachedWidth;
+        final float positionAcrossWidget = ((float) MathHelper.clamp(mouseX - cachedPosX, 0, cachedWidth)) / cachedWidth;
 
-        return MathHelper.clamp_int((int) Math.floor(widgets.size() * positionAcrossWidget), 0, widgets.size() - 1);
+        return MathHelper.clamp((int) Math.floor(widgets.size() * positionAcrossWidget), 0, widgets.size() - 1);
     }
 
     @Override
@@ -55,7 +55,13 @@ public class ElementRowEntry extends BaseEntry {
 
     @Override
     public boolean mouseReleased(int mouseX, int mouseY, int button) {
-        return this.widgets.get(getHoveredWidget(mouseX)).mouseReleased(mouseX, mouseY, button);
+        boolean handled = false;
+
+        for (AbstractElementWidget<?> widget : this.widgets) {
+            handled |= widget.mouseReleased(mouseX, mouseY, button);
+        }
+
+        return handled;
     }
 
 }

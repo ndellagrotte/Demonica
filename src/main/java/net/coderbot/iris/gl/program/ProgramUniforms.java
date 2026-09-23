@@ -1,7 +1,7 @@
 package net.coderbot.iris.gl.program;
 
+import net.coderbot.iris.debug.IrisDebugOptions;
 import com.google.common.collect.ImmutableList;
-import com.gtnewhorizons.angelica.config.AngelicaConfig;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import java.nio.IntBuffer;
@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.function.Supplier;
 
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.gl.state.ValueUpdateNotifier;
@@ -21,9 +20,7 @@ import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.gl.uniform.UniformType;
 import net.coderbot.iris.gl.uniform.UniformUpdateFrequency;
 import net.coderbot.iris.uniforms.SystemTimeUniforms;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.WorldClient;
-import org.joml.Vector3i;
+import net.coderbot.iris.uniforms.WorldTimeUniforms;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.ARBShaderImageLoadStore;
 import org.lwjgl.opengl.GL11;
@@ -57,14 +54,7 @@ public class ProgramUniforms {
 	}
 
 	private static long getCurrentTick() {
-        final WorldClient world = Minecraft.getMinecraft().theWorld;
-		if (world != null) {
-            return AngelicaConfig.useTotalWorldTime
-                ? world.getTotalWorldTime()
-                : world.getWorldTime();
-		} else {
-			return 0L;
-		}
+		return WorldTimeUniforms.getWorldClock();
 	}
 
 	public void update() {
@@ -115,6 +105,20 @@ public class ProgramUniforms {
 	public static void clearActiveUniforms() {
 		if (active != null) {
 			active.removeListeners();
+		}
+	}
+
+	public static void refreshActiveUniforms() {
+		if (active != null) {
+			active.updateMatrixUniforms(active.perFrame);
+		}
+	}
+
+	private void updateMatrixUniforms(ImmutableList<Uniform> uniforms) {
+		for (Uniform uniform : uniforms) {
+			if (uniform instanceof net.coderbot.iris.gl.uniform.MatrixUniform) {
+				uniform.update();
+			}
 		}
 	}
 
@@ -207,7 +211,7 @@ public class ProgramUniforms {
 				final UniformType provided = uniformNames.get(name);
                 final UniformType expected = getExpectedType(type);
 
-				if(AngelicaConfig.enableHardcodedCustomUniforms) {
+				if(IrisDebugOptions.enableHardcodedCustomUniforms()) {
 					// Legacy Checks from hardcoded custom uniforms
 					if (provided == null && !name.startsWith("gl_")) {
 						final String typeName = getTypeName(type);

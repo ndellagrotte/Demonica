@@ -12,11 +12,12 @@ import net.coderbot.iris.gbuffer_overrides.matching.InputAvailability;
 import net.coderbot.iris.gbuffer_overrides.matching.SpecialCondition;
 import net.coderbot.iris.gbuffer_overrides.state.RenderTargetStateListener;
 import net.coderbot.iris.gl.texture.TextureType;
+import net.coderbot.iris.gl.framebuffer.MinecraftFramebufferHelper;
 import net.coderbot.iris.helpers.Tri;
 import net.coderbot.iris.shaderpack.CloudSetting;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
-import net.minecraft.client.Minecraft;
+import dhj.embeddedt.embeddium.impl.model.light.debug.AODebug;
 import net.minecraft.client.renderer.EntityRenderer;
 
 import java.util.List;
@@ -28,14 +29,26 @@ public class FixedFunctionWorldRenderingPipeline implements WorldRenderingPipeli
 		BlockRenderingSettings.INSTANCE.setUseSeparateAo(false);
 		BlockRenderingSettings.INSTANCE.setAmbientOcclusionLevel(1.0f);
 		BlockRenderingSettings.INSTANCE.setUseExtendedVertexFormat(false);
+		AODebug.logSettings("fixed", 1.0f, false);
+		BlockRenderingSettings.INSTANCE.setBlockMetaMatches(null);
+		BlockRenderingSettings.INSTANCE.setBlockNbtMap(null);
 		BlockRenderingSettings.INSTANCE.setBlockTypeIds(null);
+		BlockRenderingSettings.INSTANCE.setEntityIds(null);
+		BlockRenderingSettings.INSTANCE.setEntityNbtMap(null);
+		BlockRenderingSettings.INSTANCE.setItemIds(null);
+		BlockRenderingSettings.INSTANCE.setItemNbtMap(null);
 	}
 
 	@Override
 	public void beginLevelRendering() {
 		// Use the default Minecraft framebuffer and ensure that no programs are in use
-        Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);
+        MinecraftFramebufferHelper.bindMainFramebuffer(true);
 		GLStateManager.glUseProgram(0);
+	}
+
+	@Override
+	public void renderPreSkyPrepare() {
+		// stub: nothing to do here
 	}
 
 	@Override
@@ -96,6 +109,11 @@ public class FixedFunctionWorldRenderingPipeline implements WorldRenderingPipeli
 	@Override
 	public void onBindTexture(int id) {
 
+	}
+
+	@Override
+	public void restoreActivePass() {
+		// Fixed-function rendering has no shader-pack pass state to restore.
 	}
 
 	@Override

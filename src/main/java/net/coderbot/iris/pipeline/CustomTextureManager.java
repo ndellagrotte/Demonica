@@ -1,7 +1,6 @@
 package net.coderbot.iris.pipeline;
 
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
-import com.gtnewhorizons.angelica.mixins.interfaces.EntityRendererAccessor;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -28,6 +27,7 @@ import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.renderer.texture.TextureUtil;
 import net.minecraft.util.ResourceLocation;
 import org.apache.commons.io.FilenameUtils;
+import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.PostProcessingBridge;
 import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
@@ -102,7 +102,7 @@ public class CustomTextureManager {
 		} else if (textureData instanceof CustomTextureData.LightmapMarker) {
 			// Special code path for the light texture. While shader packs hardcode the primary light texture, it's possible that a mod will
 			// create a different light texture, so this code path is robust to that.
-			return new TextureWrapper(() -> ((EntityRendererAccessor) Minecraft.getMinecraft().entityRenderer).getLightmapTexture().getGlTextureId(), TextureType.TEXTURE_2D);
+			return new TextureWrapper(() -> PostProcessingBridge.getLightmapTexture(Minecraft.getMinecraft().entityRenderer).getGlTextureId(), TextureType.TEXTURE_2D);
 		} else if (textureData instanceof CustomTextureData.RawData1D rawData) {
 			final GlTexture texture = new GlTexture(TextureType.TEXTURE_1D, rawData.getSizeX(), 0, 0, rawData.getInternalFormat().getGlFormat(), rawData.getPixelFormat().getGlFormat(), rawData.getPixelType().getGlFormat(), rawData.getContent(), rawData.getFilteringData());
 			ownedRawTextures.add(texture);
@@ -130,7 +130,16 @@ public class CustomTextureManager {
 			} else {
 				withoutExtension = location;
 			}
-			final PBRType pbrType = PBRType.fromFileLocation(withoutExtension);
+			PBRType detectedPbrType = PBRType.fromFileLocation(withoutExtension);
+			if (detectedPbrType != null) {
+				final ResourceLocation candidateLocation = new ResourceLocation(namespace, location);
+				if (PBRType.hasDirectionalSiblings(candidateLocation, Minecraft.getMinecraft().getResourceManager())) {
+					// Looks like a cardinal-direction texture set (e.g. "_n"/"_s"/"_e"/"_w" for block faces),
+					// not an actual PBR map. Don't treat it as one.
+					detectedPbrType = null;
+				}
+			}
+			final PBRType pbrType = detectedPbrType;
 
 			final TextureManager textureManager = Minecraft.getMinecraft().getTextureManager();
 
@@ -144,7 +153,7 @@ public class CustomTextureManager {
 				//     now.
 				return new TextureWrapper(() -> {
 					final ITextureObject texture = textureManager.getTexture(textureLocation);
-					return texture != null ? texture.getGlTextureId() : TextureUtil.missingTexture.getGlTextureId();
+					return texture != null ? texture.getGlTextureId() : TextureUtil.MISSING_TEXTURE.getGlTextureId();
 				}, TextureType.TEXTURE_2D);
 			} else {
 				location = location.substring(0, extensionIndex - pbrType.getSuffix().length()) + location.substring(extensionIndex);
@@ -173,7 +182,7 @@ public class CustomTextureManager {
 						return pbrTexture.getGlTextureId();
 					}
 
-                    return TextureUtil.missingTexture.getGlTextureId();
+                    return TextureUtil.MISSING_TEXTURE.getGlTextureId();
 				}, TextureType.TEXTURE_2D);
 			}
 		}

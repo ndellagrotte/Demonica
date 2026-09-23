@@ -6,11 +6,13 @@ import it.unimi.dsi.fastutil.objects.Object2IntFunction;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
+import net.coderbot.iris.block_rendering.NbtConditionalIdMap;
 import net.coderbot.iris.shaderpack.materialmap.NamespacedId;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ResourceLocation;
 
 /**
@@ -29,7 +31,7 @@ public class ItemMaterialHelper {
      * @return The material ID, or -1 if not found
      */
     public static int getMaterialId(ItemStack itemStack) {
-        if (itemStack == null || itemStack.getItem() == null) {
+        if (itemStack == null || itemStack.isEmpty() || itemStack.getItem() == null) {
             return -1;
         }
         return getMaterialId(itemStack.getItem(), itemStack.getItemDamage());
@@ -75,17 +77,29 @@ public class ItemMaterialHelper {
         // For ItemBlock: check block.properties first
         if (item instanceof ItemBlock) {
             final ItemBlock itemBlock = (ItemBlock) item;
-            final Block block = itemBlock.field_150939_a; // The block this item places
+            final Block block = itemBlock.getBlock();
 
             if (block != null) {
-                Reference2ObjectMap<Block, Int2IntMap> blockMetaMatches = BlockRenderingSettings.INSTANCE.getBlockMetaMatches();
-                if (blockMetaMatches != null) {
-                    Int2IntMap metaMap = blockMetaMatches.get(block);
-                    if (metaMap != null) {
-                        int id = metaMap.get(itemBlock.getMetadata(metadata));
-                        if (id != -1) {
-                            return id;
-                        }
+                if (BlockRenderingSettings.INSTANCE.getBlockMetaMatches() != null) {
+                    int id = BlockRenderingSettings.INSTANCE.getBlockStateId(block, itemBlock.getMetadata(metadata));
+                    if (id != -1) {
+                        return id;
+                    }
+                }
+            }
+        }
+
+        NbtConditionalIdMap<NamespacedId> itemNbtMap = BlockRenderingSettings.INSTANCE.getItemNbtMap();
+        if (itemNbtMap != null) {
+            ResourceLocation itemId = Item.REGISTRY.getNameForObject(item);
+            if (itemId != null) {
+                NamespacedId key = new NamespacedId(itemId.getNamespace(), itemId.getPath());
+                if (itemNbtMap.hasConditions(key)) {
+                    ItemStack probe = new ItemStack(item, 1, metadata);
+                    NBTTagCompound nbt = probe.serializeNBT();
+                    int nbtId = itemNbtMap.resolve(key, nbt);
+                    if (nbtId != -1) {
+                        return nbtId;
                     }
                 }
             }
@@ -94,10 +108,9 @@ public class ItemMaterialHelper {
         // Fall back to item.properties
         Object2IntFunction<NamespacedId> itemIds = BlockRenderingSettings.INSTANCE.getItemIds();
         if (itemIds != null) {
-            String itemIdString = (String) Item.itemRegistry.getNameForObject(item);
-            if (itemIdString != null) {
-                ResourceLocation itemId = new ResourceLocation(itemIdString);
-                return itemIds.applyAsInt(new NamespacedId(itemId.getResourceDomain(), itemId.getResourcePath()));
+            ResourceLocation itemId = Item.REGISTRY.getNameForObject(item);
+            if (itemId != null) {
+                return itemIds.getInt(new NamespacedId(itemId.getNamespace(), itemId.getPath()));
             }
         }
 

@@ -44,35 +44,35 @@ public class IrisExclusiveUniforms {
 
 	private static float getThunderStrength() {
 		// Note: Ensure this is in the range of 0 to 1 - some custom servers send out of range values.
-		return Math.clamp(0.0F, 1.0F, Minecraft.getMinecraft().theWorld.thunderingStrength);
+		return Math.clamp(0.0F, 1.0F, Minecraft.getMinecraft().world.thunderingStrength);
 	}
 
 	private static float getCurrentHealth() {
-		if (Minecraft.getMinecraft().thePlayer == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
 			return -1;
 		}
 
-		return Minecraft.getMinecraft().thePlayer.getHealth() / Minecraft.getMinecraft().thePlayer.getMaxHealth();
+		return Minecraft.getMinecraft().player.getHealth() / Minecraft.getMinecraft().player.getMaxHealth();
 	}
 
 	private static float getCurrentHunger() {
-		if (Minecraft.getMinecraft().thePlayer == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
 			return -1;
 		}
 
-		return Minecraft.getMinecraft().thePlayer.getFoodStats().getFoodLevel() / 20f;
+		return Minecraft.getMinecraft().player.getFoodStats().getFoodLevel() / 20f;
 	}
 
 	private static float getCurrentAir() {
-		if (Minecraft.getMinecraft().thePlayer == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
 			return -1;
 		}
 
-		return (float) Minecraft.getMinecraft().thePlayer.getAir() / (float) Minecraft.getMinecraft().thePlayer.getAir();
+		return (float) Minecraft.getMinecraft().player.getAir() / (float) Minecraft.getMinecraft().player.getAir();
 	}
 
 	private static float getMaxAir() {
-		if (Minecraft.getMinecraft().thePlayer == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
 			return -1;
 		}
 
@@ -81,11 +81,11 @@ public class IrisExclusiveUniforms {
 	}
 
 	private static float getMaxHealth() {
-		if (Minecraft.getMinecraft().thePlayer == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
 			return -1;
 		}
 
-		return Minecraft.getMinecraft().thePlayer.getMaxHealth();
+		return Minecraft.getMinecraft().player.getMaxHealth();
 	}
 
 	private static boolean isFirstPersonCamera() {
@@ -98,19 +98,19 @@ public class IrisExclusiveUniforms {
 	}
 
 	private static Vector3d getEyePosition() {
-        final EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
+        final EntityLivingBase eye = (EntityLivingBase) Minecraft.getMinecraft().getRenderViewEntity();
         return eyePositionCache.set(eye.posX, eye.posY + eye.getEyeHeight(), eye.posZ);
 	}
 
 	private static Vector3d getRelativeEyePosition() {
 		final Vector3dc cameraPos = CameraUniforms.getUnshiftedCameraPosition();
 		final Vector3d eyePos = getEyePosition();
-		return relativeEyePositionCache.set(eyePos).sub(cameraPos);
+		return relativeEyePositionCache.set(cameraPos).sub(eyePos);
 	}
 
 	private static Vector4f getLightningBoltPosition() {
-		if (Minecraft.getMinecraft().theWorld != null) {
-			final List<Entity> weatherEffects = Minecraft.getMinecraft().theWorld.weatherEffects;
+		if (Minecraft.getMinecraft().world != null) {
+			final List<Entity> weatherEffects = Minecraft.getMinecraft().world.weatherEffects;
 			for (Entity entity : weatherEffects) {
 				if (entity instanceof EntityLightningBolt bolt) {
                     final Vector3dc cameraPos = CameraUniforms.getUnshiftedCameraPosition();
@@ -128,7 +128,7 @@ public class IrisExclusiveUniforms {
 
 	public static class WorldInfoUniforms {
 		public static void addWorldInfoUniforms(UniformHolder uniforms) {
-			final WorldClient level = Minecraft.getMinecraft().theWorld;
+			final WorldClient level = Minecraft.getMinecraft().world;
 			uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "bedrockLevel", () -> 0);
             uniforms.uniform1f(UniformUpdateFrequency.PER_FRAME, "cloudHeight", () -> {
                 if (level != null && level.provider != null) {
@@ -146,21 +146,21 @@ public class IrisExclusiveUniforms {
 			});
 			uniforms.uniform1b(UniformUpdateFrequency.PER_FRAME, "hasCeiling", () -> {
 				if (level != null && level.provider != null) {
-					return level.provider.hasNoSky;
+					return !level.provider.hasSkyLight();
 				} else {
 					return false;
 				}
 			});
 			uniforms.uniform1b(UniformUpdateFrequency.PER_FRAME, "hasSkylight", () -> {
 				if (level != null && level.provider != null) {
-					return !level.provider.hasNoSky;
+					return level.provider.hasSkyLight();
 				} else {
 					return true;
 				}
 			});
 			uniforms.uniform1f(UniformUpdateFrequency.PER_FRAME, "ambientLight", () -> {
 				if (level != null && level.provider != null) {
-                    return level.provider.lightBrightnessTable[0];
+                    return level.provider.getLightBrightnessTable()[0];
 				} else {
 					return 0f;
 				}

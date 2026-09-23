@@ -3,7 +3,7 @@ package net.coderbot.iris.gl.texture;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import net.coderbot.iris.shaderpack.texture.TextureFilteringData;
-import org.embeddedt.embeddium.impl.gl.GlObject;
+import dhj.embeddedt.embeddium.impl.gl.GlObject;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
@@ -11,8 +11,7 @@ import org.lwjgl.opengl.GL14;
 import java.nio.ByteBuffer;
 import java.util.function.IntSupplier;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAlloc;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memFree;
+import org.lwjgl.BufferUtils;
 
 public class GlTexture extends GlObject implements TextureAccess {
 	private final TextureType target;
@@ -23,11 +22,10 @@ public class GlTexture extends GlObject implements TextureAccess {
 
 		TextureUploadHelper.resetTextureUploadState();
 
-		final ByteBuffer buffer = memAlloc(pixels.length);
+		final ByteBuffer buffer = BufferUtils.createByteBuffer(pixels.length);
 		buffer.put(pixels);
 		buffer.flip();
 		target.apply(this.handle(), sizeX, sizeY, sizeZ, internalFormat, format, pixelType, buffer);
-		memFree(buffer);
 
 		final int texture = this.handle();
 
