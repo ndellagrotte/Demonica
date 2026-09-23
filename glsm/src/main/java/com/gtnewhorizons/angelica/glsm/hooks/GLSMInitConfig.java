@@ -5,6 +5,9 @@ import com.gtnewhorizons.angelica.glsm.streaming.StreamingUploader;
 
 import java.util.function.Consumer;
 
+/**
+ * Supplies host-owned integrations and initial OpenGL state to GLSM without coupling GLSM to the host mod.
+ */
 public final class GLSMInitConfig {
     private final boolean lwjglDebug;
     private final StreamingUploader.UploadStrategy streamingUploadStrategy;
@@ -15,6 +18,7 @@ public final class GLSMInitConfig {
     private final int displayWidth;
     private final int displayHeight;
     private final Runnable postInitCallback;
+    private final GpuCommandRecorder gpuCommandRecorder;
 
     private GLSMInitConfig(Builder builder) {
         this.lwjglDebug = builder.lwjglDebug;
@@ -26,6 +30,7 @@ public final class GLSMInitConfig {
         this.displayWidth = builder.displayWidth;
         this.displayHeight = builder.displayHeight;
         this.postInitCallback = builder.postInitCallback;
+        this.gpuCommandRecorder = builder.gpuCommandRecorder;
     }
 
     public static Builder builder() {
@@ -41,19 +46,27 @@ public final class GLSMInitConfig {
     public int getDisplayWidth() { return displayWidth; }
     public int getDisplayHeight() { return displayHeight; }
     public Runnable getPostInitCallback() { return postInitCallback; }
+    /**
+     * Returns the optional allocation-free destination for GPU command diagnostics.
+     *
+     * @return configured recorder, or {@code null} when command diagnostics are disabled
+     */
+    public GpuCommandRecorder getGpuCommandRecorder() { return gpuCommandRecorder; }
 
     public static final class Builder {
         private boolean lwjglDebug = false;
         private StreamingUploader.UploadStrategy streamingUploadStrategy = StreamingUploader.UploadStrategy.BUFFER_DATA;
         private boolean framebufferSupported = false;
         private boolean fboEnabled = false;
-        private Consumer<DirectTessellator> directDrawer = null;
-        private Runnable streamingDrawerDestroy = null;
-        private int displayWidth = 0;
-        private int displayHeight = 0;
-        private Runnable postInitCallback = null;
+        private Consumer<DirectTessellator> directDrawer;
+        private Runnable streamingDrawerDestroy;
+        private int displayWidth;
+        private int displayHeight;
+        private Runnable postInitCallback;
+        private GpuCommandRecorder gpuCommandRecorder;
 
-        private Builder() {}
+        private Builder() {
+        }
 
         public Builder lwjglDebug(boolean lwjglDebug) {
             this.lwjglDebug = lwjglDebug;
@@ -96,8 +109,23 @@ public final class GLSMInitConfig {
             return this;
         }
 
+        /**
+         * Installs the host callback used to persist GPU command and checkpoint breadcrumbs.
+         *
+         * @param recorder callback destination, or {@code null} to disable command diagnostics
+         * @return this builder
+         */
+        public Builder gpuCommandRecorder(GpuCommandRecorder recorder) {
+            this.gpuCommandRecorder = recorder;
+            return this;
+        }
+
         public GLSMInitConfig build() {
             return new GLSMInitConfig(this);
         }
+    }
+
+    public static GLSMInitConfig defaults() {
+        return builder().build();
     }
 }
