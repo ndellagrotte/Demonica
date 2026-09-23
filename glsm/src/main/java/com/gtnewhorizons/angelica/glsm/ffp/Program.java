@@ -25,6 +25,7 @@ public class Program {
     @Getter private final int programId;
     @Getter private final VertexKey vertexKey;
     @Getter private final FragmentKey fragmentKey;
+    private final ProgramUniformState uniformState = new ProgramUniformState();
 
     // Uniform locations (-1 = not present in this variant)
     // Matrices
@@ -33,11 +34,15 @@ public class Program {
     public int locMVPMatrix = -1;
     public int locNormalMatrix = -1;
     public int locTextureMatrix0 = -1;
+    public int locTextureMatrix2 = -1;
+    public int locTextureMatrix3 = -1;
 
     // Current state defaults
     public int locCurrentNormal = -1;
     public int locCurrentColor = -1;
     public int locCurrentTexCoord = -1;
+    public int locCurrentTexCoord2 = -1;
+    public int locCurrentTexCoord3 = -1;
     public int locCurrentLightmapCoord = -1;
     public int locLightmapTextureMatrix = -1;
 
@@ -88,10 +93,16 @@ public class Program {
     public int locViewportSize = -1;
     public int locLineWidth = -1;
 
+    // Line stipple (vertex + fragment shader)
+    public int locViewport = -1;
+    public int locLineStipple = -1;
+
     // Fragment uniforms
     public final int[] locSampler = { -1, -1, -1, -1 };
     public int locAlphaRef = -1;
     public final int[] locTexEnvColor = { -1, -1, -1, -1 };
+    public int locOverlayColor = -1;
+    public int locSecondaryColor = -1;
     public int locFogParams = -1;
     public int locFogColor = -1;
 
@@ -108,10 +119,14 @@ public class Program {
         locMVPMatrix = loc("u_MVPMatrix");
         locNormalMatrix = loc("u_NormalMatrix");
         locTextureMatrix0 = loc("u_TextureMatrix0");
+        locTextureMatrix2 = loc("u_TextureMatrix2");
+        locTextureMatrix3 = loc("u_TextureMatrix3");
 
         locCurrentNormal = loc("u_CurrentNormal");
         locCurrentColor = loc("u_CurrentColor");
         locCurrentTexCoord = loc("u_CurrentTexCoord");
+        locCurrentTexCoord2 = loc("u_CurrentTexCoord2");
+        locCurrentTexCoord3 = loc("u_CurrentTexCoord3");
         locCurrentLightmapCoord = loc("u_CurrentLightmapCoord");
         locLightmapTextureMatrix = loc("u_LightmapTextureMatrix");
 
@@ -161,6 +176,10 @@ public class Program {
         locViewportSize = loc("u_ViewportSize");
         locLineWidth = loc("u_LineWidth");
 
+        // Line stipple
+        locViewport = loc("u_Viewport");
+        locLineStipple = loc("u_LineStipple");
+
         // Fragment
         for (int i = 0; i < 4; i++) {
             locSampler[i] = loc("u_Sampler" + i);
@@ -169,12 +188,18 @@ public class Program {
         for (int i = 0; i < 4; i++) {
             locTexEnvColor[i] = loc("u_TexEnvColor" + i);
         }
+        locOverlayColor = loc("u_OverlayColor");
+        locSecondaryColor = loc("u_SecondaryColor");
         locFogParams = loc("u_FogParams");
         locFogColor = loc("u_FogColor");
     }
 
     private int loc(String name) {
         return RENDER_BACKEND.getUniformLocation(programId, name);
+    }
+
+    ProgramUniformState getUniformState() {
+        return uniformState;
     }
 
     public void destroy() {

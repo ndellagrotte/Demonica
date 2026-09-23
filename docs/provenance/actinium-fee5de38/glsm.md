@@ -1,0 +1,186 @@
+# Provenance manifest
+
+- baseline: `angelica-baseline/9fd02900ef` (angelica layout)
+- compared: `fee5de3834352050fc453bde1d93030c6d434983` (actinium layout)
+
+| scope | verbatim | adapted | new | dropped |
+|---|---|---|---|---|
+| glsm | 61 | 79 | 83 | 2 |
+
+## Scope `glsm`
+
+- baseline roots: `glsm/src/main/java`; `lwjgl3-backend/src/main/java`; `src/main/java` (`com/gtnewhorizons/angelica/AngelicaMod.java`, `com/gtnewhorizons/angelica/compat/ModStatus.java`, `com/gtnewhorizons/angelica/compat/mojang/AutoClosableAbstractTexture.java`, `com/gtnewhorizons/angelica/compat/mojang/ByteBufferBackedInputStream.java`, `com/gtnewhorizons/angelica/compat/mojang/Camera.java`, `com/gtnewhorizons/angelica/compat/mojang/ChunkOcclusionData.java`, `com/gtnewhorizons/angelica/compat/mojang/ChunkOcclusionDataBuilder.java`, `com/gtnewhorizons/angelica/compat/mojang/ChunkPos.java`, `com/gtnewhorizons/angelica/compat/mojang/ChunkSectionPos.java`, `com/gtnewhorizons/angelica/compat/mojang/CompatMathHelper.java`, `com/gtnewhorizons/angelica/compat/mojang/Constants.java`, `com/gtnewhorizons/angelica/compat/mojang/Drawable.java`, `com/gtnewhorizons/angelica/compat/mojang/Element.java`, `com/gtnewhorizons/angelica/compat/mojang/GameModeUtil.java`, `com/gtnewhorizons/angelica/compat/mojang/InteractionHand.java`, `com/gtnewhorizons/angelica/compat/mojang/ParentElement.java`, `com/gtnewhorizons/angelica/rendering/AngelicaRenderQueue.java`, `com/gtnewhorizons/angelica/rendering/RenderingState.java`); `glsm/src/main/resources` (`META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend`)
+- compared roots: `glsm/src/main/java`; `src/lwjglCommon/java`; `src/lwjgl3/java`; `src/main/resources` (`META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend`)
+
+### Adapted (79)
+
+- `META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend`
+- `com/gtnewhorizons/angelica/AngelicaMod.java`
+- `com/gtnewhorizons/angelica/compat/ModStatus.java`
+- `com/gtnewhorizons/angelica/compat/mojang/Camera.java`
+- `com/gtnewhorizons/angelica/compat/mojang/ChunkOcclusionData.java`
+- `com/gtnewhorizons/angelica/compat/mojang/ChunkOcclusionDataBuilder.java`
+- `com/gtnewhorizons/angelica/compat/mojang/ChunkPos.java`
+- `com/gtnewhorizons/angelica/compat/mojang/ChunkSectionPos.java`
+- `com/gtnewhorizons/angelica/compat/mojang/GameModeUtil.java`
+- `com/gtnewhorizons/angelica/compat/mojang/InteractionHand.java`
+- `com/gtnewhorizons/angelica/glsm/CompatShaderTransformer.java`
+- `com/gtnewhorizons/angelica/glsm/CompatUniformManager.java`
+- `com/gtnewhorizons/angelica/glsm/DisplayListManager.java`
+- `com/gtnewhorizons/angelica/glsm/Feature.java`
+- `com/gtnewhorizons/angelica/glsm/GLDebug.java`
+- `com/gtnewhorizons/angelica/glsm/GLStateManager.java`
+- `com/gtnewhorizons/angelica/glsm/GlslTransformUtils.java`
+- `com/gtnewhorizons/angelica/glsm/QuadConverter.java`
+- `com/gtnewhorizons/angelica/glsm/RenderSystem.java`
+- `com/gtnewhorizons/angelica/glsm/backend/RenderBackend.java`
+- `com/gtnewhorizons/angelica/glsm/compat/FogHelper.java`
+- `com/gtnewhorizons/angelica/glsm/compat/lwjgl/AngelicaCylinder.java`
+- `com/gtnewhorizons/angelica/glsm/compat/lwjgl/AngelicaDisk.java`
+- `com/gtnewhorizons/angelica/glsm/compat/lwjgl/AngelicaPartialDisk.java`
+- `com/gtnewhorizons/angelica/glsm/compat/lwjgl/AngelicaSphere.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/FragmentKey.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/FragmentShaderGenerator.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/GeometryShaderGenerator.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/Program.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/ShaderManager.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/Uniforms.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/VertexKey.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/VertexShaderGenerator.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/DeferredBlendHandler.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/DeferredDepthColorHandler.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GLSMConfig.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GLSMHooks.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GLSMInitConfig.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/BlendFuncChangeEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/ProgramChangeEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/TextureBindEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/TextureUnitStateEvent.java`
+- `com/gtnewhorizons/angelica/glsm/loading/DependencyVerifier.java`
+- `com/gtnewhorizons/angelica/glsm/loading/EcosystemNarrowRules.java`
+- `com/gtnewhorizons/angelica/glsm/loading/TransformerNarrower.java`
+- `com/gtnewhorizons/angelica/glsm/recording/AccumulatedDraw.java`
+- `com/gtnewhorizons/angelica/glsm/recording/CommandBuffer.java`
+- `com/gtnewhorizons/angelica/glsm/recording/CommandBufferExecutor.java`
+- `com/gtnewhorizons/angelica/glsm/recording/CommandBufferProcessor.java`
+- `com/gtnewhorizons/angelica/glsm/recording/CommandRecorder.java`
+- `com/gtnewhorizons/angelica/glsm/recording/CompiledDisplayList.java`
+- `com/gtnewhorizons/angelica/glsm/recording/DisplayListVBOBuilder.java`
+- `com/gtnewhorizons/angelica/glsm/recording/GLCommand.java`
+- `com/gtnewhorizons/angelica/glsm/recording/ImmediateModeRecorder.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/TexImage2DCmd.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/TexSubImage2DCmd.java`
+- `com/gtnewhorizons/angelica/glsm/redirect/GLSMRedirector.java`
+- `com/gtnewhorizons/angelica/glsm/stacks/AlphaStateStack.java`
+- `com/gtnewhorizons/angelica/glsm/stacks/BlendStateStack.java`
+- `com/gtnewhorizons/angelica/glsm/stacks/BooleanStateStack.java`
+- `com/gtnewhorizons/angelica/glsm/stacks/ColorMaskStack.java`
+- `com/gtnewhorizons/angelica/glsm/stacks/DepthStateStack.java`
+- `com/gtnewhorizons/angelica/glsm/states/BlendState.java`
+- `com/gtnewhorizons/angelica/glsm/states/BooleanState.java`
+- `com/gtnewhorizons/angelica/glsm/states/ClipPlaneState.java`
+- `com/gtnewhorizons/angelica/glsm/states/DepthState.java`
+- `com/gtnewhorizons/angelica/glsm/states/MaterialState.java`
+- `com/gtnewhorizons/angelica/glsm/states/MatrixMode.java`
+- `com/gtnewhorizons/angelica/glsm/states/PolygonState.java`
+- `com/gtnewhorizons/angelica/glsm/states/TextureBinding.java`
+- `com/gtnewhorizons/angelica/glsm/states/VertexAttribState.java`
+- `com/gtnewhorizons/angelica/glsm/states/ViewportState.java`
+- `com/gtnewhorizons/angelica/glsm/streaming/PersistentStreamingBuffer.java`
+- `com/gtnewhorizons/angelica/glsm/streaming/StreamingUploader.java`
+- `com/gtnewhorizons/angelica/glsm/streaming/TessellatorStreamingDrawer.java`
+- `com/gtnewhorizons/angelica/glsm/texture/TextureInfo.java`
+- `com/gtnewhorizons/angelica/glsm/texture/TextureInfoCache.java`
+- `com/gtnewhorizons/angelica/lwjgl3/Lwjgl3GLRenderBackend.java`
+- `com/gtnewhorizons/angelica/rendering/RenderingState.java`
+
+### New (83)
+
+- `com/gtnewhorizons/angelica/Tags.java`
+- `com/gtnewhorizons/angelica/glsm/CaptureGate.java`
+- `com/gtnewhorizons/angelica/glsm/CompatProgramUniformState.java`
+- `com/gtnewhorizons/angelica/glsm/CompatProgramUniformStates.java`
+- `com/gtnewhorizons/angelica/glsm/GLContextState.java`
+- `com/gtnewhorizons/angelica/glsm/GLESCaps.java`
+- `com/gtnewhorizons/angelica/glsm/GLESFormatRemap.java`
+- `com/gtnewhorizons/angelica/glsm/GLFeatureSet.java`
+- `com/gtnewhorizons/angelica/glsm/GLTypes.java`
+- `com/gtnewhorizons/angelica/glsm/GpuCommandDiagnostics.java`
+- `com/gtnewhorizons/angelica/glsm/LTWWorkaround.java`
+- `com/gtnewhorizons/angelica/glsm/backend/GLDebugMessageListener.java`
+- `com/gtnewhorizons/angelica/glsm/backend/GlfwFileDropWatcher.java`
+- `com/gtnewhorizons/angelica/glsm/debug/GLSMDebug.java`
+- `com/gtnewhorizons/angelica/glsm/debug/GLSMPerfDebug.java`
+- `com/gtnewhorizons/angelica/glsm/debug/GLSMPerfDebugHooks.java`
+- `com/gtnewhorizons/angelica/glsm/debug/GpuCheckpointTracker.java`
+- `com/gtnewhorizons/angelica/glsm/ffp/ProgramUniformState.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/DrawCallObserver.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GpuCheckpointType.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GpuCommandPhase.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GpuCommandRecorder.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/GpuCommandType.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/PerFrameUniformBlock.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/ShaderTransformPostProcessor.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/ShaderWorkSubmitter.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/VanillaBooleanLayer.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/VanillaStateLayer.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/AlphaStateChangeEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/ForeignDrawEndEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/LoadingCheckpointEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/ProgramDeleteEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/ShaderColorChangeEvent.java`
+- `com/gtnewhorizons/angelica/glsm/hooks/events/VanillaBlendChangeEvent.java`
+- `com/gtnewhorizons/angelica/glsm/recording/AttribSnapshot.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/AttribLayoutKey.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/BatchedIndexedDrawCmd.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/IndexedDrawBatch.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/IndexedDrawBatchBuilder.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/IndexedDrawCapture.java`
+- `com/gtnewhorizons/angelica/glsm/recording/commands/PixelDataSnapshot.java`
+- `com/gtnewhorizons/angelica/glsm/redirect/RedirectorDebugOptions.java`
+- `com/gtnewhorizons/angelica/glsm/shader/GlslVulkanPreprocess.java`
+- `com/gtnewhorizons/angelica/glsm/shader/ShaderType.java`
+- `com/gtnewhorizons/angelica/glsm/shader/SpirvCompiler.java`
+- `com/gtnewhorizons/angelica/glsm/shader/SpirvShaderTranslator.java`
+- `com/gtnewhorizons/angelica/glsm/shader/UniformType.java`
+- `com/gtnewhorizons/angelica/glsm/shadow/InternalShadowRenderingState.java`
+- `com/gtnewhorizons/angelica/glsm/stacks/IStateStack.java`
+- `com/gtnewhorizons/angelica/glsm/states/GenerationTrackedState.java`
+- `com/gtnewhorizons/angelica/glsm/states/ImageUnitArray.java`
+- `com/gtnewhorizons/angelica/glsm/states/ImageUnitBinding.java`
+- `com/gtnewhorizons/angelica/glsm/states/PixelUnpackState.java`
+- `com/gtnewhorizons/angelica/glsm/streaming/GlFence.java`
+- `com/mitchej123/glsm/GLStateManagerService.java`
+- `com/mitchej123/glsm/GLStateManagerServiceProvider.java`
+- `com/mitchej123/glsm/RenderSystemService.java`
+- `com/mitchej123/glsm/RenderSystemServiceProvider.java`
+- `com/mitchej123/glsm/impl/PassThroughGLStateManager.java`
+- `com/mitchej123/glsm/impl/PassThroughRenderSystem.java`
+- `com/mitchej123/lwjgl/DebugExtension.java`
+- `com/mitchej123/lwjgl/DebugMessageHandler.java`
+- `com/mitchej123/lwjgl/GL11.java`
+- `com/mitchej123/lwjgl/GL15.java`
+- `com/mitchej123/lwjgl/GL20.java`
+- `com/mitchej123/lwjgl/GL21.java`
+- `com/mitchej123/lwjgl/GL30.java`
+- `com/mitchej123/lwjgl/GL31.java`
+- `com/mitchej123/lwjgl/GL32.java`
+- `com/mitchej123/lwjgl/GL33.java`
+- `com/mitchej123/lwjgl/GL40.java`
+- `com/mitchej123/lwjgl/GL42.java`
+- `com/mitchej123/lwjgl/GL43.java`
+- `com/mitchej123/lwjgl/GL44.java`
+- `com/mitchej123/lwjgl/GLExtension.java`
+- `com/mitchej123/lwjgl/LWJGLService.java`
+- `com/mitchej123/lwjgl/LWJGLServiceProvider.java`
+- `com/mitchej123/lwjgl/MemoryStack.java`
+- `com/mitchej123/lwjgl/lwjgl3/LWJGL3DebugSupport.java`
+- `com/mitchej123/lwjgl/lwjgl3/LWJGL3MemoryStack.java`
+- `com/mitchej123/lwjgl/lwjgl3/LWJGL3Service.java`
+- `net/minecraftforge/eventbus/api/bus/EventBus.java`
+- `net/minecraftforge/eventbus/api/event/MutableEvent.java`
+
+### Dropped (2)
+
+- `com/gtnewhorizons/angelica/glsm/backend/Lwjgl2GLRenderBackend.java`
+- `com/gtnewhorizons/angelica/glsm/loading/EarlyRedirectorCore.java`

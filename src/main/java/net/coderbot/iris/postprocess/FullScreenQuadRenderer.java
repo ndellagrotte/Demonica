@@ -1,7 +1,6 @@
 package net.coderbot.iris.postprocess;
 
 
-import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -26,7 +25,12 @@ public class FullScreenQuadRenderer {
 		GLStateManager.glBindVertexArray(vao);
 		this.quadBuffer = createQuad();
 		GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, quadBuffer);
-		DefaultVertexFormat.POSITION_TEXTURE.setupBufferState(0L);
+		GLStateManager.glVertexAttribPointer(0, 3, GL11.GL_FLOAT, false, 20, 0L);
+		GLStateManager.glEnableVertexAttribArray(0);
+		GLStateManager.glVertexAttribPointer(1, 2, GL11.GL_FLOAT, false, 20, 12L);
+		GLStateManager.glEnableVertexAttribArray(1);
+		GLStateManager.glVertexAttribPointer(2, 2, GL11.GL_FLOAT, false, 20, 12L);
+		GLStateManager.glEnableVertexAttribArray(2);
 		GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
 		GLStateManager.glBindVertexArray(0);
 	}

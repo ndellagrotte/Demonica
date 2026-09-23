@@ -8,10 +8,10 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import javax.imageio.ImageIO;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import lombok.Getter;
 import net.coderbot.iris.Iris;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 
@@ -61,7 +61,7 @@ public class NativeImage extends BufferedImage {
 //        final int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_WIDTH);
 //        final int height = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_HEIGHT);
 
-        final IntBuffer buffer = MemoryUtilities.memAllocInt(size);
+        final IntBuffer buffer = BufferUtils.createIntBuffer(size);
 
         try {
             GLStateManager.glGetTexImage(GL11.GL_TEXTURE_2D, level, format.glFormat, GL12.GL_UNSIGNED_INT_8_8_8_8_REV, buffer);
@@ -70,7 +70,6 @@ public class NativeImage extends BufferedImage {
             buffer.get(data);
             setRGB(0, 0, width, height, data, 0, width);
         } finally {
-            MemoryUtilities.memFree(buffer);
         }
     }
 

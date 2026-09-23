@@ -1,13 +1,11 @@
 package net.coderbot.iris.pipeline;
 
-import com.gtnewhorizon.gtnhlib.client.renderer.DirectTessellator;
-import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
-import com.gtnewhorizon.gtnhlib.client.renderer.vao.IVertexArrayObject;
-import com.gtnewhorizon.gtnhlib.client.renderer.vao.VertexBufferType;
-import com.gtnewhorizon.gtnhlib.client.renderer.vertex.DefaultVertexFormat;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import org.lwjgl.opengl.GL11;
 
 import java.nio.FloatBuffer;
 
@@ -42,37 +40,25 @@ public class HorizonRenderer {
 	 * Sine of 22.5 degrees.
 	 */
 	private static final double SIN_22_5 = Math.sin(Math.toRadians(22.5));
-	private IVertexArrayObject vao;
 	private int currentRenderDistance;
 
 	public HorizonRenderer() {
-		currentRenderDistance = Minecraft.getMinecraft().gameSettings.renderDistanceChunks;
-
-		rebuildBuffer();
+		currentRenderDistance = SkyRenderDistance.effectiveChunks(
+			Minecraft.getMinecraft().gameSettings.renderDistanceChunks
+		);
 	}
 
 	private void rebuildBuffer() {
-        if (this.vao != null) {
-            this.vao.delete();
-        }
-
-        final DirectTessellator tessellator = TessellatorManager.startCapturingDirect(DefaultVertexFormat.POSITION);
-
-		// Build the horizon quads into a buffer
-        tessellator.startDrawingQuads(); //(GL11.GL_QUADS, DefaultVertexFormat.POSITION);
-		buildHorizon(currentRenderDistance * 16, tessellator);
-
-        this.vao = DirectTessellator.stopCapturingToVBO(VertexBufferType.IMMUTABLE);
 	}
 
-    private void buildQuad(Tessellator consumer, double x1, double z1, double x2, double z2) {
-		consumer.addVertex(x1, BOTTOM, z1);
-		consumer.addVertex(x1, TOP, z1);
-		consumer.addVertex(x2, TOP, z2);
-		consumer.addVertex(x2, BOTTOM, z2);
+	private void buildQuad(BufferBuilder consumer, double x1, double z1, double x2, double z2) {
+		consumer.pos(x1, BOTTOM, z1).endVertex();
+		consumer.pos(x1, TOP, z1).endVertex();
+		consumer.pos(x2, TOP, z2).endVertex();
+		consumer.pos(x2, BOTTOM, z2).endVertex();
 	}
 
-	private void buildHalf(Tessellator consumer, double adjacent, double opposite, boolean invert) {
+	private void buildHalf(BufferBuilder consumer, double adjacent, double opposite, boolean invert) {
 		if (invert) {
 			adjacent = -adjacent;
 			opposite = -opposite;
@@ -93,46 +79,46 @@ public class HorizonRenderer {
 	}
 
 	/**
-	 * @param adjacent the adjacent side length of the a triangle with a hypotenuse extending from the center of the
+	 * @param adjacent the adjacent side length of a triangle with a hypotenuse extending from the center of the
 	 *                 octagon to a given vertex on the perimeter.
-	 * @param opposite the opposite side length of the a triangle with a hypotenuse extending from the center of the
+	 * @param opposite the opposite side length of a triangle with a hypotenuse extending from the center of the
 	 *                 octagon to a given vertex on the perimeter.
 	 */
-	private void buildOctagonalPrism(Tessellator consumer, double adjacent, double opposite) {
+	private void buildOctagonalPrism(BufferBuilder consumer, double adjacent, double opposite) {
 		buildHalf(consumer, adjacent, opposite, false);
 		buildHalf(consumer, adjacent, opposite, true);
 	}
 
-	private void buildRegularOctagonalPrism(Tessellator consumer, double radius) {
+	private void buildRegularOctagonalPrism(BufferBuilder consumer, double radius) {
 		buildOctagonalPrism(consumer, radius * COS_22_5, radius * SIN_22_5);
 	}
 
-	private void buildBottomPlane(Tessellator consumer, int radius) {
+	private void buildBottomPlane(BufferBuilder consumer, int radius) {
 		for (int x = -radius; x <= radius; x += 64) {
 			for (int z = -radius; z <= radius; z += 64) {
-				consumer.addVertex(x + 64, BOTTOM, z);
-				consumer.addVertex(x, BOTTOM, z);
-				consumer.addVertex(x, BOTTOM, z + 64);
-				consumer.addVertex(x + 64, BOTTOM, z + 64);
+				consumer.pos(x + 64, BOTTOM, z).endVertex();
+				consumer.pos(x, BOTTOM, z).endVertex();
+				consumer.pos(x, BOTTOM, z + 64).endVertex();
+				consumer.pos(x + 64, BOTTOM, z + 64).endVertex();
 			}
 		}
 	}
 
-	private void buildTopPlane(Tessellator consumer, int radius) {
+	private void buildTopPlane(BufferBuilder consumer, int radius) {
 		// You might be tempted to try to combine this with buildBottomPlane to avoid code duplication,
 		// but that won't work since the winding order has to be reversed or else one of the planes will be
 		// discarded by back face culling.
 		for (int x = -radius; x <= radius; x += 64) {
 			for (int z = -radius; z <= radius; z += 64) {
-				consumer.addVertex(x + 64, TOP, z);
-				consumer.addVertex(x + 64, TOP, z + 64);
-				consumer.addVertex(x, TOP, z + 64);
-				consumer.addVertex(x, TOP, z);
+				consumer.pos(x + 64, TOP, z).endVertex();
+				consumer.pos(x + 64, TOP, z + 64).endVertex();
+				consumer.pos(x, TOP, z + 64).endVertex();
+				consumer.pos(x, TOP, z).endVertex();
 			}
 		}
 	}
 
-	private void buildHorizon(int radius, Tessellator consumer) {
+	private void buildHorizon(int radius, BufferBuilder consumer) {
 		if (radius > 256) {
 			// Prevent the prism from getting too large, this causes issues on some shader packs that modify the vanilla
 			// sky if we don't do this.
@@ -150,8 +136,11 @@ public class HorizonRenderer {
 	}
 
 	public void renderHorizon(FloatBuffer matrix) {
-		if (currentRenderDistance != Minecraft.getMinecraft().gameSettings.renderDistanceChunks) {
-			currentRenderDistance = Minecraft.getMinecraft().gameSettings.renderDistanceChunks;
+		int effectiveRenderDistance = SkyRenderDistance.effectiveChunks(
+			Minecraft.getMinecraft().gameSettings.renderDistanceChunks
+		);
+		if (currentRenderDistance != effectiveRenderDistance) {
+			currentRenderDistance = effectiveRenderDistance;
 			rebuildBuffer();
 		}
 
@@ -159,14 +148,16 @@ public class HorizonRenderer {
         GLStateManager.glLoadIdentity();
         GLStateManager.glMultMatrix(matrix);
 
-        vao.bind();
-        vao.draw();
-        vao.unbind();
+		Tessellator tessellator = Tessellator.getInstance();
+		BufferBuilder buffer = tessellator.getBuffer();
+		GLStateManager.disableCull();
+		buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION);
+		buildHorizon(SkyRenderDistance.effectiveBlocks(currentRenderDistance), buffer);
+		tessellator.draw();
 
         GLStateManager.glPopMatrix();
 	}
 
 	public void destroy() {
-        vao.delete();
 	}
 }

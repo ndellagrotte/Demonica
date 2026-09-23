@@ -20,6 +20,7 @@ public class GlFramebuffer extends GlResource {
 	private final int maxDrawBuffers;
 	private final int maxColorAttachments;
 	private boolean hasDepthAttachment;
+	private boolean depthAttachmentManagedExternally;
 
 	public GlFramebuffer() {
 		super(RenderSystem.createFramebuffer());
@@ -96,6 +97,14 @@ public class GlFramebuffer extends GlResource {
 		return hasDepthAttachment;
 	}
 
+	public void setDepthAttachmentManagedExternally(boolean managedExternally) {
+		this.depthAttachmentManagedExternally = managedExternally;
+	}
+
+	public boolean isDepthAttachmentManagedExternally() {
+		return depthAttachmentManagedExternally;
+	}
+
 	public void bind() {
 		GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER, getGlId());
 	}
@@ -113,10 +122,20 @@ public class GlFramebuffer extends GlResource {
 		GLStateManager.glDeleteFramebuffers(getGlId());
 	}
 
-	public boolean isComplete() {
+	public int checkStatus() {
 		bind();
 
-        return GLStateManager.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER) == GL30.GL_FRAMEBUFFER_COMPLETE;
+		return GLStateManager.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
+	}
+
+	public int getAttachmentParameter(int attachmentIndex, int pname) {
+		bind();
+
+		return GLStateManager.glGetFramebufferAttachmentParameteri(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0 + attachmentIndex, pname);
+	}
+
+	public boolean isComplete() {
+		return checkStatus() == GL30.GL_FRAMEBUFFER_COMPLETE;
 	}
 
 	public int getId() {

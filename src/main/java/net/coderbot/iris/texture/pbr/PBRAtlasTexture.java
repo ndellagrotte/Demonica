@@ -1,7 +1,8 @@
 package net.coderbot.iris.texture.pbr;
 
+import net.coderbot.iris.debug.IrisDebugOptions;
 import com.gtnewhorizons.angelica.compat.mojang.AutoClosableAbstractTexture;
-import com.gtnewhorizons.angelica.config.AngelicaConfig;
+import net.coderbot.iris.debug.PBRDebug;
 import lombok.Getter;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.texture.util.TextureExporter;
@@ -34,7 +35,7 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 	public PBRAtlasTexture(TextureMap textureMap, PBRType type) {
 		this.texMap = textureMap;
 		this.type = type;
-		id = type.appendToFileLocation(TextureMap.locationBlocksTexture);
+		id = type.appendToFileLocation(TextureMap.LOCATION_BLOCKS_TEXTURE);
 
 	}
 
@@ -43,8 +44,8 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 	}
 
 	public void addSprite(TextureAtlasSprite sprite) {
-		sprites.put(texMap.completeResourceLocation(new ResourceLocation(sprite.getIconName()), 0), sprite);
-		if (sprite.hasAnimationMetadata()) {
+		sprites.put(completeResourceLocation(new ResourceLocation(sprite.getIconName())), sprite);
+		if (isAnimated(sprite)) {
 			animatedSprites.add(sprite);
 		}
 	}
@@ -61,7 +62,7 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 
 	public void upload(int atlasWidth, int atlasHeight, int mipLevel, float anisotropicFiltering) {
 		final int glId = getGlTextureId();
-		TextureUtil.allocateTextureImpl(glId, mipLevel, atlasWidth, atlasHeight, anisotropicFiltering);
+		TextureUtil.allocateTextureImpl(glId, mipLevel, atlasWidth, atlasHeight);
 		TextureManipulationUtil.fillWithColor(glId, mipLevel, type.getDefaultValue());
 
 		for (TextureAtlasSprite sprite : sprites.values()) {
@@ -88,8 +89,9 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 			}
 		}
 
-		if (AngelicaConfig.enablePBRDebug) {
-			TextureExporter.exportTextures("pbr_debug/atlas", id.getResourceDomain() + "_" + id.getResourcePath().replaceAll("/", "_"), glId, mipLevel, atlasWidth, atlasHeight);
+		PBRDebug.atlasUploaded(this, atlasWidth, atlasHeight, mipLevel, sprites.size(), animatedSprites.size());
+		if (IrisDebugOptions.pbrDebugEnabled()) {
+			TextureExporter.exportTextures("pbr_debug/atlas", id.getNamespace() + "_" + id.getPath().replaceAll("/", "_"), glId, mipLevel, atlasWidth, atlasHeight);
 		}
 	}
 
@@ -109,11 +111,10 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
     }
 
     protected void uploadSprite(TextureAtlasSprite sprite) {
-
-		if (sprite.animationMetadata.getFrameCount() > 1) {
-			final AnimationMetadataSection metadata = sprite.animationMetadata;
+		final AnimationMetadataSection metadata = sprite.animationMetadata;
+		if (metadata != null && metadata.getFrameCount() > 0) {
 			final int frameCount = sprite.getFrameCount();
-			for (int frame = sprite.frameCounter; frame >= 0; frame--) {
+			for (int frame = Math.min(sprite.frameCounter, metadata.getFrameCount() - 1); frame >= 0; frame--) {
 				final int frameIndex = metadata.getFrameIndex(frame);
 				if (frameIndex >= 0 && frameIndex < frameCount) {
                     TextureUtil.uploadTextureMipmap(sprite.getFrameTextureData(frameIndex), sprite.getIconWidth(), sprite.getIconHeight(), sprite.getOriginX(), sprite.getOriginY(), false, false);
@@ -124,11 +125,24 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 		TextureUtil.uploadTextureMipmap(sprite.getFrameTextureData(0), sprite.getIconWidth(), sprite.getIconHeight(), sprite.getOriginX(), sprite.getOriginY(), false, false);
 	}
 
+	private static boolean isAnimated(TextureAtlasSprite sprite) {
+		final AnimationMetadataSection metadata = sprite.animationMetadata;
+		return metadata != null && metadata.getFrameCount() > 1;
+	}
+
 	public void cycleAnimationFrames() {
+		if (animatedSprites.isEmpty()) {
+			return;
+		}
+
 		bind();
 		for (TextureAtlasSprite sprite : animatedSprites) {
             sprite.updateAnimation();
 		}
+	}
+
+	private ResourceLocation completeResourceLocation(ResourceLocation spriteName) {
+		return new ResourceLocation(spriteName.getNamespace(), texMap.getBasePath() + "/" + spriteName.getPath() + ".png");
 	}
 
 	@Override
@@ -136,9 +150,19 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 		final PBRAtlasHolder pbrHolder = ((TextureAtlasExtension) texMap).getPBRHolder();
 		if (pbrHolder != null) {
             switch (type) {
-                case NORMAL -> pbrHolder.setNormalAtlas(null);
-                case SPECULAR -> pbrHolder.setSpecularAtlas(null);
+                case NORMAL -> {
+                    if (pbrHolder.getNormalAtlas() == this) {
+                        pbrHolder.setNormalAtlas(null);
+                    }
+                }
+                case SPECULAR -> {
+                    if (pbrHolder.getSpecularAtlas() == this) {
+                        pbrHolder.setSpecularAtlas(null);
+                    }
+                }
             }
 		}
+		clear();
+		PBRDebug.atlasClosed(this);
 	}
 }

@@ -1,28 +1,34 @@
 package com.gtnewhorizons.angelica.glsm;
 
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.taumc.glsl.grammar.GLSLLexer;
+import org.taumc.glsl.grammar.GLSLParser;
+import org.taumc.glsl.grammar.GLSLPreParser;
 
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Shared GLSL shader transformation utilities.
- */
 public class GlslTransformUtils {
+    private static final String RENAMED_PREFIX = "actinium_renamed_";
 
-    private static final String RENAMED_PREFIX = "angelica_renamed_";
-
-    /** Texture function renames */
     public static final Map<String, String> TEXTURE_RENAMES = Map.ofEntries(
         Map.entry("texture2D", "texture"),
         Map.entry("texture3D", "texture"),
         Map.entry("texture2DLod", "textureLod"),
         Map.entry("texture3DLod", "textureLod"),
+        Map.entry("texture1DLod", "textureLod"),
+        Map.entry("textureCubeLod", "textureLod"),
+        Map.entry("texture1DArrayLod", "textureLod"),
+        Map.entry("texture2DArrayLod", "textureLod"),
         Map.entry("texture2DProj", "textureProj"),
         Map.entry("texture3DProj", "textureProj"),
+        Map.entry("texture1DProj", "textureProj"),
+        Map.entry("texture2DRectProj", "textureProj"),
         Map.entry("texture2DGrad", "textureGrad"),
         Map.entry("texture2DGradARB", "textureGrad"),
         Map.entry("texture3DGrad", "textureGrad"),
@@ -31,24 +37,36 @@ public class GlslTransformUtils {
         Map.entry("textureSize2D", "textureSize")
     );
 
+    /**
+     * Legacy texture builtins that the grammar lexes as keyword tokens but never accepts in
+     * function-call position, so ANTLR silently recovers and the transformer would emit broken
+     * GLSL. All of them map to the core {@code texture} builtin and are renamed pre-parse; their
+     * Proj/Lod variants parse fine and are handled by {@link #TEXTURE_RENAMES} instead.
+     */
+    private static final List<ReservedWordRename> PRE_PARSE_TEXTURE_RENAMES = List.of(
+        new ReservedWordRename(Pattern.compile("\\btexture1D\\b"), "texture"),
+        new ReservedWordRename(Pattern.compile("\\btextureCube\\b"), "texture"),
+        new ReservedWordRename(Pattern.compile("\\btexture2DRect\\b"), "texture"),
+        new ReservedWordRename(Pattern.compile("\\btexture1DArray\\b"), "texture"),
+        new ReservedWordRename(Pattern.compile("\\btexture2DArray\\b"), "texture"),
+        new ReservedWordRename(Pattern.compile("\\btextureCubeArray\\b"), "texture")
+    );
+
     private static final Pattern TEXTURE_PATTERN = Pattern.compile("\\btexture\\s*\\(|(\\btexture\\b)");
 
-    /** Reserved words added in later GLSL versions that may appear as identifiers in older shaders. */
     private record ReservedWordRename(Pattern pattern, String replacement) {}
+
     private static final Map<Integer, List<ReservedWordRename>> VERSIONED_RESERVED_WORDS = Map.of(
-        // Some reserved words to always rename
         0, List.of(
             new ReservedWordRename(Pattern.compile("\\bsample\\b"), RENAMED_PREFIX + "sample"),
             new ReservedWordRename(Pattern.compile("\\bnew\\b"), RENAMED_PREFIX + "new")
         ),
-        400, List.of(
-            new ReservedWordRename(Pattern.compile("\\bsampler\\b(?!\\d)"), RENAMED_PREFIX + "sampler")
-        )
+        400, List.of(new ReservedWordRename(Pattern.compile("\\bsampler\\b(?!\\d)"), RENAMED_PREFIX + "sampler"))
     );
 
     public static String replaceTexture(String input) {
-        final Matcher matcher = TEXTURE_PATTERN.matcher(input);
-        final StringBuilder builder = new StringBuilder();
+        Matcher matcher = TEXTURE_PATTERN.matcher(input);
+        StringBuilder builder = new StringBuilder();
         while (matcher.find()) {
             if (matcher.group(1) != null) {
                 matcher.appendReplacement(builder, RENAMED_PREFIX + "texture");
@@ -60,9 +78,20 @@ public class GlslTransformUtils {
         return builder.toString();
     }
 
+    /**
+     * Rename legacy texture builtins the parser rejects in call position to the core
+     * {@code texture} builtin. Must run after {@link #replaceTexture} so the {@code texture}
+     * calls introduced here are not mistaken for texture-as-variable usage.
+     */
+    public static String renameParseBreakingTextureFunctions(String source) {
+        for (var rename : PRE_PARSE_TEXTURE_RENAMES) {
+            source = rename.pattern().matcher(source).replaceAll(rename.replacement());
+        }
+        return source;
+    }
+
     public static String renameReservedWords(String source, int targetVersion) {
         for (var entry : VERSIONED_RESERVED_WORDS.entrySet()) {
-            // Rename identifiers that become reserved words at or above this GLSL version
             if (targetVersion >= entry.getKey()) {
                 for (var rename : entry.getValue()) {
                     source = rename.pattern().matcher(source).replaceAll(rename.replacement());
@@ -76,45 +105,65 @@ public class GlslTransformUtils {
         source = source.replace(RENAMED_PREFIX + "texture", "texture");
         source = source.replace(RENAMED_PREFIX + "sampler", "sampler");
         source = source.replace(RENAMED_PREFIX + "sample", "sample");
+        source = source.replace(RENAMED_PREFIX + "new", "new");
         return source;
     }
 
+    /** Parse a full GLSL translation unit with syntax-error listeners suppressed. */
+    public static GLSLParser.Translation_unitContext parseFullQuiet(String source) {
+        final GLSLLexer lexer = new GLSLLexer(CharStreams.fromString(source));
+        lexer.removeErrorListeners();
+        final GLSLParser parser = new GLSLParser(new CommonTokenStream(lexer));
+        parser.removeErrorListeners();
+        parser.setBuildParseTree(true);
+        return parser.translation_unit();
+    }
+
+    /** Parse only the preprocessor structure of a GLSL source, with syntax-error listeners suppressed. */
+    public static GLSLPreParser.Translation_unitContext parsePreQuiet(String source) {
+        final GLSLLexer lexer = new GLSLLexer(CharStreams.fromString(source));
+        lexer.removeErrorListeners();
+        final GLSLPreParser preParser = new GLSLPreParser(new CommonTokenStream(lexer, GLSLLexer.DIRECTIVES));
+        preParser.removeErrorListeners();
+        preParser.setBuildParseTree(true);
+        return preParser.translation_unit();
+    }
+
     public static String getFormattedShader(ParseTree tree, String header) {
-        final StringBuilder sb = new StringBuilder(header + "\n");
-        final String[] tabHolder = {""};
+        StringBuilder sb = new StringBuilder(header + "\n");
+        String[] tabHolder = {""};
         getFormattedShader(tree, sb, tabHolder);
         return sb.toString();
     }
 
-    private static void getFormattedShader(ParseTree tree, StringBuilder stringBuilder, String[] tabHolder) {
+    private static void getFormattedShader(ParseTree tree, StringBuilder builder, String[] tabHolder) {
         if (tree instanceof TerminalNode) {
-            final String text = tree.getText();
-            if (text.equals("<EOF>")) {
+            String text = tree.getText();
+            if ("<EOF>".equals(text)) {
                 return;
             }
-            if (text.equals("#")) {
-                stringBuilder.append("\n#");
+            if ("#".equals(text)) {
+                builder.append("\n#");
                 return;
             }
-            stringBuilder.append(text);
-            if (text.equals("{")) {
-                stringBuilder.append(" \n\t");
+            builder.append(text);
+            if ("{".equals(text)) {
+                builder.append(" \n\t");
                 tabHolder[0] = "\t";
             }
-
-            if (text.equals("}")) {
-                if (stringBuilder.length() >= 2) {
-                    stringBuilder.deleteCharAt(stringBuilder.length() - 2);
+            if ("}".equals(text)) {
+                if (builder.length() >= 2) {
+                    builder.deleteCharAt(builder.length() - 2);
                 }
                 tabHolder[0] = "";
-                stringBuilder.append(" \n");
+                builder.append(" \n");
             } else {
-                stringBuilder.append(text.equals(";") ? " \n" + tabHolder[0] : " ");
+                builder.append(";".equals(text) ? " \n" + tabHolder[0] : " ");
             }
-        } else {
-            for (int i = 0; i < tree.getChildCount(); ++i) {
-                getFormattedShader(tree.getChild(i), stringBuilder, tabHolder);
-            }
+            return;
+        }
+        for (int i = 0; i < tree.getChildCount(); i++) {
+            getFormattedShader(tree.getChild(i), builder, tabHolder);
         }
     }
 }

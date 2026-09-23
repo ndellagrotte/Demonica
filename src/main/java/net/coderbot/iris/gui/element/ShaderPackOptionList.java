@@ -93,14 +93,13 @@ public class ShaderPackOptionList extends IrisGuiSlot {
     }
     @Override
     public boolean mouseReleased( int mouseX, int mouseY, int button) {
-        final int relativeY = mouseY - this.top - this.headerPadding + (int) this.amountScrolled - 4;
-        final int index = relativeY / this.slotHeight;
+        boolean handled = super.mouseReleased(mouseX, mouseY, button);
 
-        if (index < 0 || index >= this.entries.size())
-            return false;
+        for (BaseEntry entry : this.entries) {
+            handled |= entry.mouseReleased(mouseX, mouseY, button);
+        }
 
-        final BaseEntry entry = this.entries.get(index);
-        return entry.mouseReleased(mouseX, mouseY, button);
+        return handled;
     }
 
     @Override
@@ -114,10 +113,10 @@ public class ShaderPackOptionList extends IrisGuiSlot {
     }
 
     @Override
-    protected void drawSlot(int index, int x, int y, int i1, Tessellator tessellator, int mouseX, int mouseY) {
+    protected void drawSlot(int index, int x, int y, int height, int mouseX, int mouseY, float partialTicks) {
         final BaseEntry entry = this.entries.get(index);
-        final boolean isMouseOver = this.func_148124_c/*getSlotIndexFromScreenCoords*/(mouseX, mouseY) == index;
-        entry.drawEntry(screen, index, x - 2, y + 4, this.getListWidth(), this.slotHeight, tessellator, mouseX, mouseY, isMouseOver);
+        final boolean isMouseOver = this.getSlotIndexFromScreenCoords(mouseX, mouseY) == index;
+        entry.drawEntry(screen, index, x - 2, y + 4, this.getListWidth(), this.slotHeight, Tessellator.getInstance(), mouseX, mouseY, isMouseOver);
     }
 
 

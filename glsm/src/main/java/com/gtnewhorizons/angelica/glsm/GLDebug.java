@@ -6,6 +6,10 @@
 package com.gtnewhorizons.angelica.glsm;
 
 import com.gtnewhorizons.angelica.glsm.backend.BackendManager;
+import com.gtnewhorizons.angelica.glsm.backend.GLDebugMessageListener;
+import com.gtnewhorizons.angelica.glsm.hooks.GLSMInitConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.lwjgl.opengl.EXTBlendColor;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
@@ -14,19 +18,52 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL43;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
 public final class GLDebug {
+    private static final Logger LOGGER = LogManager.getLogger("GLSM/GLDebug");
 
     /**
-     * Sets up debug callbacks
+     * Installs the driver debug callback requested by the startup configuration.
      *
-     * @return 0 for failure, 1 for success, 2 for restart required.
+     * @return 1 for a debug context or 2 for a callback forced on a non-debug context
+     * @throws IllegalStateException when no callback implementation can be installed
      */
     public static int setupDebugMessageCallback() {
         if (Thread.currentThread() != GLStateManager.getMainThread()) {
-            GLStateManager.LOGGER.warn("setupDebugMessageCallback called from non-main thread!");
-            return 0;
+            String message = "OpenGL debug callback installation must run on the GLSM main thread";
+            LOGGER.error(message);
+            throw new IllegalStateException(message);
         }
-        return setupDebugMessageCallbackImpl();
+
+        int result;
+        try {
+            result = setupDebugMessageCallbackImpl();
+        } catch (RuntimeException e) {
+            String message = "Failed to install the OpenGL debug callback using "
+                + BackendManager.RENDER_BACKEND.getName();
+            LOGGER.error(message, e);
+            throw new IllegalStateException(message, e);
+        }
+
+        requireInstalledCallback(result, BackendManager.RENDER_BACKEND.getName());
+        if (result == 1) {
+            LOGGER.info("OpenGL debug callback installed on a debug context");
+        } else {
+            LOGGER.warn("OpenGL debug callback installed, but the context has no debug flag");
+        }
+        return result;
+    }
+
+    static void requireInstalledCallback(int result, String backendName) {
+        if (result != 1 && result != 2) {
+            String message = "OpenGL debug output was explicitly enabled, but " + backendName
+                + " could not install a debug callback (result=" + result + ")";
+            LOGGER.error(message);
+            throw new IllegalStateException(message);
+        }
     }
 
     public static Throwable filterStackTrace(Throwable throwable, int offset) {
@@ -559,7 +596,9 @@ public final class GLDebug {
     }
 
     public static void initDebugState() {
-        if (BackendManager.RENDER_BACKEND.supportsDebugOutput()) {
+        final GLSMInitConfig cfg = GLStateManager.getInitConfig();
+        final boolean userRequested = cfg != null && (cfg.isLwjglDebug() || CaptureGate.enabledAtStartup());
+        if (userRequested && BackendManager.RENDER_BACKEND.supportsDebugOutput()) {
             debugState = new KHRDebugState();
         } else {
             debugState = new UnsupportedDebugState();
@@ -570,6 +609,19 @@ public final class GLDebug {
         if (debugState != null && Thread.currentThread() == GLStateManager.getMainThread()) {
             debugState.nameObject(id, object, name);
         }
+    }
+
+    /**
+     * Overload that lets you gate the String concat behind the debugState
+     */
+    public static void pushGroup(String prefix, int value) {
+        if (debugState != null && Thread.currentThread() == GLStateManager.getMainThread()) {
+            debugState.pushGroup(prefix + value);
+        }
+    }
+
+    public static boolean isActive() {
+        return debugState instanceof KHRDebugState && CaptureGate.markersThisFrame && Thread.currentThread() == GLStateManager.getMainThread();
     }
 
     public static void pushGroup(String group) {
@@ -595,6 +647,45 @@ public final class GLDebug {
             return debugState.getObjectLabel(glProgram, program);
         }
         return "";
+    }
+
+    private static MethodHandle khrCallbackInvoke;
+    private static boolean khrCallbackInvokeResolved;
+
+    /**
+     * Adapts an LWJGL {@code KHRDebugCallback} to the backend listener interface; returns null for
+     * a null callback so the backend unregisters instead of installing an empty listener.
+     *
+     * <p>Reflection is required here because the callback's delivery entry point is not statically
+     * reachable: the runtime {@code org.lwjgl.opengl.KHRDebugCallback} shape depends on the LWJGL
+     * shim in use (an {@code invoke(int,int,int,int,int,long,long)} SAM on lwjgl3-style runtimes,
+     * while lwjglx ships a final Handler-based class whose handler getter is package-private), so no
+     * normal entry point exists across runtimes. Classes without the expected {@code invoke} method
+     * get a warning and no delivery.
+     */
+    static GLDebugMessageListener adaptDebugCallback(Object callback) {
+        if (callback == null) return null;
+        final MethodHandle invoke = resolveKhrCallbackInvoke(callback.getClass());
+        if (invoke == null) return null;
+        return (source, type, id, severity, length, message, userParam) -> {
+            try {
+                invoke.invoke(callback, source, type, id, severity, length, message, userParam);
+            } catch (Throwable t) {
+                GLStateManager.LOGGER.warn("Debug message callback threw", t);
+            }
+        };
+    }
+
+    private static synchronized MethodHandle resolveKhrCallbackInvoke(Class<?> callbackClass) {
+        if (!khrCallbackInvokeResolved) {
+            khrCallbackInvokeResolved = true;
+            try {
+                khrCallbackInvoke = MethodHandles.publicLookup().findVirtual(callbackClass, "invoke", MethodType.methodType(void.class, int.class, int.class, int.class, int.class, int.class, long.class, long.class));
+            } catch (ReflectiveOperationException e) {
+                GLStateManager.LOGGER.warn("{} has no public invoke(int,int,int,int,int,long,long); debug messages registered through it will not be delivered.", callbackClass.getName());
+            }
+        }
+        return khrCallbackInvoke;
     }
 
 }

@@ -1,5 +1,6 @@
 package net.coderbot.iris.pipeline;
 
+import net.coderbot.iris.debug.ShaderRegressionDebug;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
@@ -15,11 +16,13 @@ import net.coderbot.iris.block_rendering.BlockMaterialMapping;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.coderbot.iris.celeritas.CeleritasTerrainPipeline;
 import net.coderbot.iris.compat.dh.DHCompat;
+import net.coderbot.iris.debug.IrisGlDebug;
 import net.coderbot.iris.features.FeatureFlags;
 import net.coderbot.iris.gbuffer_overrides.matching.InputAvailability;
 import net.coderbot.iris.gbuffer_overrides.matching.ProgramTable;
 import net.coderbot.iris.gbuffer_overrides.matching.RenderCondition;
 import net.coderbot.iris.gbuffer_overrides.matching.SpecialCondition;
+import net.coderbot.iris.gbuffer_overrides.matching.TranslucentBlendMatcher;
 import net.coderbot.iris.gbuffer_overrides.state.RenderTargetStateListener;
 import net.coderbot.iris.gl.blending.AlphaTestOverride;
 import net.coderbot.iris.gl.blending.BlendModeOverride;
@@ -28,6 +31,7 @@ import net.coderbot.iris.gl.blending.BufferBlendOverride;
 import net.coderbot.iris.gl.buffer.ShaderStorageBufferHolder;
 import net.coderbot.iris.gl.buffer.ShaderStorageInfo;
 import net.coderbot.iris.gl.framebuffer.GlFramebuffer;
+import net.coderbot.iris.gl.framebuffer.MinecraftFramebufferHelper;
 import net.coderbot.iris.gl.image.GlImage;
 import net.coderbot.iris.gl.image.ImageHolder;
 import net.coderbot.iris.gl.image.ImageInformation;
@@ -65,6 +69,7 @@ import net.coderbot.iris.shaderpack.ProgramFallbackResolver;
 import net.coderbot.iris.shaderpack.ProgramSet;
 import net.coderbot.iris.shaderpack.ProgramSource;
 import net.coderbot.iris.shaderpack.loading.ProgramId;
+import net.coderbot.iris.shaderpack.option.values.OptionValues;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 import net.coderbot.iris.shadows.ShadowCompositeRenderer;
 import net.coderbot.iris.shadows.ShadowRenderTargets;
@@ -76,20 +81,25 @@ import net.coderbot.iris.texture.pbr.PBRType;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
 import net.coderbot.iris.uniforms.ItemMaterialHelper;
+import net.coderbot.iris.uniforms.WorldTimeUniforms;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.EntityRenderer;
-import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.shader.Framebuffer;
+import net.minecraft.init.Blocks;
 import org.apache.commons.lang3.tuple.Pair;
+import dhj.embeddedt.embeddium.impl.gl.profiling.TimerQueryManager;
+import dhj.embeddedt.embeddium.impl.model.light.debug.AODebug;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL42;
+import org.lwjgl.opengl.GL43;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -109,9 +119,6 @@ import java.util.function.Supplier;
  * Encapsulates the compiled shader program objects for the currently loaded shaderpack.
  */
 public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, RenderTargetStateListener  {
-    private final static int SRC_ALPHA = 770;
-    private final static int ONE_MINUS_SRC_ALPHA = 771;
-    private final static int ONE = 1;
 	private final RenderTargets renderTargets;
 
 	@Nullable
@@ -159,10 +166,17 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private final GlImage[] imagesToClear;
 	@Nullable
 	private final ShaderStorageBufferHolder ssboHolder;
+	private final AdaptiveShadowBoundsStats adaptiveShadowBoundsStats;
 
 	private final Map<Pair<String, InputAvailability>, Map<PatchShaderType, String>> attributeTransforms;
 
 	private final HorizonRenderer horizonRenderer = new HorizonRenderer();
+    @Nullable
+    private TimerQueryManager finalizeOutputTimer;
+    @Nullable
+    private TimerQueryManager compositeOutputTimer;
+    @Nullable
+    private TimerQueryManager finalOutputTimer;
 
 	private final float sunPathRotation;
 	private final CloudSetting cloudSetting;
@@ -183,13 +197,17 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private final CloudSetting dhCloudSetting;
 
 	private Pass current = null;
-
 	private WorldRenderingPhase overridePhase = null;
 	private WorldRenderingPhase phase = WorldRenderingPhase.NONE;
 	private boolean isBeforeTranslucent;
 	private boolean isRenderingShadow = false;
 	private InputAvailability inputs = new InputAvailability(false, false);
 	private SpecialCondition special = null;
+	private boolean refreshingPass;
+	private boolean modProgramOverrode;
+	private int programBeforeModOverride = -1;
+	private boolean matchingBlend;
+	private boolean drivingProgram;
 
 	private boolean shouldBindPBR;
 	private int currentNormalTexture;
@@ -200,6 +218,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	public DeferredWorldRenderingPipeline(ProgramSet programs) {
 		Objects.requireNonNull(programs);
+		this.adaptiveShadowBoundsStats = AdaptiveShadowBoundsStats.create(programs.getPack().getBufferObjects());
+		AdaptiveShadowBoundsStats.activate(this.adaptiveShadowBoundsStats);
 
 		final Map<Integer, CompletableFuture<Map<PatchShaderType, String>>> prepareTransformFutures =
 			submitCompositeTransforms(programs.getPrepare(), TextureStage.PREPARE, programs.getPackDirectives().getTextureMap());
@@ -279,17 +299,31 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
             holder -> CommonUniforms.addNonDynamicUniforms(holder, programs.getPack().getIdMap(), programs.getPackDirectives(), this.updateNotifier)
         );
 
-		BlockRenderingSettings.INSTANCE.setBlockMetaMatches(BlockMaterialMapping.createBlockMetaIdMap(programs.getPack().getIdMap().getBlockProperties()));
+		final BlockMaterialMapping.BlockIdMaps blockIdMaps = BlockMaterialMapping.createBlockIdMaps(
+			programs.getPack().getIdMap().getBlockProperties(),
+			programs.getPack().getIdMap().getTagEntries(),
+			programs.getPack().getIdMap().hasLegacySection());
+		BlockRenderingSettings.INSTANCE.setBlockMetaMatches(blockIdMaps.blockMetaMap());
+		BlockRenderingSettings.INSTANCE.setBlockNbtMap(blockIdMaps.blockNbtMap());
 		BlockRenderingSettings.INSTANCE.setBlockTypeIds(BlockMaterialMapping.createBlockTypeMap(programs.getPack().getIdMap().getBlockRenderTypeMap()));
+		logBlockMappingSummary();
 
 		BlockRenderingSettings.INSTANCE.setEntityIds(programs.getPack().getIdMap().getEntityIdMap());
+		BlockRenderingSettings.INSTANCE.setEntityNbtMap(BlockMaterialMapping.createNamespacedNbtMap(programs.getPack().getIdMap().getEntityNbtEntries()));
 
 		ItemMaterialHelper.clearCache();
 		BlockRenderingSettings.INSTANCE.setItemIds(programs.getPack().getIdMap().getItemIdMap());
-		BlockRenderingSettings.INSTANCE.setAmbientOcclusionLevel(programs.getPackDirectives().getAmbientOcclusionLevel());
+		BlockRenderingSettings.INSTANCE.setItemNbtMap(BlockMaterialMapping.createNamespacedNbtMap(programs.getPack().getIdMap().getItemNbtEntries()));
+		float ambientOcclusionLevel = resolveAmbientOcclusionLevel(programs);
+		BlockRenderingSettings.INSTANCE.setAmbientOcclusionLevel(ambientOcclusionLevel);
 		BlockRenderingSettings.INSTANCE.setDisableDirectionalShading(shouldDisableDirectionalShading());
 		BlockRenderingSettings.INSTANCE.setUseSeparateAo(programs.getPackDirectives().shouldUseSeparateAo());
 		BlockRenderingSettings.INSTANCE.setUseExtendedVertexFormat(true);
+		AODebug.logSettings(
+			"deferred",
+			ambientOcclusionLevel,
+			programs.getPackDirectives().shouldUseSeparateAo()
+		);
 
 		// Don't clobber anything in texture unit 0. It probably won't cause issues, but we're just being cautious here.
 		GLStateManager.glActiveTexture(GL13.GL_TEXTURE2);
@@ -513,7 +547,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 		if (hasSetup) {
 			ComputeProgram.unbind();
-			RenderSystem.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL42.GL_TEXTURE_FETCH_BARRIER_BIT);
+			RenderSystem.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL42.GL_TEXTURE_FETCH_BARRIER_BIT | GL43.GL_SHADER_STORAGE_BARRIER_BIT);
 		}
 
 		// Terrain pipeline sampler/image factory setup follows.
@@ -610,9 +644,30 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		return renderTargets;
 	}
 
+	private static float resolveAmbientOcclusionLevel(ProgramSet programs) {
+		float directiveLevel = programs.getPackDirectives().getAmbientOcclusionLevel();
+		AODebug.logSettings("directive", directiveLevel, programs.getPackDirectives().shouldUseSeparateAo());
+		OptionValues optionValues = programs.getPack().getShaderPackOptions().getOptionValues();
+		Optional<String> optionLevel = optionValues.getStringValue("ambientOcclusionLevel");
+
+		if (optionLevel.isEmpty()) {
+			return directiveLevel;
+		}
+
+		try {
+			float optionLevelValue = Math.max(0.0F, Math.min(1.0F, Float.parseFloat(optionLevel.get())));
+			AODebug.logSettings("option", optionLevelValue, programs.getPackDirectives().shouldUseSeparateAo());
+			return optionLevelValue;
+		} catch (NumberFormatException e) {
+			Iris.logger.error("Failed to parse ambientOcclusionLevel shader option value '{}', using directive value {}",
+				optionLevel.get(), directiveLevel);
+			return directiveLevel;
+		}
+	}
+
 	private void checkWorld() {
 		// If we're not in a world, then obviously we cannot possibly be rendering a world.
-		if (Minecraft.getMinecraft().theWorld == null) {
+		if (Minecraft.getMinecraft().world == null) {
 			isRenderingWorld = false;
 			current = null;
 		}
@@ -730,21 +785,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			case TERRAIN_SOLID, TERRAIN_CUTOUT, TERRAIN_CUTOUT_MIPPED:
 				return RenderCondition.TERRAIN_OPAQUE;
 			case ENTITIES:
-                if (GLStateManager.getBlendState().getSrcRgb() == SRC_ALPHA &&
-                    GLStateManager.getBlendState().getSrcAlpha() == ONE_MINUS_SRC_ALPHA &&
-                    GLStateManager.getBlendState().getDstRgb() == ONE &&
-                    GLStateManager.getBlendState().getDstAlpha() == ONE_MINUS_SRC_ALPHA)
-                {
-					return RenderCondition.ENTITIES_TRANSLUCENT;
-				} else {
-					return RenderCondition.ENTITIES;
-				}
+				return TranslucentBlendMatcher.matchesCurrentState()
+					? RenderCondition.ENTITIES_TRANSLUCENT : RenderCondition.ENTITIES;
 			case BLOCK_ENTITIES:
-				if (GLStateManager.getBlendState().getSrcRgb() == SRC_ALPHA &&
-					GLStateManager.getBlendState().getDstRgb() == ONE_MINUS_SRC_ALPHA) {
-					return RenderCondition.BLOCK_ENTITIES_TRANSLUCENT;
-				}
-				return RenderCondition.BLOCK_ENTITIES;
+				return TranslucentBlendMatcher.matchesCurrentState()
+					? RenderCondition.BLOCK_ENTITIES_TRANSLUCENT : RenderCondition.BLOCK_ENTITIES;
 			case DESTROY:
 				return RenderCondition.DESTROY;
 			case HAND_SOLID:
@@ -778,35 +823,174 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	 * Called when a mod overrides the GL program away from the active Iris pass
 	 */
 	public void onModProgramOverride() {
+		if (current != null) {
+			modProgramOverrode = true;
+			programBeforeModOverride = getActivePassProgramId();
+		}
+		IrisGlDebug.logModProgramOverride(
+			"on-mod-program-override",
+			getPhase().name(),
+			inputs.toString(),
+			isRenderingShadow,
+			isMainBound,
+			isRenderingWorld,
+			isRenderingFullScreenPass,
+			isPostChain,
+			GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
+			getActivePassProgramId()
+		);
 		current = null;
 	}
 
+	/** Restores the current Iris pass after a foreign renderer has returned control. */
+	public void restorePassAfterModProgram(int newProgram) {
+		if (refreshingPass || drivingProgram || !modProgramOverrode) {
+			return;
+		}
+		if (newProgram != 0 && newProgram != programBeforeModOverride) {
+			return;
+		}
+		restorePassAfterForeignDraw();
+	}
+
+	/** Reapplies the active Iris pass after a renderer that may have changed raw GL state. */
+	public void restorePassAfterForeignDraw() {
+		if (refreshingPass || drivingProgram
+			|| !isRenderingWorld
+			|| isRenderingFullScreenPass
+			|| isPostChain
+			|| (!isMainBound && !isRenderingShadow)) {
+			return;
+		}
+
+		refreshingPass = true;
+		try {
+			if (current != null) {
+				drivingProgram = true;
+				try {
+					current.use();
+				} finally {
+					drivingProgram = false;
+				}
+			} else {
+				matchPass();
+			}
+		} finally {
+			modProgramOverrode = false;
+			programBeforeModOverride = -1;
+			refreshingPass = false;
+		}
+	}
+
+	/** Re-evaluates entity translucency after vanilla changes blend state. */
+	public void onVanillaBlendChanged() {
+		if (matchingBlend || drivingProgram || refreshingPass) {
+			return;
+		}
+
+		final WorldRenderingPhase activePhase = getPhase();
+		if (activePhase != WorldRenderingPhase.ENTITIES && activePhase != WorldRenderingPhase.BLOCK_ENTITIES) {
+			return;
+		}
+
+		matchingBlend = true;
+		try {
+			matchPass();
+		} finally {
+			matchingBlend = false;
+		}
+	}
+
 	private void matchPass() {
-		if (!isRenderingWorld || isRenderingFullScreenPass || isPostChain || !isMainBound) {
+		if (!isRenderingWorld || isRenderingFullScreenPass || isPostChain || (!isMainBound && !isRenderingShadow)) {
+            IrisGlDebug.logPipelineSkip(
+                "match-pass-skip",
+                getPhase().name(),
+                isRenderingShadow,
+                isMainBound,
+                isRenderingWorld,
+                isRenderingFullScreenPass,
+                isPostChain);
 			return;
 		}
 		
 		final RenderCondition condition = getCondition(getPhase());
 		final Pass matched = table.match(condition, inputs);
-		
 		beginPass(matched);
+        IrisGlDebug.logPipelineMatch(
+                "match-pass",
+                getPhase().name(),
+                condition.name(),
+                isRenderingShadow,
+                isMainBound,
+                isRenderingWorld,
+                isRenderingFullScreenPass,
+                isPostChain,
+                matched != null && matched.getProgram() != null ? matched.getProgram().getProgramId() : -1);
 	}
 
 	public void beginPass(Pass pass) {
+        WorldRenderingPhase activePhase = getPhase();
+        int previousProgram = getActivePassProgramId();
+		int nextProgram = pass != null && pass.getProgram() != null ? pass.getProgram().getProgramId() : 0;
+
 		if (current == pass) {
+			int currentProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+			if (currentProgram != nextProgram) {
+				drivingProgram = true;
+				try {
+					if (pass != null) {
+						pass.use();
+					} else {
+						Program.unbind();
+					}
+				} finally {
+					drivingProgram = false;
+				}
+				if (activePhase == WorldRenderingPhase.ENTITIES || activePhase == WorldRenderingPhase.BLOCK_ENTITIES || isRenderingShadow) {
+					IrisGlDebug.logPassBind("begin-pass-rebind", activePhase.name(), currentProgram, nextProgram);
+				}
+				return;
+			}
+            if (activePhase == WorldRenderingPhase.ENTITIES || activePhase == WorldRenderingPhase.BLOCK_ENTITIES || isRenderingShadow) {
+                IrisGlDebug.logPassBind("begin-pass-reuse", activePhase.name(), previousProgram, nextProgram);
+            }
 			return;
 		}
 
-		if (current != null) {
-			current.stopUsing();
+		drivingProgram = true;
+		try {
+			if (current != null) {
+				current.stopUsing();
+			}
+
+			current = pass;
+
+			if (pass != null) {
+				pass.use();
+			} else {
+				Program.unbind();
+			}
+		} finally {
+			drivingProgram = false;
 		}
 
-		current = pass;
+        if (activePhase == WorldRenderingPhase.ENTITIES || activePhase == WorldRenderingPhase.BLOCK_ENTITIES || isRenderingShadow) {
+            IrisGlDebug.logPassBind("begin-pass", activePhase.name(), previousProgram, nextProgram);
+        }
+	}
 
-		if (pass != null) {
-			pass.use();
-		} else {
-			Program.unbind();
+	@Override
+	public void restoreActivePass() {
+		drivingProgram = true;
+		try {
+			if (current != null) {
+				current.use();
+			} else {
+				matchPass();
+			}
+		} finally {
+			drivingProgram = false;
 		}
 	}
 
@@ -821,7 +1005,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	private Pass createPass(ProgramSource source, InputAvailability availability, boolean shadow, ProgramId id) {
 		// Use pre-computed transform if available, otherwise transform synchronously
-		Pair<String, InputAvailability> key = Pair.of(source.getName(), availability);
+		InputAvailability transformAvailability = getTransformInputAvailability(id, availability);
+		Pair<String, InputAvailability> key = Pair.of(source.getName(), transformAvailability);
 		Map<PatchShaderType, String> transformed = attributeTransforms.get(key);
 
 		if (transformed == null) {
@@ -832,7 +1017,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 				source.getTessControlSource().orElse(null),
 				source.getTessEvalSource().orElse(null),
 				source.getFragmentSource().orElseThrow(NullPointerException::new),
-				availability);
+				transformAvailability);
 		}
 
 		String vertex = transformed.get(PatchShaderType.VERTEX);
@@ -849,6 +1034,13 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		return createPassInner(builder, source.getDirectives(), availability, shadow, id);
 	}
 
+	private static InputAvailability getTransformInputAvailability(ProgramId id, InputAvailability availability) {
+		if (id == ProgramId.SkyTextured && availability.texture && !availability.lightmap) {
+			return INPUT_TEXTURE_NO_COLOR;
+		}
+		return availability;
+	}
+
 	private Pass createPassInner(ProgramBuilder builder, ProgramDirectives programDirectives, InputAvailability availability, boolean shadow, ProgramId id) {
 
 		CommonUniforms.addDynamicUniforms(builder, FogMode.PER_VERTEX);
@@ -857,7 +1049,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		Supplier<ImmutableSet<Integer>> flipped;
 
 		if (shadow) {
-			flipped = () -> (shouldRenderPrepareBeforeShadow ? flippedAfterPrepare : flippedBeforeShadow);
+			flipped = () -> ((shouldRenderPrepareBeforeShadow || hasRenderedPreparePass) ? flippedAfterPrepare : flippedBeforeShadow);
 		} else {
 			flipped = () -> isBeforeTranslucent ? flippedAfterPrepare : flippedAfterTranslucent;
 		}
@@ -927,7 +1119,10 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			}
 		});
 
-        Pass pass = new Pass(builder.build(), framebufferBeforeTranslucents, framebufferAfterTranslucents, alphaTestOverride,
+        Program builtProgram = builder.build();
+        IrisGlDebug.logProgramSamplerState("create-pass", builtProgram.getProgramId(), availability.toString(), getPhase().name());
+
+        Pass pass = new Pass(builtProgram, framebufferBeforeTranslucents, framebufferAfterTranslucents, alphaTestOverride,
             programDirectives.getBlendModeOverride().orElse(id.getBlendModeOverride()), bufferOverrides, shadow);
 
         this.customUniforms.mapholderToPass(builder, pass);
@@ -1110,6 +1305,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 			if (program != null) {
 				program.use();
+			} else {
+				Program.unbind();
 			}
 
 			DeferredWorldRenderingPipeline.this.customUniforms.push(this);
@@ -1157,6 +1354,12 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		deferredRenderer.destroy();
 		finalPassRenderer.destroy();
 		centerDepthSampler.destroy();
+        closeFinalizeTimer(finalizeOutputTimer);
+        closeFinalizeTimer(compositeOutputTimer);
+        closeFinalizeTimer(finalOutputTimer);
+        finalizeOutputTimer = null;
+        compositeOutputTimer = null;
+        finalOutputTimer = null;
 
 		// Destroy setup compute programs
 		if (setup != null) {
@@ -1184,11 +1387,9 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		horizonRenderer.destroy();
 
 		// Make sure that any custom framebuffers are not bound before destroying render targets
-		OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_READ_FRAMEBUFFER, 0);
-		OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_DRAW_FRAMEBUFFER, 0);
-		OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_FRAMEBUFFER, 0);
-
-        Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(false);
+		GLStateManager.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, 0);
+		GLStateManager.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, 0);
+		GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
 
 		// Destroy our render targets
 		//
@@ -1213,9 +1414,13 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		customImages.clear();
 
 		// Destroy SSBOs
+		AdaptiveShadowBoundsStats.deactivate(adaptiveShadowBoundsStats);
+		adaptiveShadowBoundsStats.destroy();
 		if (ssboHolder != null) {
 			ssboHolder.destroyBuffers();
 		}
+
+        MinecraftFramebufferHelper.restoreMainFramebuffer(false);
 	}
 
 	private static void destroyPasses(ProgramTable<Pass> table) {
@@ -1252,7 +1457,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 				// Clear depth first, regardless of any color clearing.
 				shadowRenderTargets.getDepthSourceFb().bind();
                 GLStateManager.glClear(GL11.GL_DEPTH_BUFFER_BIT);
-                if (Minecraft.isRunningOnMac) {
+                if (Minecraft.IS_RUNNING_ON_MAC) {
                     GLStateManager.glGetError();
                 }
 
@@ -1324,7 +1529,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			}
 			if (ranSetup) {
 				ComputeProgram.unbind();
-				RenderSystem.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL42.GL_TEXTURE_FETCH_BARRIER_BIT);
+				RenderSystem.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL42.GL_TEXTURE_FETCH_BARRIER_BIT | GL43.GL_SHADER_STORAGE_BARRIER_BIT);
 			}
 		}
 
@@ -1348,7 +1553,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		// Reset framebuffer and viewport
-        Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);
+        MinecraftFramebufferHelper.restoreMainFramebuffer(true);
 	}
 
 	private ComputeProgram[] createShadowComputes(ComputeSource[] compute) {
@@ -1468,26 +1673,34 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void beginHand() {
+        IrisGlDebug.check("level:begin-hand:start");
 		// We need to copy the current depth texture so that depthtex2 can contain the depth values for
 		// all non-translucent content without the hand, as required.
 		renderTargets.copyPreHandDepth();
+        IrisGlDebug.check("level:begin-hand:copy-depth");
 	}
 
 	@Override
 	public void beginTranslucents() {
+        IrisGlDebug.check("level:begin-translucents:start");
 		isBeforeTranslucent = false;
 
 		// We need to copy the current depth texture so that depthtex1 can contain the depth values for
 		// all non-translucent content, as required.
 		renderTargets.copyPreTranslucentDepth();
+        IrisGlDebug.check("level:begin-translucents:copy-depth");
 
 
 		// needed to remove blend mode overrides and similar
 		beginPass(null);
+        IrisGlDebug.check("level:begin-translucents:begin-pass-null");
 
 		isRenderingFullScreenPass = true;
 
+        IrisGlDebug.beginFramebufferSamplePhase("deferred-after-terrain");
 		deferredRenderer.renderAll();
+        IrisGlDebug.endFramebufferSamplePhase();
+		IrisGlDebug.check("level:begin-translucents:deferred");
 
 		GLStateManager.enableBlend();
 		GLStateManager.enableAlphaTest();
@@ -1506,38 +1719,50 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void renderShadows(EntityRenderer levelRenderer, Camera playerCamera) {
-		if (shouldRenderPrepareBeforeShadow) {
-			isRenderingFullScreenPass = true;
-
-			prepareRenderer.renderAll();
-
-			isRenderingFullScreenPass = false;
+        IrisGlDebug.check("level:shadows:start");
+		if (shouldRenderPrepareBeforeShadow && !hasRenderedPreparePass) {
+			renderPreparePass("level:shadows:prepare-before");
 		}
 
 		if (shadowRenderer != null) {
 			isRenderingShadow = true;
 			matchPass();  // Ensure shadow shader is bound for entity rendering
+            IrisGlDebug.check("level:shadows:match-pass");
 
 			shadowRenderer.renderShadows(levelRenderer, playerCamera);
+            IrisGlDebug.check("level:shadows:render");
 
 			// needed to remove blend mode overrides and similar
 			beginPass(null);
+            IrisGlDebug.check("level:shadows:begin-pass-null");
 			isRenderingShadow = false;
 		}
 
-		if (!shouldRenderPrepareBeforeShadow) {
-			isRenderingFullScreenPass = true;
-
-			prepareRenderer.renderAll();
-
-			isRenderingFullScreenPass = false;
+		if (!shouldRenderPrepareBeforeShadow && !hasRenderedPreparePass) {
+			renderPreparePass("level:shadows:prepare-after");
 		}
+        IrisGlDebug.check("level:shadows:end");
+	}
+
+	@Override
+	public void renderPreSkyPrepare() {
+		renderPreparePass("level:pre-sky-prepare");
+	}
+
+	private void renderPreparePass(String debugStage) {
+		if (hasRenderedPreparePass) {
+			return;
+		}
+
+		isRenderingFullScreenPass = true;
+		prepareRenderer.renderAll();
+		IrisGlDebug.check(debugStage);
+		isRenderingFullScreenPass = false;
+		hasRenderedPreparePass = true;
 	}
 
 	@Override
 	public void addDebugText(List<String> messages) {
-		messages.add("");
-
 		if (shadowRenderer != null) {
 			shadowRenderer.addDebugText(messages);
 		} else {
@@ -1553,10 +1778,13 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	// TODO: better way to avoid this global state?
 	private boolean isRenderingWorld = false;
 	private boolean isRenderingFullScreenPass = false;
+	private boolean hasRenderedPreparePass = false;
 
 	@Override
 	public void beginLevelRendering() {
+        IrisGlDebug.markStage("level:begin");
 		isRenderingFullScreenPass = false;
+		hasRenderedPreparePass = false;
 		isRenderingWorld = true;
 		isBeforeTranslucent = true;
 		isMainBound = true;
@@ -1566,6 +1794,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 //		HandRenderer.INSTANCE.getBufferSource().resetDrawCalls();
 
 		checkWorld();
+
+		WorldTimeUniforms.snapshot();
 
 		if (!isRenderingWorld) {
 			Iris.logger.warn("beginWorldRender was called but we are not currently rendering a world?");
@@ -1616,6 +1846,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void finalizeLevelRendering() {
+        IrisGlDebug.check("level:finalize:start");
 		checkWorld();
 
 		if (!isRenderingWorld) {
@@ -1624,6 +1855,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		beginPass(null);
+        IrisGlDebug.check("level:finalize:begin-pass-null");
 
 		isRenderingWorld = false;
 		phase = WorldRenderingPhase.NONE;
@@ -1631,13 +1863,72 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 		isRenderingFullScreenPass = true;
 
-		centerDepthSampler.sampleCenterDepth();
+        boolean profileOutput = IrisGlDebug.shouldCaptureGpuPerfTiming();
+        if (profileOutput) {
+            updateFinalizeTimers();
+            finalizeOutputTimer.startProfiling();
+        }
 
+        long cpuStart = System.nanoTime();
+        IrisGlDebug.check("level:finalize:before-center-depth");
+		centerDepthSampler.sampleCenterDepth();
+        long cpuAfterCenterDepth = System.nanoTime();
+        IrisGlDebug.check("level:finalize:center-depth");
+
+        IrisGlDebug.check("level:finalize:before-composite");
+        IrisGlDebug.beginFramebufferSamplePhase("finalize-after-terrain");
+        if (profileOutput) {
+            compositeOutputTimer.startProfiling();
+        }
 		compositeRenderer.renderAll();
+        if (profileOutput) {
+            compositeOutputTimer.finishProfiling();
+        }
+        long cpuAfterComposite = System.nanoTime();
+        IrisGlDebug.check("level:finalize:before-final");
+        if (profileOutput) {
+            finalOutputTimer.startProfiling();
+        }
 		finalPassRenderer.renderFinalPass();
+        if (profileOutput) {
+            finalOutputTimer.finishProfiling();
+            finalizeOutputTimer.finishProfiling();
+        }
+        long cpuAfterFinal = System.nanoTime();
+        IrisGlDebug.endFramebufferSamplePhase();
+        if (profileOutput) {
+            IrisGlDebug.logCompositeOutputTiming(
+                cpuAfterFinal - cpuStart,
+                cpuAfterCenterDepth - cpuStart,
+                cpuAfterComposite - cpuAfterCenterDepth,
+                cpuAfterFinal - cpuAfterComposite,
+                finalizeOutputTimer.getLastTime(),
+                compositeOutputTimer.getLastTime(),
+                finalOutputTimer.getLastTime()
+            );
+        }
 
 		isRenderingFullScreenPass = false;
+        IrisGlDebug.check("level:finalized");
 	}
+
+    private void updateFinalizeTimers() {
+        if (finalizeOutputTimer == null) {
+            finalizeOutputTimer = new TimerQueryManager();
+            compositeOutputTimer = new TimerQueryManager();
+            finalOutputTimer = new TimerQueryManager();
+        }
+
+        finalizeOutputTimer.updateTime();
+        compositeOutputTimer.updateTime();
+        finalOutputTimer.updateTime();
+    }
+
+    private static void closeFinalizeTimer(@Nullable TimerQueryManager timer) {
+        if (timer != null) {
+            timer.close();
+        }
+    }
 
 	@Override
 	public CeleritasTerrainPipeline getCeleritasTerrainPipeline() {
@@ -1672,7 +1963,19 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void setPhase(WorldRenderingPhase phase) {
+		WorldRenderingPhase previousPhase = this.phase;
 		this.phase = phase;
+		IrisGlDebug.logPhaseChange(
+			"set-phase",
+			previousPhase.name(),
+			phase.name(),
+			isRenderingShadow,
+			isMainBound,
+			isRenderingWorld,
+			isRenderingFullScreenPass,
+			isPostChain,
+			inputs.toString()
+		);
 		matchPass();
 		GbufferPrograms.runPhaseChangeNotifier();
 	}
@@ -1680,6 +1983,15 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	@Override
 	public void setInputs(InputAvailability availability) {
 		this.inputs = availability;
+		IrisGlDebug.logPipelineInputs(
+			"set-inputs",
+			getPhase().name(),
+			availability.toString(),
+			isRenderingShadow,
+			isMainBound,
+			isRenderingFullScreenPass,
+			isPostChain
+		);
 		matchPass();
 	}
 
@@ -1724,7 +2036,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private static final InputAvailability INPUT_NONE = new InputAvailability(false, false);
 	private static final InputAvailability INPUT_TEXTURE = new InputAvailability(true, false);
 	private static final InputAvailability INPUT_TEXTURE_LIGHTMAP = new InputAvailability(true, true);
-	private static final InputAvailability[] INPUT_AVAILABILITIES = { INPUT_NONE, INPUT_TEXTURE, INPUT_TEXTURE_LIGHTMAP };
+	private static final InputAvailability INPUT_TEXTURE_NO_COLOR = new InputAvailability(true, false, false);
+	private static final InputAvailability[] INPUT_AVAILABILITIES = { INPUT_NONE, INPUT_TEXTURE, INPUT_TEXTURE_LIGHTMAP, INPUT_TEXTURE_NO_COLOR };
 
 	private static CompletableFuture<Map<PatchShaderType, String>> submitCompositeTransform(ProgramSource source, TextureStage stage,
 		Object2ObjectMap<Tri<String, TextureType, TextureStage>, String> textureMap) {
@@ -1783,5 +2096,18 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			}
 		}
 		return Optional.empty();
+	}
+
+	private static void logBlockMappingSummary() {
+		if (!ShaderRegressionDebug.isEnabled()) {
+			return;
+		}
+
+		ShaderRegressionDebug.logBlockMetaMap("minecraft:web", Blocks.WEB, 0);
+		ShaderRegressionDebug.logBlockMetaMap("minecraft:reeds", Blocks.REEDS, 0, 1, 2, 4, 6);
+		ShaderRegressionDebug.logBlockMetaMap("minecraft:leaves", Blocks.LEAVES, 0, 1, 2, 8, 9, 10);
+		ShaderRegressionDebug.logBlockMetaMap("minecraft:leaves2", Blocks.LEAVES2, 0, 1, 8, 9);
+		ShaderRegressionDebug.logBlockMetaMap("minecraft:rail", Blocks.RAIL, 0, 1, 9);
+		ShaderRegressionDebug.logBlockMetaMap("minecraft:lit_redstone_ore", Blocks.LIT_REDSTONE_ORE, 0);
 	}
 }

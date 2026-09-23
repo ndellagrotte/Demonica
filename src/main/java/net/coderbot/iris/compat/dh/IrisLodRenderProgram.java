@@ -2,10 +2,9 @@ package net.coderbot.iris.compat.dh;
 
 import com.google.common.primitives.Ints;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
-import com.gtnewhorizons.angelica.mixins.interfaces.EntityRendererAccessor;
-import com.mitchej123.lwjgl.MemoryStack;
 import com.seibel.distanthorizons.api.DhApi;
 import com.seibel.distanthorizons.api.objects.math.DhApiVec3f;
+import net.coderbot.iris.gl.blending.AlphaTestOverride;
 import net.coderbot.iris.gl.blending.BlendModeOverride;
 import net.coderbot.iris.gl.blending.BufferBlendOverride;
 import net.coderbot.iris.gl.program.ProgramImages;
@@ -14,7 +13,6 @@ import net.coderbot.iris.gl.program.ProgramUniforms;
 import net.coderbot.iris.gl.shader.GlShader;
 import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.gl.state.FogMode;
-import net.coderbot.iris.gl.texture.TextureType;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
 import net.coderbot.iris.pipeline.PatchedShaderPrinter;
 import net.coderbot.iris.pipeline.transform.PatchShaderType;
@@ -26,13 +24,14 @@ import net.coderbot.iris.uniforms.builtin.BuiltinReplacementUniforms;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.PostProcessingBridge;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL32;
+import com.mitchej123.lwjgl.MemoryStack;
 
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
@@ -56,6 +55,7 @@ public class IrisLodRenderProgram {
     private final CustomUniforms customUniforms;
     private final ProgramSamplers samplers;
     private final ProgramImages images;
+    private final AlphaTestOverride alphaTestOverride;
     private final BlendModeOverride blend;
     private final BufferBlendOverride[] bufferBlendOverrides;
     private final Matrix4f tempMat4a = new Matrix4f();
@@ -63,7 +63,7 @@ public class IrisLodRenderProgram {
     private final Matrix3f tempMat3 = new Matrix3f();
 
     // This will bind  AbstractVertexAttribute
-    private IrisLodRenderProgram(String name, boolean isShadowPass, boolean translucent, BlendModeOverride override, BufferBlendOverride[] bufferBlendOverrides, String vertex, String tessControl, String tessEval, String geometry, String fragment, CustomUniforms customUniforms, DeferredWorldRenderingPipeline pipeline) {
+    private IrisLodRenderProgram(String name, boolean isShadowPass, boolean translucent, AlphaTestOverride alphaTestOverride, BlendModeOverride override, BufferBlendOverride[] bufferBlendOverrides, String vertex, String tessControl, String tessEval, String geometry, String fragment, CustomUniforms customUniforms, DeferredWorldRenderingPipeline pipeline, ProgramSource source) {
         id = GLStateManager.glCreateProgram();
 
         GLStateManager.glBindAttribLocation(this.id, 0, "vPosition");
@@ -71,6 +71,7 @@ public class IrisLodRenderProgram {
         GLStateManager.glBindAttribLocation(this.id, 2, "irisExtra");
 
         this.bufferBlendOverrides = bufferBlendOverrides;
+        this.alphaTestOverride = alphaTestOverride;
 
         GlShader vert = new GlShader(ShaderType.VERTEX, name + ".vsh", vertex);
         GLStateManager.glAttachShader(id, vert.getHandle());
@@ -116,6 +117,7 @@ public class IrisLodRenderProgram {
         blend = override;
         ProgramUniforms.Builder uniformBuilder = ProgramUniforms.builder(name, id);
         ProgramSamplers.Builder samplerBuilder = ProgramSamplers.builder(id, IrisSamplers.WORLD_RESERVED_TEXTURE_UNITS);
+        CommonUniforms.addNonDynamicUniforms(uniformBuilder, source.getParent().getPack().getIdMap(), source.getParent().getPackDirectives(), pipeline.getFrameUpdateNotifier());
         CommonUniforms.addDynamicUniforms(uniformBuilder, FogMode.PER_VERTEX);
         customUniforms.assignTo(uniformBuilder);
         BuiltinReplacementUniforms.addBuiltinReplacementUniforms(uniformBuilder);
@@ -167,7 +169,11 @@ public class IrisLodRenderProgram {
             }
         });
 
-        return new IrisLodRenderProgram(name, isShadowPass, translucent, source.getDirectives().getBlendModeOverride().orElse(null), bufferOverrides.toArray(BufferBlendOverride[]::new), vertex, tessControl, tessEval, geometry, fragment, uniforms, pipeline);
+        return new IrisLodRenderProgram(name, isShadowPass, translucent,
+            source.getDirectives().getAlphaTestOverride().orElse(AlphaTestOverride.OFF),
+            source.getDirectives().getBlendModeOverride().orElse(null),
+            bufferOverrides.toArray(BufferBlendOverride[]::new),
+            vertex, tessControl, tessEval, geometry, fragment, uniforms, pipeline, source);
     }
 
     // Noise Uniforms
@@ -203,6 +209,9 @@ public class IrisLodRenderProgram {
     // Override ShaderProgram.bind()
     public void bind() {
         GLStateManager.glUseProgram(id);
+        if (alphaTestOverride != null) {
+            alphaTestOverride.apply();
+        }
         if (blend != null) blend.apply();
 
         for (BufferBlendOverride override : bufferBlendOverrides) {
@@ -212,9 +221,10 @@ public class IrisLodRenderProgram {
 
     public void unbind() {
         GLStateManager.glUseProgram(0);
+        AlphaTestOverride.restore();
+        BlendModeOverride.restore();
         ProgramUniforms.clearActiveUniforms();
         ProgramSamplers.clearActiveSamplers();
-        BlendModeOverride.restore();
     }
 
     public void free() {
@@ -225,7 +235,7 @@ public class IrisLodRenderProgram {
         GLStateManager.glUseProgram(id);
 
         GLStateManager.glActiveTexture(GL13.GL_TEXTURE0 + IrisSamplers.LIGHTMAP_TEXTURE_UNIT);
-        DynamicTexture lightmapTexture = ((EntityRendererAccessor) Minecraft.getMinecraft().entityRenderer).getLightmapTexture();
+        DynamicTexture lightmapTexture = PostProcessingBridge.getLightmapTexture(Minecraft.getMinecraft().entityRenderer);
         GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, lightmapTexture.getGlTextureId());
         setUniform(modelViewUniform, modelView);
         setUniform(modelViewInverseUniform, modelView.invert(tempMat4a));
@@ -264,3 +274,4 @@ public class IrisLodRenderProgram {
     }
 
 }
+

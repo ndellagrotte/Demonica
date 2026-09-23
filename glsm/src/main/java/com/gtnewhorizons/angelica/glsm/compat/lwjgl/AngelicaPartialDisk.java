@@ -15,9 +15,6 @@ import static org.lwjgl.util.glu.GLU.GLU_POINT;
 import static org.lwjgl.util.glu.GLU.GLU_SILHOUETTE;
 import static org.lwjgl.util.glu.GLU.GLU_SMOOTH;
 
-/**
- * Core-profile compatible replacement for {@link PartialDisk}.
- */
 @SuppressWarnings("unused")
 public class AngelicaPartialDisk extends PartialDisk {
 
@@ -28,51 +25,60 @@ public class AngelicaPartialDisk extends PartialDisk {
 
     @Override
     public void draw(float innerRadius, float outerRadius, int slices, int loops, float startAngle, float sweepAngle) {
-        final float deltaRadius, angleOffset;
-        float angle, sintemp, costemp, radiusLow, radiusHigh, texLow = 0, texHigh = 0;
-        final int slices2, finish;
+        float deltaRadius;
+        float angleOffset;
+        float angle;
+        float sintemp;
+        float costemp;
+        float radiusLow;
+        float radiusHigh;
+        float texLow = 0.0f;
+        float texHigh = 0.0f;
+        int slices2;
+        int finish;
 
-        if (slices >= CACHE_SIZE) slices = CACHE_SIZE - 1;
+        if (slices >= CACHE_SIZE) {
+            slices = CACHE_SIZE - 1;
+        }
         if (slices < 2 || loops < 1 || outerRadius <= 0.0f || innerRadius < 0.0f || innerRadius > outerRadius) {
             GLStateManager.LOGGER.warn("PartialDisk: GLU_INVALID_VALUE (slices={}, loops={}, innerRadius={}, outerRadius={})", slices, loops, innerRadius, outerRadius);
             return;
         }
 
-        if (sweepAngle < -360.0f) sweepAngle = 360.0f;
-        if (sweepAngle > 360.0f) sweepAngle = 360.0f;
-        if (sweepAngle < 0) {
+        if (sweepAngle < -360.0f) {
+            sweepAngle = 360.0f;
+        }
+        if (sweepAngle > 360.0f) {
+            sweepAngle = 360.0f;
+        }
+        if (sweepAngle < 0.0f) {
             startAngle += sweepAngle;
             sweepAngle = -sweepAngle;
         }
 
-        slices2 = (sweepAngle == 360.0f) ? slices : slices + 1;
-
-        /* Compute length (needed for normal calculations) */
+        slices2 = sweepAngle == 360.0f ? slices : slices + 1;
         deltaRadius = outerRadius - innerRadius;
-
         angleOffset = startAngle / 180.0f * PI;
         for (int i = 0; i <= slices; i++) {
-            angle = angleOffset + ((PI * sweepAngle) / 180.0f) * i / slices;
+            angle = angleOffset + (PI * sweepAngle / 180.0f) * i / slices;
             sinCache[i] = sin(angle);
             cosCache[i] = cos(angle);
         }
-
         if (sweepAngle == 360.0f) {
             sinCache[slices] = sinCache[0];
             cosCache[slices] = cosCache[0];
         }
 
         switch (super.normals) {
-            case GLU_FLAT, GLU_SMOOTH -> GLStateManager.glNormal3f(0.0f, 0.0f, (super.orientation == GLU_OUTSIDE) ? 1.0f : -1.0f);
+            case GLU_FLAT, GLU_SMOOTH -> GLStateManager.glNormal3f(0.0f, 0.0f, super.orientation == GLU_OUTSIDE ? 1.0f : -1.0f);
             default -> {
             }
         }
 
         switch (super.drawStyle) {
             case GLU_FILL -> {
-                if (innerRadius == .0f) {
+                if (innerRadius == 0.0f) {
                     finish = loops - 1;
-                    /* Triangle strip for inner polygons */
                     GLStateManager.glBegin(GL_TRIANGLE_FAN);
                     if (super.textureFlag) {
                         GLStateManager.glTexCoord2f(0.5f, 0.5f);
@@ -80,9 +86,8 @@ public class AngelicaPartialDisk extends PartialDisk {
                     GLStateManager.glVertex3f(0.0f, 0.0f, 0.0f);
                     radiusLow = outerRadius - deltaRadius * ((float) (loops - 1) / loops);
                     if (super.textureFlag) {
-                        texLow = radiusLow / outerRadius / 2;
+                        texLow = radiusLow / outerRadius / 2.0f;
                     }
-
                     if (super.orientation == GLU_OUTSIDE) {
                         for (int i = slices; i >= 0; i--) {
                             if (super.textureFlag) {
@@ -102,14 +107,14 @@ public class AngelicaPartialDisk extends PartialDisk {
                 } else {
                     finish = loops;
                 }
+
                 for (int j = 0; j < finish; j++) {
                     radiusLow = outerRadius - deltaRadius * ((float) j / loops);
                     radiusHigh = outerRadius - deltaRadius * ((float) (j + 1) / loops);
                     if (super.textureFlag) {
-                        texLow = radiusLow / outerRadius / 2;
-                        texHigh = radiusHigh / outerRadius / 2;
+                        texLow = radiusLow / outerRadius / 2.0f;
+                        texHigh = radiusHigh / outerRadius / 2.0f;
                     }
-
                     GLStateManager.glBegin(GL_TRIANGLE_STRIP);
                     for (int i = 0; i <= slices; i++) {
                         if (super.orientation == GLU_OUTSIDE) {
@@ -117,7 +122,6 @@ public class AngelicaPartialDisk extends PartialDisk {
                                 GLStateManager.glTexCoord2f(texLow * sinCache[i] + 0.5f, texLow * cosCache[i] + 0.5f);
                             }
                             GLStateManager.glVertex3f(radiusLow * sinCache[i], radiusLow * cosCache[i], 0.0f);
-
                             if (super.textureFlag) {
                                 GLStateManager.glTexCoord2f(texHigh * sinCache[i] + 0.5f, texHigh * cosCache[i] + 0.5f);
                             }
@@ -127,7 +131,6 @@ public class AngelicaPartialDisk extends PartialDisk {
                                 GLStateManager.glTexCoord2f(texHigh * sinCache[i] + 0.5f, texHigh * cosCache[i] + 0.5f);
                             }
                             GLStateManager.glVertex3f(radiusHigh * sinCache[i], radiusHigh * cosCache[i], 0.0f);
-
                             if (super.textureFlag) {
                                 GLStateManager.glTexCoord2f(texLow * sinCache[i] + 0.5f, texLow * cosCache[i] + 0.5f);
                             }
@@ -144,10 +147,8 @@ public class AngelicaPartialDisk extends PartialDisk {
                     costemp = cosCache[i];
                     for (int j = 0; j <= loops; j++) {
                         radiusLow = outerRadius - deltaRadius * ((float) j / loops);
-
                         if (super.textureFlag) {
-                            texLow = radiusLow / outerRadius / 2;
-
+                            texLow = radiusLow / outerRadius / 2.0f;
                             GLStateManager.glTexCoord2f(texLow * sinCache[i] + 0.5f, texLow * cosCache[i] + 0.5f);
                         }
                         GLStateManager.glVertex3f(radiusLow * sintemp, radiusLow * costemp, 0.0f);
@@ -158,10 +159,9 @@ public class AngelicaPartialDisk extends PartialDisk {
             case GLU_LINE -> {
                 if (innerRadius == outerRadius) {
                     GLStateManager.glBegin(GL_LINE_STRIP);
-
                     for (int i = 0; i <= slices; i++) {
                         if (super.textureFlag) {
-                            GLStateManager.glTexCoord2f(sinCache[i] / 2 + 0.5f, cosCache[i] / 2 + 0.5f);
+                            GLStateManager.glTexCoord2f(sinCache[i] / 2.0f + 0.5f, cosCache[i] / 2.0f + 0.5f);
                         }
                         GLStateManager.glVertex3f(innerRadius * sinCache[i], innerRadius * cosCache[i], 0.0f);
                     }
@@ -171,9 +171,8 @@ public class AngelicaPartialDisk extends PartialDisk {
                 for (int j = 0; j <= loops; j++) {
                     radiusLow = outerRadius - deltaRadius * ((float) j / loops);
                     if (super.textureFlag) {
-                        texLow = radiusLow / outerRadius / 2;
+                        texLow = radiusLow / outerRadius / 2.0f;
                     }
-
                     GLStateManager.glBegin(GL_LINE_STRIP);
                     for (int i = 0; i <= slices; i++) {
                         if (super.textureFlag) {
@@ -190,10 +189,7 @@ public class AngelicaPartialDisk extends PartialDisk {
                     for (int j = 0; j <= loops; j++) {
                         radiusLow = outerRadius - deltaRadius * ((float) j / loops);
                         if (super.textureFlag) {
-                            texLow = radiusLow / outerRadius / 2;
-                        }
-
-                        if (super.textureFlag) {
+                            texLow = radiusLow / outerRadius / 2.0f;
                             GLStateManager.glTexCoord2f(texLow * sinCache[i] + 0.5f, texLow * cosCache[i] + 0.5f);
                         }
                         GLStateManager.glVertex3f(radiusLow * sintemp, radiusLow * costemp, 0.0f);
@@ -209,9 +205,8 @@ public class AngelicaPartialDisk extends PartialDisk {
                         GLStateManager.glBegin(GL_LINE_STRIP);
                         for (int j = 0; j <= loops; j++) {
                             radiusLow = outerRadius - deltaRadius * ((float) j / loops);
-
                             if (super.textureFlag) {
-                                texLow = radiusLow / outerRadius / 2;
+                                texLow = radiusLow / outerRadius / 2.0f;
                                 GLStateManager.glTexCoord2f(texLow * sinCache[i] + 0.5f, texLow * cosCache[i] + 0.5f);
                             }
                             GLStateManager.glVertex3f(radiusLow * sintemp, radiusLow * costemp, 0.0f);
@@ -222,9 +217,8 @@ public class AngelicaPartialDisk extends PartialDisk {
                 for (int j = 0; j <= loops; j += loops) {
                     radiusLow = outerRadius - deltaRadius * ((float) j / loops);
                     if (super.textureFlag) {
-                        texLow = radiusLow / outerRadius / 2;
+                        texLow = radiusLow / outerRadius / 2.0f;
                     }
-
                     GLStateManager.glBegin(GL_LINE_STRIP);
                     for (int i = 0; i <= slices; i++) {
                         if (super.textureFlag) {
@@ -233,7 +227,9 @@ public class AngelicaPartialDisk extends PartialDisk {
                         GLStateManager.glVertex3f(radiusLow * sinCache[i], radiusLow * cosCache[i], 0.0f);
                     }
                     GLStateManager.glEnd();
-                    if (innerRadius == outerRadius) break;
+                    if (innerRadius == outerRadius) {
+                        break;
+                    }
                 }
             }
             default -> {

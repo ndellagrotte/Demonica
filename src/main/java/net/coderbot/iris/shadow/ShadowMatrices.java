@@ -1,6 +1,6 @@
 package net.coderbot.iris.shadow;
 
-import com.gtnewhorizons.angelica.compat.toremove.MatrixStack;
+import net.coderbot.iris.gl.MatrixStack;
 import org.joml.Matrix4f;
 
 import static com.gtnewhorizons.angelica.compat.mojang.Constants.DEGREES_TO_RADIANS;
@@ -8,6 +8,12 @@ import static com.gtnewhorizons.angelica.compat.mojang.Constants.DEGREES_TO_RADI
 public class ShadowMatrices {
 	private static final float NEAR = 0.05f;
 	private static final float FAR = 256.0f;
+
+	/**
+	 * Distance the shadow camera is pulled back from the player camera along the shadow light vector, applied by
+	 * {@link #createBaselineModelViewMatrix}.
+	 */
+	private static final float SHADOW_CAMERA_OFFSET = 100.0f;
 
 	// NB: These matrices are in column-major order, not row-major order like what you'd expect!
 
@@ -51,7 +57,7 @@ public class ShadowMatrices {
 		target.peek().getNormal().identity();
 		target.peek().getModel().identity();
 
-		target.peek().getModel().translate(0.0f, 0.0f, -100.0f);
+		target.peek().getModel().translate(0.0f, 0.0f, -SHADOW_CAMERA_OFFSET);
         target.rotateX(90F * DEGREES_TO_RADIANS);
         target.rotateZ(skyAngle * -360.0f * DEGREES_TO_RADIANS);
         target.rotateX(sunPathRotation * DEGREES_TO_RADIANS);

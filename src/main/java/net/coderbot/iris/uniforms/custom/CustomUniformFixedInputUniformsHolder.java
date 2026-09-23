@@ -18,7 +18,7 @@ import net.coderbot.iris.uniforms.custom.cached.FloatCachedUniform;
 import net.coderbot.iris.uniforms.custom.cached.Int2VectorCachedUniform;
 import net.coderbot.iris.uniforms.custom.cached.Int3VectorCachedUniform;
 import net.coderbot.iris.uniforms.custom.cached.IntCachedUniform;
-import net.minecraft.util.Vec3;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector2f;
@@ -128,7 +128,7 @@ public class CustomUniformFixedInputUniformsHolder {
 		}
 
         @Override
-        public UniformHolder uniformVanilla3f(UniformUpdateFrequency updateFrequency, String name, Supplier<Vec3> value) {
+        public UniformHolder uniformVanilla3f(UniformUpdateFrequency updateFrequency, String name, Supplier<Vec3d> value) {
             throw new RuntimeException("Exception from Custom Uniform UniformHolder implementation. This should never be reached, please send help");
         }
 
@@ -178,16 +178,6 @@ public class CustomUniformFixedInputUniformsHolder {
 			return this.put(name, new Float4MatrixCachedUniform(name, updateFrequency, value));
 		}
 
-		@Override
-		public UniformHolder uniformMatrixFromArray(
-			UniformUpdateFrequency updateFrequency, String name, Supplier<float[]> value) {
-			Matrix4f held = new Matrix4f();
-
-			return this.put(name, new Float4MatrixCachedUniform(name, updateFrequency, () -> {
-				held.set(value.get());
-				return held;
-			}));
-		}
 
 		@Override
 		public UniformHolder externallyManagedUniform(String name, UniformType type) {

@@ -5,7 +5,7 @@ import net.coderbot.iris.gui.element.ShaderPackSelectionList;
 import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.text.TextFormatting;
 
 public class ShaderPackEntry extends BaseEntry {
     @Getter private final String packName;
@@ -37,7 +37,7 @@ public class ShaderPackEntry extends BaseEntry {
         }
 
         if(isMouseOver) {
-            name = EnumChatFormatting.BOLD + name;
+            name = TextFormatting.BOLD + name;
         }
 
         if(this.isApplied()) {

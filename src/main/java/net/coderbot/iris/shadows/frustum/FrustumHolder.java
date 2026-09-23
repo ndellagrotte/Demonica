@@ -1,20 +1,20 @@
 package net.coderbot.iris.shadows.frustum;
 
-import net.minecraft.client.renderer.culling.Frustrum;
+import net.minecraft.client.renderer.culling.Frustum;
 
 public class FrustumHolder {
-	private Frustrum frustum;
+	private Frustum frustum;
 	private String distanceInfo = "(unavailable)";
 	private String cullingInfo = "(unavailable)";
 
-	public FrustumHolder setInfo(Frustrum frustum, String distanceInfo, String cullingInfo) {
+	public FrustumHolder setInfo(Frustum frustum, String distanceInfo, String cullingInfo) {
 		this.frustum = frustum;
 		this.distanceInfo = distanceInfo;
 		this.cullingInfo = cullingInfo;
 		return this;
 	}
 
-	public Frustrum getFrustum() {
+	public Frustum getFrustum() {
 		return frustum;
 	}
 

@@ -1,0 +1,224 @@
+# Provenance manifest
+
+- baseline: `angelica-baseline/9fd02900ef` (angelica layout)
+- compared: `fee5de3834352050fc453bde1d93030c6d434983` (actinium layout)
+
+| scope | verbatim | adapted | new | dropped |
+|---|---|---|---|---|
+| iris | 298 | 135 | 51 | 16 |
+
+## Scope `iris`
+
+- baseline roots: `src/main/java` (`net/coderbot`, `kroppeb`, `net/irisshaders`, `com/github/bsideup/jabel/Desugar.java`, `com/gtnewhorizons/angelica/client/rendering/TextureTracker.java`, `com/gtnewhorizons/angelica/compat/iris/BiomeCategoryCache.java`, `com/gtnewhorizons/angelica/compat/iris/ModdedBiomeDetector.java`, `com/gtnewhorizons/angelica/compat/mojang/NativeImage.java`)
+- compared roots: `shader/src/main/java`
+
+### Adapted (135)
+
+- `com/gtnewhorizons/angelica/client/rendering/TextureTracker.java`
+- `com/gtnewhorizons/angelica/compat/iris/ModdedBiomeDetector.java`
+- `com/gtnewhorizons/angelica/compat/mojang/NativeImage.java`
+- `net/coderbot/iris/Iris.java`
+- `net/coderbot/iris/JomlConversions.java`
+- `net/coderbot/iris/apiimpl/IrisApiV0ConfigImpl.java`
+- `net/coderbot/iris/block_rendering/BlockMaterialMapping.java`
+- `net/coderbot/iris/block_rendering/BlockRenderingSettings.java`
+- `net/coderbot/iris/celeritas/CeleritasTerrainPipeline.java`
+- `net/coderbot/iris/celeritas/IrisCeleritasChunkProgramOverrides.java`
+- `net/coderbot/iris/celeritas/IrisCeleritasChunkShaderInterface.java`
+- `net/coderbot/iris/celeritas/IrisCeleritasShaderProvider.java`
+- `net/coderbot/iris/celeritas/IrisTerrainPass.java`
+- `net/coderbot/iris/client/IrisDebugScreenHandler.java`
+- `net/coderbot/iris/compat/dh/DHCompat.java`
+- `net/coderbot/iris/compat/dh/DHCompatInternal.java`
+- `net/coderbot/iris/compat/dh/IrisGenericRenderProgram.java`
+- `net/coderbot/iris/compat/dh/IrisLodRenderProgram.java`
+- `net/coderbot/iris/compat/dh/LodRendererEvents.java`
+- `net/coderbot/iris/config/IrisConfig.java`
+- `net/coderbot/iris/fantastic/WrappingMultiBufferSource.java`
+- `net/coderbot/iris/gbuffer_overrides/matching/InputAvailability.java`
+- `net/coderbot/iris/gl/GlVersion.java`
+- `net/coderbot/iris/gl/blending/AlphaTestOverride.java`
+- `net/coderbot/iris/gl/blending/AlphaTestStorage.java`
+- `net/coderbot/iris/gl/blending/BlendModeStorage.java`
+- `net/coderbot/iris/gl/blending/DepthColorStorage.java`
+- `net/coderbot/iris/gl/buffer/ShaderStorageBuffer.java`
+- `net/coderbot/iris/gl/framebuffer/GlFramebuffer.java`
+- `net/coderbot/iris/gl/image/GlImage.java`
+- `net/coderbot/iris/gl/program/Program.java`
+- `net/coderbot/iris/gl/program/ProgramSamplers.java`
+- `net/coderbot/iris/gl/program/ProgramUniforms.java`
+- `net/coderbot/iris/gl/sampler/GlSampler.java`
+- `net/coderbot/iris/gl/shader/StandardMacros.java`
+- `net/coderbot/iris/gl/state/StateUpdateNotifiers.java`
+- `net/coderbot/iris/gl/texture/DepthCopyStrategy.java`
+- `net/coderbot/iris/gl/texture/GlTexture.java`
+- `net/coderbot/iris/gl/texture/InternalTextureFormat.java`
+- `net/coderbot/iris/gl/uniform/LocationalUniformHolder.java`
+- `net/coderbot/iris/gl/uniform/UniformHolder.java`
+- `net/coderbot/iris/gl/uniform/VanillaVector3Uniform.java`
+- `net/coderbot/iris/gl/uniform/Vector2Uniform.java`
+- `net/coderbot/iris/gl/uniform/Vector4ArrayUniform.java`
+- `net/coderbot/iris/gui/GuiUtil.java`
+- `net/coderbot/iris/gui/element/IrisGuiSlot.java`
+- `net/coderbot/iris/gui/element/ShaderPackOptionList.java`
+- `net/coderbot/iris/gui/element/ShaderPackSelectionList.java`
+- `net/coderbot/iris/gui/element/shaderoptions/ElementRowEntry.java`
+- `net/coderbot/iris/gui/element/shaderoptions/HeaderEntry.java`
+- `net/coderbot/iris/gui/element/shaderselection/LabelEntry.java`
+- `net/coderbot/iris/gui/element/shaderselection/ShaderPackEntry.java`
+- `net/coderbot/iris/gui/element/shaderselection/TopButtonRowEntry.java`
+- `net/coderbot/iris/gui/element/widget/BaseOptionElementWidget.java`
+- `net/coderbot/iris/gui/element/widget/IrisImageButton.java`
+- `net/coderbot/iris/gui/element/widget/SliderElementWidget.java`
+- `net/coderbot/iris/gui/screen/ShaderPackScreen.java`
+- `net/coderbot/iris/layer/GbufferPrograms.java`
+- `net/coderbot/iris/pipeline/ClearPass.java`
+- `net/coderbot/iris/pipeline/CustomTextureManager.java`
+- `net/coderbot/iris/pipeline/DeferredWorldRenderingPipeline.java`
+- `net/coderbot/iris/pipeline/FixedFunctionWorldRenderingPipeline.java`
+- `net/coderbot/iris/pipeline/HandRenderer.java`
+- `net/coderbot/iris/pipeline/HorizonRenderer.java`
+- `net/coderbot/iris/pipeline/PatchedShaderPrinter.java`
+- `net/coderbot/iris/pipeline/PipelineManager.java`
+- `net/coderbot/iris/pipeline/ShadowRenderer.java`
+- `net/coderbot/iris/pipeline/WorldRenderingPipeline.java`
+- `net/coderbot/iris/pipeline/transform/AttributeTransformer.java`
+- `net/coderbot/iris/pipeline/transform/CeleritasTransformer.java`
+- `net/coderbot/iris/pipeline/transform/CommonTransformer.java`
+- `net/coderbot/iris/pipeline/transform/CompatibilityTransformer.java`
+- `net/coderbot/iris/pipeline/transform/ShaderTransformer.java`
+- `net/coderbot/iris/pipeline/transform/TransformPatcher.java`
+- `net/coderbot/iris/postprocess/BufferFlipper.java`
+- `net/coderbot/iris/postprocess/CenterDepthSampler.java`
+- `net/coderbot/iris/postprocess/CompositeRenderer.java`
+- `net/coderbot/iris/postprocess/FinalPassRenderer.java`
+- `net/coderbot/iris/postprocess/FullScreenQuadRenderer.java`
+- `net/coderbot/iris/rendertarget/NativeImageBackedNoiseTexture.java`
+- `net/coderbot/iris/rendertarget/NativeImageBackedSingleColorTexture.java`
+- `net/coderbot/iris/rendertarget/RenderTargets.java`
+- `net/coderbot/iris/samplers/IrisSamplers.java`
+- `net/coderbot/iris/shaderpack/DimensionId.java`
+- `net/coderbot/iris/shaderpack/IdMap.java`
+- `net/coderbot/iris/shaderpack/LanguageMap.java`
+- `net/coderbot/iris/shaderpack/LegacyIdMap.java`
+- `net/coderbot/iris/shaderpack/PackRenderTargetDirectives.java`
+- `net/coderbot/iris/shaderpack/ProgramSet.java`
+- `net/coderbot/iris/shaderpack/ShaderPack.java`
+- `net/coderbot/iris/shaderpack/ShaderProperties.java`
+- `net/coderbot/iris/shaderpack/include/ShaderPackSourceNames.java`
+- `net/coderbot/iris/shaderpack/loading/ProgramArrayId.java`
+- `net/coderbot/iris/shaderpack/loading/ProgramGroup.java`
+- `net/coderbot/iris/shaderpack/materialmap/BlockEntry.java`
+- `net/coderbot/iris/shaderpack/preprocessor/JcppProcessor.java`
+- `net/coderbot/iris/shaderpack/preprocessor/PropertiesPreprocessor.java`
+- `net/coderbot/iris/shadow/ShadowMatrices.java`
+- `net/coderbot/iris/shadows/ShadowCompositeRenderer.java`
+- `net/coderbot/iris/shadows/frustum/BoxCuller.java`
+- `net/coderbot/iris/shadows/frustum/CullEverythingFrustum.java`
+- `net/coderbot/iris/shadows/frustum/FrustumHolder.java`
+- `net/coderbot/iris/shadows/frustum/advanced/AdvancedShadowCullingFrustum.java`
+- `net/coderbot/iris/shadows/frustum/advanced/SafeZoneCullingFrustum.java`
+- `net/coderbot/iris/shadows/frustum/fallback/BoxCullingFrustum.java`
+- `net/coderbot/iris/shadows/frustum/fallback/NonCullingFrustum.java`
+- `net/coderbot/iris/texture/format/TextureFormat.java`
+- `net/coderbot/iris/texture/pbr/PBRAtlasTexture.java`
+- `net/coderbot/iris/texture/pbr/PBRTextureManager.java`
+- `net/coderbot/iris/texture/pbr/PBRType.java`
+- `net/coderbot/iris/texture/pbr/loader/AtlasPBRLoader.java`
+- `net/coderbot/iris/texture/pbr/loader/SimplePBRLoader.java`
+- `net/coderbot/iris/texture/util/TextureExporter.java`
+- `net/coderbot/iris/texture/util/TextureManipulationUtil.java`
+- `net/coderbot/iris/uniforms/BiomeUniforms.java`
+- `net/coderbot/iris/uniforms/CameraUniforms.java`
+- `net/coderbot/iris/uniforms/CelestialUniforms.java`
+- `net/coderbot/iris/uniforms/CommonUniforms.java`
+- `net/coderbot/iris/uniforms/EntityIdHelper.java`
+- `net/coderbot/iris/uniforms/ExternallyManagedUniforms.java`
+- `net/coderbot/iris/uniforms/HardcodedCustomUniforms.java`
+- `net/coderbot/iris/uniforms/IdMapUniforms.java`
+- `net/coderbot/iris/uniforms/IrisExclusiveUniforms.java`
+- `net/coderbot/iris/uniforms/IrisInternalUniforms.java`
+- `net/coderbot/iris/uniforms/ItemIdManager.java`
+- `net/coderbot/iris/uniforms/ItemMaterialHelper.java`
+- `net/coderbot/iris/uniforms/MatrixUniforms.java`
+- `net/coderbot/iris/uniforms/VanillaBiomeList.java`
+- `net/coderbot/iris/uniforms/WorldTimeUniforms.java`
+- `net/coderbot/iris/uniforms/custom/CustomUniformFixedInputUniformsHolder.java`
+- `net/coderbot/iris/uniforms/custom/CustomUniforms.java`
+- `net/coderbot/iris/vertices/ExtendingBufferBuilder.java`
+- `net/irisshaders/iris/api/v0/IrisApi.java`
+- `net/irisshaders/iris/api/v0/IrisApiConfig.java`
+- `net/irisshaders/iris/api/v0/item/IrisItemLightProvider.java`
+
+### New (51)
+
+- `com/github/bsideup/jabel/Desugar.java`
+- `net/coderbot/iris/block_rendering/BlockStateConditionalIdMap.java`
+- `net/coderbot/iris/block_rendering/NbtConditionalIdMap.java`
+- `net/coderbot/iris/celeritas/WorldRendererCompat.java`
+- `net/coderbot/iris/celeritas/WorldRendererCompatBridge.java`
+- `net/coderbot/iris/celeritas/buffer/ShaderMaterialOverrideState.java`
+- `net/coderbot/iris/celeritas/debug/IrisRenderDebugHooks.java`
+- `net/coderbot/iris/celeritas/vertices/ExtendedChunkVertexEncoder.java`
+- `net/coderbot/iris/celeritas/vertices/ExtendedChunkVertexType.java`
+- `net/coderbot/iris/celeritas/vertices/LwjglQuadView.java`
+- `net/coderbot/iris/celeritas/vertices/TerrainVertexFormatRequirements.java`
+- `net/coderbot/iris/compat/rfp2/Rfp2Compat.java`
+- `net/coderbot/iris/debug/IrisDebugOptions.java`
+- `net/coderbot/iris/debug/IrisGlDebug.java`
+- `net/coderbot/iris/debug/PBRDebug.java`
+- `net/coderbot/iris/debug/ShaderRegressionDebug.java`
+- `net/coderbot/iris/debug/flight/DisabledGlFlightRecorder.java`
+- `net/coderbot/iris/debug/flight/GlFlightEvent.java`
+- `net/coderbot/iris/debug/flight/GlFlightEventKind.java`
+- `net/coderbot/iris/debug/flight/GlFlightEventPhase.java`
+- `net/coderbot/iris/debug/flight/GlFlightFormat.java`
+- `net/coderbot/iris/debug/flight/GlFlightGpuCommandRecorder.java`
+- `net/coderbot/iris/debug/flight/GlFlightHash.java`
+- `net/coderbot/iris/debug/flight/GlFlightPipelineAction.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecorder.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecorderFactory.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecorderMode.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecording.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecordingDecoder.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecordingReader.java`
+- `net/coderbot/iris/debug/flight/GlFlightRecordingSession.java`
+- `net/coderbot/iris/debug/flight/GlFlightStage.java`
+- `net/coderbot/iris/debug/flight/GlFlightStageClassifier.java`
+- `net/coderbot/iris/debug/flight/GlFlightStreamingSource.java`
+- `net/coderbot/iris/debug/flight/GlFlightTimeline.java`
+- `net/coderbot/iris/debug/flight/MappedGlFlightRecorder.java`
+- `net/coderbot/iris/gbuffer_overrides/matching/TranslucentBlendMatcher.java`
+- `net/coderbot/iris/gl/MatrixStack.java`
+- `net/coderbot/iris/gl/framebuffer/MinecraftFramebufferHelper.java`
+- `net/coderbot/iris/gui/element/ScrollBarGeometry.java`
+- `net/coderbot/iris/gui/element/widget/SliderGeometry.java`
+- `net/coderbot/iris/gui/screen/ShaderPackApplyLogic.java`
+- `net/coderbot/iris/layer/RenderLayer.java`
+- `net/coderbot/iris/pipeline/AdaptiveShadowBoundsStats.java`
+- `net/coderbot/iris/pipeline/SkyRenderDistance.java`
+- `net/coderbot/iris/pipeline/transform/AdaptiveShadowBoundsTransformer.java`
+- `net/coderbot/iris/shaderpack/materialmap/EntityFlatteningMap.java`
+- `net/coderbot/iris/shaderpack/materialmap/FlatteningMap.java`
+- `net/coderbot/iris/shaderpack/materialmap/LegacyBlockTags.java`
+- `net/coderbot/iris/shaderpack/materialmap/PropertiesTokenizer.java`
+- `net/coderbot/iris/shaderpack/materialmap/TagEntry.java`
+
+### Dropped (16)
+
+- `net/coderbot/batchedentityrendering/impl/BatchingDebugMessageHelper.java`
+- `net/coderbot/batchedentityrendering/impl/BlendingStateHolder.java`
+- `net/coderbot/batchedentityrendering/impl/BufferSegment.java`
+- `net/coderbot/batchedentityrendering/impl/DrawCallTrackingRenderBuffers.java`
+- `net/coderbot/batchedentityrendering/impl/FlushableMultiBufferSource.java`
+- `net/coderbot/batchedentityrendering/impl/Groupable.java`
+- `net/coderbot/batchedentityrendering/impl/MemoryTrackingBuffer.java`
+- `net/coderbot/batchedentityrendering/impl/MemoryTrackingRenderBuffers.java`
+- `net/coderbot/batchedentityrendering/impl/RenderBuffersExt.java`
+- `net/coderbot/batchedentityrendering/impl/TransparencyType.java`
+- `net/coderbot/batchedentityrendering/impl/WrappableRenderType.java`
+- `net/coderbot/batchedentityrendering/impl/ordering/GraphTranslucencyRenderOrderManager.java`
+- `net/coderbot/batchedentityrendering/impl/ordering/RenderOrderManager.java`
+- `net/coderbot/batchedentityrendering/impl/ordering/SimpleRenderOrderManager.java`
+- `net/coderbot/batchedentityrendering/impl/ordering/TranslucencyRenderOrderManager.java`
+- `net/coderbot/iris/gl/uniform/MatrixFromFloatArrayUniform.java`

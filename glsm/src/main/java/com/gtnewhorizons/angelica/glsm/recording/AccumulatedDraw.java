@@ -22,7 +22,7 @@ public final class AccumulatedDraw {
 
     public AccumulatedDraw(DirectTessellator tessellator, int commandIndex, int stateGeneration, boolean copyLast) {
         this.format = tessellator.getVertexFormat();
-        this.drawMode = tessellator.drawMode;
+        this.drawMode = tessellator.getDrawMode();
         this.drawBuffers = new ArrayList<>();
         this.drawBuffers.add(tessellator.allocateBufferCopy());
         this.commandIndex = commandIndex;

@@ -47,7 +47,13 @@ public class PackRenderTargetDirectives {
 		this.renderTargetSettings = new Int2ObjectOpenHashMap<>();
 
 		supportedRenderTargets.forEach(
-				(index) -> renderTargetSettings.put(index.intValue(), new RenderTargetSettings()));
+				(index) -> renderTargetSettings.put(index, new RenderTargetSettings()));
+
+		// Colortex5 is commonly used as a TAA/previous-frame history buffer. Shader packs such as
+		// Bliss rely on it holding HDR lighting for screen-space GI, even when they omit the format
+		// directive, so use a float target unless the pack explicitly overrides it.
+		Optional.ofNullable(renderTargetSettings.get(5)).ifPresent(colortex5 ->
+				colortex5.requestedFormat = InternalTextureFormat.RGBA16F);
 	}
 
 	public IntList getBuffersToBeCleared() {
@@ -55,7 +61,7 @@ public class PackRenderTargetDirectives {
 
 		renderTargetSettings.forEach((index, settings) -> {
 			if (settings.shouldClear()) {
-				buffersToBeCleared.add(index.intValue());
+				buffersToBeCleared.add(index);
 			}
 		});
 

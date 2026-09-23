@@ -1,18 +1,28 @@
 package net.coderbot.iris.shadows.frustum;
 
-import cpw.mods.fml.common.Optional;
 import com.seibel.distanthorizons.api.interfaces.override.rendering.IDhApiShadowCullingFrustum;
 import com.seibel.distanthorizons.api.objects.math.DhApiMat4f;
-import net.minecraft.client.renderer.culling.Frustrum;
-import net.minecraft.util.AxisAlignedBB;
-import org.embeddedt.embeddium.impl.render.viewport.Viewport;
-import org.embeddedt.embeddium.impl.render.viewport.ViewportProvider;
-import org.embeddedt.embeddium.impl.render.viewport.frustum.Frustum;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraftforge.fml.common.Optional;
+import dhj.embeddedt.embeddium.impl.render.viewport.Viewport;
+import dhj.embeddedt.embeddium.impl.render.viewport.ViewportProvider;
 import org.joml.Vector3d;
 
 @Optional.Interface(modid = "distanthorizons", iface = "com.seibel.distanthorizons.api.interfaces.override.rendering.IDhApiShadowCullingFrustum")
-public class CullEverythingFrustum extends Frustrum implements ViewportProvider, Frustum, IDhApiShadowCullingFrustum {
+public class CullEverythingFrustum extends Frustum implements ViewportProvider, dhj.embeddedt.embeddium.impl.render.viewport.frustum.Frustum, IDhApiShadowCullingFrustum {
 	private final Vector3d position = new Vector3d();
+	private double x;
+	private double y;
+	private double z;
+
+	@Override
+	public void setPosition(double cameraX, double cameraY, double cameraZ) {
+		super.setPosition(cameraX, cameraY, cameraZ);
+		this.x = cameraX;
+		this.y = cameraY;
+		this.z = cameraZ;
+	}
 
 	@Override
 	public boolean isBoundingBoxInFrustum(AxisAlignedBB aabb) {
@@ -24,9 +34,15 @@ public class CullEverythingFrustum extends Frustrum implements ViewportProvider,
 		return false;
 	}
 
+	/** Reports every camera-relative box as outside for region-level culling. */
+	@Override
+	public int intersectAab(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+		return OUTSIDE;
+	}
+
 	@Override
 	public Viewport sodium$createViewport() {
-		return new Viewport(this, position.set(xPosition, yPosition, zPosition));
+		return new Viewport(this, position.set(x, y, z));
 	}
 
 	@Optional.Method(modid = "distanthorizons")

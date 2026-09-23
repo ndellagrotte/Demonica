@@ -2,9 +2,10 @@ package com.gtnewhorizons.angelica.compat.iris;
 
 import com.gtnewhorizons.angelica.compat.ModStatus;
 import net.coderbot.iris.parsing.BiomeCategories;
-import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraft.world.biome.Biome;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -20,7 +21,7 @@ public class ModdedBiomeDetector {
     private static Class<?> bopNetherBiomeClass = null;
     private static Class<?> bopOceanBiomeClass = null;
 
-    // Realistic World Gen (RWG) cache - base biome classes that extend BiomeGenBase
+    // Realistic World Gen (RWG) cache - base biome classes that extend Biome
     // LinkedHashMap maintains insertion order for deterministic behavior
     private static final Map<Class<?>, BiomeCategories> rwgClassMap = new LinkedHashMap<>();
 
@@ -46,7 +47,7 @@ public class ModdedBiomeDetector {
     }
 
     private static void initializeRWG() {
-        // RWG adds actual BiomeGenBase subclasses in rwg.biomes.base package
+        // RWG adds actual Biome subclasses in rwg.biomes.base package
         tryAddRWGClass("rwg.biomes.base.BaseBiomeOcean", BiomeCategories.OCEAN);
         tryAddRWGClass("rwg.biomes.base.BaseBiomeRiver", BiomeCategories.RIVER);
         tryAddRWGClass("rwg.biomes.base.BaseBiomePlains", BiomeCategories.PLAINS);
@@ -86,7 +87,7 @@ public class ModdedBiomeDetector {
      * Attempts to detect the biome category for modded biomes.
      * Returns null if no modded biome detection applies.
      */
-    public static BiomeCategories detectModdedBiome(BiomeGenBase biome) {
+    public static BiomeCategories detectModdedBiome(Biome biome) {
         if (!initialized) {
             initialize();
         }
@@ -114,15 +115,15 @@ public class ModdedBiomeDetector {
         }
 
         // lotr
-        if (lotrBiomeClass!= null && lotrBiomeClass.isInstance(biome)) {
+        if (lotrBiomeClass != null && lotrBiomeClass.isInstance(biome)) {
             return detectLOTRBiome(biome);
         }
 
         return null;
     }
 
-    private static BiomeCategories detectLOTRBiome(BiomeGenBase biome) {
-        return switch (biome.biomeName) {
+    private static BiomeCategories detectLOTRBiome(Biome biome) {
+        return switch (getBiomeKey(biome)) {
             case "river", "farHaradJungleLake", "lake" -> BiomeCategories.RIVER;
             case "rohan", "rivendell", "rhunIsland", "rhunLandHills", "rhunLandSteppe", "rhunLand", "andrast",
                  "blackrootVale", "lamedon", "imlothMelui", "towerHills", "dorwinion", "dale", "shireMoors", "wold",
@@ -164,5 +165,13 @@ public class ModdedBiomeDetector {
             case "utumno" -> BiomeCategories.NONE;
             default -> null;
         };
+    }
+
+    private static String getBiomeKey(Biome biome) {
+        if (biome.getRegistryName() != null) {
+            return biome.getRegistryName().getPath();
+        }
+        final String biomeName = biome.getBiomeName();
+        return biomeName != null ? biomeName.toLowerCase(Locale.ROOT) : "";
     }
 }

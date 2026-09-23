@@ -3,12 +3,17 @@ package net.coderbot.iris.postprocess;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.primitives.Ints;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import lombok.Getter;
 import net.coderbot.iris.features.FeatureFlags;
+import net.coderbot.iris.debug.IrisGlDebug;
+import net.coderbot.iris.gl.blending.BlendModeOverride;
+import net.coderbot.iris.gl.blending.BufferBlendOverride;
 import net.coderbot.iris.gl.framebuffer.GlFramebuffer;
+import net.coderbot.iris.gl.framebuffer.MinecraftFramebufferHelper;
 import net.coderbot.iris.gl.framebuffer.ViewportData;
 import net.coderbot.iris.gl.image.GlImage;
 import net.coderbot.iris.gl.program.ComputeProgram;
@@ -37,17 +42,19 @@ import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.shader.Framebuffer;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL42;
+import org.lwjgl.opengl.GL43;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
@@ -121,9 +128,13 @@ public class CompositeRenderer {
 			final ProgramDirectives directives = source.getDirectives();
 
 			Map<PatchShaderType, String> transformed = getTransformed(source, transformFutures, i, stageName);
+			pass.sourceName = source.getName();
 			pass.program = createProgramFromTransformed(source, transformed, flipped, flippedAtLeastOnceSnapshot, context.shadowTargetsSupplier());
 			pass.computes = createComputes(computes[i], flipped, flippedAtLeastOnceSnapshot, context.shadowTargetsSupplier());
+			pass.blendModeOverride = directives.getBlendModeOverride().orElse(null);
 			final int[] drawBuffers = directives.getDrawBuffers();
+			pass.bufferBlendOverrides = createBufferBlendOverrides(directives, drawBuffers);
+            IrisGlDebug.logFullscreenProgram(this.textureStage.name(), pass.sourceName, pass.program.getProgramId(), drawBuffers);
 
 			final GlFramebuffer framebuffer = renderTargets.createColorFramebuffer(flipped, drawBuffers);
 
@@ -169,7 +180,7 @@ public class CompositeRenderer {
 		this.passes = passes.build();
 		this.flippedAtLeastOnceFinal = flippedAtLeastOnce.build();
 
-		OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_READ_FRAMEBUFFER, 0);
+		GLStateManager.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, 0);
 	}
 
 	private Map<PatchShaderType, String> getTransformed(ProgramSource source, Map<Integer, CompletableFuture<Map<PatchShaderType, String>>> transformFutures, int index, String stageName) {
@@ -216,12 +227,16 @@ public class CompositeRenderer {
 		int[] drawBuffers;
 		int viewWidth;
 		int viewHeight;
+		String sourceName;
 		Program program;
 		ComputeProgram[] computes;
 		GlFramebuffer framebuffer;
 		ImmutableSet<Integer> stageReadsFromAlt;
 		ImmutableSet<Integer> mipmappedBuffers;
 		ViewportData viewportScale;
+		@Nullable
+		BlendModeOverride blendModeOverride;
+		List<BufferBlendOverride> bufferBlendOverrides = List.of();
 
 		protected void destroy() {
 			this.program.destroy();
@@ -230,6 +245,35 @@ public class CompositeRenderer {
 					compute.destroy();
 				}
 			}
+		}
+	}
+
+	private static List<BufferBlendOverride> createBufferBlendOverrides(ProgramDirectives directives, int[] drawBuffers) {
+		List<BufferBlendOverride> overrides = new ArrayList<>();
+		directives.getBufferBlendOverrides().forEach(information -> {
+			int drawBuffer = Ints.indexOf(drawBuffers, information.getIndex());
+			if (drawBuffer >= 0) {
+				overrides.add(new BufferBlendOverride(drawBuffer, information.getBlendMode()));
+			}
+		});
+		return overrides;
+	}
+
+	private static void applyBlendOverrides(Pass pass) {
+		if (pass.blendModeOverride != null) {
+			pass.blendModeOverride.apply();
+		} else if (!pass.bufferBlendOverrides.isEmpty()) {
+			BlendModeOverride.OFF.apply();
+		} else {
+			BlendModeOverride.restore();
+		}
+
+		pass.bufferBlendOverrides.forEach(BufferBlendOverride::apply);
+	}
+
+	private static void restoreBlendOverrides(Pass pass) {
+		if (pass.blendModeOverride != null || !pass.bufferBlendOverrides.isEmpty()) {
+			BlendModeOverride.restore();
 		}
 	}
 
@@ -245,6 +289,7 @@ public class CompositeRenderer {
 	}
 
 	public void renderAll() {
+        IrisGlDebug.check("composite:start");
         GLStateManager.disableBlend();
         GLStateManager.disableAlphaTest();
 
@@ -263,7 +308,8 @@ public class CompositeRenderer {
 			}
 
 			if (ranCompute) {
-				RenderSystem.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL42.GL_TEXTURE_FETCH_BARRIER_BIT);
+				RenderSystem.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL42.GL_TEXTURE_FETCH_BARRIER_BIT | GL43.GL_SHADER_STORAGE_BARRIER_BIT);
+                IrisGlDebug.check("composite:compute-barrier");
 			}
 
 			Program.unbind();
@@ -273,6 +319,7 @@ public class CompositeRenderer {
 			}
 
 			if (!renderPass.mipmappedBuffers.isEmpty()) {
+                IrisGlDebug.markStage("composite:mipmap");
 				GLStateManager.glActiveTexture(GL13.GL_TEXTURE0);
 
 				for (int index : renderPass.mipmappedBuffers) {
@@ -286,22 +333,45 @@ public class CompositeRenderer {
 			final float viewportY = renderPass.viewHeight * renderPass.viewportScale.viewportY();
 			GLStateManager.glViewport((int) viewportX, (int) viewportY, (int) scaledWidth, (int) scaledHeight);
 
+            IrisGlDebug.markStage("composite:draw");
 			renderPass.framebuffer.bind();
+            IrisGlDebug.check("composite:bind-fbo");
+			applyBlendOverrides(renderPass);
 			renderPass.program.use();
+            IrisGlDebug.check("composite:use-program");
 
             this.customUniforms.push(renderPass.program);
+            IrisGlDebug.check("composite:uniforms");
+            IrisGlDebug.logFullscreenPassState(this.textureStage.name(), renderPass.sourceName, renderPass.program.getProgramId(), renderPass.drawBuffers, renderPass.stageReadsFromAlt, this.renderTargets);
+            IrisGlDebug.logWorldPassState(this.textureStage.name(), "fullscreen", renderPass.sourceName);
+            IrisGlDebug.logFullscreenSamplerSamples(this.textureStage.name(), renderPass.sourceName, renderPass.program.getProgramId());
+            IrisGlDebug.logCloudControlPixels(this.textureStage.name(), renderPass.sourceName, this.renderTargets);
+            IrisGlDebug.logCompositeChainPixels(this.textureStage.name(), renderPass.sourceName, this.renderTargets);
+            if (this.pipeline != null) {
+                IrisGlDebug.logCompositeDepthPixels(this.textureStage.name(), renderPass.sourceName, this.renderTargets, this.pipeline.getDHCompat().getDepthTex(), this.pipeline.getDHCompat().getDepthTexNoTranslucent());
+                IrisGlDebug.logCloudTerrainChainPixels(this.textureStage.name(), renderPass.sourceName, this.renderTargets, this.pipeline.getDHCompat().getDepthTex(), this.pipeline.getDHCompat().getDepthTexNoTranslucent());
+            }
 			FullScreenQuadRenderer.uploadCompositeMatrices();
+            IrisGlDebug.check("composite:matrices");
 
+            String previousSamplePhase = IrisGlDebug.replaceFramebufferSamplePhase("composite-pass");
 			FullScreenQuadRenderer.INSTANCE.renderQuad();
+            IrisGlDebug.check("composite:render-quad");
+            IrisGlDebug.logCurrentFramebufferSamples("composite:" + renderPass.sourceName, renderPass.drawBuffers.length);
+            IrisGlDebug.restoreFramebufferSamplePhase(previousSamplePhase);
+			restoreBlendOverrides(renderPass);
 		}
 
 		FullScreenQuadRenderer.end();
 
+        IrisGlDebug.check("composite:end");
 		// Make sure to reset the viewport to how it was before... Otherwise weird issues could occur.
 		// Also bind the "main" framebuffer if it isn't already bound.
-        Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);
+        MinecraftFramebufferHelper.bindMainFramebuffer(true);
+        IrisGlDebug.check("composite:restore-main");
 		ProgramUniforms.clearActiveUniforms();
 		ProgramSamplers.clearActiveSamplers();
+		BlendModeOverride.restore();
 		GLStateManager.glUseProgram(0);
 
 		// NB: Unbinding all of these textures is necessary for proper shaderpack reloading.

@@ -1,9 +1,8 @@
 package net.coderbot.iris.gl.shader;
 
+import net.coderbot.iris.debug.IrisDebugOptions;
 import com.google.common.collect.ImmutableList;
 import com.gtnewhorizons.angelica.Tags;
-import com.gtnewhorizons.angelica.config.AngelicaConfig;
-import cpw.mods.fml.common.Loader;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.parsing.BiomeCategories;
 import net.coderbot.iris.pipeline.HandRenderer;
@@ -12,8 +11,10 @@ import net.coderbot.iris.shaderpack.StringPair;
 import net.coderbot.iris.texture.format.TextureFormat;
 import net.coderbot.iris.texture.format.TextureFormatLoader;
 import net.coderbot.iris.uniforms.VanillaBiomeList;
-import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraft.init.Biomes;
+import net.minecraft.world.biome.Biome;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
+import net.minecraftforge.fml.common.Loader;
 import org.lwjgl.LWJGLUtil;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
@@ -42,22 +43,55 @@ public class StandardMacros {
 		defines.add(new StringPair(key, value));
 	}
 
-    private static String makeAngelicaVersion()
+    private static String makeActiniumVersion()
     {
-        String[] parts = Tags.VERSION.split("[.-]");
-        int major = Integer.parseInt(parts[0]);
-        int minor = Integer.parseInt(parts[1]);
-        int patch = Integer.parseInt(parts[2]);
+        return formatActiniumVersion(Tags.VERSION);
+    }
+
+    /**
+     * Encodes a version string (e.g. "alpha-0.0.5-da83c59") into a numeric macro value.
+     * Package-visible for testing.
+     */
+    static String formatActiniumVersion(String version)
+    {
+        // The version may carry a non-numeric prefix (e.g. "alpha-0.0.1-2dc019e") and the
+        // build appends a git sha, so locate the first dotted numeric triplet instead of
+        // assuming the string starts with digits.
+        String[] parts = version.split("[.-]");
+        int numericStart = -1;
+        for (int i = 0; i < parts.length; i++) {
+            if (!parts[i].isEmpty() && parts[i].chars().allMatch(Character::isDigit)) {
+                numericStart = i;
+                break;
+            }
+        }
+        if (numericStart < 0 || numericStart + 2 >= parts.length) {
+            // Keep the define numeric so shader packs can still compare against it.
+            return "0";
+        }
+        int major = Integer.parseInt(parts[numericStart]);
+        int minor = Integer.parseInt(parts[numericStart + 1]);
+        int patch = Integer.parseInt(parts[numericStart + 2]);
         int sub = 0;
 
-        // Handle optional prerelease (like beta62)
-        if (parts.length > 3) {
-            String pre = parts[3];
-            String num = pre.replaceAll("\\D+", ""); // remove all non-digits
-            if (!num.isEmpty())
-                sub = Integer.parseInt(num);
+        // Handle optional prerelease (like beta62). The segment must start with a
+        // letter so a trailing git sha (e.g. "00e287f") is not mistaken for a
+        // prerelease number.
+        if (numericStart + 3 < parts.length) {
+            String pre = parts[numericStart + 3];
+            if (!pre.isEmpty() && Character.isLetter(pre.charAt(0))) {
+                String num = pre.replaceAll("\\D+", ""); // remove all non-digits
+                if (!num.isEmpty())
+                    sub = Integer.parseInt(num);
+            }
         }
-        return String.format("%d%02d%02d%03d", major, minor, patch, sub);
+        String encoded = String.format("%d%02d%02d%03d", major, minor, patch, sub);
+        // jcpp lexes macro values as C constants: a multi-digit value starting with '0' is
+        // treated as octal, and an 8/9 digit then raises a LexerException that fails the whole
+        // shader pack load (production: alpha-0.0.5-da83c59 -> "000058359"). Strip the leading
+        // zeros; the numeric value is unchanged.
+        String stripped = encoded.replaceFirst("^0+", "");
+        return stripped.isEmpty() ? "0" : stripped;
     }
 
 	public static Iterable<StringPair> createStandardEnvironmentDefines() {
@@ -78,10 +112,11 @@ public class StandardMacros {
 		define(standardDefines, "MC_SPECULAR_MAP");
 		define(standardDefines, "MC_RENDER_QUALITY", "1.0");
 		define(standardDefines, "MC_SHADOW_QUALITY", "1.0");
-		define(standardDefines, "IS_ANGELICA");
-		if (AngelicaConfig.defineIsIris) {
+		define(standardDefines, "IS_ACTINIUM");
+		if (IrisDebugOptions.defineIsIris()) {
 			define(standardDefines, "IS_IRIS");
 		}
+		define(standardDefines, "IRIS_TAG_SUPPORT", "2");
 
 		if (DHCompat.hasRenderingEnabled()) {
 			define(standardDefines, "DISTANT_HORIZONS");
@@ -104,7 +139,7 @@ public class StandardMacros {
 		define(standardDefines, "DH_BLOCK_AIR", String.valueOf(14));
 		define(standardDefines, "DH_BLOCK_ILLUMINATED", String.valueOf(15));
 
-        define(standardDefines, "ANGELICA_VERSION", makeAngelicaVersion());
+        define(standardDefines, "ACTINIUM_VERSION", makeActiniumVersion());
 		define(standardDefines, "MC_HAND_DEPTH", Float.toString(HandRenderer.DEPTH));
 
 		TextureFormat textureFormat = TextureFormatLoader.getFormat();
@@ -348,13 +383,13 @@ public class StandardMacros {
 
 		for (VanillaBiomeList.BiomeEntry entry : VanillaBiomeList.getVanillaBiomes()) {
 			if (entry.biome != null) {
-				defines.put("BIOME_" + entry.name, String.valueOf(entry.biome.biomeID));
+				defines.put("BIOME_" + entry.name, String.valueOf(Biome.getIdForBiome(entry.biome)));
 			}
 		}
 
 		// Modern biome name aliases - map modern names to 1.7.10 equivalents(ish)
-		addModernBiomeAlias(defines, "SWAMP", BiomeGenBase.swampland);
-		addModernBiomeAlias(defines, "SWAMP_HILLS", BiomeGenBase.swampland); // No hills variant in 1.7.10
+        addModernBiomeAlias(defines, "SWAMP", Biomes.SWAMPLAND);
+        addModernBiomeAlias(defines, "SWAMP_HILLS", Biomes.SWAMPLAND); // No hills variant in 1.12
 
 		// Modern biomes that don't exist in 1.7.10 - add dummy IDs that will never match
 		// This allows shader expressions to parse without errors while always evaluating to false/0
@@ -370,9 +405,9 @@ public class StandardMacros {
 		return defines;
 	}
 
-	private static void addModernBiomeAlias(Map<String, String> defines, String modernName, BiomeGenBase biome) {
-		if (biome != null) {
-			defines.put("BIOME_" + modernName, String.valueOf(biome.biomeID));
-		}
-	}
+    private static void addModernBiomeAlias(Map<String, String> defines, String modernName, Biome biome) {
+        if (biome != null) {
+            defines.put("BIOME_" + modernName, String.valueOf(Biome.getIdForBiome(biome)));
+        }
+    }
 }

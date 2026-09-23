@@ -128,7 +128,7 @@ public final class CelestialUniforms {
 	}
 
 	private static WorldClient getWorld() {
-		return Objects.requireNonNull(Minecraft.getMinecraft().theWorld);
+		return Objects.requireNonNull(Minecraft.getMinecraft().world);
 	}
 
 	private static float getSkyAngle() {

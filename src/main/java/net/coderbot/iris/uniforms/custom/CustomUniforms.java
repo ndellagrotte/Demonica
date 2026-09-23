@@ -148,7 +148,8 @@ public class CustomUniforms implements FunctionContext {
 					brokenUniforms.addAll(requiredBy.get(pop));
 				}
 				for (CachedUniform dependent : requiredBy.get(pop)) {
-					int count = dependsOnCount.mergeInt(dependent, -1, Integer::sum);
+					int count = dependsOnCount.getInt(dependent) - 1;
+					dependsOnCount.put(dependent, count);
 					assert count >= 0;
 					if (count == 0) {
 						free.add(dependent);
@@ -246,7 +247,7 @@ public class CustomUniforms implements FunctionContext {
 		// Count the times a uniform is depended on
 		for (List<CachedUniform> dependencies : this.dependsOn.values()) {
 			for (CachedUniform dependency : dependencies) {
-				dependedByCount.mergeInt(dependency, 1, Integer::sum);
+				dependedByCount.put(dependency, dependedByCount.getInt(dependency) + 1);
 			}
 		}
 
@@ -254,7 +255,7 @@ public class CustomUniforms implements FunctionContext {
 		// ensures they wont ever be removed
 		for (Object2IntMap<CachedUniform> map : this.locationMap.values()) {
 			for (CachedUniform cachedUniform : map.keySet()) {
-				dependedByCount.mergeInt(cachedUniform, 1, Integer::sum);
+				dependedByCount.put(cachedUniform, dependedByCount.getInt(cachedUniform) + 1);
 			}
 		}
 
@@ -270,7 +271,7 @@ public class CustomUniforms implements FunctionContext {
 				if (dependencies != null) {
 					for (CachedUniform dependency : dependencies) {
 						// reduce count by 1
-						dependedByCount.computeIntIfPresent(dependency, (key, value) -> value - 1);
+						dependedByCount.put(dependency, dependedByCount.getInt(dependency) - 1);
 					}
 				}
 			}
