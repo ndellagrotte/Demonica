@@ -42,7 +42,7 @@ Re-run it after every sync and commit the manifest next to the sync.
   `actinium@fee5de3834352050fc453bde1d93030c6d434983`
   (`shader/src/main/java` → `src/main/java` path mapping applied).
 - Manifest at sync time: 297 verbatim / 132 adapted / 50 new / 16 dropped
-  (`docs/PROVENANCE.sync-actinium-fee5de38.md`).
+  (`docs/provenance/actinium-fee5de38/iris.md`).
 - Celeritas bridge included; Celeritas is a compileOnly dependency.
 
 ## Deliberately deferred
