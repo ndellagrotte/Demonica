@@ -1,0 +1,64 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            srcDir '../src/lwjglCommon/java'
+            srcDir '../src/lwjgl3/java'
+        }
+    }
+}
+
+base {
+    archivesName = 'demonica-glsm'
+}
+
+java {
+    withSourcesJar()
+}
+
+dependencies {
+    // Actinium declares `api project(':GTNHLib')`. GTNHLib is vendored and never published,
+    // so here it is compile-only and the host supplies it at runtime.
+    compileOnly project(':GTNHLib')
+    implementation('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
+        transitive = false
+    }
+    implementation 'org.antlr:antlr4-runtime:4.13.2'
+    // SPIR-V toolchain for the future sdl-gpu backend (compile-time only; natives ship with that backend).
+    compileOnly 'org.lwjgl:lwjgl-shaderc:3.4.1'
+    compileOnly 'org.lwjgl:lwjgl-spvc:3.4.1'
+}
+
+tasks.named('sourcesJar', Jar) {
+    // The srcDir list above repeats the default src/main/java, so every glsm source file
+    // appears twice. Real duplicates across the three roots still fail compileJava.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('jar', Jar) {
+    // com.gtnewhorizons.angelica.Tags reads Implementation-Version from the manifest.
+    manifest.attributes(
+        'Implementation-Title': 'Demonica GLSM',
+        'Implementation-Version': project.version,
+        'Demonica-Synced-From': rootProject.property('demonica_syncline')
+    )
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifactId = 'demonica-glsm'
+            from components.java
+        }
+    }
+}

@@ -1,0 +1,399 @@
+/*
+ * Demonica: the Iris shader pipeline and GLSM as MCP-named 1.12.2/Cleanroom library jars.
+ *
+ * Derived from actinium@fee5de3834352050fc453bde1d93030c6d434983 (build.gradle and
+ * gradle/scripts/dependencies.gradle), minus the mod-distribution machinery: no shadow/remap
+ * jars, contained deps, runs, coremod or mixin setup. Demonica is not a mod; the host mod owns
+ * mixins, remapping and packaging (docs/HOST_CONTRACT.md).
+ *
+ * Published: com.demonica:demonica (this project) and com.demonica:demonica-glsm (:glsm).
+ * Never published: :GTNHLib and :celeritas-common, vendored compile-only from Actinium.
+ */
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'xyz.wagyourtail.unimined' version '1.4.36-kappa'
+}
+
+group = property('demonica_group')
+version = property('demonica_version')
+def syncline = property('demonica_syncline')
+
+base {
+    archivesName = 'demonica'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+}
+
+configurations {
+    modCompileOnly
+    compileOnly.extendsFrom(modCompileOnly)
+}
+
+def libraryProjects = [
+    project(':glsm'),
+    project(':GTNHLib'),
+    project(':celeritas-common')
+]
+
+ext.sharedMinecraftCompileClasspath = {
+    rootProject.files(rootProject.provider {
+        rootProject.tasks.named('compileJava', JavaCompile).get().classpath.files.findAll { it.isFile() }
+    })
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    group = rootProject.group
+    version = rootProject.version
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    dependencies {
+        compileOnly rootProject.ext.sharedMinecraftCompileClasspath()
+        annotationProcessor rootProject.files(rootProject.provider {
+            rootProject.configurations.annotationProcessor.files.findAll { it.isFile() }
+        })
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = '21'
+        targetCompatibility = '21'
+        options.encoding = 'UTF-8'
+        options.release.set(21)
+        javaCompiler = javaToolchains.compilerFor {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    tasks.named('compileJava', JavaCompile).configure {
+        options.fork = true
+        options.forkOptions.jvmArgs.add('--sun-misc-unsafe-memory-access=allow')
+    }
+
+    tasks.withType(Javadoc).configureEach {
+        failOnError = false
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.cleanroommc.com' }
+    maven { url = 'https://api.modrinth.com/maven' }
+    maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
+}
+
+// Unimined clears the POM dependencies of any project that remaps mods (here only the compile-only
+// Distant Horizons jar). Demonica is a library: its POM must list its real runtime dependencies,
+// and verifyPublishedJars checks that no mod or synthetic remapped coordinate leaks into it.
+unimined.cleanModPom = false
+
+unimined.minecraft {
+    version '1.12.2'
+
+    mappings {
+        mcp 'stable', '39-1.12'
+    }
+
+    cleanroom {
+        accessTransformer file('src/main/resources/META-INF/demonica_at.cfg').absolutePath
+        loader '0.6.12-alpha'
+    }
+
+    // Demonica publishes MCP-named library jars; the host remaps them with its own jar.
+    defaultRemapJar = false
+
+    runs {
+        off = true
+    }
+
+    mods {
+        remap(configurations.modCompileOnly)
+    }
+}
+
+dependencies {
+    def lwjglVersion = '3.4.1'
+    def lombokVersion = '1.18.46'
+    def asmVersion = '9.9.1'
+
+    api project(':glsm')
+    // Vendored from Actinium (vendor/README.md); the host supplies both at runtime.
+    compileOnly project(':GTNHLib')
+    compileOnly project(':celeritas-common')
+
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    compileOnly 'org.apache.logging.log4j:log4j-api:2.0-beta9'
+    compileOnly 'org.joml:joml:1.10.5'
+    compileOnly 'it.unimi.dsi:fastutil:8.5.18'
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+    compileOnly "org.ow2.asm:asm:${asmVersion}"
+    compileOnly "org.ow2.asm:asm-commons:${asmVersion}"
+    compileOnly "org.ow2.asm:asm-tree:${asmVersion}"
+    compileOnly "org.ow2.asm:asm-util:${asmVersion}"
+
+    implementation('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
+        transitive = false
+    }
+    implementation 'org.antlr:antlr4-runtime:4.13.2'
+    implementation 'org.anarres:jcpp:1.4.14'
+
+    compileOnly "org.lwjgl:lwjgl:${lwjglVersion}"
+    compileOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+    // Must stay after lwjgl and lwjgl-opengl: lwjglx ships LWJGL2-style GL11..GL45 (see requireLwjgl3BeforeLwjglx).
+    compileOnly 'com.cleanroommc:lwjglx:1.0.0'
+
+    modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.google.guava:guava:21.0'
+    testImplementation project(':GTNHLib')
+    testImplementation project(':celeritas-common')
+    testImplementation files(sharedMinecraftCompileClasspath())
+}
+
+tasks.withType(JavaCompile).configureEach {
+    sourceCompatibility = '21'
+    targetCompatibility = '21'
+    options.encoding = 'UTF-8'
+    options.release.set(21)
+    javaCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.named('compileJava', JavaCompile).configure {
+    options.fork = true
+    options.forkOptions.jvmArgs.add('--sun-misc-unsafe-memory-access=allow')
+}
+
+/**
+ * lwjglx ships LWJGL2-style org.lwjgl.opengl.GL11..GL45 classes. javac takes the first match on the
+ * classpath, so if lwjglx precedes lwjgl-opengl 3 the build fails with hundreds of unrelated
+ * "cannot find symbol glGetIntegerv" errors. This names the real cause instead. Gradle places a module
+ * after its consumers, so lwjgl-opengl lands where lwjgl is declared: lwjglx must follow both.
+ */
+def requireLwjgl3BeforeLwjglx = { Task task ->
+    def jars = task.classpath.files*.name
+    def lwjglx = jars.findIndexOf { it ==~ /lwjglx-[0-9].*\.jar/ }
+    def lwjglOpengl = jars.findIndexOf { it ==~ /lwjgl-opengl-3\.[0-9.]+\.jar/ }
+    if (lwjglx >= 0 && lwjglOpengl >= 0 && lwjglx < lwjglOpengl) {
+        throw new GradleException("${task.path}: ${jars[lwjglx]} precedes ${jars[lwjglOpengl]} on the compile " +
+            "classpath, so javac would resolve LWJGL2-style GL classes. Keep compileOnly lwjglx declared " +
+            "after lwjgl and lwjgl-opengl in build.gradle.")
+    }
+}
+
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        doFirst('requireLwjgl3BeforeLwjglx') { requireLwjgl3BeforeLwjglx(it) }
+    }
+}
+
+def testRunDirectory = layout.projectDirectory.dir('run/test')
+
+def prepareTestRunDirectory = tasks.register('prepareTestRunDirectory') {
+    outputs.dir(testRunDirectory)
+    doLast {
+        mkdir(testRunDirectory)
+    }
+}
+
+test {
+    dependsOn prepareTestRunDirectory
+    useJUnitPlatform()
+    workingDir = testRunDirectory.asFile
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    if (project.findProperty('show_testing_output') == 'true') {
+        testLogging {
+            showStandardStreams = true
+        }
+    }
+}
+
+jar {
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    manifest.attributes(
+        'Implementation-Title': 'Demonica',
+        'Implementation-Version': project.version,
+        'Demonica-Synced-From': syncline
+    )
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifactId = 'demonica'
+            from components.java
+        }
+    }
+    // No remote repositories: publishToMavenLocal only, until the license question is settled.
+}
+
+def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
+    dependsOn tasks.named('compileJava')
+    dependsOn libraryProjects.collect { it.tasks.named('classes') }
+
+    doLast {
+        def componentOutputs = [
+            demonica: files(tasks.named('compileJava', JavaCompile).get().destinationDirectory),
+            glsm: project(':glsm').sourceSets.main.output.classesDirs,
+            GTNHLib: project(':GTNHLib').sourceSets.main.output.classesDirs,
+            celeritas: project(':celeritas-common').sourceSets.main.output.classesDirs
+        ]
+        def owners = [:]
+        def duplicates = []
+
+        componentOutputs.each { component, outputDirs ->
+            outputDirs.files.findAll { it.exists() }.each { outputDir ->
+                fileTree(outputDir).matching { include '**/*.class' }.files.each { classFile ->
+                    def relativePath = outputDir.toPath().relativize(classFile.toPath()).toString().replace('\\', '/')
+                    def previousOwner = owners.putIfAbsent(relativePath, component)
+                    if (previousOwner != null && previousOwner != component) {
+                        duplicates.add("${relativePath} (${previousOwner}, ${component})")
+                    }
+                }
+            }
+        }
+
+        if (!duplicates.isEmpty()) {
+            throw new GradleException("Duplicate classes cross module boundaries:\n - ${duplicates.sort().join('\n - ')}")
+        }
+    }
+}
+
+/**
+ * The published jars must carry only Demonica and GLSM: no vendored or host classes, no bundled
+ * libraries, no mod metadata, and no POM dependency on an artifact that is never published.
+ */
+def verifyPublishedJars = tasks.register('verifyPublishedJars') {
+    group = 'verification'
+    description = 'Checks the published jars, sources jars and POMs of demonica and demonica-glsm.'
+
+    // Resolved here, at configuration time: doLast must not touch Task.project.
+    def rootPath = project.path
+    def expectedVersion = project.version.toString()
+    def glsmCoordinate = "${project.group}:demonica-glsm".toString()
+    def published = [project, project(':glsm')].collect { p ->
+        dependsOn p.tasks.named('jar'), p.tasks.named('sourcesJar'),
+            p.tasks.named('generatePomFileForMavenPublication'),
+            p.tasks.named('generateMetadataFileForMavenPublication')
+        [
+            path: p.path,
+            classesJar: p.tasks.named('jar', Jar).flatMap { it.archiveFile },
+            sourcesJar: p.tasks.named('sourcesJar', Jar).flatMap { it.archiveFile },
+            pomFile: p.tasks.named('generatePomFileForMavenPublication').map { it.destination },
+            moduleFile: p.tasks.named('generateMetadataFileForMavenPublication').flatMap { it.outputFile }
+        ]
+    }
+
+    doLast {
+        def forbiddenEntries = [
+            ~/^dhj\//, ~/^grondag\//, ~/^com\/gtnewhorizon\/gtnhlib\//, ~/^com\/dhj\//,
+            ~/^org\/joml\//, ~/^org\/taumc\//, ~/^org\/antlr\//, ~/^org\/anarres\//,
+            ~/^net\/minecraft\//,
+            // GLSM ships its own net.minecraftforge.eventbus shim; nothing else from Forge.
+            ~/^net\/minecraftforge\/(?!eventbus\/)/,
+            ~/^(mcmod\.info|pack\.mcmeta|fabric\.mod\.json|META-INF\/mods\.toml|mixins\..*\.json)$/,
+            ~/\.jar$/
+        ]
+        def forbiddenAttributes = ~/^(FML.*|Mixin.*|Tweak.*|ModType|ModSide|ForceLoadAsMod|ContainedDeps|NonModDeps)$/
+        def requiredEntries = [
+            (rootPath): [
+                'net/coderbot/iris/Iris.class',
+                'assets/iris/lang/en_us.lang',
+                'assets/angelica/shaders/centerDepth.vsh',
+                'assets/actinium/shaders/include/chunk_vertex.glsl',
+                'META-INF/demonica_at.cfg'
+            ],
+            ':glsm': [
+                'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
+                'com/gtnewhorizons/angelica/lwjgl3/Lwjgl3GLRenderBackend.class',
+                'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend'
+            ]
+        ]
+        def requiredSources = [
+            (rootPath): 'net/coderbot/iris/Iris.java',
+            ':glsm': 'com/gtnewhorizons/angelica/glsm/GLStateManager.java'
+        ]
+        def unpublished = ['GTNHLib', 'celeritas-common']
+        def problems = []
+
+        published.each { p ->
+            def classesJar = p.classesJar.get().asFile
+            def sourcesJar = p.sourcesJar.get().asFile
+
+            [classesJar, sourcesJar].each { jarFile ->
+                new java.util.jar.JarFile(jarFile).withCloseable { jar ->
+                    def names = jar.entries().findAll { !it.directory }.collect { it.name }
+                    names.each { name ->
+                        if (forbiddenEntries.any { name =~ it }) {
+                            problems << "${jarFile.name}: forbidden entry ${name}"
+                        }
+                    }
+                    def required = jarFile == classesJar ? requiredEntries[p.path] : [requiredSources[p.path]]
+                    (required - names).each { problems << "${jarFile.name}: missing required entry ${it}" }
+                    jar.manifest?.mainAttributes?.keySet()*.toString()?.findAll { it ==~ forbiddenAttributes }?.each {
+                        problems << "${jarFile.name}: forbidden manifest attribute ${it}"
+                    }
+                }
+            }
+
+            def manifest = new java.util.jar.JarFile(classesJar).withCloseable { it.manifest.mainAttributes }
+            if (manifest.getValue('Implementation-Version') != expectedVersion) {
+                problems << "${classesJar.name}: Implementation-Version is ${manifest.getValue('Implementation-Version')}"
+            }
+            if (manifest.getValue('Demonica-Synced-From') != syncline) {
+                problems << "${classesJar.name}: Demonica-Synced-From is ${manifest.getValue('Demonica-Synced-From')}"
+            }
+
+            def pom = new groovy.xml.XmlSlurper().parse(p.pomFile.get())
+            def pomDependencies = pom.dependencies.dependency.collect { "${it.groupId}:${it.artifactId}".toString() }
+            pomDependencies.each { dep ->
+                def (depGroup, depArtifact) = dep.split(':')
+                if (depArtifact in unpublished || depGroup == 'maven.modrinth' || dep.contains('remapped')) {
+                    problems << "${p.path} POM: forbidden dependency ${dep}"
+                }
+            }
+            if (p.path == rootPath && !pomDependencies.contains(glsmCoordinate)) {
+                problems << "${p.path} POM: missing dependency ${glsmCoordinate}"
+            }
+
+            def module = new groovy.json.JsonSlurper().parse(p.moduleFile.get().asFile)
+            module.variants.each { variant ->
+                variant.dependencies?.each { dep ->
+                    if (dep.module in unpublished || dep.group == 'maven.modrinth' || "${dep.group}:${dep.module}".contains('remapped')) {
+                        problems << "${p.path} module metadata (${variant.name}): forbidden dependency ${dep.group}:${dep.module}"
+                    }
+                }
+            }
+        }
+
+        if (!problems.isEmpty()) {
+            throw new GradleException("Published artifacts failed verification:\n - ${problems.join('\n - ')}")
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn verifyModuleBoundaries
+    dependsOn verifyPublishedJars
+}

@@ -1,0 +1,7 @@
+// Actinium's cut-down 1.12.2 fork of GTNHLib, vendored verbatim from
+// actinium@fee5de3834352050fc453bde1d93030c6d434983:GTNHLib/src/main/java (see vendor/README.md).
+// Compile-only for Demonica and never published: the host supplies GTNHLib at runtime.
+// Actinium's GTNHLib tests are not vendored.
+plugins {
+    id 'java-library'
+}

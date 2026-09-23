@@ -1,0 +1,14 @@
+// Actinium's celeritas-common (package dhj.embeddedt.*), vendored verbatim from
+// actinium@fee5de3834352050fc453bde1d93030c6d434983:celeritas-common/src/main/java (see vendor/README.md).
+// Compile-only for Demonica and never published: the host supplies Celeritas at runtime.
+// Actinium's jmh benchmarks are not vendored.
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':glsm')
+    // In Actinium, glsm re-exports GTNHLib through `api`; Demonica's glsm keeps it
+    // compile-only, so celeritas-common depends on it directly.
+    api project(':GTNHLib')
+}
