@@ -1,0 +1,219 @@
+# Provenance manifest
+
+- baseline: `angelica-baseline/9fd02900ef` (prefix `src/main/java`)
+- compared: `actinium/main` (prefix `shader/src/main/java`)
+- paths: net/coderbot, kroppeb, net/irisshaders
+
+| class | count |
+|---|---|
+| verbatim (byte-identical) | 297 |
+| adapted (content differs) | 132 |
+| new (only in compared ref) | 50 |
+| dropped (only in baseline) | 16 |
+
+## Adapted (132)
+
+- `iris/Iris.java`
+- `iris/JomlConversions.java`
+- `iris/api/v0/IrisApi.java`
+- `iris/api/v0/IrisApiConfig.java`
+- `iris/api/v0/item/IrisItemLightProvider.java`
+- `iris/apiimpl/IrisApiV0ConfigImpl.java`
+- `iris/block_rendering/BlockMaterialMapping.java`
+- `iris/block_rendering/BlockRenderingSettings.java`
+- `iris/celeritas/CeleritasTerrainPipeline.java`
+- `iris/celeritas/IrisCeleritasChunkProgramOverrides.java`
+- `iris/celeritas/IrisCeleritasChunkShaderInterface.java`
+- `iris/celeritas/IrisCeleritasShaderProvider.java`
+- `iris/celeritas/IrisTerrainPass.java`
+- `iris/client/IrisDebugScreenHandler.java`
+- `iris/compat/dh/DHCompat.java`
+- `iris/compat/dh/DHCompatInternal.java`
+- `iris/compat/dh/IrisGenericRenderProgram.java`
+- `iris/compat/dh/IrisLodRenderProgram.java`
+- `iris/compat/dh/LodRendererEvents.java`
+- `iris/config/IrisConfig.java`
+- `iris/fantastic/WrappingMultiBufferSource.java`
+- `iris/gbuffer_overrides/matching/InputAvailability.java`
+- `iris/gl/GlVersion.java`
+- `iris/gl/blending/AlphaTestOverride.java`
+- `iris/gl/blending/AlphaTestStorage.java`
+- `iris/gl/blending/BlendModeStorage.java`
+- `iris/gl/blending/DepthColorStorage.java`
+- `iris/gl/buffer/ShaderStorageBuffer.java`
+- `iris/gl/framebuffer/GlFramebuffer.java`
+- `iris/gl/image/GlImage.java`
+- `iris/gl/program/Program.java`
+- `iris/gl/program/ProgramSamplers.java`
+- `iris/gl/program/ProgramUniforms.java`
+- `iris/gl/sampler/GlSampler.java`
+- `iris/gl/shader/StandardMacros.java`
+- `iris/gl/state/StateUpdateNotifiers.java`
+- `iris/gl/texture/DepthCopyStrategy.java`
+- `iris/gl/texture/GlTexture.java`
+- `iris/gl/texture/InternalTextureFormat.java`
+- `iris/gl/uniform/LocationalUniformHolder.java`
+- `iris/gl/uniform/UniformHolder.java`
+- `iris/gl/uniform/VanillaVector3Uniform.java`
+- `iris/gl/uniform/Vector2Uniform.java`
+- `iris/gl/uniform/Vector4ArrayUniform.java`
+- `iris/gui/GuiUtil.java`
+- `iris/gui/element/IrisGuiSlot.java`
+- `iris/gui/element/ShaderPackOptionList.java`
+- `iris/gui/element/ShaderPackSelectionList.java`
+- `iris/gui/element/shaderoptions/ElementRowEntry.java`
+- `iris/gui/element/shaderoptions/HeaderEntry.java`
+- `iris/gui/element/shaderselection/LabelEntry.java`
+- `iris/gui/element/shaderselection/ShaderPackEntry.java`
+- `iris/gui/element/shaderselection/TopButtonRowEntry.java`
+- `iris/gui/element/widget/BaseOptionElementWidget.java`
+- `iris/gui/element/widget/IrisImageButton.java`
+- `iris/gui/element/widget/SliderElementWidget.java`
+- `iris/gui/screen/ShaderPackScreen.java`
+- `iris/layer/GbufferPrograms.java`
+- `iris/pipeline/ClearPass.java`
+- `iris/pipeline/CustomTextureManager.java`
+- `iris/pipeline/DeferredWorldRenderingPipeline.java`
+- `iris/pipeline/FixedFunctionWorldRenderingPipeline.java`
+- `iris/pipeline/HandRenderer.java`
+- `iris/pipeline/HorizonRenderer.java`
+- `iris/pipeline/PatchedShaderPrinter.java`
+- `iris/pipeline/PipelineManager.java`
+- `iris/pipeline/ShadowRenderer.java`
+- `iris/pipeline/WorldRenderingPipeline.java`
+- `iris/pipeline/transform/AttributeTransformer.java`
+- `iris/pipeline/transform/CeleritasTransformer.java`
+- `iris/pipeline/transform/CommonTransformer.java`
+- `iris/pipeline/transform/CompatibilityTransformer.java`
+- `iris/pipeline/transform/ShaderTransformer.java`
+- `iris/pipeline/transform/TransformPatcher.java`
+- `iris/postprocess/BufferFlipper.java`
+- `iris/postprocess/CenterDepthSampler.java`
+- `iris/postprocess/CompositeRenderer.java`
+- `iris/postprocess/FinalPassRenderer.java`
+- `iris/postprocess/FullScreenQuadRenderer.java`
+- `iris/rendertarget/NativeImageBackedNoiseTexture.java`
+- `iris/rendertarget/NativeImageBackedSingleColorTexture.java`
+- `iris/rendertarget/RenderTargets.java`
+- `iris/samplers/IrisSamplers.java`
+- `iris/shaderpack/DimensionId.java`
+- `iris/shaderpack/IdMap.java`
+- `iris/shaderpack/LanguageMap.java`
+- `iris/shaderpack/LegacyIdMap.java`
+- `iris/shaderpack/PackRenderTargetDirectives.java`
+- `iris/shaderpack/ProgramSet.java`
+- `iris/shaderpack/ShaderPack.java`
+- `iris/shaderpack/ShaderProperties.java`
+- `iris/shaderpack/include/ShaderPackSourceNames.java`
+- `iris/shaderpack/loading/ProgramArrayId.java`
+- `iris/shaderpack/loading/ProgramGroup.java`
+- `iris/shaderpack/materialmap/BlockEntry.java`
+- `iris/shaderpack/preprocessor/JcppProcessor.java`
+- `iris/shaderpack/preprocessor/PropertiesPreprocessor.java`
+- `iris/shadow/ShadowMatrices.java`
+- `iris/shadows/ShadowCompositeRenderer.java`
+- `iris/shadows/frustum/BoxCuller.java`
+- `iris/shadows/frustum/CullEverythingFrustum.java`
+- `iris/shadows/frustum/FrustumHolder.java`
+- `iris/shadows/frustum/advanced/AdvancedShadowCullingFrustum.java`
+- `iris/shadows/frustum/advanced/SafeZoneCullingFrustum.java`
+- `iris/shadows/frustum/fallback/BoxCullingFrustum.java`
+- `iris/shadows/frustum/fallback/NonCullingFrustum.java`
+- `iris/texture/format/TextureFormat.java`
+- `iris/texture/pbr/PBRAtlasTexture.java`
+- `iris/texture/pbr/PBRTextureManager.java`
+- `iris/texture/pbr/PBRType.java`
+- `iris/texture/pbr/loader/AtlasPBRLoader.java`
+- `iris/texture/pbr/loader/SimplePBRLoader.java`
+- `iris/texture/util/TextureExporter.java`
+- `iris/texture/util/TextureManipulationUtil.java`
+- `iris/uniforms/BiomeUniforms.java`
+- `iris/uniforms/CameraUniforms.java`
+- `iris/uniforms/CelestialUniforms.java`
+- `iris/uniforms/CommonUniforms.java`
+- `iris/uniforms/EntityIdHelper.java`
+- `iris/uniforms/ExternallyManagedUniforms.java`
+- `iris/uniforms/HardcodedCustomUniforms.java`
+- `iris/uniforms/IdMapUniforms.java`
+- `iris/uniforms/IrisExclusiveUniforms.java`
+- `iris/uniforms/IrisInternalUniforms.java`
+- `iris/uniforms/ItemIdManager.java`
+- `iris/uniforms/ItemMaterialHelper.java`
+- `iris/uniforms/MatrixUniforms.java`
+- `iris/uniforms/VanillaBiomeList.java`
+- `iris/uniforms/WorldTimeUniforms.java`
+- `iris/uniforms/custom/CustomUniformFixedInputUniformsHolder.java`
+- `iris/uniforms/custom/CustomUniforms.java`
+- `iris/vertices/ExtendingBufferBuilder.java`
+
+## New (50)
+
+- `iris/block_rendering/BlockStateConditionalIdMap.java`
+- `iris/block_rendering/NbtConditionalIdMap.java`
+- `iris/celeritas/WorldRendererCompat.java`
+- `iris/celeritas/WorldRendererCompatBridge.java`
+- `iris/celeritas/buffer/ShaderMaterialOverrideState.java`
+- `iris/celeritas/debug/IrisRenderDebugHooks.java`
+- `iris/celeritas/vertices/ExtendedChunkVertexEncoder.java`
+- `iris/celeritas/vertices/ExtendedChunkVertexType.java`
+- `iris/celeritas/vertices/LwjglQuadView.java`
+- `iris/celeritas/vertices/TerrainVertexFormatRequirements.java`
+- `iris/compat/rfp2/Rfp2Compat.java`
+- `iris/debug/IrisDebugOptions.java`
+- `iris/debug/IrisGlDebug.java`
+- `iris/debug/PBRDebug.java`
+- `iris/debug/ShaderRegressionDebug.java`
+- `iris/debug/flight/DisabledGlFlightRecorder.java`
+- `iris/debug/flight/GlFlightEvent.java`
+- `iris/debug/flight/GlFlightEventKind.java`
+- `iris/debug/flight/GlFlightEventPhase.java`
+- `iris/debug/flight/GlFlightFormat.java`
+- `iris/debug/flight/GlFlightGpuCommandRecorder.java`
+- `iris/debug/flight/GlFlightHash.java`
+- `iris/debug/flight/GlFlightPipelineAction.java`
+- `iris/debug/flight/GlFlightRecorder.java`
+- `iris/debug/flight/GlFlightRecorderFactory.java`
+- `iris/debug/flight/GlFlightRecorderMode.java`
+- `iris/debug/flight/GlFlightRecording.java`
+- `iris/debug/flight/GlFlightRecordingDecoder.java`
+- `iris/debug/flight/GlFlightRecordingReader.java`
+- `iris/debug/flight/GlFlightRecordingSession.java`
+- `iris/debug/flight/GlFlightStage.java`
+- `iris/debug/flight/GlFlightStageClassifier.java`
+- `iris/debug/flight/GlFlightStreamingSource.java`
+- `iris/debug/flight/GlFlightTimeline.java`
+- `iris/debug/flight/MappedGlFlightRecorder.java`
+- `iris/gbuffer_overrides/matching/TranslucentBlendMatcher.java`
+- `iris/gl/MatrixStack.java`
+- `iris/gl/framebuffer/MinecraftFramebufferHelper.java`
+- `iris/gui/element/ScrollBarGeometry.java`
+- `iris/gui/element/widget/SliderGeometry.java`
+- `iris/gui/screen/ShaderPackApplyLogic.java`
+- `iris/layer/RenderLayer.java`
+- `iris/pipeline/AdaptiveShadowBoundsStats.java`
+- `iris/pipeline/SkyRenderDistance.java`
+- `iris/pipeline/transform/AdaptiveShadowBoundsTransformer.java`
+- `iris/shaderpack/materialmap/EntityFlatteningMap.java`
+- `iris/shaderpack/materialmap/FlatteningMap.java`
+- `iris/shaderpack/materialmap/LegacyBlockTags.java`
+- `iris/shaderpack/materialmap/PropertiesTokenizer.java`
+- `iris/shaderpack/materialmap/TagEntry.java`
+
+## Dropped (16)
+
+- `batchedentityrendering/impl/BatchingDebugMessageHelper.java`
+- `batchedentityrendering/impl/BlendingStateHolder.java`
+- `batchedentityrendering/impl/BufferSegment.java`
+- `batchedentityrendering/impl/DrawCallTrackingRenderBuffers.java`
+- `batchedentityrendering/impl/FlushableMultiBufferSource.java`
+- `batchedentityrendering/impl/Groupable.java`
+- `batchedentityrendering/impl/MemoryTrackingBuffer.java`
+- `batchedentityrendering/impl/MemoryTrackingRenderBuffers.java`
+- `batchedentityrendering/impl/RenderBuffersExt.java`
+- `batchedentityrendering/impl/TransparencyType.java`
+- `batchedentityrendering/impl/WrappableRenderType.java`
+- `batchedentityrendering/impl/ordering/GraphTranslucencyRenderOrderManager.java`
+- `batchedentityrendering/impl/ordering/RenderOrderManager.java`
+- `batchedentityrendering/impl/ordering/SimpleRenderOrderManager.java`
+- `batchedentityrendering/impl/ordering/TranslucencyRenderOrderManager.java`
+- `iris/gl/uniform/MatrixFromFloatArrayUniform.java`
