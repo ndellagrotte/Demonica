@@ -96,8 +96,10 @@ GLSM_MOVED_ROOT_CLASSES = tuple(
     )
 )
 RENDER_BACKEND_SERVICE = "META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend"
+# src/main/resources/LICENSE is not synced: Actinium replaced Angelica's ShadersMod
+# relicensing notice with its own GPL-3.0 text, and Demonica keeps Angelica's notice
+# until the license question is decided (docs/PROVENANCE.md).
 ROOT_RESOURCES = (
-    "LICENSE",
     "assets/iris",
     "assets/angelica/shaders/centerDepth.vsh",
     "assets/angelica/shaders/centerDepth.fsh",
