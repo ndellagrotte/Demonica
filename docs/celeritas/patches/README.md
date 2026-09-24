@@ -48,7 +48,13 @@ upstream's own services.
 Without a provider registered, every call site keeps today's behaviour, so the
 change is inert for users without a shader mod.
 
+The meshing patches (S10, S11, S13) need the same for block data: a
+context-aware vertex encoder in `common` (the modern loaders have one in
+`modern`), the pack's layer for a block, a fluid material, and the pack's
+lighting settings (separate ambient occlusion, no directional shading), used by
+forge122's fast block renderer and by the copy of vanilla-path quads.
+
 The remaining drafts are independent small changes: S7 (two members of
-`SimpleWorldRenderer`), S15 (fog service selection), S19 (a getter), I2 (finish
-deprecating the `frame` parameters). I1 is a question for upstream, and S17
-needs nothing from upstream.
+`SimpleWorldRenderer`), S15 (fog service selection), S19 (a getter), S20 (a quad
+transformer hook), I2 (finish deprecating the `frame` parameters). I1 is a
+question for upstream, and S17 needs nothing from upstream.

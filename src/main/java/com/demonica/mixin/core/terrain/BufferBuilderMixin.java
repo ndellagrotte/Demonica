@@ -4,8 +4,8 @@ import com.demonica.render.ProjectiveTexCoordBuffer;
 import com.demonica.render.ProjectiveTexCoordWriter;
 import com.demonica.render.vertex.DirectBufferAddress;
 import com.demonica.render.vertex.FastVertexLayout;
+import com.demonica.render.vertex.QuadContextRecorder;
 import com.demonica.render.vertex.VertexWriters;
-import net.coderbot.iris.celeritas.buffer.ShaderMaterialOverrideState;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.vertex.VertexFormat;
 import net.minecraft.client.renderer.vertex.VertexFormatElement;
@@ -23,7 +23,6 @@ import com.demonica.celeritas.api.shader.vertex.BufferBuilderExtension;
 import com.demonica.celeritas.api.shader.vertex.VanillaQuadContext;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 
 @Mixin(BufferBuilder.class)
@@ -71,10 +70,7 @@ public abstract class BufferBuilderMixin implements BufferBuilderExtension, Proj
     private long demonica$bufferAddress;
 
     @Unique
-    private final List<VanillaQuadContext> demonica$quadContexts = new ArrayList<>();
-
-    @Unique
-    private @Nullable VanillaQuadContext demonica$activeQuadContext;
+    private final QuadContextRecorder demonica$quadContexts = new QuadContextRecorder();
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void demonica$init(int bufferSizeIn, CallbackInfo ci) {
@@ -123,29 +119,22 @@ public abstract class BufferBuilderMixin implements BufferBuilderExtension, Proj
     @Inject(method = "begin", at = @At("HEAD"))
     private void demonica$begin(int glMode, VertexFormat format, CallbackInfo ci) {
         this.demonica$quadContexts.clear();
-        this.demonica$activeQuadContext = null;
     }
 
     @Inject(method = "addVertexData", at = @At("TAIL"))
     private void demonica$addVertexData(int[] vertexData, CallbackInfo ci) {
-        if (this.demonica$activeQuadContext != null) {
-            this.demonica$quadContexts.add(this.demonica$snapshotQuadContext());
-        }
+        this.demonica$quadContexts.onVerticesAdded(this.demonica$quadCount());
     }
 
     @Inject(method = "endVertex", at = @At("TAIL"))
     private void demonica$endVertex(CallbackInfo ci) {
-        if (this.demonica$activeQuadContext != null && this.drawMode == GL11.GL_QUADS && (this.vertexCount & 3) == 0) {
-            this.demonica$quadContexts.add(this.demonica$snapshotQuadContext());
-        }
+        this.demonica$quadContexts.onVerticesAdded(this.demonica$quadCount());
     }
 
+    /** The quads drawn so far; the contexts are kept for quad buffers only. */
     @Unique
-    private VanillaQuadContext demonica$snapshotQuadContext() {
-        int shaderOverrideBlockId = ShaderMaterialOverrideState.getBlockId();
-        return shaderOverrideBlockId >= 0
-                ? this.demonica$activeQuadContext.withBlockStateId(shaderOverrideBlockId)
-                : this.demonica$activeQuadContext;
+    private int demonica$quadCount() {
+        return this.drawMode == GL11.GL_QUADS ? this.vertexCount >> 2 : 0;
     }
 
     /**
@@ -245,15 +234,12 @@ public abstract class BufferBuilderMixin implements BufferBuilderExtension, Proj
 
     @Override
     public void demonica$setActiveQuadContext(@Nullable VanillaQuadContext context) {
-        this.demonica$activeQuadContext = context;
+        this.demonica$quadContexts.setActive(context, this.demonica$quadCount());
     }
 
     @Override
     public List<VanillaQuadContext> demonica$consumeQuadContexts() {
-        List<VanillaQuadContext> copy = new ArrayList<>(this.demonica$quadContexts);
-        this.demonica$quadContexts.clear();
-        this.demonica$activeQuadContext = null;
-        return copy;
+        return this.demonica$quadContexts.consume(this.demonica$quadCount());
     }
 
     @Override
@@ -265,6 +251,7 @@ public abstract class BufferBuilderMixin implements BufferBuilderExtension, Proj
     public void demonica$discard() {
         this.isDrawing = false;
         this.reset();
+        this.demonica$quadContexts.clear();
     }
 
     @Override

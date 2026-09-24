@@ -57,6 +57,12 @@ class AnchorInventoryTest {
     static final String RSM_CTOR_9 = RSM_CTOR_PREFIX + "Z)V";
     static final String MESHING_EXECUTE = "(Lorg/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildContext;"
         + "Lorg/embeddedt/embeddium/impl/util/task/CancellationToken;)Lorg/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildOutput;";
+    static final String BUFFERS = "org/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildBuffers";
+    static final String MATERIAL = "Lorg/embeddedt/embeddium/impl/render/chunk/terrain/material/Material;";
+    static final String COPY_BLOCK_DATA = "(Ljava/nio/ByteBuffer;L" + BUFFERS + ";" + MATERIAL + ")V";
+    static final String RENDER_BLOCK = "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/math/BlockPos;"
+        + "Lorg/taumc/celeritas/impl/world/cloned/CeleritasBlockAccess;Lnet/minecraft/util/BlockRenderLayer;)V";
+    static final String ANALYZER = "org/embeddedt/embeddium/impl/render/chunk/compile/pipeline/BakedQuadGroupAnalyzer";
 
     /** A member the patches bind to. {@code call} anchors additionally require an invocation or field read in the body. */
     record Anchor(String id, String owner, String name, String desc, Kind kind, String callOwner, String callName, String callDesc) {
@@ -126,21 +132,37 @@ class AnchorInventoryTest {
             "net/minecraft/client/renderer/EntityRenderer", "enableLightmap", "()V"),
         // S9: the block-entity phase, by its full descriptor (not the erased bridge).
         Anchor.method("S9", CWR, "renderBlockEntities", "(L" + CWR + "$TileEntityRenderContext;)I"),
-        // S10: the meshing loop's layer test and vanilla fallback.
+        // S10: the meshing loop's layer test and vanilla fallback, and the build's pass configuration.
+        Anchor.field("S10", "org/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildContext", "buffers", "L" + BUFFERS + ";"),
         Anchor.call("S10", MESHING_TASK, "execute", MESHING_EXECUTE,
             "net/minecraft/block/Block", "canRenderInLayer", "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/BlockRenderLayer;)Z"),
         Anchor.call("S10", MESHING_TASK, "execute", MESHING_EXECUTE, "net/minecraft/client/renderer/BlockRendererDispatcher", "renderBlock",
             "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/world/IBlockAccess;"
                 + "Lnet/minecraft/client/renderer/BufferBuilder;)Z"),
-        Anchor.call("S10", MESHING_TASK, "execute", MESHING_EXECUTE, BLOCK_RENDERER, "renderBlock",
-            "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/math/BlockPos;"
-                + "Lorg/taumc/celeritas/impl/world/cloned/CeleritasBlockAccess;Lnet/minecraft/util/BlockRenderLayer;)V"),
-        // S11: vanilla-path quads become Celeritas vertices here.
-        Anchor.method("S11", BUILD_CONTEXT, "copyBlockData", "(Ljava/nio/ByteBuffer;Lorg/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildBuffers;"
-            + "Lorg/embeddedt/embeddium/impl/render/chunk/terrain/material/Material;)V"),
-        // S13: the fast block renderer and its switch.
+        // S11: vanilla-path quads become Celeritas vertices here, one push per quad.
+        Anchor.call("S11", BUILD_CONTEXT, "convertVanillaDataToCeleritasData", "(L" + BUFFERS + ";)V", BUILD_CONTEXT, "copyBlockData", COPY_BLOCK_DATA),
+        Anchor.call("S11", BUILD_CONTEXT, "copyBlockData", COPY_BLOCK_DATA, BUILD_CONTEXT, "selectMaterial",
+            "(" + MATERIAL + "Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;)" + MATERIAL),
+        Anchor.call("S11", BUILD_CONTEXT, "copyBlockData", COPY_BLOCK_DATA, "org/embeddedt/embeddium/impl/render/chunk/vertex/builder/ChunkMeshBufferBuilder",
+            "push", "([Lorg/embeddedt/embeddium/impl/render/chunk/vertex/format/ChunkVertexEncoder$Vertex;" + MATERIAL + ")V"),
+        // S13: the fast block renderer, its switch, and what it asks of the pass configuration and the light pipeline.
         Anchor.field("S13", MESHING_TASK, "USE_NEW_BLOCK_RENDERER", "Z"),
         Anchor.read("S13", MESHING_TASK, "execute", MESHING_EXECUTE, MESHING_TASK, "USE_NEW_BLOCK_RENDERER", "Z"),
+        Anchor.call("S13", MESHING_TASK, "execute", MESHING_EXECUTE, BLOCK_RENDERER, "renderBlock", RENDER_BLOCK),
+        Anchor.field("S13", BLOCK_RENDERER, "context", "L" + BUILD_CONTEXT + ";"),
+        Anchor.call("S13", BLOCK_RENDERER, "renderBlock", RENDER_BLOCK, ANALYZER, "setDefaultRenderingFlags", "(I)V"),
+        Anchor.call("S13", BLOCK_RENDERER, "renderBlock", RENDER_BLOCK, "org/embeddedt/embeddium/impl/render/chunk/RenderPassConfiguration",
+            "getMaterialForRenderType", "(Ljava/lang/Object;)" + MATERIAL),
+        Anchor.call("S13", BLOCK_RENDERER, "renderQuadList", null, ANALYZER, "chooseOptimalMaterial",
+            "(I" + MATERIAL + "Lorg/embeddedt/embeddium/impl/render/chunk/RenderPassConfiguration;Lorg/embeddedt/embeddium/impl/model/quad/BakedQuadView;)"
+                + MATERIAL),
+        Anchor.call("S13", BLOCK_RENDERER, "renderQuadList", null, BLOCK_RENDERER, "writeGeometry",
+            "(IIILorg/embeddedt/embeddium/impl/render/chunk/compile/buffers/ChunkModelBuilder;Lnet/minecraft/util/math/Vec3d;" + MATERIAL
+                + "Lorg/embeddedt/embeddium/impl/model/quad/BakedQuadView;[ILorg/embeddedt/embeddium/impl/model/light/data/QuadLightData;"
+                + "Lorg/embeddedt/embeddium/impl/model/quad/properties/ModelQuadOrientation;)V"),
+        Anchor.call("S13", BLOCK_RENDERER, "getVertexLight", null, "org/embeddedt/embeddium/impl/model/light/LightPipeline", "calculate",
+            "(Lorg/embeddedt/embeddium/impl/model/quad/ModelQuadView;IIILorg/embeddedt/embeddium/impl/model/light/data/QuadLightData;"
+                + "Lorg/embeddedt/embeddium/impl/model/quad/properties/ModelQuadFacing;Lorg/embeddedt/embeddium/impl/model/quad/properties/ModelQuadFacing;ZZ)V"),
         Anchor.read("S13", BLOCK_RENDERER, "writeGeometry", null, "org/embeddedt/embeddium/impl/render/chunk/ChunkColorWriter", "EMBEDDIUM",
             "Lorg/embeddedt/embeddium/impl/render/chunk/ChunkColorWriter;"),
         // S14: the pass configuration.
@@ -165,6 +187,11 @@ class AnchorInventoryTest {
         Anchor.method("S18", SWR, "forEachVisibleBlockEntity", "(Ljava/util/function/Consumer;)V"),
         // S19: DH's neighbour radius.
         Anchor.field("S19", TRACKER, "requiredNeighborRadius", "I"),
+        // S20: the fast renderer's block quads, sided and unassigned.
+        Anchor.call("S20", BLOCK_RENDERER, "renderBlock", RENDER_BLOCK, "net/minecraft/client/renderer/block/model/IBakedModel", "getQuads",
+            "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/EnumFacing;J)Ljava/util/List;"),
+        Anchor.call("S20", BLOCK_RENDERER, "renderBlock", RENDER_BLOCK, "net/minecraft/block/state/IBlockState", "shouldSideBeRendered",
+            "(Lnet/minecraft/world/IBlockAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/EnumFacing;)Z"),
         // I1: the async-occlusion clamp.
         Anchor.method("I1", VRSM, "getAsyncOcclusionMode", "()Lorg/embeddedt/embeddium/impl/render/chunk/occlusion/AsyncOcclusionMode;"),
         // I2: the frame stamps of both searches.
@@ -302,7 +329,8 @@ class AnchorInventoryTest {
         if (anchor.kind() == Anchor.Kind.FIELD) {
             for (FieldNode field : owner.fields) {
                 if (field.name.equals(anchor.name()) && field.desc.equals(anchor.desc())) {
-                    return (field.access & Opcodes.ACC_FINAL) != 0 && anchor.id().equals("S13") ? "field is final" : null;
+                    // S13 wraps the read of the fast-renderer flag, which a final flag could turn into a constant.
+                    return (field.access & Opcodes.ACC_FINAL) != 0 && field.name.equals("USE_NEW_BLOCK_RENDERER") ? "field is final" : null;
                 }
             }
             return "field missing";

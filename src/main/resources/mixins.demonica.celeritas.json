@@ -18,8 +18,12 @@
     "internal.SimpleWorldRendererMixin",
     "seam.CeleritasWorldRendererMixin",
     "seam.CeleritasWorldRendererShadowMixin",
+    "seam.ChunkBuilderMeshingTaskMixin",
     "seam.GLStateManagerFogServiceMixin",
     "seam.RenderGlobalTerrainMixin",
+    "seam.VintageBlockRendererMixin",
+    "seam.VintageBlockRendererQuadsMixin",
+    "seam.VintageChunkBuildContextMixin",
     "seam.VintageRenderPassConfigurationBuilderMixin",
     "seam.VintageRenderSectionManagerMixin",
     "seam.VintageRenderSectionManagerShadowMixin"

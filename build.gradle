@@ -260,6 +260,11 @@ dependencies {
     testImplementation 'com.google.guava:guava:21.0'
     testImplementation project(':shader')
     testImplementation files(sharedMinecraftCompileClasspath())
+    // Celeritas's CeleritasBlockAccess extends Fluidlogged API interfaces, which Forge strips (@Optional.Interface)
+    // when that mod is absent. Tests that load it, as BlockQuadTransformer's do, need them on the classpath.
+    testRuntimeOnly('maven.modrinth:fluidlogged-api:3.0.6') {
+        transitive = false
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

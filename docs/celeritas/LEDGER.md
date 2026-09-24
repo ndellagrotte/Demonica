@@ -46,7 +46,8 @@ What a patch's failure costs. The Phase 10 guard (pin check and anchor audit in
 | BASE | S15 | Terrain is drawn in solid fog colour, with or without a shader pack. |
 | CORE_TERRAIN | S2, S5, S6m + S8, S9, S14 | Packs cannot draw terrain. Shaders are turned off with a named reason (L2). |
 | SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shaders without terrain shadows (L1). |
-| DEGRADE | S4, S17, S19 | One feature degrades; see the row. |
+| MESHING | S10, S11, S13 | Packs get no block IDs from terrain: plants do not wave, blocks fall back to the pack's defaults, and water is drawn in the translucent pass instead of the water pass. |
+| DEGRADE | S4, S17, S19, S20 | One feature degrades; see the row. |
 
 Two assignments differ from the plan:
 - **I2 is in SHADOW, not CORE_TERRAIN.** The stamps that go backwards are the
@@ -73,25 +74,44 @@ Two assignments differ from the plan:
 | [S7](patches/S7.md) | `internal.SimpleWorldRendererAccessMixin` | `SimpleWorldRenderer.currentViewport`, `createChunkRenderMatrices` | Duck (`SimpleWorldRendererAccess`) for `CeleritasWorldRendererCompat`, the shadow pass's terrain adapter | SHADOW | not proposed |
 | [S8](patches/S8.md) | `seam.RenderGlobalTerrainMixin` | upstream's `RenderGlobal.renderBlockLayer(BlockRenderLayer, double, int, Entity)` overwrite | HEAD/RETURN: Iris terrain phases and translucent prelude; vanilla's one-argument overload for the translucent layer (Distant Horizons' anchor); `@ModifyArg` of the camera Y to the eye | CORE_TERRAIN, with S6m | not proposed |
 | [S9](patches/S9.md) | `seam.CeleritasWorldRendererMixin` | `CeleritasWorldRenderer.renderBlockEntities(TileEntityRenderContext)` | HEAD/RETURN: Iris's block-entity phase | CORE_TERRAIN | not proposed |
+| [S10](patches/S10.md) | `seam.ChunkBuilderMeshingTaskMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): its `canRenderInLayer` and vanilla `renderBlock` calls | In a build for the shader passes: `@WrapOperation`s that render a block the pack moves only in the pack's layer, and attach each vanilla-path block's context (`ShaderBlockContexts`) to the quads it draws | MESHING | not proposed |
+| [S11](patches/S11.md) | `seam.VintageChunkBuildContextMixin` | `VintageChunkBuildContext.convertVanillaDataToCeleritasData`, `copyBlockData` | `@WrapOperation`s: the layer's quad contexts go to `copyBlockData`, which prepares the extended vertex encoder with each quad's context; translucent fluid quads go to the pack's water pass | MESHING | not proposed |
+| [S13](patches/S13.md) | `seam.ChunkBuilderMeshingTaskMixin`, `seam.VintageBlockRendererMixin` | the `USE_NEW_BLOCK_RENDERER` read in `execute`; `VintageBlockRenderer.renderBlock`, `renderQuadList`, `getVertexLight`, `writeGeometry` | The fast block renderer is Demonica's option (off by default); under a pack it writes each block's context, keeps fluids' material and the pack's layers, and applies the pack's directional-shading and separate-AO settings | MESHING | not proposed |
 | [S14](patches/S14.md) | `seam.VintageRenderPassConfigurationBuilderMixin` | `VintageRenderPassConfigurationBuilder.build` | HEAD-cancel while a pack is active: `ShaderPassConfigurations` (separate water pass, semantic and depth-write defines) | CORE_TERRAIN | not proposed |
 | [S15](patches/S15.md) | `seam.GLStateManagerFogServiceMixin` | `GLStateManagerFogService` (all 7 getters) | HEAD-cancel: GLSM's fog state, planar shape | BASE | not proposed |
 | [S16](patches/S16.md) | `internal.DefaultChunkRendererMixin` | the `useBlockFaceCulling()` call in `DefaultChunkRenderer.render` | `@ModifyExpressionValue`: no face culling in the shadow pass | SHADOW | not proposed |
 | [S17](patches/S17.md) | `internal.GlProgramMixin` | `GlProgram.<init>(int, Function)`, `destroyInternal` | Register every linked program with Iris's `DepthColorStorage` | DEGRADE: Iris re-applies its pass after each terrain draw | no upstream change needed; candidate for removal |
 | [S19](patches/S19.md) | `internal.ChunkTrackerMixin` | `ChunkTracker.requiredNeighborRadius` | `@Shadow` read behind `ChunkTrackerAccess` | DEGRADE: Distant Horizons' neighbour-radius uniform falls back to its default | not proposed |
+| [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderBlock` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
 | [I1](patches/I1.md) | `seam.VintageRenderSectionManagerShadowMixin` | `VintageRenderSectionManager.getAsyncOcclusionMode` | RETURN: "Everything" becomes "Only Shadows" when the manager gets a shadow pass | SHADOW | a question for upstream |
 | [I2](patches/I2.md) | `internal.SimpleWorldRendererMixin` | `SimpleWorldRenderer.setupTerrain`, `setupShadowTerrain` | `@ModifyVariable(HEAD)` of `frame` to `DemonicaFrameClock.next()` | SHADOW | not proposed |
 
 S18 is not a patch: the shadow pass's block entities come from the public
-`SimpleWorldRenderer.forEachVisibleBlockEntity` (see S7).
+`SimpleWorldRenderer.forEachVisibleBlockEntity` (see S7). Neither is S12: each
+vanilla-path quad's context is recorded in vanilla's `BufferBuilder`
+(`BufferBuilderMixin` in `mixins.demonica.iris.json`, through
+`QuadContextRecorder`), one entry per quad, so geometry that other code draws
+between two blocks cannot shift the contexts of later quads.
 
-Verified in the dev client on 2026-09-23: all 14 mixins apply, and all 26 of
-their injectors find their targets, S16's `@ModifyExpressionValue` among them
-(checked after MixinExtras applied it). With S16's anchor pointed at a method
-that does not exist, the same run warns that the injector found its target in
-0 of 1 methods, and the game runs on. The bytecode exported with
-`-PmixinExport` shows S16's injection in `DefaultChunkRenderer.render`, S8's
-`@ModifyArg` before `drawChunkLayer`, and I2's `@ModifyVariable` at the head of
-both searches.
+Verified in the dev client on 2026-09-23: all 18 mixins apply, and all 42 of
+their injectors find their targets, the `@WrapOperation`s and
+`@ModifyExpressionValue`s among them (checked after MixinExtras applied them).
+With S16's anchor pointed at a method that does not exist, a run warns that the
+injector found its target in 0 of 1 methods, and the game runs on. The bytecode
+exported with `-PmixinExport` shows S16's injection in
+`DefaultChunkRenderer.render`, S8's `@ModifyArg` before `drawChunkLayer`, and
+I2's `@ModifyVariable` at the head of both searches.
+
+Checkpoint 6 (run/client/scripts/cp6.txt; a water pool and tall grass at spawn),
+with the fast block renderer off and on: the extended vertex encoder receives
+the packs' IDs (BSL: tall grass 10000, leaves 10500, flowers 10100, water 20000
+as a fluid; Complementary: tall grass 10005, water 32000 as a fluid; blocks the
+pack does not name, -1). Tall grass is lit and waves (two frames half a second
+apart differ on every plant and its shadow, and nowhere on static terrain), and
+water is drawn by each pack's water program. The two paths give the same IDs and
+the same motion; they shade blocks differently where the pack turns off
+directional shading or wants separate ambient occlusion, which only the fast
+renderer applies (see S13).
 
 ## Port decisions
 
@@ -101,3 +121,10 @@ Actinium classes that changed shape on the way to upstream Celeritas.
 |---|---|---|
 | `GlProgramIrisMixin` (on the fork's `GlProgram`) | S17 | Upstream's `GlProgram` is a Celeritas class, so the mixin moved into the quarantine. |
 | `ParticleManagerCullingMixin` | not ported yet | A feature (bucket C), not shader glue: it comes with the rest of bucket C in Phase 8. It targets vanilla's `ParticleManager` and needs only upstream's public `SimpleWorldRenderer.getLastViewport()`. |
+| The fork's `ChunkBuilderMeshingTask`, `VintageChunkBuildContext`, `VintageBlockRenderer` (their shader parts) | S10, S11, S13 | Re-expressed as patches on upstream's classes. The block context is resolved once, in `ShaderBlockContexts`, for both paths; flowing water and lava fall back to the still block's ID when a pack names only `water` or `lava`. |
+| The fork's quad contexts (appended only while a block was being drawn) | `QuadContextRecorder` (S12) | One entry per quad, null when drawn without a context, so other code drawing between blocks cannot misalign them. |
+| `MixinChunkBuilderMeshingTaskBetterFoliage` | not ported | RLFoliage 2.5.3 ships its own mixin on upstream's `org.taumc` meshing task (a `@Redirect` of `canRenderInLayer`, `@WrapOperation`s on both `renderBlock` calls; checked in its jar). Actinium needed the adapter only because its fork renamed the task. A second adapter would run Better Foliage twice. S10's `@WrapOperation`s compose with it: MixinExtras wraps a redirected call. |
+| LittleTiles (`MixinChunkBuilderMeshingTaskLittleTiles`, `MixinTileEntityRenderManager`, `LittleTilesCompat`), `ComponentModelHiderCompat` | Phase 9 | They need mod-gated mixin configs and the mods' APIs, which come with compat in Phase 9. Their hooks on upstream's task and fast renderer go into the quarantine then. |
+| The fast renderer's gates (Snow! Real Magic!, ArchitectureCraft, the Component Model Hider, `MissingModelCompat`) | Phase 9 | Ported with compat. Until then `performance.use_fast_block_renderer` stays off by default. |
+| `VintageChunkBuildContext.beginVanillaFluidRender` (Fluidlogged API fluids) | not ported | Upstream's own `FluidloggedCompat` draws those fluids, without a context, so they mesh with no block ID. Tagging them needs a hook in upstream's `FluidloggedCompat` (a Phase 9 candidate). |
+| The fork renderer's lighting (no quad-normal shading, AO depth blending, no brightness-based quad orientation) | not ported | Renderer choices, not shader glue: upstream's lighting stands. |
