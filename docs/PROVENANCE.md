@@ -118,6 +118,11 @@ Manifests for the fee5de38 syncline live in
 
 ## Vendor policy
 
+> After the sync era, GTNHLib moved from `vendor/GTNHLib` to the `:GTNHLib`
+> project (`3d0db995`), and then out of this repository: the mod jar merges
+> S8TNLib's jar ([`FORK.md`](FORK.md#gtnhlib)). The path map and the
+> `gtnhlib` scope above describe the sync era.
+
 `vendor/` holds Actinium's GTNHLib and celeritas-common forks, which Demonica
 compiles against:
 

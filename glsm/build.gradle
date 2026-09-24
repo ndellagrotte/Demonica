@@ -20,7 +20,8 @@ sourceSets {
 }
 
 dependencies {
-    api project(':GTNHLib')
+    // GTNHLib, from S8TNLib (gradle.properties).
+    api "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}"
     implementation('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
         transitive = false
     }
