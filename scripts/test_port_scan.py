@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Historical: Demonica forked from Actinium at 4a19c959 (docs/FORK.md). This tool still works
+# against the sync-era tags, but it is no longer part of the workflow for new changes.
 """Decide which of Actinium's tests Demonica can port verbatim.
 
 A test under Actinium's src/test/java is ported only if:

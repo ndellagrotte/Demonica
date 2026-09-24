@@ -1,5 +1,11 @@
 # Demonica Provenance
 
+> **Historical.** This page describes the sync era, which ended at the fork point
+> `actinium@4a19c959` (tag `actinium-fork-point/4a19c959`). Demonica now owns its
+> code and is no longer synced from Actinium; see [`FORK.md`](FORK.md). The rules
+> below (verbatim syncs, no renames, the vendor policy) no longer apply to new
+> changes.
+
 Demonica is a fork of [Angelica](https://github.com/GTNewHorizons/Angelica) at
 commit `9fd02900ef5b322254cb15e1a24d62ade8de97cf` (tag `angelica-baseline/9fd02900ef`).
 It carries the 1.12.2/Cleanroom Iris adaptation developed in
