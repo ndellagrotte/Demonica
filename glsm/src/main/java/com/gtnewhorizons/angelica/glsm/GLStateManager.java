@@ -2402,6 +2402,14 @@ public class GLStateManager {
         }
     }
 
+    /** Array form of {@link #glDeleteTextures(IntBuffer)}: the redirect target for LWJGL 3's {@code GL11C.glDeleteTextures(int[])}. */
+    public static void glDeleteTextures(int[] ids) {
+        for (final int id : ids) {
+            deferDeleteTexture(id);
+            onDeleteTexture(id);
+        }
+    }
+
     /** Shrink texture to 1x1 to free GPU memory, unbind from all units, but keep the name valid. */
     private static void deferDeleteTexture(int id) {
         if (id == 0) return;
@@ -2453,6 +2461,14 @@ public class GLStateManager {
     public static void glGenTextures(IntBuffer textures) {
         flushDeferredTextureDeletes();
         RENDER_BACKEND.genTextures(textures);
+    }
+
+    /** Array form of {@link #glGenTextures(IntBuffer)}: the redirect target for LWJGL 3's {@code GL11C.glGenTextures(int[])}. */
+    public static void glGenTextures(int[] textures) {
+        flushDeferredTextureDeletes();
+        for (int i = 0; i < textures.length; i++) {
+            textures[i] = RENDER_BACKEND.genTextures();
+        }
     }
 
     public static void enableTexture() {
@@ -5984,6 +6000,16 @@ public class GLStateManager {
             }
         }
         RENDER_BACKEND.drawBuffers(bufs);
+    }
+
+    /**
+     * Array form of {@link #glDrawBuffers(IntBuffer)}: the redirect target for LWJGL 3's
+     * {@code GL20C.glDrawBuffers(int[])}. The backend needs a direct buffer; the recorder copies it.
+     */
+    public static void glDrawBuffers(int[] bufs) {
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            glDrawBuffers(stack.ints(bufs));
+        }
     }
 
     // Multisample Commands

@@ -35,6 +35,9 @@ java {
 configurations {
     modCompileOnly
     compileOnly.extendsFrom(modCompileOnly)
+    // Remapped like modCompileOnly. Not part of runtimeOnly yet: that would put the Celeritas mod into the
+    // published library POM. It joins the run classpath when Demonica becomes a mod.
+    modRuntimeOnly
 }
 
 def libraryProjects = [
@@ -90,6 +93,19 @@ subprojects {
 }
 
 repositories {
+    // Celeritas's 1.12.2 mod, built from upstream commits by kappa-maintainer/Celeritas-auto-build
+    // (docs/celeritas/PIN.md). Nothing else resolves from this repository.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'CeleritasAutoBuild'
+                url = 'https://maven.outlands.top/releases'
+            }
+        }
+        filter {
+            includeModule('org.embeddedt', 'celeritas-forge-mc12.2')
+        }
+    }
     mavenCentral()
     maven { url = 'https://maven.cleanroommc.com' }
     maven { url = 'https://api.modrinth.com/maven' }
@@ -121,7 +137,15 @@ unimined.minecraft {
     }
 
     mods {
-        remap(configurations.modCompileOnly)
+        // Celeritas ships SRG-named mixins without a refmap, and uses MixinExtras. Its jar also
+        // carries a leftover Fabric access widener in the 'named' namespace, which Forge ignores.
+        remap([configurations.modCompileOnly, configurations.modRuntimeOnly]) {
+            catchAWNamespaceAssertion()
+            mixinRemap {
+                enableBaseMixin()
+                enableMixinExtra()
+            }
+        }
     }
 }
 
@@ -159,6 +183,10 @@ dependencies {
     compileOnly 'com.cleanroommc:lwjglx:1.0.0'
 
     modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
+
+    // The pinned upstream Celeritas mod (gradle.properties, docs/celeritas/PIN.md).
+    modCompileOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
+    modRuntimeOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -393,7 +421,38 @@ def verifyPublishedJars = tasks.register('verifyPublishedJars') {
     }
 }
 
+/**
+ * The Celeritas jar must be exactly the pinned build: its version string ("2.4.0-dev") is the same for
+ * every upstream dev build, so only the SHA-256 identifies it (docs/celeritas/PIN.md).
+ */
+def celeritasCoordinate = "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
+def celeritasPins = property('celeritas_sha256').toString().split(',')*.trim() as Set
+
+def verifyCeleritasPin = tasks.register('verifyCeleritasPin') {
+    group = 'verification'
+    description = 'Checks that the resolved Celeritas jar matches the SHA-256 pin in gradle.properties.'
+
+    def coordinate = celeritasCoordinate
+    def pinned = celeritasPins
+    def pinnedJar = configurations.detachedConfiguration(dependencies.create(coordinate)).tap {
+        transitive = false
+    }
+    inputs.files(pinnedJar)
+    inputs.property('pinned', pinned)
+
+    doLast {
+        def jar = pinnedJar.singleFile
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString()
+        if (!(digest in pinned)) {
+            throw new GradleException("${jar.name} has SHA-256 ${digest}, which is not pinned in gradle.properties " +
+                "(celeritas_sha256 = ${pinned.join(', ')}). See docs/celeritas/PIN.md for how to move the pin.")
+        }
+        logger.lifecycle("Celeritas pin OK: ${jar.name} ${digest}")
+    }
+}
+
 tasks.named('check').configure {
+    dependsOn verifyCeleritasPin
     dependsOn verifyModuleBoundaries
     dependsOn verifyPublishedJars
 }

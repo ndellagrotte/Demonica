@@ -1,0 +1,70 @@
+# Upstream Celeritas's own mixins in the pinned jar (celeritas_version in gradle.properties), in MCP names.
+# Regenerate by running AnchorInventoryTest: on a mismatch it writes run/test/upstream-mixin-inventory.actual.txt.
+# Review every change here against the quarantine patches (docs/celeritas/LEDGER.md) before accepting a new pin.
+core/MinecraftMixin -> net/minecraft/client/Minecraft priority=1000
+core/MinecraftMixin   inject runTick()V @ HEAD
+core/MinecraftMixin   inject runTick()V @ RETURN
+core/MixinDirection -> net/minecraft/util/EnumFacing priority=1000
+core/MixinDirection   overwrite getFacingFromVector(FFF)Lnet/minecraft/util/EnumFacing;
+core/collections/ClassInheritanceMultiMapMixin -> net/minecraft/util/ClassInheritanceMultiMap priority=1000
+core/crash/SplashProgressCallableMixin -> net/minecraftforge/fml/client/SplashProgress$1 priority=1000
+core/crash/SplashProgressCallableMixin   inject call()Ljava/lang/String; @ HEAD
+core/frustum/ClippingHelperImplMixin -> net/minecraft/client/renderer/culling/ClippingHelperImpl priority=1000
+core/frustum/ClippingHelperImplMixin   inject init()V @ RETURN
+core/frustum/FrustumMixin -> net/minecraft/client/renderer/culling/Frustum priority=1000
+core/frustum/FrustumMixin   overwrite isBoxInFrustum(DDDDDD)Z
+core/terrain/ActiveRenderInfoAccessor -> net/minecraft/client/renderer/ActiveRenderInfo priority=1000
+core/terrain/BakedQuadFactoryMixin -> net/minecraft/client/renderer/block/model/FaceBakery priority=1000
+core/terrain/BakedQuadFactoryMixin   modifyreturnvalue makeBakedQuad(Lorg/lwjgl/util/vector/Vector3f;Lorg/lwjgl/util/vector/Vector3f;Lnet/minecraft/client/renderer/block/model/BlockPartFace;Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;Lnet/minecraft/util/EnumFacing;Lnet/minecraftforge/common/model/ITransformation;Lnet/minecraft/client/renderer/block/model/BlockPartRotation;ZZ)Lnet/minecraft/client/renderer/block/model/BakedQuad; @ RETURN
+core/terrain/BakedQuadMixin -> net/minecraft/client/renderer/block/model/BakedQuad priority=1000
+core/terrain/BiomeColorHelperMixin -> net/minecraft/world/biome/BiomeColorHelper priority=1200
+core/terrain/BiomeColorHelperMixin   overwrite getColorAtPos(Lnet/minecraft/world/IBlockAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/world/biome/BiomeColorHelper$ColorResolver;)I
+core/terrain/BlockColorsAccessor -> net/minecraft/client/renderer/color/BlockColors priority=1000
+core/terrain/ChunkAccessor -> net/minecraft/world/chunk/Chunk priority=1000
+core/terrain/ChunkProviderClientAccessor -> net/minecraft/client/multiplayer/ChunkProviderClient priority=1000
+core/terrain/ClientChunkManagerMixin -> net/minecraft/client/multiplayer/ChunkProviderClient priority=1000
+core/terrain/ClientChunkManagerMixin   inject loadChunk(II)Lnet/minecraft/world/chunk/Chunk; @ RETURN
+core/terrain/ClientChunkManagerMixin   inject unloadChunk(II)V @ INVOKE:Lnet/minecraft/world/chunk/Chunk;onUnload()V
+core/terrain/RenderGlobalMixin -> net/minecraft/client/renderer/RenderGlobal priority=1000
+core/terrain/RenderGlobalMixin   overwrite getDebugInfoRenders()Ljava/lang/String;
+core/terrain/RenderGlobalMixin   overwrite getRenderedChunks()I
+core/terrain/RenderGlobalMixin   overwrite hasNoChunkUpdates()Z
+core/terrain/RenderGlobalMixin   overwrite markBlocksForUpdate(IIIIIIZ)V
+core/terrain/RenderGlobalMixin   overwrite renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I
+core/terrain/RenderGlobalMixin   overwrite setupTerrain(Lnet/minecraft/entity/Entity;DLnet/minecraft/client/renderer/culling/ICamera;IZ)V
+core/terrain/RenderGlobalMixin   inject <init>(Lnet/minecraft/client/Minecraft;)V @ RETURN
+core/terrain/RenderGlobalMixin   inject loadRenderers()V @ RETURN
+core/terrain/RenderGlobalMixin   inject renderEntities(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/renderer/culling/ICamera;F)V @ FIELD:Lnet/minecraft/client/renderer/RenderGlobal;renderInfos:Ljava/util/List;#0
+core/terrain/RenderGlobalMixin   inject renderEntities(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/renderer/culling/ICamera;F)V @ INVOKE:Lnet/minecraft/client/renderer/RenderHelper;enableStandardItemLighting()V#1
+core/terrain/RenderGlobalMixin   inject setDisplayListEntitiesDirty()V @ RETURN
+core/terrain/RenderGlobalMixin   inject setWorldAndLoadRenderers(Lnet/minecraft/client/multiplayer/WorldClient;)V @ RETURN
+core/terrain/RenderGlobalMixin   redirect loadRenderers()V @ FIELD:Lnet/minecraft/client/settings/GameSettings;renderDistanceChunks:I#1
+core/terrain/RenderGlobalMixin   redirect updateClouds()V @ INVOKE:Ljava/util/Set;isEmpty()Z#1
+core/terrain/RenderGlobalMixin   redirect updateClouds()V @ INVOKE:Lnet/minecraft/client/renderer/chunk/ChunkRenderDispatcher;hasNoFreeRenderBuilders()Z
+core/terrain/SimpleBakedModelBuilderMixin -> net/minecraft/client/renderer/block/model/SimpleBakedModel$Builder priority=1000
+core/terrain/SimpleBakedModelBuilderMixin   modifyarg addFaceQuad(Lnet/minecraft/util/EnumFacing;Lnet/minecraft/client/renderer/block/model/BakedQuad;)Lnet/minecraft/client/renderer/block/model/SimpleBakedModel$Builder; @ INVOKE:Ljava/util/List;add(Ljava/lang/Object;)Z
+core/terrain/SimpleBakedModelBuilderMixin   modifyarg addGeneralQuad(Lnet/minecraft/client/renderer/block/model/BakedQuad;)Lnet/minecraft/client/renderer/block/model/SimpleBakedModel$Builder; @ INVOKE:Ljava/util/List;add(Ljava/lang/Object;)Z
+core/terrain/WorldClientMixin -> net/minecraft/client/multiplayer/WorldClient priority=1000
+features/mipmaps/TextureAtlasSpriteMixin -> net/minecraft/client/renderer/texture/TextureAtlasSprite priority=1000
+features/mipmaps/TextureAtlasSpriteMixin   inject generateMipmaps(I)V @ HEAD
+features/mipmaps/TextureUtilMixin -> net/minecraft/client/renderer/texture/TextureUtil priority=900
+features/mipmaps/TextureUtilMixin   overwrite blendColors(IIIIZ)I
+features/options/MixinEntityRenderer -> net/minecraft/client/renderer/EntityRenderer priority=1000
+features/options/MixinEntityRenderer   redirect renderRainSnow(F)V @ FIELD:Lnet/minecraft/client/settings/GameSettings;fancyGraphics:Z
+features/options/MixinGuiIngameForge -> net/minecraftforge/client/GuiIngameForge priority=1000
+features/options/MixinGuiIngameForge   redirect renderGameOverlay(F)V @ INVOKE:Lnet/minecraft/client/Minecraft;isFancyGraphicsEnabled()Z
+features/options/MixinGuiOptions -> net/minecraft/client/gui/GuiOptions priority=1000
+features/options/MixinGuiOptions   inject actionPerformed(Lnet/minecraft/client/gui/GuiButton;)V @ HEAD
+features/render/tileentity/TileEntityRenderDispatcherMixin -> net/minecraft/client/renderer/tileentity/TileEntityRendererDispatcher priority=1000
+features/render/tileentity/TileEntityRenderDispatcherMixin   wrapoperation getRenderer(Lnet/minecraft/tileentity/TileEntity;)Lnet/minecraft/client/renderer/tileentity/TileEntitySpecialRenderer; @ INVOKE:Lnet/minecraft/tileentity/TileEntity;isInvalid()Z
+features/render/tileentity/piston/TileEntityPistonRendererMixin -> net/minecraft/client/renderer/tileentity/TileEntityPistonRenderer priority=1000
+features/render/tileentity/piston/TileEntityPistonRendererMixin   redirect render(Lnet/minecraft/tileentity/TileEntityPiston;DDDFIF)V @ INVOKE:Lnet/minecraft/tileentity/TileEntityPiston;getProgress(F)F#0
+features/textures/RenderItemMixin -> net/minecraft/client/renderer/RenderItem priority=1000
+features/textures/RenderItemMixin   modifyexpressionvalue func_175032_a @ INVOKE:Ljava/util/List;get(I)Ljava/lang/Object;
+features/textures/RenderItemMixin   modifyexpressionvalue renderQuads(Lnet/minecraft/client/renderer/BufferBuilder;Ljava/util/List;ILnet/minecraft/item/ItemStack;)V @ INVOKE:Ljava/util/List;get(I)Ljava/lang/Object;
+features/textures/TextureAtlasMixin -> net/minecraft/client/renderer/texture/TextureMap priority=1000
+features/textures/TextureAtlasMixin   inject loadTextureAtlas(Lnet/minecraft/client/resources/IResourceManager;)V @ RETURN
+features/textures/TextureAtlasMixin   modifyexpressionvalue updateAnimations()V @ INVOKE:Ljava/util/List;iterator()Ljava/util/Iterator;
+features/textures/TextureAtlasSpriteMixin -> net/minecraft/client/renderer/texture/TextureAtlasSprite priority=1000
+features/textures/TextureAtlasSpriteMixin   modifyreturnvalue getInterpolatedU(D)F @ RETURN
+features/textures/TextureAtlasSpriteMixin   modifyreturnvalue getMinU()F @ RETURN
