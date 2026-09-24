@@ -58,12 +58,25 @@ class DemonicaOptionPagesTest {
     }
 
     @Test
-    void otherGroupsAreLeftAlone() {
-        List<Option<?>> details = new ArrayList<>(List.of(placeholder(StandardOptions.Option.CLOUDS)));
+    void dynamicFovFollowsVignette() {
+        List<Option<?>> details = new ArrayList<>(List.of(
+                placeholder(StandardOptions.Option.CLOUDS),
+                placeholder(StandardOptions.Option.VIGNETTE),
+                placeholder(StandardOptions.Option.BIOME_BLEND)));
 
         DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.DETAILS, details));
 
-        assertEquals(List.of("minecraft:clouds"), ids(details));
+        assertEquals(List.of("minecraft:clouds", "minecraft:vignette", "demonica:dynamic_fov", "minecraft:biome_blend"),
+                ids(details));
+    }
+
+    @Test
+    void otherGroupsAreLeftAlone() {
+        List<Option<?>> graphics = new ArrayList<>(List.of(placeholder(StandardOptions.Option.GRAPHICS_MODE)));
+
+        DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.GRAPHICS, graphics));
+
+        assertEquals(List.of("minecraft:graphics_mode"), ids(graphics));
     }
 
     /** Celeritas's own quality page, built from the pinned jar: its fast renderer toggle becomes Demonica's (S13). */
@@ -121,7 +134,8 @@ class DemonicaOptionPagesTest {
     @Test
     void everyTranslationKeyIsInDemonicasLangFiles() throws IOException {
         List<Option<?>> options = new ArrayList<>();
-        for (OptionIdentifier<Void> group : List.of(StandardOptions.Group.WINDOW, StandardOptions.Group.SORTING, StandardOptions.Group.CPU_SAVING)) {
+        for (OptionIdentifier<Void> group : List.of(StandardOptions.Group.WINDOW, StandardOptions.Group.DETAILS,
+                StandardOptions.Group.SORTING, StandardOptions.Group.CPU_SAVING)) {
             List<Option<?>> added = new ArrayList<>();
             DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(group, added));
             options.addAll(added);

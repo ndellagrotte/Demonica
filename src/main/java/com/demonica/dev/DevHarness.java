@@ -9,6 +9,10 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.inventory.GuiContainerCreative;
+import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.util.EnumHand;
+import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.ScreenShotHelper;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldSettings;
@@ -51,13 +55,17 @@ import java.util.function.BiFunction;
  *   <li>{@code wait <ticks>}: wait for client ticks</li>
  *   <li>{@code cmd <command>}: send a chat command as the player</li>
  *   <li>{@code chunks <maxTicks>}: wait until no terrain is left to build, or for at most {@code maxTicks}</li>
- *   <li>{@code shot <name>}: save {@code screenshots/<name>.png} after the next frame, with the HUD hidden</li>
+ *   <li>{@code shot <name> [hud]}: save {@code screenshots/<name>.png} after the next frame, with the HUD hidden
+ *   unless {@code hud} is given</li>
+ *   <li>{@code debug on|off}: show or hide the F3 debug screen</li>
+ *   <li>{@code mine <ticks>}: break the block in view for {@code ticks} ticks, as holding the attack button does</li>
  *   <li>{@code third <0|1|2>}: set the camera mode</li>
  *   <li>{@code glide <dx> <dz> <ticks>}: move the player by {@code dx, dz} blocks every tick (fast flight)</li>
- *   <li>{@code screen options|video|modconfig|shaderpacks|close}: open vanilla's Options screen, open Video Settings
- *   (Celeritas's screen, which Demonica swaps for Reese's Sodium Options on display), open Demonica's Config screen from
- *   the mod list, open the screen that Celeritas's "Shader Packs" tab opens (through the same {@code ShaderModBridge}
- *   call), or close the current screen</li>
+ *   <li>{@code screen options|video|modconfig|shaderpacks|inventory|close}: open vanilla's Options screen, open Video
+ *   Settings (Celeritas's screen, which Demonica swaps for Reese's Sodium Options on display), open Demonica's Config
+ *   screen from the mod list, open the screen that Celeritas's "Shader Packs" tab opens (through the same
+ *   {@code ShaderModBridge} call), open the player's inventory (the creative one in creative mode), or close the current
+ *   screen</li>
  *   <li>{@code press <buttonId>}: press a button of the current vanilla screen, as a click does (Options' Video
  *   Settings button is 101)</li>
  *   <li>{@code reload}: reload resources (F3+T)</li>
@@ -223,8 +231,26 @@ public final class DevHarness {
             case "shot" -> {
                 this.shotName = args[1];
                 this.savedHideGui = mc.gameSettings.hideGUI;
-                mc.gameSettings.hideGUI = true;
+                mc.gameSettings.hideGUI = !(args.length > 2 && args[2].equalsIgnoreCase("hud"));
                 this.shotPending = true;
+                return true;
+            }
+            case "mine" -> {
+                // Survival block breaking of the block in view, one hit per tick, as holding the attack button does.
+                RayTraceResult hit = mc.objectMouseOver;
+                if (mc.player == null || hit == null || hit.typeOfHit != RayTraceResult.Type.BLOCK) {
+                    return true;
+                }
+                if (this.waited == 0) {
+                    mc.playerController.clickBlock(hit.getBlockPos(), hit.sideHit);
+                } else {
+                    mc.playerController.onPlayerDamageBlock(hit.getBlockPos(), hit.sideHit);
+                }
+                mc.player.swingArm(EnumHand.MAIN_HAND);
+                return this.waited + 1 >= Integer.parseInt(args[1]);
+            }
+            case "debug" -> {
+                mc.gameSettings.showDebugInfo = args[1].equalsIgnoreCase("on");
                 return true;
             }
             case "third" -> {
@@ -253,6 +279,8 @@ public final class DevHarness {
                         }
                         mc.displayGuiScreen(guiScreen);
                     }
+                    case "inventory" -> mc.displayGuiScreen(mc.playerController.isInCreativeMode()
+                        ? new GuiContainerCreative(mc.player) : new GuiInventory(mc.player));
                     case "close" -> mc.displayGuiScreen(null);
                     default -> throw new IllegalArgumentException("Unknown screen: " + args[1]);
                 }

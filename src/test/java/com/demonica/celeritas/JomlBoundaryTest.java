@@ -36,23 +36,26 @@ class JomlBoundaryTest {
 
     @Test
     void onlyTheSeamReferencesRelocatedJoml() throws IOException, URISyntaxException {
-        Path root = mainClassesRoot();
         Set<String> offenders = new TreeSet<>();
         Set<String> referencing = new TreeSet<>();
-        try (Stream<Path> files = Files.walk(root)) {
-            List<Path> classes = files.filter(p -> p.toString().endsWith(".class")).collect(Collectors.toList());
-            for (Path file : classes) {
-                String bytes = new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1);
-                if (!bytes.contains(RELOCATED_JOML)) {
-                    continue;
-                }
-                String name = root.relativize(file).toString().replace('\\', '/');
-                name = name.substring(0, name.length() - ".class".length());
-                // Nested and synthetic classes share their outer class's allowance.
-                String outer = name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
-                referencing.add(outer);
-                if (!ALLOWED.contains(outer)) {
-                    offenders.add(name);
+        // The shader tree (where the seam classes live) and the mod's own classes are compiled separately.
+        for (Path root : new TreeSet<>(List.of(classesRoot("com/demonica/celeritas/CeleritasJoml.class"),
+                classesRoot("com/demonica/Demonica.class")))) {
+            try (Stream<Path> files = Files.walk(root)) {
+                List<Path> classes = files.filter(p -> p.toString().endsWith(".class")).collect(Collectors.toList());
+                for (Path file : classes) {
+                    String bytes = new String(Files.readAllBytes(file), StandardCharsets.ISO_8859_1);
+                    if (!bytes.contains(RELOCATED_JOML)) {
+                        continue;
+                    }
+                    String name = root.relativize(file).toString().replace('\\', '/');
+                    name = name.substring(0, name.length() - ".class".length());
+                    // Nested and synthetic classes share their outer class's allowance.
+                    String outer = name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
+                    referencing.add(outer);
+                    if (!ALLOWED.contains(outer)) {
+                        offenders.add(name);
+                    }
                 }
             }
         }
@@ -61,13 +64,16 @@ class JomlBoundaryTest {
         assertEquals(new TreeSet<>(ALLOWED), referencing, "an allow-listed class no longer references the relocated JOML; drop it from the list");
     }
 
-    private static Path mainClassesRoot() throws URISyntaxException {
-        URL marker = JomlBoundaryTest.class.getClassLoader().getResource("com/demonica/celeritas/CeleritasJoml.class");
+    /** The output directory that holds {@code classFile}. */
+    private static Path classesRoot(String classFile) throws URISyntaxException {
+        URL marker = JomlBoundaryTest.class.getClassLoader().getResource(classFile);
         if (marker == null || !"file".equals(marker.getProtocol())) {
             throw new IllegalStateException("main classes are not on the test classpath as a directory: " + marker);
         }
-        Path file = Paths.get(marker.toURI());
-        // com/demonica/celeritas/CeleritasJoml.class -> the output root
-        return file.getParent().getParent().getParent().getParent();
+        Path root = Paths.get(marker.toURI());
+        for (int depth = classFile.split("/").length; depth > 0; depth--) {
+            root = root.getParent();
+        }
+        return root;
     }
 }

@@ -250,6 +250,9 @@ dependencies {
     compileOnly 'com.cleanroommc:lwjglx:1.0.0'
 
     modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
+    // NeverEnoughAnimation 1.0.7: its GUI fade scales item vertex alpha, which the fast lit item path must honour
+    // (com.demonica.compat.neverenoughanimations, loaded only when the mod is present).
+    modCompileOnly 'curse.maven:neverenoughanimation-1062347:7289408'
 
     // The pinned upstream Celeritas mod (gradle.properties, docs/celeritas/PIN.md).
     modCompileOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
@@ -486,7 +489,11 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica.core.json',
                 'mixins.demonica.iris.json',
                 'mixins.demonica.celeritas.json',
-                'mixins.demonica-refmap.json'
+                'mixins.demonica.kirino.json',
+                'mixins.demonica-refmap.json',
+                // Loaded by path at runtime (Celeritas's ShaderLoader): the font renderer's and the panorama's shaders.
+                'assets/angelica/shaders/fontFilter.vsh',
+                'assets/angelica/shaders/panorama_cube.vert'
             ] + containedJars.get()
             (required - names).each { problems << "missing entry ${it}" }
 

@@ -85,6 +85,8 @@ public final class DemonicaOptionPages {
         if (StandardOptions.Group.WINDOW.equals(id)) {
             replaceOrAdd(options, StandardOptions.Option.FULLSCREEN.toString(), fullscreenMode());
             insertAfterOrAdd(options, StandardOptions.Option.MAX_FRAMERATE.toString(), loadingScreenFramerateLimit());
+        } else if (StandardOptions.Group.DETAILS.equals(id)) {
+            insertAfterOrAdd(options, StandardOptions.Option.VIGNETTE.toString(), dynamicFov());
         } else if (StandardOptions.Group.SORTING.equals(id)) {
             replaceOrAdd(options, CELERITAS_FAST_BLOCK_RENDERER, fastBlockRenderer());
         } else if (StandardOptions.Group.CPU_SAVING.equals(id)) {
@@ -181,6 +183,12 @@ public final class DemonicaOptionPages {
             .setControl(option -> new SliderControl(option, 30, 240, 10, ControlValueFormatter.fpsLimit()))
             .setBinding((o, v) -> o.performance.loadingScreenFramerateLimit = v, getter)
             .build(), getter.apply(DEFAULTS));
+    }
+
+    /** Vanilla's sprint, flight and bow-draw widening of the field of view (MixinEntityRendererDynamicFov). */
+    private static Option<Boolean> dynamicFov() {
+        return tickBox("dynamic_fov", "sodium.options.dynamic_fov", OptionImpact.LOW,
+            o -> o.quality.dynamicFov, (o, v) -> o.quality.dynamicFov = v);
     }
 
     private static Option<Boolean> fastBlockRenderer() {

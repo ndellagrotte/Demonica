@@ -10,7 +10,10 @@
   "client": [
     "core.MinecraftAccessor",
     "core.MixinMinecraft",
+    "core.MixinRenderGlobalDestroyBlock",
     "core.MixinTessellator",
+    "core.MixinTextureManagerDebugLabels",
+    "core.MixinTileEntityRendererDispatcherBatch",
     "core.MixinVertexBufferUploader",
     "core.MixinWorldVertexBufferUploader",
     "core.startup.MixinEntityRendererFovFallback",
@@ -20,7 +23,10 @@
     "core.startup.MixinOpenGlHelper",
     "core.startup.MixinSplashProgress",
     "core.terrain.AccessorEntityRenderer",
-    "core.vertex.MixinVertexBuffer"
+    "core.vertex.MixinVertexBuffer",
+    "features.options.MixinEntityRendererDynamicFov",
+    "fontrenderer.MixinFontRenderer",
+    "gui.MixinGuiMainMenu"
   ],
   "injectors": {
     "defaultRequire": 1

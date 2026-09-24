@@ -60,3 +60,5 @@ sodium.options.fast_lit_item_display_lists.name=Fast Lit Item Display Lists
 sodium.options.fast_lit_item_display_lists.tooltip=Caches stable untinted baked item models in GLSM display lists after the fast lit item path accepts them. Disable this if some item models render stale or incorrectly.
 sodium.options.allow_direct_memory_access.name=Allow Direct Memory Access
 sodium.options.allow_direct_memory_access.tooltip=If enabled, some critical code paths will be allowed to use direct memory access for performance. This often greatly reduces CPU overhead for chunk and entity rendering, but can make it harder to diagnose some bugs and crashes. You should only disable this if you've been asked to or otherwise know what you're doing.
+sodium.options.dynamic_fov.name=Dynamic FOV
+sodium.options.dynamic_fov.tooltip=If disabled, the field of view stays at the configured value instead of widening while sprinting or flying and narrowing while drawing a bow.\n\nThis only affects the dynamic factor: the underwater and death-camera scaling still apply.

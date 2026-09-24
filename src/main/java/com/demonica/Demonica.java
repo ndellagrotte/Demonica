@@ -1,6 +1,8 @@
 package com.demonica;
 
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
+import com.demonica.compat.kirino.KirinoCompat;
+import com.demonica.compat.neverenoughanimations.NeverEnoughAnimationsAlphaOverride;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
@@ -92,6 +94,8 @@ public class Demonica {
         if (!MixinEarly.ACTIVE) {
             return;
         }
+        KirinoCompat.install();
+        NeverEnoughAnimationsAlphaOverride.install();
         if (Iris.enabled) {
             IrisGLSMBridge.register();
             Iris.INSTANCE.fmlInitEvent();
@@ -137,5 +141,9 @@ public class Demonica {
         }
         // Celeritas adds its renderer's own lines; Demonica only names itself.
         event.getRight().add(String.format("%sDemonica (%s)", ChatFormatting.LIGHT_PURPLE, DemonicaRuntime.version()));
+        String kirinoStatus = KirinoCompat.debugStatus();
+        if (kirinoStatus != null && !Minecraft.getMinecraft().isReducedDebug()) {
+            event.getRight().add(kirinoStatus);
+        }
     }
 }

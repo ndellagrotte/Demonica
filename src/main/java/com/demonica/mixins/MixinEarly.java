@@ -32,7 +32,10 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         // Iris's hooks into vanilla rendering.
         "mixins.demonica.iris.json",
         // The quarantine: every patch against Celeritas's own classes (docs/celeritas/LEDGER.md).
-        "mixins.demonica.celeritas.json"
+        "mixins.demonica.celeritas.json",
+        // Kirino Engine (part of Cleanroom) loads its config hub before late configs are queued; the config's plugin
+        // applies the pin only when that class is transformed.
+        "mixins.demonica.kirino.json"
     );
 
     /** Whether this environment can run Demonica at all; decided once, before anything is registered. */

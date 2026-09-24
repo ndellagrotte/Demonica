@@ -9,8 +9,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Runtime gate for {@code mixins.demonica.iris.json}. It gates Demonica's particle culling mixin, which is not ported
- * yet and so not listed in the config.
+ * Runtime gate for {@code mixins.demonica.iris.json}. It gates Demonica's particle culling mixin only.
  *
  * <p>ParticleCulling declares plain {@code @Redirect}s on the very same two
  * {@code Particle.renderParticle} call sites that Demonica redirects in

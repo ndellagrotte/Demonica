@@ -29,6 +29,7 @@
     "features.iris.ModelBoxAccessor",
     "features.iris.ModelRendererIrisMixin",
     "features.iris.ParticleItemPickupIrisMixin",
+    "features.iris.ParticleManagerCullingMixin",
     "features.iris.ParticleManagerIrisMixin",
     "features.iris.RenderDragonIrisMixin",
     "features.iris.RenderEntityItemIrisMixin",
