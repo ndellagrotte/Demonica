@@ -2,6 +2,7 @@ package com.demonica.dev;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiMainMenu;
+import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.util.ScreenShotHelper;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldSettings;
@@ -11,6 +12,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.embeddedt.embeddium.impl.render.ShaderModBridge;
+import org.taumc.celeritas.impl.gui.CeleritasVideoOptionsScreen;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,6 +45,8 @@ import java.util.function.BiFunction;
  *   <li>{@code shot <name>}: save {@code screenshots/<name>.png} after the next frame, with the HUD hidden</li>
  *   <li>{@code third <0|1|2>}: set the camera mode</li>
  *   <li>{@code glide <dx> <dz> <ticks>}: move the player by {@code dx, dz} blocks every tick (fast flight)</li>
+ *   <li>{@code screen video|shaderpacks|close}: open Celeritas's video settings, open the screen that Celeritas's
+ *   "Shader Packs" tab opens (through the same {@code ShaderModBridge} call), or close the current screen</li>
  *   <li>{@code reload}: reload resources (F3+T)</li>
  *   <li>{@code log <text>}: write a marker to the log</li>
  *   <li>{@code exit}: shut the client down</li>
@@ -136,6 +141,10 @@ public final class DevHarness {
                     return;
                 }
                 this.current = null;
+                if (this.shotPending) {
+                    // Nothing may change before the next frame is saved.
+                    return;
+                }
             }
         } catch (RuntimeException e) {
             LOGGER.error("Dev step '{}' failed; stopping the script", this.current, e);
@@ -214,6 +223,21 @@ public final class DevHarness {
                 mc.player.capabilities.isFlying = true;
                 mc.player.sendChatMessage(String.format(Locale.ROOT, "/tp @p ~%.2f ~ ~%.2f", dx, dz));
                 return this.waited + 1 >= Integer.parseInt(args[3]);
+            }
+            case "screen" -> {
+                switch (args[1]) {
+                    case "video" -> mc.displayGuiScreen(new CeleritasVideoOptionsScreen(mc.currentScreen));
+                    case "shaderpacks" -> {
+                        Object screen = ShaderModBridge.openShaderScreen(mc.currentScreen);
+                        if (!(screen instanceof GuiScreen guiScreen)) {
+                            throw new IllegalStateException("Celeritas's shader pack tab opened no screen: " + screen);
+                        }
+                        mc.displayGuiScreen(guiScreen);
+                    }
+                    case "close" -> mc.displayGuiScreen(null);
+                    default -> throw new IllegalArgumentException("Unknown screen: " + args[1]);
+                }
+                return true;
             }
             case "reload" -> {
                 mc.refreshResources();

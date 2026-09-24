@@ -38,7 +38,7 @@ public class TessellatorStreamingDrawer {
     private static final int FORMAT_COUNT = VertexFlags.BITSET_SIZE; // 16
     private static final int INITIAL_REPACK_CAPACITY = 0x10000;
     private static final int RAW_VERTEX_STRIDE_INTS = 8;
-    private static final boolean DEBUG_STREAMING_DRAWS = Boolean.getBoolean("actinium.glsm.verboseDrawLogs");
+    private static final boolean DEBUG_STREAMING_DRAWS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
 
     private static PersistentStreamingBuffer persistentBuffer;
     private static final OrphanStreamingBuffer[] orphanBuffers = new OrphanStreamingBuffer[FORMAT_COUNT];
@@ -74,7 +74,7 @@ public class TessellatorStreamingDrawer {
 
         if (RenderSystem.supportsBufferStorage()
             && !Boolean.getBoolean("angelica.forceOrphanStreaming")
-            && !Boolean.getBoolean("actinium.glsm.forceOrphanStreaming")) {
+            && !Boolean.getBoolean("demonica.glsm.forceOrphanStreaming")) {
             try {
                 persistentBuffer = new PersistentStreamingBuffer();
                 LOGGER.info("Persistent streaming buffer created ({}MB)", PersistentStreamingBuffer.DEFAULT_CAPACITY / (1024 * 1024));

@@ -30,5 +30,5 @@ plugins {
 
 rootProject.name = 'Demonica'
 
-include 'glsm', 'GTNHLib'
-project(':GTNHLib').projectDir = file('vendor/GTNHLib')
+// GTNHLib, GLSM and the Iris tree (shader) are merged into the Demonica mod jar.
+include 'GTNHLib', 'glsm', 'shader'

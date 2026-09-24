@@ -13,7 +13,7 @@ public final class GLSMPerfDebug {
     private static final int SAMPLE_MASK = 255;
     private static final int MAX_BUFFERBUILDER_SOURCE_LINES = 12;
     private static final int MAX_CLIENT_ARRAY_STACK_LINES = 12;
-    private static final String ENABLED_OVERRIDE = System.getProperty("actinium.glsmPerfDebug");
+    private static final String ENABLED_OVERRIDE = System.getProperty("demonica.glsmPerfDebug");
     private static volatile boolean enabled = resolveEnabled(ENABLED_OVERRIDE, false);
 
     public enum Stage {
@@ -300,8 +300,8 @@ public final class GLSMPerfDebug {
         for (StackTraceElement element : stack) {
             String className = element.getClassName();
             if (className.startsWith("com.gtnewhorizons.angelica.glsm.debug.")
-                || className.startsWith("com.dhj.actinium.render.")
-                || className.startsWith("com.dhj.actinium.mixin.vintage.core.")
+                || className.startsWith("com.demonica.render.")
+                || className.startsWith("com.demonica.mixin.core.")
                 || isBufferBuilderBridge(className, element.getMethodName())
                 || className.equals("java.lang.Thread")) {
                 continue;
@@ -327,8 +327,8 @@ public final class GLSMPerfDebug {
         for (StackTraceElement element : stack) {
             String className = element.getClassName();
             if (className.startsWith("com.gtnewhorizons.angelica.glsm.")
-                || className.startsWith("com.dhj.actinium.render.")
-                || className.startsWith("com.dhj.actinium.mixin.vintage.core.")
+                || className.startsWith("com.demonica.render.")
+                || className.startsWith("com.demonica.mixin.core.")
                 || className.equals("java.lang.Thread")) {
                 continue;
             }

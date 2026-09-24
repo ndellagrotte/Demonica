@@ -10,7 +10,7 @@ public final class Tags {
     private static String readVersion() {
         final Package pkg = Tags.class.getPackage();
         final String implementationVersion = pkg != null ? pkg.getImplementationVersion() : null;
-        return implementationVersion != null ? implementationVersion : "0.0.0-actinium";
+        return implementationVersion != null ? implementationVersion : "0.0.0-demonica";
     }
 
     private Tags() {

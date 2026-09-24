@@ -27,7 +27,7 @@ Actinium's Celeritas terrain renderer. Its init hooks, main-pass terrain
 (`WorldRendererCompatBridge`) all live in Actinium's vintage mixins and renderer.
 Porting `mixins.actinium.iris.json` would pull in 73 host classes (~8.5k lines)
 and still not run. So the mixins and the host glue stay in the host mod, and
-[`HOST_CONTRACT.md`](HOST_CONTRACT.md) lists everything a host must supply.
+`HOST_CONTRACT.md` listed everything a host had to supply (removed after the fork; see the tag `actinium-fork-point/4a19c959`).
 
 ## Path map
 
@@ -142,7 +142,7 @@ is environmental, it is excluded with the reason recorded.
 
 - **The Iris mixins** (`mixins.actinium.iris.json`, `features.iris.*`,
   `core.terrain`, `core.vertex`, `IrisMixinConfigPlugin`) are owned by the host,
-  by decision. See [`HOST_CONTRACT.md`](HOST_CONTRACT.md).
+  by decision. See `HOST_CONTRACT.md` at the tag `actinium-fork-point/4a19c959`.
 - **Actinium's 33 root `com.gtnewhorizons.angelica.*` classes**: the redirector
   tweaker and transformers, `IrisGLSMBridge`, the font renderer and the mixin
   interfaces. They are host glue, and 5 of them import `com.dhj.actinium`.

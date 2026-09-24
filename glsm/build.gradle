@@ -1,6 +1,7 @@
+// GLSM, the GL state manager, with the LWJGL service abstraction and its LWJGL 3 backend.
+// Merged into the Demonica mod jar.
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
 repositories {
@@ -18,18 +19,8 @@ sourceSets {
     }
 }
 
-base {
-    archivesName = 'demonica-glsm'
-}
-
-java {
-    withSourcesJar()
-}
-
 dependencies {
-    // Actinium declares `api project(':GTNHLib')`. GTNHLib is vendored and never published,
-    // so here it is compile-only and the host supplies it at runtime.
-    compileOnly project(':GTNHLib')
+    api project(':GTNHLib')
     implementation('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
         transitive = false
     }
@@ -39,26 +30,10 @@ dependencies {
     compileOnly 'org.lwjgl:lwjgl-spvc:3.4.1'
 }
 
-tasks.named('sourcesJar', Jar) {
-    // The srcDir list above repeats the default src/main/java, so every glsm source file
-    // appears twice. Real duplicates across the three roots still fail compileJava.
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
-
 tasks.named('jar', Jar) {
     // com.gtnewhorizons.angelica.Tags reads Implementation-Version from the manifest.
     manifest.attributes(
         'Implementation-Title': 'Demonica GLSM',
-        'Implementation-Version': project.version,
-        'Demonica-Synced-From': rootProject.property('demonica_syncline')
+        'Implementation-Version': project.version
     )
-}
-
-publishing {
-    publications {
-        maven(MavenPublication) {
-            artifactId = 'demonica-glsm'
-            from components.java
-        }
-    }
 }
