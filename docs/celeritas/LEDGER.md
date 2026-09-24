@@ -193,10 +193,22 @@ mixin that applied found all its injectors' targets, and the log shows no errors
 beyond the development environment's usual ones. The build covers the rest (see
 the rules above): among others, `GuardDrillTest` gives the guard class bytes with a
 renamed method or a missing class (17 cases), and `verifyProductionAnchors` finds
-all 316 anchors in the SRG-named pin. Not run yet: the production-shaped smoke test,
-with the mod jar and each pinned Celeritas jar in a Cleanroom instance. It would
-also be the first run of the mods-folder search for a Celeritas jar whose file
-name sorts after Demonica's.
+all 316 anchors in the SRG-named pin.
+
+The production-shaped smoke test (run/smoke-*.log, the same script as the drills),
+2026-09-24: the mod jar from `build/libs` in a Prism instance on Forge
+14.23.5.2864, which Cleanroom Relauncher restarts in Cleanroom 0.6.13-alpha on
+Java 26, with Fugue and Scalar. With the Maven jar, the guard recognised the first
+pin (`1579bd31`) and applied every patch without an audit. With the release asset,
+renamed to sort after Demonica's jar, and `-Ddemonica.guard.audit=always`,
+Demonica's coremod found Celeritas in the mods folder, the guard recognised the
+second pin (`4dd4b35d`), and all 316 anchors held in production names. Both runs
+applied all 21 mixins with 46 of 46 injectors, opened RSO and the shader pack
+screen, and drew BSL with terrain shadows. Cleanroom examines coremod jars in
+case-insensitive name order, so both pinned file names reach the class path
+before Demonica's; the mods-folder search serves jars named to sort after it. The
+one error in the logs is upstream's: `mixins.celeritas.json` names no refmap,
+which CleanMix reports as "Invalid REFMAP JSON" with Celeritas alone too.
 
 Checkpoint 9 (run/client/scripts/cp9.txt and cp9b.txt, with `-PwithCompatMods`),
 2026-09-24: with Distant Horizons, iChunUtil, LittleTiles, NeverEnoughAnimation,

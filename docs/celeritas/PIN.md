@@ -107,6 +107,6 @@ matches, so every dev run checks the anchors and logs whether they all hold.
 4. For each change, re-derive the affected quarantine patch and its `@Patch`
    declaration, update its ledger entry (`LEDGER.md`), then update the snapshot.
 5. Repeat the spike's two runs ([`SPIKE.md`](SPIKE.md) sections 1 and 2), the
-   current checkpoint's matrix and the guard's drills
-   ([`LEDGER.md`](LEDGER.md#the-guard), "Rehearsing it") before accepting the new
-   pin.
+   current checkpoint's matrix, the guard's drills
+   ([`LEDGER.md`](LEDGER.md#the-guard), "Rehearsing it") and the production-shaped
+   smoke test (`LEDGER.md`, after Checkpoint 10) before accepting the new pin.

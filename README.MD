@@ -8,10 +8,11 @@ the role of [Actinium](https://github.com/DHJComical/Actinium), from which it
 forked at `4a19c959` ([`docs/FORK.md`](docs/FORK.md)); unlike Actinium, it
 carries no copy of the terrain renderer.
 
-**Requires:** Cleanroom 0.6.12 and Celeritas's 1.12.2 mod, the build pinned in
-[`docs/celeritas/PIN.md`](docs/celeritas/PIN.md): upstream commit `06999aab`, as
-published by the Celeritas auto-build (the release asset
-`01-celeritas-forge-mc12.2-2.4.0-dev.jar` or the Maven jar; both are accepted).
+**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested) and Celeritas's 1.12.2
+mod, the build pinned in [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md):
+upstream commit `06999aab`, as published by the Celeritas auto-build (the release
+asset `01-celeritas-forge-mc12.2-2.4.0-dev.jar` or the Maven jar; both are
+accepted).
 Demonica does not run next to Actinium, and does nothing without Celeritas, so
 that the game can tell you it is missing.
 
