@@ -178,6 +178,26 @@ exported with `-PmixinExport` shows S16's injection in
 `DefaultChunkRenderer.render`, S8's `@ModifyArg` before `drawChunkLayer`, and
 I2's `@ModifyVariable` at the head of both searches.
 
+Checkpoint 10 (run/client/scripts/guard-*.txt, each run with its
+`-PdevProps=demonica.guard.drill=...`), 2026-09-24: each drill loads a world, takes a
+frame without a pack, opens Video Settings and the shader pack screen, and selects
+BSL. Without a drill, all 316 anchors hold, and all 21 mixins apply with 46 of 46
+injectors. SHADOW gives L1: 15 mixins apply, BSL draws terrain without shadows, and
+the pack screen says why. CORE_TERRAIN gives L2: 17 mixins apply, and "Shader Packs"
+opens the screen with the reason instead of the pack list. MESHING (18 mixins apply)
+stays at L0, and the pack screen names what it costs. OPTIONS (19) stays at L0, and
+Video Settings keeps Celeritas's screen, with Demonica's settings and RSO's page in
+it. DEGRADE with COMPAT turns off its five mixins one by one (16 apply). L3 applies
+only the 8 mixins outside CORE_TERRAIN, SHADOW and MESHING. In every drill, each
+mixin that applied found all its injectors' targets, and the log shows no errors
+beyond the development environment's usual ones. The build covers the rest (see
+the rules above): among others, `GuardDrillTest` gives the guard class bytes with a
+renamed method or a missing class (17 cases), and `verifyProductionAnchors` finds
+all 316 anchors in the SRG-named pin. Not run yet: the production-shaped smoke test,
+with the mod jar and each pinned Celeritas jar in a Cleanroom instance. It would
+also be the first run of the mods-folder search for a Celeritas jar whose file
+name sorts after Demonica's.
+
 Checkpoint 9 (run/client/scripts/cp9.txt and cp9b.txt, with `-PwithCompatMods`),
 2026-09-24: with Distant Horizons, iChunUtil, LittleTiles, NeverEnoughAnimation,
 Snow! Real Magic!, ArchitectureCraft, Scannable, FluxLoading, Extra Utilities 2,
@@ -273,6 +293,7 @@ Actinium classes that changed shape on the way to upstream Celeritas.
 | `NeoFontRenderCompat` | ported | Registered at init when NeoFontRender is installed: its colour palette follows the vanilla font renderer's colour codes. |
 | The Extra Utilities 2 compat's use of `GlStateManager$BooleanState` | `demonica_at.cfg` opens it again | Upstream's AT opens it at runtime, but not on Demonica's compile classpath. |
 | The remaining root tests | ported, apart from those that pin the fork's internals | `MixinConfigurationTest` checks Demonica's 20 configs (the quarantine is the one non-fatal config); `DependencyDirectionTest` allows the `com.demonica` classes the shader tree itself compiles. Skipped: the 24 under `dhj/embeddedt/**`, `VintageBlockRendererBindingContractTest`, the world and biome colour tests, `LightDataCacheTest`, `MuiGuiScaleHookTest`, `EmbeddiumStandardOptionsPagesTest`. |
+| The fork's pass configuration (`VintageRenderPassConfigurationBuilder`) with pass consolidation on, Celeritas's default: one cutout pass staged under both `CUTOUT` and `CUTOUT_MIPPED` | S14's `ShaderPassConfigurations` stages it under `CUTOUT_MIPPED` only (`PassConfigurationTest`) | Celeritas draws every pass in a layer's stage each time vanilla draws that layer, and only the shadow pass skips a pass it has already drawn. So Actinium drew cutout terrain twice a frame, and so did Demonica under a pack until Phase 10. Upstream stages its consolidated pass under `SOLID`; S14 keeps it under `CUTOUT_MIPPED`, so that it is drawn in Iris's cutout-mipped phase, which packs read as `renderStage`. |
 
 ## Lost fork fixes
 

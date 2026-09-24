@@ -495,6 +495,11 @@ def prepareTestRunDirectory = tasks.register('prepareTestRunDirectory') {
 test {
     dependsOn prepareTestRunDirectory
     systemProperty 'demonica.projectRoot', rootProject.projectDir.absolutePath
+    // Read from the project directory rather than the classpath: the patch ledger and its drafts (QuarantineLedgerTest)
+    // and the pins (AnchorInventoryTest). Declared, so that editing them re-runs the tests instead of reusing a result.
+    inputs.files('docs/celeritas/LEDGER.md', 'gradle.properties')
+        .withPropertyName('projectFiles').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('docs/celeritas/patches').withPropertyName('patchDrafts').withPathSensitivity(PathSensitivity.RELATIVE)
     useJUnitPlatform()
     workingDir = testRunDirectory.asFile
     javaLauncher = javaToolchains.launcherFor {
