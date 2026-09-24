@@ -20,6 +20,7 @@
     "internal.SliderControlMixin",
     "seam.CeleritasWorldRendererMixin",
     "seam.CeleritasWorldRendererShadowMixin",
+    "seam.ChunkBuilderMeshingTaskCompatMixin",
     "seam.ChunkBuilderMeshingTaskMixin",
     "seam.GLStateManagerFogServiceMixin",
     "seam.RenderGlobalTerrainMixin",

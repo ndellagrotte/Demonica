@@ -195,6 +195,15 @@ class AnchorInventoryTest {
         Anchor.method("S18", SWR, "forEachVisibleBlockEntity", "(Ljava/util/function/Consumer;)V"),
         // S19: DH's neighbour radius.
         Anchor.field("S19", TRACKER, "requiredNeighborRadius", "I"),
+        // C1: mods that hook vanilla's chunk rebuild. The whole build (Component Model Hider's build gate), the layer
+        // test (its hidden positions, shared with S10) and the conversion of the vanilla buffers (LittleTiles).
+        Anchor.method("C1", MESHING_TASK, "execute", MESHING_EXECUTE),
+        Anchor.call("C1", MESHING_TASK, "execute", MESHING_EXECUTE,
+            "net/minecraft/block/Block", "canRenderInLayer", "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/BlockRenderLayer;)Z"),
+        Anchor.call("C1", MESHING_TASK, "execute", MESHING_EXECUTE, BUILD_CONTEXT, "convertVanillaDataToCeleritasData", "(L" + BUFFERS + ";)V"),
+        Anchor.method("C1", BUILD_CONTEXT, "getWorldSlice", "()Lorg/taumc/celeritas/impl/world/WorldSlice;"),
+        Anchor.method("C1", BUILD_CONTEXT, "getOffX", "()I"),
+        Anchor.method("C1", SWR, "scheduleRebuildForChunk", "(IIIZ)V"),
         // S20: the fast renderer's block quads, sided and unassigned.
         Anchor.call("S20", BLOCK_RENDERER, "renderBlock", RENDER_BLOCK, "net/minecraft/client/renderer/block/model/IBakedModel", "getQuads",
             "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/EnumFacing;J)Ljava/util/List;"),

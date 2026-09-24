@@ -1,0 +1,16 @@
+{
+  "package": "com.demonica.mixin.early.hbm",
+  "required": true,
+  "refmap": "mixins.demonica-refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8.5",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [],
+  "server": [],
+  "client": [
+    "MixinTileEntityRendererDispatcherLightmap"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

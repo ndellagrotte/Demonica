@@ -38,8 +38,9 @@ public final class DemonicaOptions {
     static final String ACTINIUM_FILE_NAME = "actinium-options.json";
 
     /**
-     * Actinium settings that are not taken over. Actinium's fast block renderer had its own compatibility gates;
-     * Celeritas's starts off in Demonica until those gates are ported (docs/celeritas/LEDGER.md, S13).
+     * Actinium settings that are not taken over. Actinium turned its own fast block renderer on by default; Demonica's
+     * switch picks Celeritas's, which is a different renderer and starts off, like upstream's production setting
+     * (docs/celeritas/LEDGER.md, S13).
      */
     private static final Set<String> ACTINIUM_KEYS_NOT_MIGRATED = Set.of("use_fast_block_renderer");
 
@@ -82,8 +83,8 @@ public final class DemonicaOptions {
     public static class PerformanceSettings {
         public int loadingScreenFramerateLimit = 60;
         // Celeritas's fast block renderer. Upstream turns it on only in dev; Demonica sets it explicitly
-        // (docs/celeritas/LEDGER.md, S13). Off until the per-mod gates that keep broken blocks on the vanilla
-        // path are ported.
+        // (docs/celeritas/LEDGER.md, S13), off by default like upstream's production setting. Blocks that mods render
+        // through vanilla's dispatcher stay on the vanilla path either way (FastBlockRendererCompat).
         public boolean useFastBlockRenderer = false;
     }
 

@@ -90,7 +90,7 @@ class DemonicaOptionPagesTest {
         assertTrue(ids.contains("demonica:fast_block_renderer"), ids.toString());
         assertFalse(ids.contains("celeritas:fast_block_renderer"), ids.toString());
         Option<?> toggle = sorting.getOptions().get(ids.indexOf("demonica:fast_block_renderer"));
-        assertEquals(Boolean.FALSE, OptionDefaults.get(toggle), "off until the per-mod gates are ported (S13)");
+        assertEquals(Boolean.FALSE, OptionDefaults.get(toggle), "off by default, like upstream's production setting (S13)");
     }
 
     /** Celeritas's own advanced page, built from the pinned jar, with Demonica's fast paths and its two groups. */

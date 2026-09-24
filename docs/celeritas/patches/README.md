@@ -57,5 +57,6 @@ forge122's fast block renderer and by the copy of vanilla-path quads.
 The remaining drafts are independent small changes: S7 (two members of
 `SimpleWorldRenderer`), S15 (fog service selection), S19 (a getter), S20 (a quad
 transformer hook), O1 (getters on two option controls), I2 (finish deprecating the
-`frame` parameters). I1 is a
-question for upstream, and S17 needs nothing from upstream.
+`frame` parameters), C1 (two extension points in the meshing task for mods that
+hook vanilla's chunk rebuild). I1 is a question for upstream, and S17 needs
+nothing from upstream.

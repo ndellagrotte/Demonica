@@ -3,10 +3,12 @@ package com.demonica.mixin.celeritas.seam;
 import com.demonica.celeritas.api.shader.vertex.BufferBuilderExtension;
 import com.demonica.celeritas.terrain.ShaderBlockContexts;
 import com.demonica.celeritas.terrain.ShaderPassConfigurations;
+import com.demonica.compat.FastBlockRendererCompat;
 import com.demonica.runtime.DemonicaRuntime;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.BlockRendererDispatcher;
@@ -31,7 +33,8 @@ import org.taumc.celeritas.impl.render.terrain.compile.task.ChunkBuilderMeshingT
  *   layer renders in that layer only, and the quads of each block that takes the vanilla path carry its
  *   {@link ShaderBlockContexts context} into the buffer, for S11 to hand to the extended vertex encoder.</li>
  *   <li>S13 (docs/celeritas/patches/S13.md): Demonica's option picks Celeritas's fast block renderer, which upstream
- *   turns on in dev only.</li>
+ *   turns on in dev only, except for the blocks mods render through vanilla's dispatcher
+ *   ({@link FastBlockRendererCompat}).</li>
  * </ul>
  * The method selectors carry the full descriptor: an erased bridge {@code execute(...)Object} calls this one.
  */
@@ -83,9 +86,11 @@ public abstract class ChunkBuilderMeshingTaskMixin {
         }
     }
 
+    // Per block: blocks that a mod renders or hides from inside vanilla's dispatcher always take the vanilla path.
     @ModifyExpressionValue(method = EXECUTE, at = @At(value = "FIELD",
         target = "Lorg/taumc/celeritas/impl/render/terrain/compile/task/ChunkBuilderMeshingTask;USE_NEW_BLOCK_RENDERER:Z"))
-    private boolean demonica$fastBlockRenderer(boolean upstreamDefault) {
-        return DemonicaRuntime.options().performance.useFastBlockRenderer;
+    private boolean demonica$fastBlockRenderer(boolean upstreamDefault, @Local Block block, @Local BlockPos.MutableBlockPos pos) {
+        return DemonicaRuntime.options().performance.useFastBlockRenderer
+            && !FastBlockRendererCompat.requiresVanillaRenderer(block, pos);
     }
 }

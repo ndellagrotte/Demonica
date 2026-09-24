@@ -35,7 +35,9 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         "mixins.demonica.celeritas.json",
         // Kirino Engine (part of Cleanroom) loads its config hub before late configs are queued; the config's plugin
         // applies the pin only when that class is transformed.
-        "mixins.demonica.kirino.json"
+        "mixins.demonica.kirino.json",
+        // HBM's coremod loads TileEntityRendererDispatcher before late configs are queued; inert without HBM.
+        "mixins.demonica.hbm.early.json"
     );
 
     /** Whether this environment can run Demonica at all; decided once, before anything is registered. */

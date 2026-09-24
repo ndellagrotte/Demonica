@@ -8,6 +8,7 @@
   "mixins": [],
   "server": [],
   "client": [
+    "core.AccessorActiveRenderInfo",
     "core.MinecraftAccessor",
     "core.MixinMinecraft",
     "core.MixinRenderGlobalDestroyBlock",

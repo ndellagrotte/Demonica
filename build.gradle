@@ -48,7 +48,11 @@ def mergedEmbeddedLibraryClassesDir = layout.buildDirectory.dir('embedded-librar
 
 ext.sharedMinecraftCompileClasspath = {
     rootProject.files(rootProject.provider {
-        rootProject.tasks.named('compileJava', JavaCompile).get().classpath.files.findAll { it.isFile() }
+        // Not the jars the mod's compat builds for itself (build/compat): the subprojects never use them.
+        def compatJars = rootProject.layout.buildDirectory.dir('compat').get().asFile.toPath()
+        rootProject.tasks.named('compileJava', JavaCompile).get().classpath.files.findAll {
+            it.isFile() && !it.toPath().startsWith(compatJars)
+        }
     })
 }
 
@@ -225,6 +229,20 @@ tasks.named('runClient', JavaExec).configure {
     maxHeapSize = '6G'
 }
 
+configurations {
+    voxelMap {
+        transitive = false
+    }
+}
+
+tasks.register('voxelMapWithoutMixin', Zip) {
+    from(zipTree(configurations.voxelMap.singleFile)) {
+        exclude 'org/spongepowered/**'
+    }
+    archiveFileName = 'voxelmap-without-mixin.jar'
+    destinationDirectory = layout.buildDirectory.dir('compat')
+}
+
 dependencies {
     def lwjglVersion = '3.4.1'
     def lombokVersion = '1.18.46'
@@ -258,17 +276,73 @@ dependencies {
     compileOnly 'com.cleanroommc:lwjglx:1.0.0'
 
     modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
-    // NeverEnoughAnimation 1.0.7: its GUI fade scales item vertex alpha, which the fast lit item path must honour
-    // (com.demonica.compat.neverenoughanimations, loaded only when the mod is present).
+    // Mod compat (com.demonica.compat, com.demonica.mixin.mod), compiled against and loaded only when the mod is
+    // present: mixin configs through MixinLate and mixins.demonica.conditions.properties, classes behind Mods flags.
+    // NeverEnoughAnimation 1.0.7: its GUI fade scales item vertex alpha, which the fast lit item path must honour.
     modCompileOnly 'curse.maven:neverenoughanimation-1062347:7289408'
+    modCompileOnly 'curse.maven:botania-ceu-1179448:8706250'
+    modCompileOnly 'curse.maven:cofh-core-69162:2920433'
+    modCompileOnly 'curse.maven:extra-utilities-2-225561:2678374'
+    modCompileOnly 'curse.maven:gibbed-1480667:7737413'
+    modCompileOnly 'curse.maven:ichunutil-229060:2801262'
+    modCompileOnly 'curse.maven:creativecore-257814:4722163'
+    modCompileOnly 'curse.maven:littletiles-257818:5180387'
+    // Lumenized: GregTech CEu's bloom and depth utilities, and CodeChickenLib's shader classes they use.
+    modCompileOnly 'curse.maven:gregtech-ce-unofficial-557242:5519022'
+    modCompileOnly 'codechicken:CodeChickenLib:3.3.8'
+    modCompileOnly 'curse.maven:obscure-tooltips-715660:8522661'
+    modCompileOnly 'curse.maven:oldresearchreborn-1632015:8642028'
+    modCompileOnly 'curse.maven:scannable-266784:3146549'
+    // VoxelMap's jar bundles an old Mixin, which would shadow Cleanroom's on the compile classpath: compile against a
+    // copy without it (voxelMapWithoutMixin).
+    voxelMap 'curse.maven:voxelmap-225179:3029445'
+    compileOnly files(tasks.named('voxelMapWithoutMixin'))
+    // CeleritasBlockAccess extends Fluidlogged API's interfaces, so code that calls a WorldSlice needs them.
+    modCompileOnly('maven.modrinth:fluidlogged-api:3.0.6') {
+        transitive = false
+    }
+    // NeoFontRender and its UI addons (RevoUI).
+    modCompileOnly 'curse.maven:revo-font-1617673:8586768'
+    modCompileOnly 'curse.maven:revo-ui-1620532:8593682'
+    // Component Model Hider 1.0 (Multiblocked's block-model hiding API, driven by Modular Machinery CE).
+    modCompileOnly 'curse.maven:component-model-hider-940949:4885858'
+    // Not compiled against: the tests of StellarCoreHudCachingCompatTransformer and of GLSM's redirector run them over
+    // these mods' classes (StellarCore's HUD caching, JourneyMap's grid colours).
+    modCompileOnly 'curse.maven:stellarcore-1064321:8406201'
+    modCompileOnly 'curse.maven:journeymap-32274:5172461'
 
     // The pinned upstream Celeritas mod (gradle.properties, docs/celeritas/PIN.md).
     modCompileOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
     modRuntimeOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
 
+    // -PwithCompatMods: the dev client also loads mods that Demonica has compat for, to check that the compat applies
+    // (MixinLate's configs, C1, the fast renderer's gates). The heaviest (HBM, GregTech, Thaumcraft) are left out, and
+    // RLFoliage, which needs FermiumBooter.
+    if (project.findProperty('withCompatMods') != null) {
+        modRuntimeOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons
+        modRuntimeOnly 'curse.maven:ichunutil-229060:2801262'
+        modRuntimeOnly 'curse.maven:creativecore-257814:4722163'
+        modRuntimeOnly 'curse.maven:littletiles-257818:5180387'
+        modRuntimeOnly 'curse.maven:neverenoughanimation-1062347:7289408'
+        modRuntimeOnly 'curse.maven:snow-real-magic-308663:6275195'
+        modRuntimeOnly 'curse.maven:architecturecraft-tridev-277631:4344128'
+        modRuntimeOnly 'curse.maven:scannable-266784:3146549'
+        modRuntimeOnly 'curse.maven:fluxloading-1207328:7601634'
+        modRuntimeOnly 'curse.maven:extra-utilities-2-225561:2678374'
+        modRuntimeOnly 'curse.maven:codechicken-lib-cre-1328922:6898525'
+        modRuntimeOnly 'curse.maven:redstone-flux-270789:2920436'
+        modRuntimeOnly 'curse.maven:cofh-core-69162:2920433'
+        modRuntimeOnly 'curse.maven:cofh-world-271384:2920434'
+        modRuntimeOnly 'curse.maven:baubles-227083:2518667'
+        modRuntimeOnly 'curse.maven:botania-ceu-1179448:8706250'
+        modRuntimeOnly 'curse.maven:obscure-tooltips-715660:8522661'
+    }
+
     testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'com.google.guava:guava:21.0'
+    // Gnetum 1.4.3: GnetumHudCachingCompatTransformerTest runs the transformer over its GuiIngameForgeMixin bytes.
+    testImplementation 'maven.modrinth:gnetum:1.4.3'
     testImplementation project(':shader')
     testImplementation files(sharedMinecraftCompileClasspath())
     // Celeritas's CeleritasBlockAccess extends Fluidlogged API interfaces, which Forge strips (@Optional.Interface)
@@ -498,6 +572,10 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica.iris.json',
                 'mixins.demonica.celeritas.json',
                 'mixins.demonica.kirino.json',
+                'mixins.demonica.hbm.early.json',
+                // MixinLate reads it at startup and refuses to run without it.
+                'mixins.demonica.conditions.properties',
+                'mixins.demonica.distanthorizons.json',
                 'mixins.demonica-refmap.json',
                 // Loaded by path at runtime (Celeritas's ShaderLoader): the font renderer's and the panorama's shaders.
                 'assets/angelica/shaders/fontFilter.vsh',
