@@ -39,8 +39,21 @@ JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
 1.12.2/Cleanroom workspace through Unimined and downloads the pinned Celeritas
 from `maven.outlands.top`.
 
+GTNHLib comes from [S8TNLib](https://github.com/ndellagrotte/S8TNLib), whose
+jar the build merges into the mod jar. First publish to `mavenLocal` the
+S8TNLib release that `gradle.properties` pins, from its tag.
+`verifyS8tnlibPin` fails the build if that jar was built from another commit
+than `s8tnlib_commit`.
+
 ```sh
-./gradlew build      # compile, test, and check the pin, the patches' anchors and the mod jar
+git clone --branch v0.1.0 https://github.com/ndellagrotte/S8TNLib.git
+(cd S8TNLib && ./gradlew publishToMavenLocal)
+```
+
+Then build Demonica:
+
+```sh
+./gradlew build      # compile, test, and check the pins, the patches' anchors and the mod jar
 ./gradlew runClient  # dev client with Celeritas and Demonica
 ```
 
