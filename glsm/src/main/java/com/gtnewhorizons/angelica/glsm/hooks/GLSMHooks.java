@@ -27,7 +27,7 @@ public final class GLSMHooks {
     public static PerFrameUniformBlock perPassUniformBlock;
 
     /** Escape hatch: -Dactinium.glsmHooksAlwaysActive=true forces the consumer gate on. */
-    private static final boolean ALWAYS_ACTIVE = Boolean.getBoolean("actinium.glsmHooksAlwaysActive");
+    private static final boolean ALWAYS_ACTIVE = Boolean.getBoolean("demonica.glsmHooksAlwaysActive");
 
     /**
      * Cheap gate for per-call snapshot/event work in GLStateManager hot paths. Written by the

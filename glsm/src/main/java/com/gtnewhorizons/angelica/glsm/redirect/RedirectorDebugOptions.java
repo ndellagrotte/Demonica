@@ -1,8 +1,8 @@
 package com.gtnewhorizons.angelica.glsm.redirect;
 
 public final class RedirectorDebugOptions {
-    private static final java.nio.file.Path CONFIG_PATH = java.nio.file.Paths.get("config", "actinium-options.json");
-    private static final java.nio.file.Path LEGACY_CONFIG_PATH = java.nio.file.Paths.get("config", "embeddium-options.json");
+    private static final java.nio.file.Path CONFIG_PATH = java.nio.file.Paths.get("config", "demonica-options.json");
+    private static final java.nio.file.Path LEGACY_CONFIG_PATH = java.nio.file.Paths.get("config", "actinium-options.json");
     private static final Snapshot SNAPSHOT = loadSnapshot();
 
     private RedirectorDebugOptions() {
@@ -13,7 +13,7 @@ public final class RedirectorDebugOptions {
     }
 
     public static boolean enableDebug() {
-        return getBooleanOverride("actinium.redirectorDebug", SNAPSHOT.redirectorDebug);
+        return getBooleanOverride("demonica.redirectorDebug", SNAPSHOT.redirectorDebug);
     }
 
     public static boolean enableClassDump() {

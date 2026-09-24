@@ -30,7 +30,5 @@ plugins {
 
 rootProject.name = 'Demonica'
 
-include 'glsm', 'GTNHLib', 'celeritas-common'
-// Vendored verbatim from Actinium (see vendor/README.md); compile-only, never published.
-project(':GTNHLib').projectDir = file('vendor/GTNHLib')
-project(':celeritas-common').projectDir = file('vendor/celeritas-common')
+// GTNHLib, GLSM and the Iris tree (shader) are merged into the Demonica mod jar.
+include 'GTNHLib', 'glsm', 'shader'

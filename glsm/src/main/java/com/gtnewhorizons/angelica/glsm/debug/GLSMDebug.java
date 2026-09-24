@@ -20,8 +20,8 @@ import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
 
 public final class GLSMDebug {
     private static final Logger LOGGER = LogManager.getLogger("GLSMDebug");
-    private static final boolean ENABLE_VERBOSE_DRAW_LOGS = Boolean.getBoolean("actinium.glsm.verboseDrawLogs");
-    private static final boolean ENABLE_GL_DEBUG_SYS_PROP = Boolean.getBoolean("actinium.glDebug");
+    private static final boolean ENABLE_VERBOSE_DRAW_LOGS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
+    private static final boolean ENABLE_GL_DEBUG_SYS_PROP = Boolean.getBoolean("demonica.glDebug");
     private static final long OPTION_REFRESH_NS = 500_000_000L;
     private static final int STREAM_LIMIT = 128;
     private static final int QUAD_LIMIT = 512;
@@ -288,14 +288,14 @@ public final class GLSMDebug {
 
     private static boolean readCeleritasDebugOption() {
         try {
-            final Class<?> actinium = Class.forName("com.dhj.actinium.Actinium");
-            final Method options = actinium.getMethod("options");
+            final Class<?> demonica = Class.forName("com.demonica.Demonica");
+            final Method options = demonica.getMethod("options");
             final Object opts = options.invoke(null);
             if (opts == null) return false;
             final Field debugField = opts.getClass().getField("debug");
             final Object debug = debugField.get(opts);
             if (debug == null) return false;
-            final Field enabledField = debug.getClass().getField("enableActiniumGlDebug");
+            final Field enabledField = debug.getClass().getField("enableGlDebug");
             return enabledField.getBoolean(debug);
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             return false;

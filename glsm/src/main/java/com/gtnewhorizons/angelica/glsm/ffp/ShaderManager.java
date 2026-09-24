@@ -34,7 +34,7 @@ public class ShaderManager {
         static final ShaderManager INSTANCE = new ShaderManager();
     }
 
-    private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("actinium.glsm.verboseDrawLogs");
+    private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
 
     private final ShaderCache cache = new ShaderCache();
     private final Uniforms uniforms = new Uniforms();

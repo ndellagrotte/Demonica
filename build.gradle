@@ -1,26 +1,22 @@
 /*
- * Demonica: the Iris shader pipeline and GLSM as MCP-named 1.12.2/Cleanroom library jars.
+ * Demonica: a shader mod for Minecraft 1.12.2 on Cleanroom, running on the separately installed upstream
+ * Celeritas mod (docs/FORK.md, docs/celeritas/PIN.md).
  *
- * Derived from actinium@fee5de3834352050fc453bde1d93030c6d434983 (build.gradle and
- * gradle/scripts/dependencies.gradle), minus the mod-distribution machinery: no shadow/remap
- * jars, contained deps, runs, coremod or mixin setup. Demonica is not a mod; the host mod owns
- * mixins, remapping and packaging (docs/HOST_CONTRACT.md).
- *
- * Published: com.demonica:demonica (this project) and com.demonica:demonica-glsm (:glsm).
- * Never published: :GTNHLib and :celeritas-common, vendored compile-only from Actinium.
+ * The root project holds the mod: com.demonica.* and Actinium's com.gtnewhorizons.angelica.* glue, derived from
+ * actinium@4a19c959. :shader (the Iris tree), :glsm and :GTNHLib are merged into its jar. The distributed jar is
+ * the SRG-remapped output of `remapJar`; verifyDistributedJar checks it.
  */
 plugins {
+    id 'java'
     id 'java-library'
-    id 'maven-publish'
     id 'xyz.wagyourtail.unimined' version '1.4.36-kappa'
 }
 
 group = property('demonica_group')
 version = property('demonica_version')
-def syncline = property('demonica_syncline')
 
 base {
-    archivesName = 'demonica'
+    archivesName = 'Demonica'
 }
 
 java {
@@ -33,21 +29,89 @@ java {
 }
 
 configurations {
+    // Libraries shipped as nested jars (ContainedDeps) inside the mod jar.
+    contain
+    implementation.extendsFrom(contain)
     modCompileOnly
     compileOnly.extendsFrom(modCompileOnly)
+    modRuntimeOnly
+    runtimeOnly.extendsFrom(modRuntimeOnly)
 }
 
-def libraryProjects = [
-    project(':glsm'),
+def embeddedLibraryProjects = [
     project(':GTNHLib'),
-    project(':celeritas-common')
+    project(':glsm'),
+    project(':shader')
 ]
+
+def mergedEmbeddedLibraryClassesDir = layout.buildDirectory.dir('embedded-library-classes/main')
 
 ext.sharedMinecraftCompileClasspath = {
     rootProject.files(rootProject.provider {
-        rootProject.tasks.named('compileJava', JavaCompile).get().classpath.files.findAll { it.isFile() }
+        // Not the jars the mod's compat builds for itself (build/compat): the subprojects never use them.
+        def compatJars = rootProject.layout.buildDirectory.dir('compat').get().asFile.toPath()
+        rootProject.tasks.named('compileJava', JavaCompile).get().classpath.files.findAll {
+            it.isFile() && !it.toPath().startsWith(compatJars)
+        }
     })
 }
+
+// The subprojects' classes and resources become part of the mod's own output, so the jar and the dev runs see
+// one mod, as in production.
+def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', Sync) {
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    dependsOn embeddedLibraryProjects.collect { it.tasks.named('classes') }
+    into mergedEmbeddedLibraryClassesDir
+
+    embeddedLibraryProjects.each { libraryProject ->
+        from(libraryProject.sourceSets.main.output)
+    }
+}
+
+sourceSets.main.output.dir(mergedEmbeddedLibraryClassesDir, builtBy: mergeEmbeddedLibraryClasses)
+
+/*
+ * META-INF/demonica/celeritas-anchors: the Celeritas build the jar is made for and every anchor of the quarantine's
+ * patches, extracted from the compiled mixins. QuarantineGuard reads it at startup, and checks the anchors when the
+ * installed Celeritas is not the pinned build (docs/celeritas/LEDGER.md, "The guard").
+ */
+def generatedAnchorsDir = layout.buildDirectory.dir('generated/celeritas-anchors')
+def generateCeleritasAnchors = tasks.register('generateCeleritasAnchors', JavaExec) {
+    description = 'Extracts the anchors of the Celeritas patches from the compiled quarantine mixins.'
+    def compiledClasses = tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory }
+    def quarantineConfig = file('src/main/resources/mixins.demonica.celeritas.json')
+    // The jar the build compiles against (Unimined's MCP remap of the pin): its upstream mixins name the same members.
+    def celeritasJar = configurations.compileClasspath.filter {
+        it.name.startsWith('celeritas-forge-mc12.2-') && !it.name.endsWith('-sources.jar')
+    }
+    def outputFile = generatedAnchorsDir.map { it.file('META-INF/demonica/celeritas-anchors') }
+    def pins = project.property('celeritas_sha256').toString()
+    def upstreamCommit = project.property('celeritas_sha').toString()
+    def celeritasVersion = project.property('celeritas_version').toString()
+
+    dependsOn mergeEmbeddedLibraryClasses
+    inputs.files(compiledClasses, mergedEmbeddedLibraryClassesDir).withPropertyName('classes')
+    inputs.file(quarantineConfig).withPropertyName('config')
+    inputs.files(celeritasJar).withPropertyName('celeritasJar')
+    inputs.property('pins', pins)
+    inputs.property('upstreamCommit', upstreamCommit)
+    inputs.property('celeritasVersion', celeritasVersion)
+    outputs.dir(generatedAnchorsDir)
+
+    classpath = files(compiledClasses) + configurations.compileClasspath
+    mainClass = 'com.demonica.celeritas.guard.AnchorExtractor'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    doFirst {
+        delete(generatedAnchorsDir)
+        args = [outputFile.get().asFile.absolutePath, quarantineConfig.absolutePath, celeritasJar.singleFile.absolutePath,
+                upstreamCommit, celeritasVersion, pins,
+                compiledClasses.get().asFile.absolutePath, mergedEmbeddedLibraryClassesDir.get().asFile.absolutePath]
+    }
+}
+
+sourceSets.main.output.dir(generatedAnchorsDir, builtBy: generateCeleritasAnchors)
 
 subprojects {
     apply plugin: 'java-library'
@@ -90,16 +154,25 @@ subprojects {
 }
 
 repositories {
+    // Celeritas's 1.12.2 mod, built from upstream commits by kappa-maintainer/Celeritas-auto-build
+    // (docs/celeritas/PIN.md). Nothing else resolves from this repository.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'CeleritasAutoBuild'
+                url = 'https://maven.outlands.top/releases'
+            }
+        }
+        filter {
+            includeModule('org.embeddedt', 'celeritas-forge-mc12.2')
+        }
+    }
     mavenCentral()
     maven { url = 'https://maven.cleanroommc.com' }
+    maven { url = 'https://cursemaven.com' }
     maven { url = 'https://api.modrinth.com/maven' }
     maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
 }
-
-// Unimined clears the POM dependencies of any project that remaps mods (here only the compile-only
-// Distant Horizons jar). Demonica is a library: its POM must list its real runtime dependencies,
-// and verifyPublishedJars checks that no mod or synthetic remapped coordinate leaks into it.
-unimined.cleanModPom = false
 
 unimined.minecraft {
     version '1.12.2'
@@ -113,16 +186,105 @@ unimined.minecraft {
         loader '0.6.12-alpha'
     }
 
-    // Demonica publishes MCP-named library jars; the host remaps them with its own jar.
+    runs {
+        // Celeritas's coremod registers client-only mixin targets; there is no server run.
+        config('server') {
+            enabled = false
+        }
+        all {
+            args += ['--username', 'Developer', '--width', '1280', '--height', '720']
+            workingDir = file('run/client')
+            // Mod classes, including the merged GTNHLib, GLSM and Iris outputs, stay off the JavaExec classpath (the
+            // app class loader) and reach Cleanroom through -Dcrl.dev.extrapath, as in production where the mod jar
+            // is not on java.class.path (docs/celeritas/SPIKE.md). Unimined moves only the directories that exist at
+            // configuration time, so this does it for all of them.
+            def originalRunClasspath = classpath
+            classpath = files(provider {
+                def rawModuleOutputs = sourceSets.main.output.files
+                originalRunClasspath.files.findAll { !rawModuleOutputs.contains(it) }
+            })
+            def extraPathArgument = '-Dcrl.dev.extrapath='
+            def extraPaths = new LinkedHashSet<String>(sourceSets.main.output.files.collect { it.absolutePath })
+            jvmArgs.findAll { it.toString().startsWith(extraPathArgument) }.each { argument ->
+                extraPaths.addAll(argument.toString().substring(extraPathArgument.length()).tokenize(File.pathSeparator))
+            }
+            if (project.findProperty('withoutCeleritas') != null) {
+                // -PwithoutCeleritas: check what a player sees when Celeritas is missing.
+                extraPaths.removeIf { it.contains('celeritas-forge-mc12.2') }
+            }
+            jvmArgs = jvmArgs.findAll { !it.toString().startsWith(extraPathArgument) }
+            jvmArgs += "${extraPathArgument}${extraPaths.join(File.pathSeparator)}"
+            systemProperty 'fml.coreMods.load', 'com.demonica.mixins.MixinEarly'
+
+            // -PdevScript=@path/to/script drives the client (com.demonica.dev.DevHarness).
+            def script = project.findProperty('devScript')
+            if (script != null) {
+                systemProperty 'demonica.dev.script', script.toString()
+            }
+            if (project.findProperty('mixinVerbose') != null) {
+                systemProperty 'mixin.debug.verbose', 'true'
+            }
+            // -PmixinExport: write every class Mixin transforms to run/client/.mixin.out, to inspect what the
+            // patches did to the bytecode.
+            if (project.findProperty('mixinExport') != null) {
+                systemProperty 'mixin.debug.export', 'true'
+            }
+            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.disableFontBatcher=true. A
+            // value may hold commas (demonica.guard.drill=SHADOW,MESHING): only a comma before the next key= separates.
+            def devProps = project.findProperty('devProps')
+            if (devProps != null) {
+                devProps.toString().split(/,(?=[\w.-]+=)/).each { entry ->
+                    def parts = entry.split('=', 2)
+                    systemProperty parts[0], parts.length > 1 ? parts[1] : 'true'
+                }
+            }
+        }
+    }
+
     defaultRemapJar = false
 
-    runs {
-        off = true
+    // The distributed jar: the mod jar remapped to SRG, with the mixin refmaps generated.
+    remap(tasks.named('jar').get()) {
+        mixinRemap {
+            enableBaseMixin()
+            enableMixinExtra()
+        }
     }
 
     mods {
-        remap(configurations.modCompileOnly)
+        // Celeritas ships SRG-named mixins without a refmap, and uses MixinExtras. Its jar also
+        // carries a leftover Fabric access widener in the 'named' namespace, which Forge ignores.
+        remap([configurations.modCompileOnly, configurations.modRuntimeOnly]) {
+            catchAWNamespaceAssertion()
+            mixinRemap {
+                enableBaseMixin()
+                enableMixinExtra()
+            }
+        }
     }
+}
+
+tasks.named('preRunClient').configure {
+    dependsOn tasks.named('classes')
+}
+
+tasks.named('runClient', JavaExec).configure {
+    jvmArgs = jvmArgs.findAll { !it.startsWith('-Xmx') }
+    maxHeapSize = '6G'
+}
+
+configurations {
+    voxelMap {
+        transitive = false
+    }
+}
+
+tasks.register('voxelMapWithoutMixin', Zip) {
+    from(zipTree(configurations.voxelMap.singleFile)) {
+        exclude 'org/spongepowered/**'
+    }
+    archiveFileName = 'voxelmap-without-mixin.jar'
+    destinationDirectory = layout.buildDirectory.dir('compat')
 }
 
 dependencies {
@@ -130,16 +292,21 @@ dependencies {
     def lombokVersion = '1.18.46'
     def asmVersion = '9.9.1'
 
-    api project(':glsm')
-    // Vendored from Actinium (vendor/README.md); the host supplies both at runtime.
-    compileOnly project(':GTNHLib')
-    compileOnly project(':celeritas-common')
+    compileOnly project(':shader')
+
+    contain('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
+        transitive = false
+    }
+    contain 'org.antlr:antlr4-runtime:4.13.2'
+    contain('org.anarres:jcpp:1.4.14') {
+        transitive = false
+    }
 
     compileOnly 'org.jetbrains:annotations:24.1.0'
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
-    compileOnly 'org.apache.logging.log4j:log4j-api:2.0-beta9'
-    compileOnly 'org.joml:joml:1.10.5'
+    // Cleanroom ships JOML 1.10.9 at runtime. Celeritas's own copy is relocated (com.demonica.celeritas.CeleritasJoml).
+    compileOnly 'org.joml:joml:1.10.9'
     compileOnly 'it.unimi.dsi:fastutil:8.5.18'
     compileOnly 'com.google.code.gson:gson:2.10.1'
     compileOnly "org.ow2.asm:asm:${asmVersion}"
@@ -147,25 +314,86 @@ dependencies {
     compileOnly "org.ow2.asm:asm-tree:${asmVersion}"
     compileOnly "org.ow2.asm:asm-util:${asmVersion}"
 
-    implementation('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
-        transitive = false
-    }
-    implementation 'org.antlr:antlr4-runtime:4.13.2'
-    implementation 'org.anarres:jcpp:1.4.14'
-
     compileOnly "org.lwjgl:lwjgl:${lwjglVersion}"
     compileOnly "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
     // Must stay after lwjgl and lwjgl-opengl: lwjglx ships LWJGL2-style GL11..GL45 (see requireLwjgl3BeforeLwjglx).
     compileOnly 'com.cleanroommc:lwjglx:1.0.0'
 
     modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
+    // Mod compat (com.demonica.compat, com.demonica.mixin.mod), compiled against and loaded only when the mod is
+    // present: mixin configs through MixinLate and mixins.demonica.conditions.properties, classes behind Mods flags.
+    // NeverEnoughAnimation 1.0.7: its GUI fade scales item vertex alpha, which the fast lit item path must honour.
+    modCompileOnly 'curse.maven:neverenoughanimation-1062347:7289408'
+    modCompileOnly 'curse.maven:botania-ceu-1179448:8706250'
+    modCompileOnly 'curse.maven:cofh-core-69162:2920433'
+    modCompileOnly 'curse.maven:extra-utilities-2-225561:2678374'
+    modCompileOnly 'curse.maven:gibbed-1480667:7737413'
+    modCompileOnly 'curse.maven:ichunutil-229060:2801262'
+    modCompileOnly 'curse.maven:creativecore-257814:4722163'
+    modCompileOnly 'curse.maven:littletiles-257818:5180387'
+    // Lumenized: GregTech CEu's bloom and depth utilities, and CodeChickenLib's shader classes they use.
+    modCompileOnly 'curse.maven:gregtech-ce-unofficial-557242:5519022'
+    modCompileOnly 'codechicken:CodeChickenLib:3.3.8'
+    modCompileOnly 'curse.maven:obscure-tooltips-715660:8522661'
+    modCompileOnly 'curse.maven:oldresearchreborn-1632015:8642028'
+    modCompileOnly 'curse.maven:scannable-266784:3146549'
+    // VoxelMap's jar bundles an old Mixin, which would shadow Cleanroom's on the compile classpath: compile against a
+    // copy without it (voxelMapWithoutMixin).
+    voxelMap 'curse.maven:voxelmap-225179:3029445'
+    compileOnly files(tasks.named('voxelMapWithoutMixin'))
+    // CeleritasBlockAccess extends Fluidlogged API's interfaces, so code that calls a WorldSlice needs them.
+    modCompileOnly('maven.modrinth:fluidlogged-api:3.0.6') {
+        transitive = false
+    }
+    // NeoFontRender and its UI addons (RevoUI).
+    modCompileOnly 'curse.maven:revo-font-1617673:8586768'
+    modCompileOnly 'curse.maven:revo-ui-1620532:8593682'
+    // Component Model Hider 1.0 (Multiblocked's block-model hiding API, driven by Modular Machinery CE).
+    modCompileOnly 'curse.maven:component-model-hider-940949:4885858'
+    // Not compiled against: the tests of StellarCoreHudCachingCompatTransformer and of GLSM's redirector run them over
+    // these mods' classes (StellarCore's HUD caching, JourneyMap's grid colours).
+    modCompileOnly 'curse.maven:stellarcore-1064321:8406201'
+    modCompileOnly 'curse.maven:journeymap-32274:5172461'
+
+    // The pinned upstream Celeritas mod (gradle.properties, docs/celeritas/PIN.md).
+    modCompileOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
+    modRuntimeOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
+
+    // -PwithCompatMods: the dev client also loads mods that Demonica has compat for, to check that the compat applies
+    // (MixinLate's configs, C1, the fast renderer's gates). The heaviest (HBM, GregTech, Thaumcraft) are left out, and
+    // RLFoliage, which needs FermiumBooter.
+    if (project.findProperty('withCompatMods') != null) {
+        modRuntimeOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons
+        modRuntimeOnly 'curse.maven:ichunutil-229060:2801262'
+        modRuntimeOnly 'curse.maven:creativecore-257814:4722163'
+        modRuntimeOnly 'curse.maven:littletiles-257818:5180387'
+        modRuntimeOnly 'curse.maven:neverenoughanimation-1062347:7289408'
+        modRuntimeOnly 'curse.maven:snow-real-magic-308663:6275195'
+        modRuntimeOnly 'curse.maven:architecturecraft-tridev-277631:4344128'
+        modRuntimeOnly 'curse.maven:scannable-266784:3146549'
+        modRuntimeOnly 'curse.maven:fluxloading-1207328:7601634'
+        modRuntimeOnly 'curse.maven:extra-utilities-2-225561:2678374'
+        modRuntimeOnly 'curse.maven:codechicken-lib-cre-1328922:6898525'
+        modRuntimeOnly 'curse.maven:redstone-flux-270789:2920436'
+        modRuntimeOnly 'curse.maven:cofh-core-69162:2920433'
+        modRuntimeOnly 'curse.maven:cofh-world-271384:2920434'
+        modRuntimeOnly 'curse.maven:baubles-227083:2518667'
+        modRuntimeOnly 'curse.maven:botania-ceu-1179448:8706250'
+        modRuntimeOnly 'curse.maven:obscure-tooltips-715660:8522661'
+    }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'com.google.guava:guava:21.0'
-    testImplementation project(':GTNHLib')
-    testImplementation project(':celeritas-common')
+    // Gnetum 1.4.3: GnetumHudCachingCompatTransformerTest runs the transformer over its GuiIngameForgeMixin bytes.
+    testImplementation 'maven.modrinth:gnetum:1.4.3'
+    testImplementation project(':shader')
     testImplementation files(sharedMinecraftCompileClasspath())
+    // Celeritas's CeleritasBlockAccess extends Fluidlogged API interfaces, which Forge strips (@Optional.Interface)
+    // when that mod is absent. Tests that load it, as BlockQuadTransformer's do, need them on the classpath.
+    testRuntimeOnly('maven.modrinth:fluidlogged-api:3.0.6') {
+        transitive = false
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -206,6 +434,55 @@ allprojects {
     }
 }
 
+processResources {
+    def resourceProperties = [version: project.version.toString()]
+    inputs.properties(resourceProperties)
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    filesMatching('mcmod.info') {
+        expand(resourceProperties)
+    }
+}
+
+tasks.named('classes').configure {
+    dependsOn mergeEmbeddedLibraryClasses
+    dependsOn generateCeleritasAnchors
+}
+
+tasks.named('sourcesJar').configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    embeddedLibraryProjects.each { libraryProject ->
+        from(libraryProject.sourceSets.main.allSource)
+    }
+}
+
+jar {
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    // The manifest is written in doFirst; declare the inputs or the build cache can restore a stale one.
+    inputs.property('version', project.version.toString())
+
+    into('/') {
+        from configurations.contain
+    }
+
+    doFirst {
+        manifest {
+            attributes(
+                'ModType': 'CRL',
+                'Implementation-Title': 'Demonica',
+                'Implementation-Version': project.version.toString(),
+                'FMLCorePlugin': 'com.demonica.mixins.MixinEarly',
+                'FMLCorePluginContainsFMLMod': 'true',
+                'ForceLoadAsMod': 'true',
+                'FMLAT': 'demonica_at.cfg',
+                'ContainedDeps': configurations.contain.collect { it.name }.join(' '),
+                'NonModDeps': 'true'
+            )
+        }
+    }
+
+    finalizedBy tasks.named('remapJar')
+}
+
 def testRunDirectory = layout.projectDirectory.dir('run/test')
 
 def prepareTestRunDirectory = tasks.register('prepareTestRunDirectory') {
@@ -217,6 +494,12 @@ def prepareTestRunDirectory = tasks.register('prepareTestRunDirectory') {
 
 test {
     dependsOn prepareTestRunDirectory
+    systemProperty 'demonica.projectRoot', rootProject.projectDir.absolutePath
+    // Read from the project directory rather than the classpath: the patch ledger and its drafts (QuarantineLedgerTest)
+    // and the pins (AnchorInventoryTest). Declared, so that editing them re-runs the tests instead of reusing a result.
+    inputs.files('docs/celeritas/LEDGER.md', 'gradle.properties')
+        .withPropertyName('projectFiles').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir('docs/celeritas/patches').withPropertyName('patchDrafts').withPathSensitivity(PathSensitivity.RELATIVE)
     useJUnitPlatform()
     workingDir = testRunDirectory.asFile
     javaLauncher = javaToolchains.launcherFor {
@@ -229,36 +512,77 @@ test {
     }
 }
 
-jar {
-    duplicatesStrategy = DuplicatesStrategy.FAIL
-    manifest.attributes(
-        'Implementation-Title': 'Demonica',
-        'Implementation-Version': project.version,
-        'Demonica-Synced-From': syncline
-    )
+def celeritasCoordinate = "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
+def celeritasPins = property('celeritas_sha256').toString().split(',')*.trim() as Set
+
+/**
+ * The Celeritas jar must be exactly the pinned build: its version string ("2.4.0-dev") is the same for every
+ * upstream dev build, so only the SHA-256 identifies it (docs/celeritas/PIN.md).
+ */
+def verifyCeleritasPin = tasks.register('verifyCeleritasPin') {
+    group = 'verification'
+    description = 'Checks that the resolved Celeritas jar matches the SHA-256 pin in gradle.properties.'
+
+    def coordinate = celeritasCoordinate
+    def pinned = celeritasPins
+    def pinnedJar = configurations.detachedConfiguration(dependencies.create(coordinate)).tap {
+        transitive = false
+    }
+    inputs.files(pinnedJar)
+    inputs.property('pinned', pinned)
+
+    doLast {
+        def jar = pinnedJar.singleFile
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString()
+        if (!(digest in pinned)) {
+            throw new GradleException("${jar.name} has SHA-256 ${digest}, which is not pinned in gradle.properties " +
+                "(celeritas_sha256 = ${pinned.join(', ')}). See docs/celeritas/PIN.md for how to move the pin.")
+        }
+        logger.lifecycle("Celeritas pin OK: ${jar.name} ${digest}")
+    }
 }
 
-publishing {
-    publications {
-        maven(MavenPublication) {
-            artifactId = 'demonica'
-            from components.java
-        }
+/**
+ * The distributed jar's patch anchors, checked as QuarantineGuard checks them in a real install: through the jar's
+ * refmap, against the SRG-named pinned jar. On the pin the guard skips the check, so this is where its production
+ * naming is proven (docs/celeritas/LEDGER.md, "The guard").
+ */
+def verifyProductionAnchors = tasks.register('verifyProductionAnchors', JavaExec) {
+    group = 'verification'
+    description = 'Checks the distributed jar\'s Celeritas patch anchors against the pinned jar in production names.'
+    dependsOn tasks.named('remapJar'), tasks.named('testClasses')
+
+    def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
+    def pinnedJar = configurations.detachedConfiguration(dependencies.create(celeritasCoordinate)).tap {
+        transitive = false
     }
-    // No remote repositories: publishToMavenLocal only, until the license question is settled.
+    inputs.file(remappedJar)
+    inputs.files(pinnedJar)
+
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.demonica.celeritas.guard.ProductionAnchorCheck'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    doFirst {
+        args = [pinnedJar.singleFile.absolutePath, remappedJar.get().asFile.absolutePath]
+    }
 }
 
 def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
+    group = 'verification'
+    description = 'Checks that no class is defined by more than one of the projects merged into the mod jar.'
     dependsOn tasks.named('compileJava')
-    dependsOn libraryProjects.collect { it.tasks.named('classes') }
+    dependsOn embeddedLibraryProjects.collect { it.tasks.named('classes') }
+
+    def componentOutputs = [
+        demonica: files(tasks.named('compileJava', JavaCompile).get().destinationDirectory),
+        GTNHLib: project(':GTNHLib').sourceSets.main.output.classesDirs,
+        glsm: project(':glsm').sourceSets.main.output.classesDirs,
+        shader: project(':shader').sourceSets.main.output.classesDirs
+    ]
 
     doLast {
-        def componentOutputs = [
-            demonica: files(tasks.named('compileJava', JavaCompile).get().destinationDirectory),
-            glsm: project(':glsm').sourceSets.main.output.classesDirs,
-            GTNHLib: project(':GTNHLib').sourceSets.main.output.classesDirs,
-            celeritas: project(':celeritas-common').sourceSets.main.output.classesDirs
-        ]
         def owners = [:]
         def duplicates = []
 
@@ -281,119 +605,98 @@ def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
 }
 
 /**
- * The published jars must carry only Demonica and GLSM: no vendored or host classes, no bundled
- * libraries, no mod metadata, and no POM dependency on an artifact that is never published.
+ * The distributed (remapped) jar: a mod on upstream Celeritas that vendors no renderer. It must carry the mod, its
+ * configs and contained libraries, and must never carry Celeritas, a renamed copy of it, JOML, or anything that
+ * would replace or shadow upstream's classes, services or assets.
  */
-def verifyPublishedJars = tasks.register('verifyPublishedJars') {
+def verifyDistributedJar = tasks.register('verifyDistributedJar') {
     group = 'verification'
-    description = 'Checks the published jars, sources jars and POMs of demonica and demonica-glsm.'
+    description = 'Checks the contents and manifest of the remapped mod jar.'
+    dependsOn tasks.named('remapJar')
 
-    // Resolved here, at configuration time: doLast must not touch Task.project.
-    def rootPath = project.path
-    def expectedVersion = project.version.toString()
-    def glsmCoordinate = "${project.group}:demonica-glsm".toString()
-    def published = [project, project(':glsm')].collect { p ->
-        dependsOn p.tasks.named('jar'), p.tasks.named('sourcesJar'),
-            p.tasks.named('generatePomFileForMavenPublication'),
-            p.tasks.named('generateMetadataFileForMavenPublication')
-        [
-            path: p.path,
-            classesJar: p.tasks.named('jar', Jar).flatMap { it.archiveFile },
-            sourcesJar: p.tasks.named('sourcesJar', Jar).flatMap { it.archiveFile },
-            pomFile: p.tasks.named('generatePomFileForMavenPublication').map { it.destination },
-            moduleFile: p.tasks.named('generateMetadataFileForMavenPublication').flatMap { it.outputFile }
-        ]
-    }
+    def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
+    def containedJars = provider { configurations.contain.collect { it.name } }
+    inputs.file(remappedJar)
 
     doLast {
-        def forbiddenEntries = [
-            ~/^dhj\//, ~/^grondag\//, ~/^com\/gtnewhorizon\/gtnhlib\//, ~/^com\/dhj\//,
-            ~/^org\/joml\//, ~/^org\/taumc\//, ~/^org\/antlr\//, ~/^org\/anarres\//,
-            ~/^net\/minecraft\//,
-            // GLSM ships its own net.minecraftforge.eventbus shim; nothing else from Forge.
-            ~/^net\/minecraftforge\/(?!eventbus\/)/,
-            ~/^(mcmod\.info|pack\.mcmeta|fabric\.mod\.json|META-INF\/mods\.toml|mixins\..*\.json)$/,
-            ~/\.jar$/
-        ]
-        def forbiddenAttributes = ~/^(FML.*|Mixin.*|Tweak.*|ModType|ModSide|ForceLoadAsMod|ContainedDeps|NonModDeps)$/
-        def requiredEntries = [
-            (rootPath): [
-                'net/coderbot/iris/Iris.class',
-                'assets/iris/lang/en_us.lang',
-                'assets/angelica/shaders/centerDepth.vsh',
-                'assets/actinium/shaders/include/chunk_vertex.glsl',
-                'META-INF/demonica_at.cfg'
-            ],
-            ':glsm': [
-                'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
-                'com/gtnewhorizons/angelica/lwjgl3/Lwjgl3GLRenderBackend.class',
-                'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend'
-            ]
-        ]
-        def requiredSources = [
-            (rootPath): 'net/coderbot/iris/Iris.java',
-            ':glsm': 'com/gtnewhorizons/angelica/glsm/GLStateManager.java'
-        ]
-        def unpublished = ['GTNHLib', 'celeritas-common']
+        def jarFile = remappedJar.get().asFile
         def problems = []
-
-        published.each { p ->
-            def classesJar = p.classesJar.get().asFile
-            def sourcesJar = p.sourcesJar.get().asFile
-
-            [classesJar, sourcesJar].each { jarFile ->
-                new java.util.jar.JarFile(jarFile).withCloseable { jar ->
-                    def names = jar.entries().findAll { !it.directory }.collect { it.name }
-                    names.each { name ->
-                        if (forbiddenEntries.any { name =~ it }) {
-                            problems << "${jarFile.name}: forbidden entry ${name}"
-                        }
-                    }
-                    def required = jarFile == classesJar ? requiredEntries[p.path] : [requiredSources[p.path]]
-                    (required - names).each { problems << "${jarFile.name}: missing required entry ${it}" }
-                    jar.manifest?.mainAttributes?.keySet()*.toString()?.findAll { it ==~ forbiddenAttributes }?.each {
-                        problems << "${jarFile.name}: forbidden manifest attribute ${it}"
-                    }
+        new java.util.jar.JarFile(jarFile).withCloseable { jar ->
+            def names = jar.entries().findAll { !it.directory }.collect { it.name } as Set
+            def forbidden = [
+                ~/^org\/embeddedt\//, ~/^org\/taumc\//, ~/^dhj\//, ~/^com\/dhj\//, ~/^grondag\//, ~/^org\/joml\//,
+                ~/^assets\/celeritas\//, ~/^assets\/sodium\//,
+                ~/^META-INF\/services\/org\.embeddedt\./
+            ]
+            names.each { name ->
+                if (forbidden.any { name =~ it }) {
+                    problems << "forbidden entry ${name}"
                 }
             }
+            def required = [
+                'mcmod.info',
+                'META-INF/demonica_at.cfg',
+                'com/demonica/Demonica.class',
+                'com/demonica/mixins/MixinEarly.class',
+                'me/flashyreese/mods/reeses_sodium_options/client/gui/SodiumVideoOptionsScreen.class',
+                'assets/reeses-sodium-options/lang/en_us.lang',
+                'net/coderbot/iris/Iris.class',
+                'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
+                'com/gtnewhorizon/gtnhlib/asm/ClassConstantPoolParser.class',
+                'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend',
+                'META-INF/services/com.mitchej123.glsm.GLStateManagerService',
+                'mixins.demonica.core.json',
+                'mixins.demonica.iris.json',
+                'mixins.demonica.celeritas.json',
+                'mixins.demonica.kirino.json',
+                'mixins.demonica.hbm.early.json',
+                // MixinLate reads it at startup and refuses to run without it.
+                'mixins.demonica.conditions.properties',
+                'mixins.demonica.distanthorizons.json',
+                'mixins.demonica-refmap.json',
+                // The pin and the patches' anchors, which QuarantineGuard checks at startup.
+                'META-INF/demonica/celeritas-anchors',
+                // Loaded by path at runtime (Celeritas's ShaderLoader): the font renderer's and the panorama's shaders.
+                'assets/angelica/shaders/fontFilter.vsh',
+                'assets/angelica/shaders/panorama_cube.vert'
+            ] + containedJars.get()
+            (required - names).each { problems << "missing entry ${it}" }
 
-            def manifest = new java.util.jar.JarFile(classesJar).withCloseable { it.manifest.mainAttributes }
-            if (manifest.getValue('Implementation-Version') != expectedVersion) {
-                problems << "${classesJar.name}: Implementation-Version is ${manifest.getValue('Implementation-Version')}"
-            }
-            if (manifest.getValue('Demonica-Synced-From') != syncline) {
-                problems << "${classesJar.name}: Demonica-Synced-From is ${manifest.getValue('Demonica-Synced-From')}"
-            }
-
-            def pom = new groovy.xml.XmlSlurper().parse(p.pomFile.get())
-            def pomDependencies = pom.dependencies.dependency.collect { "${it.groupId}:${it.artifactId}".toString() }
-            pomDependencies.each { dep ->
-                def (depGroup, depArtifact) = dep.split(':')
-                if (depArtifact in unpublished || depGroup == 'maven.modrinth' || dep.contains('remapped')) {
-                    problems << "${p.path} POM: forbidden dependency ${dep}"
+            def manifest = jar.manifest.mainAttributes
+            def expected = [
+                'ModType': 'CRL',
+                'FMLCorePlugin': 'com.demonica.mixins.MixinEarly',
+                'FMLCorePluginContainsFMLMod': 'true',
+                'ForceLoadAsMod': 'true',
+                'FMLAT': 'demonica_at.cfg',
+                'NonModDeps': 'true'
+            ]
+            expected.each { key, value ->
+                if (manifest.getValue(key) != value) {
+                    problems << "manifest ${key} is ${manifest.getValue(key)}, expected ${value}"
                 }
             }
-            if (p.path == rootPath && !pomDependencies.contains(glsmCoordinate)) {
-                problems << "${p.path} POM: missing dependency ${glsmCoordinate}"
+            def contained = (manifest.getValue('ContainedDeps') ?: '').tokenize(' ') as Set
+            if (contained != (containedJars.get() as Set)) {
+                problems << "manifest ContainedDeps is ${contained}, expected ${containedJars.get()}"
             }
 
-            def module = new groovy.json.JsonSlurper().parse(p.moduleFile.get().asFile)
-            module.variants.each { variant ->
-                variant.dependencies?.each { dep ->
-                    if (dep.module in unpublished || dep.group == 'maven.modrinth' || "${dep.group}:${dep.module}".contains('remapped')) {
-                        problems << "${p.path} module metadata (${variant.name}): forbidden dependency ${dep.group}:${dep.module}"
-                    }
-                }
+            def metadata = new groovy.json.JsonSlurper().parse(jar.getInputStream(jar.getEntry('mcmod.info')))
+            def mod = metadata[0]
+            if (mod.modid != 'demonica' || !(mod.dependencies as List).contains('celeritas')
+                    || !(mod.requiredMods as List).contains('celeritas')) {
+                problems << "mcmod.info must declare modid demonica and require celeritas: ${mod}"
             }
         }
-
         if (!problems.isEmpty()) {
-            throw new GradleException("Published artifacts failed verification:\n - ${problems.join('\n - ')}")
+            throw new GradleException("${jarFile.name} failed verification:\n - ${problems.join('\n - ')}")
         }
     }
 }
 
 tasks.named('check').configure {
+    dependsOn verifyCeleritasPin
     dependsOn verifyModuleBoundaries
-    dependsOn verifyPublishedJars
+    dependsOn verifyDistributedJar
+    dependsOn verifyProductionAnchors
 }

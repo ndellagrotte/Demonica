@@ -1,0 +1,56 @@
+# Demonica forks from Actinium
+
+Demonica was synced from [Actinium](https://github.com/DHJComical/Actinium)
+until `actinium@4a19c95952cb9710211d29bec3440e752b6a2d03` (tag
+`actinium-fork-point/4a19c959`). At that commit, every synced scope matched
+Actinium file for file. `provenance_audit.py --expect-identical` found 484
+Iris-tree, 223 GLSM, 90 GTNHLib, 314 celeritas-common, 8 resource and 74 test
+files verbatim.
+
+From the fork point on:
+- **Demonica owns its code.** Changes land here directly, not in Actinium
+  first. Actinium is no longer synced.
+- **Demonica becomes the mod.** It takes over Actinium's role as a shader mod
+  for 1.12.2 on Cleanroom. Instead of vendoring a renderer, it runs on the
+  separately installed upstream Celeritas mod (mod id `celeritas`), pinned in
+  [`celeritas/PIN.md`](celeritas/PIN.md).
+- **Packages may be renamed.** Actinium's own `com.dhj.actinium` code becomes
+  `com.demonica`. Upstream-derived packages keep their names: `net.coderbot`,
+  `net.irisshaders`, `kroppeb`, `com.gtnewhorizons.angelica`,
+  `me.flashyreese`. Asset namespaces (`iris`, `angelica`, `actinium`,
+  `reeses-sodium-options`) stay.
+- **Actinium's code enters by porting, not syncing.** Commits that port code
+  from Actinium carry `Ported-From: actinium@4a19c959`, only so that `git log
+  --grep=Ported-From` can trace where the code came from. Once ported, the
+  code is Demonica's to change.
+- **Celeritas is patched only through the quarantine.** Demonica may patch
+  Celeritas internals only in `mixins.demonica.celeritas.json`. Each patch gets
+  a ledger entry and an upstream PR draft
+  ([`celeritas/LEDGER.md`](celeritas/LEDGER.md)), is guarded by the jar pin and
+  the anchor audit, and fails soft.
+
+## Identity
+
+| | Actinium | Demonica |
+|---|---|---|
+| Mod id | `actinium` | `demonica` |
+| Root package | `com.dhj.actinium` | `com.demonica` |
+| Options file | `config/actinium-options.json` | `config/demonica-options.json`, migrated once from `actinium-options.json` |
+| Terrain renderer | vendored Celeritas fork (`dhj.embeddedt.*`) | upstream Celeritas, installed separately |
+
+Demonica refuses to start alongside Actinium and says why. Both mods patch the
+same classes, and Actinium carries a second renderer.
+
+## History
+
+The sync era is documented in [`PROVENANCE.md`](PROVENANCE.md) and its
+manifests. `scripts/provenance_audit.py` and `scripts/test_port_scan.py` still
+work against the tags `angelica-baseline/9fd02900ef`,
+`actinium-syncline/fee5de38` and `actinium-fork-point/4a19c959`. They describe
+how Demonica got here. They are not a rule for new changes.
+
+## License
+
+Actinium's root project is GPL-3.0. Porting it makes the Demonica jar a GPL-3.0
+combined work. Nothing is published until the maintainer decides how to handle
+that (see [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)).

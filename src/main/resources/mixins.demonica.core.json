@@ -1,0 +1,35 @@
+{
+  "package": "com.demonica.mixin",
+  "required": true,
+  "refmap": "mixins.demonica-refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8.5",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [],
+  "server": [],
+  "client": [
+    "core.AccessorActiveRenderInfo",
+    "core.MinecraftAccessor",
+    "core.MixinMinecraft",
+    "core.MixinRenderGlobalDestroyBlock",
+    "core.MixinTessellator",
+    "core.MixinTextureManagerDebugLabels",
+    "core.MixinTileEntityRendererDispatcherBatch",
+    "core.MixinVertexBufferUploader",
+    "core.MixinWorldVertexBufferUploader",
+    "core.startup.MixinEntityRendererFovFallback",
+    "core.startup.MixinGameSettingsIrisInit",
+    "core.startup.MixinMinecraftCoreProfileDisplay",
+    "core.startup.MixinMinecraftIrisLoadingComplete",
+    "core.startup.MixinOpenGlHelper",
+    "core.startup.MixinSplashProgress",
+    "core.terrain.AccessorEntityRenderer",
+    "core.vertex.MixinVertexBuffer",
+    "features.options.MixinEntityRendererDynamicFov",
+    "fontrenderer.MixinFontRenderer",
+    "gui.MixinGuiMainMenu"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "package": "com.demonica.mixin.celeritas",
+  "required": false,
+  "refmap": "mixins.demonica-refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8.5",
+  "compatibilityLevel": "JAVA_8",
+  "plugin": "com.demonica.celeritas.guard.QuarantinePlugin",
+  "mixins": [],
+  "server": [],
+  "client": [
+    "internal.ChunkTrackerMixin",
+    "internal.CyclingControlMixin",
+    "internal.DefaultChunkRendererMixin",
+    "internal.GlProgramMixin",
+    "internal.RenderSectionManagerMixin",
+    "internal.ShaderChunkRendererMixin",
+    "internal.SimpleWorldRendererAccessMixin",
+    "internal.SimpleWorldRendererMixin",
+    "internal.SliderControlMixin",
+    "seam.CeleritasWorldRendererMixin",
+    "seam.CeleritasWorldRendererShadowMixin",
+    "seam.ChunkBuilderMeshingTaskCompatMixin",
+    "seam.ChunkBuilderMeshingTaskMixin",
+    "seam.GLStateManagerFogServiceMixin",
+    "seam.RenderGlobalTerrainMixin",
+    "seam.VintageBlockRendererMixin",
+    "seam.VintageBlockRendererQuadsMixin",
+    "seam.VintageChunkBuildContextMixin",
+    "seam.VintageRenderPassConfigurationBuilderMixin",
+    "seam.VintageRenderSectionManagerMixin",
+    "seam.VintageRenderSectionManagerShadowMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

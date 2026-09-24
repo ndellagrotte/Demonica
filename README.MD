@@ -1,44 +1,66 @@
 # Demonica
 
-Demonica is the [Iris](https://github.com/IrisShaders/Iris) shader pipeline and
-GLSM, the GL state manager, packaged as libraries for Minecraft 1.12.2 on
-Cleanroom. It is a fork of [Angelica](https://github.com/GTNewHorizons/Angelica)
-that carries the 1.12.2 adaptation developed in
-[Actinium](https://github.com/DHJComical/Actinium). Every synced file is
-byte-identical to the Actinium syncline and audited
-([`docs/PROVENANCE.md`](docs/PROVENANCE.md)).
+Demonica brings shader packs to Minecraft 1.12.2 on Cleanroom. It is the
+[Iris](https://github.com/IrisShaders/Iris) shader pipeline, the GLSM GL state
+manager and a compatibility layer, running on top of the separately installed
+[Celeritas](https://git.taumc.org/embeddedt/celeritas) renderer. It takes over
+the role of [Actinium](https://github.com/DHJComical/Actinium), from which it
+forked at `4a19c959` ([`docs/FORK.md`](docs/FORK.md)); unlike Actinium, it
+carries no copy of the terrain renderer.
 
-**It is not a mod.** Demonica has no mixins, no mod metadata and no terrain
-renderer. A host mod (Actinium is the reference) wires it into the game;
-[`docs/HOST_CONTRACT.md`](docs/HOST_CONTRACT.md) lists what the host must supply.
+**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested) and Celeritas's 1.12.2
+mod, the build pinned in [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md):
+upstream commit `06999aab`, as published by the Celeritas auto-build (the release
+asset `01-celeritas-forge-mc12.2-2.4.0-dev.jar` or the Maven jar; both are
+accepted).
+Demonica does not run next to Actinium, and does nothing without Celeritas, so
+that the game can tell you it is missing.
 
-## Modules
+## What it does
 
-| Gradle project | Artifact | Contents |
-|---|---|---|
-| `:` | `com.demonica:demonica` | the Iris tree (`net.coderbot`, `kroppeb`, `net.irisshaders`) and its resources |
-| `:glsm` | `com.demonica:demonica-glsm` | GLSM and the LWJGL 3 render backend |
-| `:GTNHLib`, `:celeritas-common` | never published | Actinium's forks, vendored compile-only ([`vendor/README.md`](vendor/README.md)) |
+- Shader packs draw Celeritas's terrain, with terrain shadows and the block IDs
+  packs use for waving plants and water.
+- GLSM, Angelica's GL state manager, to which vanilla's and mods' GL calls are
+  redirected.
+- Reese's Sodium Options for Video Settings, with Demonica's own settings.
+- Actinium's draw fast paths, batching font renderer, end portal, title-screen
+  panorama and debug tools, and its compatibility with other mods.
 
-Both jars are MCP-named and are not remapped. Syncline:
-`actinium@fee5de3834352050fc453bde1d93030c6d434983`.
+Demonica patches Celeritas's own classes in one place only, and each patch is
+recorded with a draft of the upstream change that would make it unnecessary
+([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)). If a different
+Celeritas build is installed, Demonica checks what its patches bind to before
+applying any of them, and turns off what no longer fits: at worst shaders are
+off, and the log and the shader pack screen say why.
 
 ## Building
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
-1.12.2/Cleanroom workspace through Unimined.
+1.12.2/Cleanroom workspace through Unimined and downloads the pinned Celeritas
+from `maven.outlands.top`.
 
 ```sh
-./gradlew build                # compile, tests, module-boundary and published-jar checks
-./gradlew publishToMavenLocal  # the only publishing target for now
+./gradlew build      # compile, test, and check the pin, the patches' anchors and the mod jar
+./gradlew runClient  # dev client with Celeritas and Demonica
 ```
+
+The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
+normal install. `runClient` takes:
+
+| Property | Effect |
+|---|---|
+| `-PdevScript=@scripts/<name>.txt` | drive the client from a script in `run/client/scripts` (steps in `com.demonica.dev.DevHarness`) |
+| `-PdevProps=key=value,...` | pass system properties, for example `demonica.guard.drill=SHADOW` to rehearse a patch group failing |
+| `-PwithCompatMods` | also load the mods Demonica has compatibility code for |
+| `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
+| `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |
 
 ## License
 
-The license of the combined work is undecided. Angelica's code is LGPL-3.0
-([`LICENSE`](LICENSE)), and Actinium, whose changes Demonica carries, is
-GPL-3.0. Until that is settled, nothing is published beyond `mavenLocal`. See
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for every upstream and its terms.
+Demonica combines Angelica's LGPL-3.0 code with code ported from Actinium,
+which is GPL-3.0, so the combined work is GPL-3.0. Nothing is published until
+the maintainer decides how to release it. See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## Credits
 
@@ -49,6 +71,7 @@ GPL-3.0. Until that is settled, nothing is published beyond `mavenLocal`. See
 - embeddedt for Celeritas; JellySquid and the CaffeineMC team for Sodium
 - The GTNewHorizons team for GTNHLib; embeddedt and Ferri_Arnus for
   [glsl-transformation-lib](https://github.com/TauMC/glsl-transformation-lib)
+- FlashyReese for [Reese's Sodium Options](https://github.com/FlashyReese/reeses-sodium-options)
 - The original ShadersMod authors: karyonix, sonic ether, id_miner and daxnitro
 - [Mesa](https://gitlab.freedesktop.org/mesa/mesa), for the display-list ID
   allocator port and the fixed-function shader generation it inspired

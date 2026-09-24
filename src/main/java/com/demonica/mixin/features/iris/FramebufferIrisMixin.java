@@ -1,0 +1,266 @@
+package com.demonica.mixin.features.iris;
+
+import com.gtnewhorizons.angelica.glsm.GLStateManager;
+import net.coderbot.iris.apiimpl.IrisApiV0Impl;
+import net.coderbot.iris.debug.IrisGlDebug;
+import net.coderbot.iris.gl.framebuffer.MinecraftFramebufferHelper;
+import net.coderbot.iris.rendertarget.IRenderTargetExt;
+import net.minecraft.client.renderer.OpenGlHelper;
+import net.minecraft.client.shader.Framebuffer;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL30;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.nio.IntBuffer;
+
+@Mixin(Framebuffer.class)
+public class FramebufferIrisMixin implements IRenderTargetExt {
+    @Unique
+    private int demonica$depthBufferVersion;
+
+    @Unique
+    private int demonica$colorBufferVersion;
+
+    @Unique
+    private int demonica$depthTextureId = -1;
+
+    @Shadow
+    public boolean useDepth;
+
+    @Shadow
+    public int framebufferTextureWidth;
+
+    @Shadow
+    public int framebufferTextureHeight;
+
+    @Shadow
+    public int framebufferWidth;
+
+    @Shadow
+    public int framebufferHeight;
+
+    @Shadow
+    public int framebufferObject;
+
+    @Shadow
+    public int framebufferTexture;
+
+    @Shadow
+    private boolean stencilEnabled;
+
+    @Unique
+    private void demonica$prepareFramebufferOutputState() {
+        GLStateManager.glActiveTexture(GL13.GL_TEXTURE3);
+        GLStateManager.disableTexture();
+        GLStateManager.glActiveTexture(GL13.GL_TEXTURE2);
+        GLStateManager.disableTexture();
+        GLStateManager.glActiveTexture(GL13.GL_TEXTURE1);
+        GLStateManager.disableTexture();
+        GLStateManager.glActiveTexture(OpenGlHelper.defaultTexUnit);
+        GLStateManager.enableTexture();
+        GLStateManager.glTexEnvi(GL11.GL_TEXTURE_ENV, GL11.GL_TEXTURE_ENV_MODE, GL11.GL_MODULATE);
+        GLStateManager.disableAlphaTest();
+        GLStateManager.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        GLStateManager.glColorMask(true, true, true, true);
+    }
+
+    @Inject(method = "deleteFramebuffer()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/Framebuffer;unbindFramebuffer()V", shift = At.Shift.AFTER))
+    private void demonica$onDestroyBuffers(CallbackInfo ci) {
+        this.demonica$depthBufferVersion++;
+        this.demonica$colorBufferVersion++;
+    }
+
+    @Inject(method = "bindFramebuffer(Z)V", at = @At("RETURN"))
+    private void demonica$restoreMinecraftFramebufferBuffers(boolean setViewport, CallbackInfo ci) {
+        MinecraftFramebufferHelper.restoreMinecraftFramebufferBuffers();
+    }
+
+    @Inject(method = "unbindFramebuffer()V", at = @At("RETURN"))
+    private void demonica$restoreDefaultFramebufferBuffers(CallbackInfo ci) {
+        MinecraftFramebufferHelper.restoreDefaultFramebufferBuffers();
+    }
+
+    @Inject(method = "framebufferRenderExt(IIZ)V", at = @At("HEAD"))
+    private void demonica$beginFramebufferOutputDiagnostics(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
+            this.demonica$prepareFramebufferOutputState();
+        }
+        IrisGlDebug.markStage("framebuffer-output:entry");
+        IrisGlDebug.beginFramebufferSamplePhase("minecraft-output");
+        IrisGlDebug.logFramebufferOutputState(
+            "entry",
+            this.framebufferTexture,
+            this.framebufferWidth,
+            this.framebufferHeight,
+            this.framebufferTextureWidth,
+            this.framebufferTextureHeight,
+            width,
+            height,
+            disableBlend
+        );
+        IrisGlDebug.logCurrentFramebufferSamples("before-framebuffer-render-ext", 1);
+    }
+
+    @Inject(
+        method = "framebufferRenderExt(IIZ)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/Framebuffer;bindFramebufferTexture()V")
+    )
+    private void demonica$beforeFramebufferTextureBind(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
+            this.demonica$prepareFramebufferOutputState();
+        }
+        IrisGlDebug.logFramebufferOutputState(
+            "before-bind-texture",
+            this.framebufferTexture,
+            this.framebufferWidth,
+            this.framebufferHeight,
+            this.framebufferTextureWidth,
+            this.framebufferTextureHeight,
+            width,
+            height,
+            disableBlend
+        );
+    }
+
+    @Inject(
+        method = "framebufferRenderExt(IIZ)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/Framebuffer;bindFramebufferTexture()V", shift = At.Shift.AFTER)
+    )
+    private void demonica$afterFramebufferTextureBind(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        IrisGlDebug.logFramebufferOutputState(
+            "after-bind-texture",
+            this.framebufferTexture,
+            this.framebufferWidth,
+            this.framebufferHeight,
+            this.framebufferTextureWidth,
+            this.framebufferTextureHeight,
+            width,
+            height,
+            disableBlend
+        );
+    }
+
+    @Inject(
+        method = "framebufferRenderExt(IIZ)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/Tessellator;draw()V")
+    )
+    private void demonica$beforeFramebufferOutputDraw(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        IrisGlDebug.logFramebufferOutputState(
+            "before-draw",
+            this.framebufferTexture,
+            this.framebufferWidth,
+            this.framebufferHeight,
+            this.framebufferTextureWidth,
+            this.framebufferTextureHeight,
+            width,
+            height,
+            disableBlend
+        );
+    }
+
+    @Inject(
+        method = "framebufferRenderExt(IIZ)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/Tessellator;draw()V", shift = At.Shift.AFTER)
+    )
+    private void demonica$afterFramebufferOutputDraw(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        IrisGlDebug.logFramebufferOutputState(
+            "after-draw",
+            this.framebufferTexture,
+            this.framebufferWidth,
+            this.framebufferHeight,
+            this.framebufferTextureWidth,
+            this.framebufferTextureHeight,
+            width,
+            height,
+            disableBlend
+        );
+    }
+
+    @Inject(method = "framebufferRenderExt(IIZ)V", at = @At("RETURN"))
+    private void demonica$endFramebufferOutputDiagnostics(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
+            GLStateManager.glActiveTexture(OpenGlHelper.defaultTexUnit);
+            GLStateManager.glColorMask(true, true, true, true);
+        }
+        IrisGlDebug.logFramebufferOutputState(
+            "return",
+            this.framebufferTexture,
+            this.framebufferWidth,
+            this.framebufferHeight,
+            this.framebufferTextureWidth,
+            this.framebufferTextureHeight,
+            width,
+            height,
+            disableBlend
+        );
+        IrisGlDebug.logCurrentFramebufferSamples("after-framebuffer-render-ext", 1);
+        IrisGlDebug.endFramebufferSamplePhase();
+        IrisGlDebug.markStage("framebuffer-output:return");
+    }
+
+    @Inject(method = "deleteFramebuffer()V", at = @At(value = "FIELD", target = "Lnet/minecraft/client/shader/Framebuffer;depthBuffer:I", shift = At.Shift.BEFORE, ordinal = 0))
+    private void demonica$deleteDepthTexture(CallbackInfo ci) {
+        if (this.demonica$depthTextureId > -1) {
+            GLStateManager.glDeleteTextures(this.demonica$depthTextureId);
+            this.demonica$depthTextureId = -1;
+        }
+    }
+
+    @Redirect(method = "createFramebuffer(II)V", at = @At(value = "FIELD", target = "Lnet/minecraft/client/shader/Framebuffer;useDepth:Z"))
+    private boolean demonica$skipVanillaDepthRenderbuffer(Framebuffer framebuffer) {
+        return false;
+    }
+
+    @Inject(
+        method = "createFramebuffer(II)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/Framebuffer;framebufferClear()V", shift = At.Shift.BEFORE, ordinal = 1)
+    )
+    private void demonica$createDepthTexture(int width, int height, CallbackInfo ci) {
+        if (!this.useDepth) {
+            return;
+        }
+
+        this.demonica$depthTextureId = GLStateManager.glGenTextures();
+        GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, this.demonica$depthTextureId);
+
+        GLStateManager.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
+        GLStateManager.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
+        GLStateManager.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
+        GLStateManager.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
+        GLStateManager.glTexParameteri(GL11.GL_TEXTURE_2D, GL14.GL_TEXTURE_COMPARE_MODE, 0);
+
+        if (this.stencilEnabled) {
+            GLStateManager.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_DEPTH24_STENCIL8, width, height, 0, GL30.GL_DEPTH_STENCIL, GL30.GL_UNSIGNED_INT_24_8, (IntBuffer) null);
+            GLStateManager.glFramebufferTexture2D(OpenGlHelper.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, this.demonica$depthTextureId, 0);
+            GLStateManager.glFramebufferTexture2D(OpenGlHelper.GL_FRAMEBUFFER, GL30.GL_STENCIL_ATTACHMENT, GL11.GL_TEXTURE_2D, this.demonica$depthTextureId, 0);
+        } else {
+            GLStateManager.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_DEPTH_COMPONENT, width, height, 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, (IntBuffer) null);
+            GLStateManager.glFramebufferTexture2D(OpenGlHelper.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, this.demonica$depthTextureId, 0);
+        }
+
+        this.demonica$depthBufferVersion++;
+    }
+
+    @Override
+    public int iris$getDepthBufferVersion() {
+        return this.demonica$depthBufferVersion;
+    }
+
+    @Override
+    public int iris$getColorBufferVersion() {
+        return this.demonica$colorBufferVersion;
+    }
+
+    @Override
+    public int iris$getDepthTextureId() {
+        return this.demonica$depthTextureId;
+    }
+}

@@ -148,9 +148,9 @@ public class GLStateManager {
     public static void warnOnce(String key, String fmt, Object... args) {
         if (WARN_ONCE.add(key)) LOGGER.warn(fmt, args);
     }
-    private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("actinium.glsm.verboseDrawLogs");
+    private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
     /** Escape hatch: -Dactinium.glsmFullClientArrayUpload=true restores whole-allocation uploads per draw. */
-    private static final boolean FULL_CLIENT_ARRAY_UPLOAD = Boolean.getBoolean("actinium.glsmFullClientArrayUpload");
+    private static final boolean FULL_CLIENT_ARRAY_UPLOAD = Boolean.getBoolean("demonica.glsmFullClientArrayUpload");
 
     // Thread Checking - must be early in static init order so isMainThread() works for state initialization
     @Getter private static final Thread MainThread = Thread.currentThread();
@@ -2081,11 +2081,17 @@ public class GLStateManager {
     }
 
     private static int texCoordAttributeLocation() {
-        return switch (ctx().clientActiveTextureUnit) {
-            case 0 -> Usage.PRIMARY_UV.getAttributeLocation();
-            case 1 -> Usage.SECONDARY_UV.getAttributeLocation();
-            default -> -1;
-        };
+        final int unit = ctx().clientActiveTextureUnit;
+        final int location = Usage.uvAttributeLocation(unit);
+        if (location < 0) {
+            // Fail Fast: only legacy texture units 0..3 have a UV attribute slot. Report the
+            // offending unit rather than silently discarding its texcoord array (issue #175).
+            warnOnce(
+                "texcoord-unsupported-unit-" + unit,
+                "Unsupported client-active texture unit {} for a texcoord attribute (supported 0..3); its texcoord array is discarded",
+                unit);
+        }
+        return location;
     }
 
     private static int getBoundTexture() {
@@ -2402,6 +2408,14 @@ public class GLStateManager {
         }
     }
 
+    /** Array form of {@link #glDeleteTextures(IntBuffer)}: the redirect target for LWJGL 3's {@code GL11C.glDeleteTextures(int[])}. */
+    public static void glDeleteTextures(int[] ids) {
+        for (final int id : ids) {
+            deferDeleteTexture(id);
+            onDeleteTexture(id);
+        }
+    }
+
     /** Shrink texture to 1x1 to free GPU memory, unbind from all units, but keep the name valid. */
     private static void deferDeleteTexture(int id) {
         if (id == 0) return;
@@ -2453,6 +2467,14 @@ public class GLStateManager {
     public static void glGenTextures(IntBuffer textures) {
         flushDeferredTextureDeletes();
         RENDER_BACKEND.genTextures(textures);
+    }
+
+    /** Array form of {@link #glGenTextures(IntBuffer)}: the redirect target for LWJGL 3's {@code GL11C.glGenTextures(int[])}. */
+    public static void glGenTextures(int[] textures) {
+        flushDeferredTextureDeletes();
+        for (int i = 0; i < textures.length; i++) {
+            textures[i] = RENDER_BACKEND.genTextures();
+        }
     }
 
     public static void enableTexture() {
@@ -3189,6 +3211,9 @@ public class GLStateManager {
 
     public static void glTexCoordPointer(int size, int type, int stride, ByteBuffer pointer) {
         final int loc = texCoordAttributeLocation();
+        // A supported unit (0..3) always resolves to a real attribute slot, so its texcoord array is
+        // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
+        // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
         glVertexAttribPointer(loc, size, type, false, stride, pointer);
     }
@@ -3211,30 +3236,45 @@ public class GLStateManager {
 
     public static void glTexCoordPointer(int size, int type, int stride, FloatBuffer pointer) {
         final int loc = texCoordAttributeLocation();
+        // A supported unit (0..3) always resolves to a real attribute slot, so its texcoord array is
+        // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
+        // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
         glVertexAttribPointer(loc, size, GL11.GL_FLOAT, false, stride, MemoryUtilities.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, ShortBuffer pointer) {
         final int loc = texCoordAttributeLocation();
+        // A supported unit (0..3) always resolves to a real attribute slot, so its texcoord array is
+        // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
+        // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
         glVertexAttribPointer(loc, size, GL11.GL_SHORT, false, stride, MemoryUtilities.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, IntBuffer pointer) {
         final int loc = texCoordAttributeLocation();
+        // A supported unit (0..3) always resolves to a real attribute slot, so its texcoord array is
+        // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
+        // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
         glVertexAttribPointer(loc, size, GL11.GL_INT, false, stride, MemoryUtilities.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, DoubleBuffer pointer) {
         final int loc = texCoordAttributeLocation();
+        // A supported unit (0..3) always resolves to a real attribute slot, so its texcoord array is
+        // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
+        // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
         glVertexAttribPointer(loc, size, GL11.GL_DOUBLE, false, stride, MemoryUtilities.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, long pointer_buffer_offset) {
         final int loc = texCoordAttributeLocation();
+        // A supported unit (0..3) always resolves to a real attribute slot, so its texcoord array is
+        // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
+        // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
         glVertexAttribPointer(loc, size, type, false, stride, pointer_buffer_offset);
     }
@@ -3347,8 +3387,13 @@ public class GLStateManager {
             case GL11.GL_COLOR_ARRAY -> VertexFlags.COLOR_BIT;
             case GL11.GL_NORMAL_ARRAY -> VertexFlags.NORMAL_BIT;
             case GL11.GL_TEXTURE_COORD_ARRAY -> switch (ctx().clientActiveTextureUnit) {
+                // Units 0/1 are the legacy texture/lightmap slots. Units 2/3 are the extended
+                // multi-texture UV slots (attributes 5/6) and carry no legacy FFP format flag; their
+                // per-vertex availability is tracked per attribute in VertexAttribState. This mirrors
+                // texCoordAttributeLocation(), which supports exactly units 0..3.
                 case 0 -> VertexFlags.TEXTURE_BIT;
                 case 1 -> VertexFlags.BRIGHTNESS_BIT;
+                case 2, 3 -> 0;
                 default -> 0;
             };
             default -> 0; // GL_VERTEX_ARRAY — position is implicit
@@ -5984,6 +6029,16 @@ public class GLStateManager {
             }
         }
         RENDER_BACKEND.drawBuffers(bufs);
+    }
+
+    /**
+     * Array form of {@link #glDrawBuffers(IntBuffer)}: the redirect target for LWJGL 3's
+     * {@code GL20C.glDrawBuffers(int[])}. The backend needs a direct buffer; the recorder copies it.
+     */
+    public static void glDrawBuffers(int[] bufs) {
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            glDrawBuffers(stack.ints(bufs));
+        }
     }
 
     // Multisample Commands

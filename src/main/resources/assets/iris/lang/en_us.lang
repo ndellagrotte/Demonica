@@ -25,6 +25,7 @@ options.iris.shaderPackList=Shader Pack List...
 options.iris.refreshShaderPacks=Refresh Shader Packs
 options.iris.shaderPackSelection=Shader Packs...
 options.iris.shaderPackSelection.title=Shader Packs
+options.iris.shaderPackSelection.unavailable=Shaders are unavailable
 options.iris.shaderPackSelection.addedPack=Added Shader Pack "%s"
 options.iris.shaderPackSelection.addedPacks=Added %s Shader Packs
 options.iris.shaderPackSelection.failedAdd=Files were not valid Shader Packs

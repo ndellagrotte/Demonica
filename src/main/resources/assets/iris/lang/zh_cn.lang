@@ -25,6 +25,7 @@ options.iris.shaderPackList=光影包列表...
 options.iris.refreshShaderPacks=刷新光影包
 options.iris.shaderPackSelection=光影包...
 options.iris.shaderPackSelection.title=光影包
+options.iris.shaderPackSelection.unavailable=光影不可用
 options.iris.shaderPackSelection.addedPack=已添加光影包"%s"
 options.iris.shaderPackSelection.addedPacks=已添加 %s 个光影包
 options.iris.shaderPackSelection.failedAdd=文件不是有效的光影包

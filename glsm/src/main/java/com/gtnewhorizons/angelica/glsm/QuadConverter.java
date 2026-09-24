@@ -30,7 +30,7 @@ import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memPutShort;
  */
 public final class QuadConverter {
     public static final int INDEX_TYPE = GL11.GL_UNSIGNED_INT;
-    private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("actinium.glsm.verboseDrawLogs");
+    private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
 
     private static int eboId;
     private static int maxQuads;

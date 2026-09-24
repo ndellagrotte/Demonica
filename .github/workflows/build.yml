@@ -25,6 +25,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # Fetches the pinned Celeritas jar from maven.outlands.top and checks its SHA-256
+      # (docs/celeritas/PIN.md), so an unreachable or moved pin fails here, by name.
+      - name: Check the Celeritas pin
+        run: ./gradlew verifyCeleritasPin
+
+      # Compiles and tests, then checks the mod jar (verifyDistributedJar) and the patches'
+      # anchors in production names (verifyProductionAnchors).
       - name: Build
         run: ./gradlew build
 
