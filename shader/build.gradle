@@ -7,5 +7,6 @@ plugins {
 
 dependencies {
     api project(':glsm')
-    api project(':GTNHLib')
+    // GTNHLib, from S8TNLib (gradle.properties), which the Iris tree also uses directly.
+    api "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}"
 }

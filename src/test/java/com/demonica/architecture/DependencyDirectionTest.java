@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Enforces the module dependency direction at the bytecode level.
  *
- * <p>Subprojects (shader/glsm/GTNHLib) must never reference the root project's
+ * <p>Subprojects (shader/glsm) must never reference the root project's
  * {@code com.demonica} implementation classes. Gradle already enforces this at compile
  * time via each subproject's classpath; this test backstops that constraint on the
  * compiled output, so a build-configuration regression cannot silently re-introduce a
@@ -32,8 +32,7 @@ class DependencyDirectionTest {
 
     private static final List<String> SUBPROJECTS = List.of(
         "shader",
-        "glsm",
-        "GTNHLib"
+        "glsm"
     );
 
     @Test

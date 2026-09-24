@@ -1,5 +1,0 @@
-// Actinium's cut-down 1.12.2 fork of GTNHLib, taken over at the fork point (actinium@4a19c959,
-// docs/FORK.md). Merged into the Demonica mod jar.
-plugins {
-    id 'java-library'
-}

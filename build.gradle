@@ -3,8 +3,9 @@
  * Celeritas mod (docs/FORK.md, docs/celeritas/PIN.md).
  *
  * The root project holds the mod: com.demonica.* and Actinium's com.gtnewhorizons.angelica.* glue, derived from
- * actinium@4a19c959. :shader (the Iris tree), :glsm and :GTNHLib are merged into its jar. The distributed jar is
- * the SRG-remapped output of `remapJar`; verifyDistributedJar checks it.
+ * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar, and so is GTNHLib, from S8TNLib's
+ * jar (com.s8tnlib:s8tnlib, pinned in gradle.properties). The distributed jar is the SRG-remapped output of
+ * `remapJar`; verifyDistributedJar checks it.
  */
 plugins {
     id 'java'
@@ -36,10 +37,17 @@ configurations {
     compileOnly.extendsFrom(modCompileOnly)
     modRuntimeOnly
     runtimeOnly.extendsFrom(modRuntimeOnly)
+    // S8TNLib's jar and its sources jar, which the mod jar and its sources jar merge. Nothing compiles or runs against
+    // them: :glsm and :shader depend on S8TNLib themselves.
+    s8tnlib {
+        transitive = false
+    }
+    s8tnlibSources {
+        transitive = false
+    }
 }
 
 def embeddedLibraryProjects = [
-    project(':GTNHLib'),
     project(':glsm'),
     project(':shader')
 ]
@@ -56,8 +64,8 @@ ext.sharedMinecraftCompileClasspath = {
     })
 }
 
-// The subprojects' classes and resources become part of the mod's own output, so the jar and the dev runs see
-// one mod, as in production.
+// The subprojects' classes and resources, and S8TNLib's classes, become part of the mod's own output, so the jar and
+// the dev runs see one mod, as in production.
 def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', Sync) {
     duplicatesStrategy = DuplicatesStrategy.FAIL
     dependsOn embeddedLibraryProjects.collect { it.tasks.named('classes') }
@@ -65,6 +73,10 @@ def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', 
 
     embeddedLibraryProjects.each { libraryProject ->
         from(libraryProject.sourceSets.main.output)
+    }
+    // Everything in S8TNLib's jar but its manifest, which verifyS8tnlibPin reads.
+    from({ configurations.s8tnlib.collect { zipTree(it) } }) {
+        exclude 'META-INF/**'
     }
 }
 
@@ -118,6 +130,18 @@ subprojects {
     group = rootProject.group
     version = rootProject.version
 
+    // :glsm and :shader get S8TNLib as an api dependency, and :shader declares no repositories of its own.
+    repositories {
+        exclusiveContent {
+            forRepository {
+                mavenLocal()
+            }
+            filter {
+                includeGroup('com.s8tnlib')
+            }
+        }
+    }
+
     java {
         toolchain {
             languageVersion = JavaLanguageVersion.of(25)
@@ -167,6 +191,15 @@ repositories {
             includeModule('org.embeddedt', 'celeritas-forge-mc12.2')
         }
     }
+    // S8TNLib, which its own build publishes to mavenLocal (README.MD). Nothing else resolves from mavenLocal.
+    exclusiveContent {
+        forRepository {
+            mavenLocal()
+        }
+        filter {
+            includeGroup('com.s8tnlib')
+        }
+    }
     mavenCentral()
     maven { url = 'https://maven.cleanroommc.com' }
     maven { url = 'https://cursemaven.com' }
@@ -194,10 +227,10 @@ unimined.minecraft {
         all {
             args += ['--username', 'Developer', '--width', '1280', '--height', '720']
             workingDir = file('run/client')
-            // Mod classes, including the merged GTNHLib, GLSM and Iris outputs, stay off the JavaExec classpath (the
+            // Mod classes, including the merged S8TNLib, GLSM and Iris outputs, stay off the JavaExec classpath (the
             // app class loader) and reach Cleanroom through -Dcrl.dev.extrapath, as in production where the mod jar
             // is not on java.class.path (docs/celeritas/SPIKE.md). Unimined moves only the directories that exist at
-            // configuration time, so this does it for all of them.
+            // configuration time, so this does it for all of them. verifyRunClasspath keeps S8TNLib's jar off both.
             def originalRunClasspath = classpath
             classpath = files(provider {
                 def rawModuleOutputs = sourceSets.main.output.files
@@ -293,6 +326,9 @@ dependencies {
     def asmVersion = '9.9.1'
 
     compileOnly project(':shader')
+    // GTNHLib, from S8TNLib, for mergeEmbeddedLibraryClasses and sourcesJar. :shader puts it on the compile classpath.
+    s8tnlib "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}"
+    s8tnlibSources "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}:sources"
 
     contain('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
         transitive = false
@@ -453,6 +489,9 @@ tasks.named('sourcesJar').configure {
     embeddedLibraryProjects.each { libraryProject ->
         from(libraryProject.sourceSets.main.allSource)
     }
+    from({ configurations.s8tnlibSources.collect { zipTree(it) } }) {
+        exclude 'META-INF/**'
+    }
 }
 
 jar {
@@ -542,6 +581,34 @@ def verifyCeleritasPin = tasks.register('verifyCeleritasPin') {
     }
 }
 
+def s8tnlibPin = property('s8tnlib_commit').toString()
+
+/**
+ * The S8TNLib jar must be the pinned build. S8TNLib's build writes the commit it was built from into the jar's
+ * manifest (S8TNLib-Commit, with -dirty if tracked files had changes), and gradle.properties pins that commit.
+ */
+def verifyS8tnlibPin = tasks.register('verifyS8tnlibPin') {
+    group = 'verification'
+    description = 'Checks that the resolved S8TNLib jar was built from the commit pinned in gradle.properties.'
+
+    def pinned = s8tnlibPin
+    def s8tnlibJar = configurations.s8tnlib
+    inputs.files(s8tnlibJar)
+    inputs.property('pinned', pinned)
+
+    doLast {
+        def jar = s8tnlibJar.singleFile
+        def commit = new java.util.jar.JarFile(jar).withCloseable {
+            it.manifest?.mainAttributes?.getValue('S8TNLib-Commit')
+        }
+        if (commit != pinned) {
+            throw new GradleException("${jar.name} was built from S8TNLib commit ${commit}, but gradle.properties " +
+                "pins s8tnlib_commit = ${pinned}. Publish S8TNLib to mavenLocal from that commit (README.MD).")
+        }
+        logger.lifecycle("S8TNLib pin OK: ${jar.name} ${commit}")
+    }
+}
+
 /**
  * The distributed jar's patch anchors, checked as QuarantineGuard checks them in a real install: through the jar's
  * refmap, against the SRG-named pinned jar. On the pin the guard skips the check, so this is where its production
@@ -577,7 +644,6 @@ def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
 
     def componentOutputs = [
         demonica: files(tasks.named('compileJava', JavaCompile).get().destinationDirectory),
-        GTNHLib: project(':GTNHLib').sourceSets.main.output.classesDirs,
         glsm: project(':glsm').sourceSets.main.output.classesDirs,
         shader: project(':shader').sourceSets.main.output.classesDirs
     ]
@@ -600,6 +666,34 @@ def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
 
         if (!duplicates.isEmpty()) {
             throw new GradleException("Duplicate classes cross module boundaries:\n - ${duplicates.sort().join('\n - ')}")
+        }
+    }
+}
+
+/**
+ * The dev client loads S8TNLib's classes from the merged mod classes, through -Dcrl.dev.extrapath (the runs above).
+ * Its jar must not also be on runClient's class path, where the app class loader would load it and a call from the
+ * LaunchClassLoader would fail with a LinkageError (docs/celeritas/SPIKE.md, "Dev class loading"), nor on the
+ * extrapath.
+ */
+def verifyRunClasspath = tasks.register('verifyRunClasspath') {
+    group = 'verification'
+    description = 'Checks that no S8TNLib jar is on runClient\'s class path or in its -Dcrl.dev.extrapath.'
+
+    def runClient = tasks.named('runClient', JavaExec).get()
+
+    doLast {
+        def isS8tnlibJar = { String path -> new File(path).name ==~ /s8tnlib-.*\.jar/ }
+        def problems = runClient.classpath.files*.path.findAll(isS8tnlibJar).collect { "on the class path: ${it}" }
+        def extraPathArgument = '-Dcrl.dev.extrapath='
+        runClient.allJvmArgs.findAll { it.startsWith(extraPathArgument) }.each { argument ->
+            argument.substring(extraPathArgument.length()).tokenize(File.pathSeparator).findAll(isS8tnlibJar).each {
+                problems << "in -Dcrl.dev.extrapath: ${it}"
+            }
+        }
+        if (!problems.isEmpty()) {
+            throw new GradleException("runClient must get S8TNLib's classes only from the merged mod classes:\n" +
+                " - ${problems.join('\n - ')}")
         }
     }
 }
@@ -696,7 +790,9 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
 
 tasks.named('check').configure {
     dependsOn verifyCeleritasPin
+    dependsOn verifyS8tnlibPin
     dependsOn verifyModuleBoundaries
+    dependsOn verifyRunClasspath
     dependsOn verifyDistributedJar
     dependsOn verifyProductionAnchors
 }
