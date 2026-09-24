@@ -9,6 +9,7 @@ import com.gtnewhorizons.angelica.glsm.hooks.GLSMInitConfig;
 import com.gtnewhorizons.angelica.glsm.streaming.StreamingUploader;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
 import com.demonica.config.DemonicaRuntimeOptions;
+import com.mitchej123.lwjgl.LWJGLServiceProvider;
 import net.coderbot.iris.Iris;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.OpenGlHelper;
@@ -22,11 +23,18 @@ import com.demonica.runtime.DemonicaRuntime;
 import com.demonica.render.BufferBuilderStreamingDrawer;
 import com.demonica.render.EndPortalCompositeRenderer;
 
+import java.util.Objects;
+
 @Mixin(value = OpenGlHelper.class, priority = 100)
 public class MixinOpenGlHelper {
     @Inject(method = "initializeTextures", at = @At("RETURN"))
     private static void demonica$initializeGLStateManager(CallbackInfo ci) {
         final Minecraft mc = Minecraft.getMinecraft();
+
+        // The LWJGL service reads the calling thread's GL capabilities when it is created, so it is created here, on
+        // the render thread. Otherwise its first user creates it: with a shader pack enabled at startup, that is a
+        // chunk builder thread writing Iris's vertex format, which has no GL context.
+        Objects.requireNonNull(LWJGLServiceProvider.LWJGL, "LWJGL service");
 
         GLStateManager.setDrawableGL(Display.getDrawable());
         GLStateManager.initialize(GLSMInitConfig.builder()
