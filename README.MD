@@ -33,6 +33,13 @@ Celeritas build is installed, Demonica checks what its patches bind to before
 applying any of them, and turns off what no longer fits: at worst shaders are
 off, and the log and the shader pack screen say why.
 
+## Installing
+
+Download `Demonica-<version>.jar` from the
+[releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
+`mods/`, next to the Celeritas jar named above. Nothing else is needed:
+GTNHLib's classes are inside the jar.
+
 ## Building
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
@@ -46,7 +53,7 @@ S8TNLib release that `gradle.properties` pins, from its tag.
 than `s8tnlib_commit`.
 
 ```sh
-git clone --branch v0.1.0 https://github.com/ndellagrotte/S8TNLib.git
+git clone --branch v0.1.1 https://github.com/ndellagrotte/S8TNLib.git
 (cd S8TNLib && ./gradlew publishToMavenLocal)
 ```
 

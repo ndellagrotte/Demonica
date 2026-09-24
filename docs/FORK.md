@@ -46,9 +46,9 @@ same classes, and Actinium carries a second renderer.
 GTNHLib is not in this repository. The mod jar merges the jar of
 [S8TNLib](https://github.com/ndellagrotte/S8TNLib), which ports GTNHLib to
 1.12.2 on Cleanroom and keeps the 60 of its files that Demonica reaches.
-Those files are byte-identical in S8TNLib's `v0.1.0` and in `GTNHLib/` at
-`61fa479d` (S8TNLib's tag `demonica-syncline/61fa479d`), which is what
-`GTNHLib/` held when it was removed here. The 30 files that nothing in
+Those files are byte-identical in S8TNLib's `v0.1.0` and `v0.1.1`, and in
+`GTNHLib/` at `61fa479d` (S8TNLib's tag `demonica-syncline/61fa479d`), which
+is what `GTNHLib/` held when it was removed here. The 30 files that nothing in
 Demonica reached are not in S8TNLib.
 
 - `gradle.properties` pins the release and the commit its jar was built
