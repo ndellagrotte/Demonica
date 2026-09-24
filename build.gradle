@@ -177,6 +177,11 @@ unimined.minecraft {
             if (project.findProperty('mixinVerbose') != null) {
                 systemProperty 'mixin.debug.verbose', 'true'
             }
+            // -PmixinExport: write every class Mixin transforms to run/client/.mixin.out, to inspect what the
+            // patches did to the bytecode.
+            if (project.findProperty('mixinExport') != null) {
+                systemProperty 'mixin.debug.export', 'true'
+            }
         }
     }
 
