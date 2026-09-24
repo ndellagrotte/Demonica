@@ -68,12 +68,31 @@ accepted.
   - keeps every other entry.
 - `verifyCeleritasPin` (part of `check`) hashes the resolved Maven jar and fails
   unless it is one of `celeritas_sha256`.
-- `AnchorInventoryTest` checks every member Demonica's quarantined patches bind to,
-  upstream's mixin priorities and `@Overwrite`s, and a snapshot of upstream's
-  whole mixin inventory
+- `generateCeleritasAnchors` extracts every anchor of the quarantine's patches
+  from the compiled mixins into `META-INF/demonica/celeritas-anchors`, together
+  with the upstream commit, the version and the accepted SHA-256s. The guard
+  reads it at runtime (below).
+- `AnchorInventoryTest` checks those anchors against the pinned jar (in its dev
+  remap), upstream's mixin priorities and `@Overwrite`s, and a snapshot of
+  upstream's whole mixin inventory
   (`src/test/resources/com/demonica/celeritas/upstream-mixin-inventory.txt`).
+  `verifyProductionAnchors` (part of `check`) checks the anchors the distributed
+  jar carries against the SRG-named Maven jar, through the jar's refmap, as the
+  guard would in a real install.
 - `GlsmRedirectLinkageTest` runs GLSM's redirector over every class in the jar and
   checks that each rewritten call exists in `GLStateManager`.
+
+## At runtime
+
+`QuarantineGuard` hashes the Celeritas jar the game loads (from the class path,
+or the mods folder) before Mixin applies the quarantine. On a pinned SHA-256 every
+patch applies. On any other build it checks every anchor against that jar's
+classes and turns off the patch groups whose anchors moved: at worst shaders are
+off, with the reason in the log and on the shader pack screen. The levels and
+what each group costs are in [`LEDGER.md`](LEDGER.md#the-guard).
+
+The development workspace runs Unimined's remap of the pin, whose hash never
+matches, so every dev run checks the anchors and logs whether they all hold.
 
 ## Moving the pin
 
@@ -83,8 +102,11 @@ accepted.
    `gradle.properties`, and the table above.
 3. Run `./gradlew build`. Expect `AnchorInventoryTest` to report every anchor and
    upstream mixin that moved; its snapshot mismatch writes the new inventory to
-   `run/test/upstream-mixin-inventory.actual.txt`.
-4. For each change, re-derive the affected quarantine patch and update its ledger
-   entry (`LEDGER.md`), then update the snapshot.
-5. Repeat the spike's two runs ([`SPIKE.md`](SPIKE.md) sections 1 and 2) and the
-   current checkpoint's matrix before accepting the new pin.
+   `run/test/upstream-mixin-inventory.actual.txt`. Before changing anything, a dev
+   run on the new jar shows what the guard would do for a player who installed it.
+4. For each change, re-derive the affected quarantine patch and its `@Patch`
+   declaration, update its ledger entry (`LEDGER.md`), then update the snapshot.
+5. Repeat the spike's two runs ([`SPIKE.md`](SPIKE.md) sections 1 and 2), the
+   current checkpoint's matrix and the guard's drills
+   ([`LEDGER.md`](LEDGER.md#the-guard), "Rehearsing it") before accepting the new
+   pin.

@@ -1,6 +1,9 @@
 package com.demonica.mixin.celeritas.seam;
 
+import com.demonica.api.render.terrain.BlockQuadTransformer;
 import com.demonica.api.render.terrain.BlockQuadTransformerHolder;
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -22,6 +25,7 @@ import java.util.List;
  * register see the quads of every block Celeritas's fast block renderer meshes: each face that will be drawn, and
  * the unassigned quads. An empty result drops the face.
  */
+@Patch(value = "S20", group = PatchGroup.DEGRADE, uses = {BlockQuadTransformerHolder.class, BlockQuadTransformer.class})
 @Mixin(value = VintageBlockRenderer.class, remap = false, priority = 1100)
 public abstract class VintageBlockRendererQuadsMixin {
     @WrapOperation(method = "renderBlock", at = @At(value = "INVOKE",

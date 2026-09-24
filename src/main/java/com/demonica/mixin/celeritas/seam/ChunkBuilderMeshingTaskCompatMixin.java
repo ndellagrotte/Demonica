@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.seam;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.compat.componentmodelhider.ComponentModelHiderCompat;
 import com.demonica.compat.littletiles.LittleTilesCompat;
 import com.gtnewhorizon.gtnhlib.compat.Mods;
@@ -33,6 +35,7 @@ import org.taumc.celeritas.impl.render.terrain.compile.task.ChunkBuilderMeshingT
  * </ul>
  * The method selectors carry the full descriptor: an erased bridge {@code execute(...)Object} calls this one.
  */
+@Patch(value = "C1", group = PatchGroup.COMPAT, uses = {ComponentModelHiderCompat.class, LittleTilesCompat.class})
 @Mixin(value = ChunkBuilderMeshingTask.class, remap = false, priority = 1100)
 public abstract class ChunkBuilderMeshingTaskCompatMixin {
     @Unique

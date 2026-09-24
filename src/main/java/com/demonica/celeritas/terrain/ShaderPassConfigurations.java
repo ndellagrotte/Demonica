@@ -73,11 +73,10 @@ public final class ShaderPassConfigurations {
     }
 
     private static TerrainRenderPass.TerrainRenderPassBuilder pass(String name, ChunkVertexType vertexType, boolean mipped,
-                                                                   PassSemantics.Semantic semantic, boolean writesDepth) {
+                                                                   PassSemantics.Semantic semantic, boolean writesDepth, int fadeInMs) {
         Map<String, String> defines = new HashMap<>(PassSemantics.defines(semantic, writesDepth));
-        int fadeIn = CeleritasVintage.options().quality.chunkFadeInDuration;
-        if (fadeIn > 0) {
-            defines.put("CHUNK_FADE_IN_DURATION_MS", String.valueOf(fadeIn));
+        if (fadeInMs > 0) {
+            defines.put("CHUNK_FADE_IN_DURATION_MS", String.valueOf(fadeInMs));
         }
         return TerrainRenderPass.builder()
             .name(name)
@@ -89,18 +88,27 @@ public final class ShaderPassConfigurations {
 
     public static RenderPassConfiguration<BlockRenderLayer> build(ChunkVertexType vertexType) {
         // Mipmapped sampling is only valid while mipmaps exist; the configuration is rebuilt on every reload.
-        boolean mipped = Minecraft.getMinecraft().gameSettings.mipmapLevels > 0;
-        boolean sortTranslucents = CeleritasVintage.options().performance.useTranslucentFaceSorting;
+        return build(vertexType, Minecraft.getMinecraft().gameSettings.mipmapLevels > 0,
+            CeleritasVintage.options().performance.useTranslucentFaceSorting,
+            CeleritasVintage.options().performance.useRenderPassConsolidation,
+            CeleritasVintage.options().quality.chunkFadeInDuration);
+    }
 
-        TerrainRenderPass solidPass = pass("solid", vertexType, mipped, PassSemantics.Semantic.SOLID, true)
+    /**
+     * The configuration for the given settings: whether mipmaps exist, Celeritas's translucent face sorting and pass
+     * consolidation, and its chunk fade-in in milliseconds.
+     */
+    static RenderPassConfiguration<BlockRenderLayer> build(ChunkVertexType vertexType, boolean mipped, boolean sortTranslucents,
+                                                          boolean consolidatePasses, int fadeInMs) {
+        TerrainRenderPass solidPass = pass("solid", vertexType, mipped, PassSemantics.Semantic.SOLID, true, fadeInMs)
             .fragmentDiscard(false).useReverseOrder(false).build();
-        TerrainRenderPass cutoutMippedPass = pass("cutout_mipped", vertexType, mipped, PassSemantics.Semantic.CUTOUT, true)
+        TerrainRenderPass cutoutMippedPass = pass("cutout_mipped", vertexType, mipped, PassSemantics.Semantic.CUTOUT, true, fadeInMs)
             .fragmentDiscard(true).useReverseOrder(false).build();
-        TerrainRenderPass fluidPass = pass("water", vertexType, mipped, PassSemantics.Semantic.WATER, true)
+        TerrainRenderPass fluidPass = pass("water", vertexType, mipped, PassSemantics.Semantic.WATER, true, fadeInMs)
             .fragmentDiscard(false).useReverseOrder(true).useTranslucencySorting(sortTranslucents).build();
         // Vanilla 1.12.2 draws the whole translucent stage with the depth mask off (EntityRenderer), so translucent
         // terrain must not occlude pass-1 block entities drawn after it (Actinium #58).
-        TerrainRenderPass translucentPass = pass("translucent", vertexType, mipped, PassSemantics.Semantic.TRANSLUCENT, false)
+        TerrainRenderPass translucentPass = pass("translucent", vertexType, mipped, PassSemantics.Semantic.TRANSLUCENT, false, fadeInMs)
             .fragmentDiscard(false).useReverseOrder(true).useTranslucencySorting(sortTranslucents).build();
 
         ImmutableListMultimap.Builder<BlockRenderLayer, TerrainRenderPass> stages = ImmutableListMultimap.builder();
@@ -114,12 +122,13 @@ public final class ShaderPassConfigurations {
         stages.put(BlockRenderLayer.TRANSLUCENT, fluidPass);
         stages.put(BlockRenderLayer.TRANSLUCENT, translucentPass);
 
-        if (CeleritasVintage.options().performance.useRenderPassConsolidation) {
+        if (consolidatePasses) {
+            // One pass holds both cutout layers. Vanilla draws each layer's stage in turn, so the pass is staged once, at
+            // the first of them (cutout-mipped): staged under both, it would be drawn twice a frame.
             cutoutMaterial = new Material(cutoutMippedPass, AlphaCutoffParameter.ONE_TENTH, mipped);
-            stages.put(BlockRenderLayer.CUTOUT, cutoutMippedPass);
             stages.put(BlockRenderLayer.CUTOUT_MIPPED, cutoutMippedPass);
         } else {
-            TerrainRenderPass cutoutPass = pass("cutout", vertexType, mipped, PassSemantics.Semantic.CUTOUT, true)
+            TerrainRenderPass cutoutPass = pass("cutout", vertexType, mipped, PassSemantics.Semantic.CUTOUT, true, fadeInMs)
                 .fragmentDiscard(true).useReverseOrder(false).build();
             cutoutMaterial = new Material(cutoutPass, AlphaCutoffParameter.ONE_TENTH, mipped);
             stages.put(BlockRenderLayer.CUTOUT, cutoutPass);
@@ -135,8 +144,8 @@ public final class ShaderPassConfigurations {
         for (BlockRenderLayer layer : BlockRenderLayer.values()) {
             if (!materials.containsKey(layer)) {
                 LOGGER.warn("Falling back to cutout-like behavior for custom block render layer '{}'", layer);
-                TerrainRenderPass extra = pass(layer.name().toLowerCase(Locale.ROOT), vertexType, mipped, PassSemantics.Semantic.CUTOUT, true)
-                    .fragmentDiscard(true).useReverseOrder(false).build();
+                TerrainRenderPass extra = pass(layer.name().toLowerCase(Locale.ROOT), vertexType, mipped, PassSemantics.Semantic.CUTOUT,
+                    true, fadeInMs).fragmentDiscard(true).useReverseOrder(false).build();
                 stages.put(layer, extra);
                 materials.put(layer, new Material(extra, AlphaCutoffParameter.ONE_TENTH, mipped));
             }

@@ -1,6 +1,8 @@
 package com.demonica.mixin.celeritas.seam;
 
 import com.demonica.celeritas.api.debug.RenderDebugHooksHolder;
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import com.demonica.debug.GlStateDiffProbe;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -30,6 +32,7 @@ import java.util.Locale;
  *
  * <p>The injections inside the overwritten body need a priority above upstream's 1000; HEAD and RETURN do not.
  */
+@Patch(value = "S8", group = PatchGroup.CORE_TERRAIN)
 @Mixin(value = RenderGlobal.class, priority = 1100)
 public abstract class RenderGlobalTerrainMixin {
     /** Vanilla's one-argument overload, which upstream's overwrite no longer calls. */

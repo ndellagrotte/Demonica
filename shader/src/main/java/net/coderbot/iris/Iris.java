@@ -350,7 +350,7 @@ public class Iris {
             }
         } else if (shaderpackScreenKeybind.isPressed()) {
             final Minecraft mc = Minecraft.getMinecraft();
-            mc.displayGuiScreen(new ShaderPackScreen(null));
+            mc.displayGuiScreen(ShaderPackScreen.create(null));
         } else if (wireframeKeybind.isPressed()) {
             final Minecraft mc = Minecraft.getMinecraft();
             if (irisConfig.areDebugOptionsEnabled() && mc.player != null && !mc.isSingleplayer()) {

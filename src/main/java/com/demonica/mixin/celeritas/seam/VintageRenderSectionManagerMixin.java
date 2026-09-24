@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.seam;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import org.embeddedt.embeddium.impl.render.chunk.shader.ChunkFogMode;
 import org.embeddedt.embeddium.impl.render.chunk.shader.ChunkShaderFogComponent;
@@ -14,6 +16,7 @@ import org.taumc.celeritas.impl.render.terrain.VintageRenderSectionManager;
  * vanilla fog off draws its own, usually farther out, so sections the fog distance would cull stay visible. The rule
  * is the same for the terrain and shadow searches.
  */
+@Patch(value = "S4", group = PatchGroup.DEGRADE)
 @Mixin(value = VintageRenderSectionManager.class, remap = false, priority = 1100)
 public abstract class VintageRenderSectionManagerMixin {
     @Inject(method = "useFogOcclusion", at = @At("HEAD"), cancellable = true)

@@ -46,7 +46,7 @@ public final class IrisConfigEntryPoint {
             IrisVideoSettings.shadowDistance = value;
             saveIrisConfig();
         }, () -> IrisVideoSettings.shadowDistance,
-                parent -> Minecraft.getMinecraft().displayGuiScreen(new ShaderPackScreen(parent)));
+                parent -> Minecraft.getMinecraft().displayGuiScreen(ShaderPackScreen.create(parent)));
     }
 
     /** Allows direct logic tests to supply persistence and screen boundaries without client bootstrapping. */

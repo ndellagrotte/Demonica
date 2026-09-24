@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.internal;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import net.coderbot.iris.gl.blending.DepthColorStorage;
 import org.embeddedt.embeddium.impl.gl.GlObject;
 import org.embeddedt.embeddium.impl.gl.shader.GlProgram;
@@ -17,6 +19,7 @@ import java.util.function.Function;
  * Celeritas links, both its own and the pack's terrain programs Iris links through {@code GlProgram.builder}, are
  * not foreign, so each is registered with {@link DepthColorStorage} for as long as it lives.
  */
+@Patch(value = "S17", group = PatchGroup.DEGRADE)
 @Mixin(value = GlProgram.class, remap = false, priority = 1100)
 public abstract class GlProgramMixin extends GlObject {
     @Inject(method = "<init>(ILjava/util/function/Function;)V", at = @At("TAIL"))

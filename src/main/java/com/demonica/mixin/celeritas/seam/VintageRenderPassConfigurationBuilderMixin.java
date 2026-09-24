@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.seam;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderPassConfigurations;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import net.minecraft.util.BlockRenderLayer;
@@ -16,6 +18,7 @@ import org.taumc.celeritas.impl.render.terrain.VintageRenderPassConfigurationBui
  * programs expect ({@link ShaderPassConfigurations}) instead of its own. The configuration is chosen when the section
  * manager is built; ShaderTerrain.reloadIfStale rebuilds it when the pack changes.
  */
+@Patch(value = "S14", group = PatchGroup.CORE_TERRAIN, uses = ShaderPassConfigurations.class)
 @Mixin(value = VintageRenderPassConfigurationBuilder.class, remap = false, priority = 1100)
 public abstract class VintageRenderPassConfigurationBuilderMixin {
     @Inject(method = "build", at = @At("HEAD"), cancellable = true)

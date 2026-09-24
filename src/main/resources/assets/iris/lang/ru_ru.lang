@@ -25,6 +25,7 @@ options.iris.shaderPackList=Список паков шейдеров...
 options.iris.refreshShaderPacks=Обновить список паков шейдеров
 options.iris.shaderPackSelection=Паки шейдеров...
 options.iris.shaderPackSelection.title=Паки шейдеров
+options.iris.shaderPackSelection.unavailable=Шейдеры недоступны
 options.iris.shaderPackSelection.addedPack=Добавлен пак шейдеров "%s"
 options.iris.shaderPackSelection.addedPacks=Добавлено %s паков шейдеров
 options.iris.shaderPackSelection.failedAdd=Файлы не являются действительными паками шейдеров

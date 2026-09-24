@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.internal;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import org.embeddedt.embeddium.impl.render.chunk.DefaultChunkRenderer;
@@ -12,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
  * are cast by faces that point away from the player as often as not. Upstream's modern loaders turn it off during
  * Iris's shadow pass the same way.
  */
+@Patch(value = "S16", group = PatchGroup.SHADOW)
 @Mixin(value = DefaultChunkRenderer.class, remap = false, priority = 1100)
 public abstract class DefaultChunkRendererMixin {
     @ModifyExpressionValue(

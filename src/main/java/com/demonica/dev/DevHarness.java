@@ -66,12 +66,13 @@ import java.util.function.BiFunction;
  *   screen from the mod list, open the screen that Celeritas's "Shader Packs" tab opens (through the same
  *   {@code ShaderModBridge} call), open the player's inventory (the creative one in creative mode), or close the current
  *   screen</li>
+ *   <li>{@code expect-screen <class>}: fail unless the open screen's class has this simple name</li>
  *   <li>{@code press <buttonId>}: press a button of the current vanilla screen, as a click does (Options' Video
  *   Settings button is 101)</li>
  *   <li>{@code reload}: reload resources (F3+T)</li>
  *   <li>{@code pack <file>|off}: select the shader pack {@code shaderpacks/<file>} (the name may contain spaces), or
  *   turn shaders off, and reload Iris the way its shader toggle key does. Celeritas's renderer is not reloaded here;
- *   it follows on the next frame, as after the toggle key.</li>
+ *   it follows on the next frame, as after the toggle key. Does nothing while Iris is off.</li>
  *   <li>{@code stats}: log the frame rate, Celeritas's chunk counts and the sections the last shadow pass drew</li>
  *   <li>{@code log <text>}: write a marker to the log</li>
  *   <li>{@code exit}: shut the client down</li>
@@ -286,6 +287,14 @@ public final class DevHarness {
                 }
                 return true;
             }
+            case "expect-screen" -> {
+                String open = mc.currentScreen != null ? mc.currentScreen.getClass().getSimpleName() : "none";
+                if (!open.equals(args[1])) {
+                    throw new IllegalStateException("Expected the " + args[1] + " screen, found " + open);
+                }
+                LOGGER.info("Dev screen: {} is open", open);
+                return true;
+            }
             case "press" -> {
                 press(mc.currentScreen, Integer.parseInt(args[1]));
                 return true;
@@ -296,6 +305,10 @@ public final class DevHarness {
             }
             case "pack" -> {
                 String pack = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                if (!Iris.enabled) {
+                    LOGGER.info("Dev shader pack: not switched to {}, Iris is off", pack);
+                    return true;
+                }
                 boolean enable = !pack.equalsIgnoreCase("off");
                 IrisConfig config = Iris.getIrisConfig();
                 if (enable) {

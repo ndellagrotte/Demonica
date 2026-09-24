@@ -1,6 +1,8 @@
 package com.demonica.mixin.celeritas.seam;
 
 import com.demonica.celeritas.api.shader.vertex.BufferBuilderExtension;
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderBlockContexts;
 import com.demonica.celeritas.terrain.ShaderPassConfigurations;
 import com.demonica.compat.FastBlockRendererCompat;
@@ -38,6 +40,7 @@ import org.taumc.celeritas.impl.render.terrain.compile.task.ChunkBuilderMeshingT
  * </ul>
  * The method selectors carry the full descriptor: an erased bridge {@code execute(...)Object} calls this one.
  */
+@Patch(value = {"S10", "S13"}, group = PatchGroup.MESHING, uses = ShaderBlockContexts.class)
 @Mixin(value = ChunkBuilderMeshingTask.class, remap = false, priority = 1100)
 public abstract class ChunkBuilderMeshingTaskMixin {
     @Unique

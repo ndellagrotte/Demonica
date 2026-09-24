@@ -3,6 +3,8 @@ package com.demonica.mixin.celeritas.seam;
 import com.demonica.celeritas.api.shader.vertex.BlockRenderContext;
 import com.demonica.celeritas.api.shader.vertex.ContextAwareChunkVertexEncoder;
 import com.demonica.celeritas.api.shader.vertex.VanillaQuadContext;
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderBlockContexts;
 import com.demonica.celeritas.terrain.ShaderPassConfigurations;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
@@ -43,6 +45,13 @@ import org.taumc.celeritas.impl.world.cloned.CeleritasBlockAccess;
  * off, and the ambient occlusion in the colour's alpha if it wants it separate. Whether the fast renderer runs at all
  * is ChunkBuilderMeshingTaskMixin's switch.
  */
+@Patch(value = "S13", group = PatchGroup.MESHING, context = {
+    // The fast block renderer is the one the meshing task calls.
+    "Lorg/taumc/celeritas/impl/render/terrain/compile/task/ChunkBuilderMeshingTask;execute(Lorg/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildContext;"
+        + "Lorg/embeddedt/embeddium/impl/util/task/CancellationToken;)Lorg/embeddedt/embeddium/impl/render/chunk/compile/ChunkBuildOutput; calls "
+        + "Lorg/taumc/celeritas/impl/render/terrain/compile/pipeline/VintageBlockRenderer;renderBlock(Lnet/minecraft/block/state/IBlockState;"
+        + "Lnet/minecraft/util/math/BlockPos;Lorg/taumc/celeritas/impl/world/cloned/CeleritasBlockAccess;Lnet/minecraft/util/BlockRenderLayer;)V"
+}, uses = ShaderBlockContexts.class)
 @Mixin(value = VintageBlockRenderer.class, remap = false, priority = 1100)
 public abstract class VintageBlockRendererMixin {
     @Shadow

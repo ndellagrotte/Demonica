@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.seam;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.states.FogState;
 import org.embeddedt.embeddium.impl.render.chunk.fog.FogService;
@@ -19,6 +21,7 @@ import org.taumc.celeritas.impl.render.terrain.fog.GLStateManagerFogService;
  * in solid fog colour. Each accessor returns GLSM's fog state instead. The fog shape is planar, matching vanilla
  * 1.12's eye-plane fog.
  */
+@Patch(value = "S15", group = PatchGroup.BASE)
 @Mixin(value = GLStateManagerFogService.class, remap = false, priority = 1100)
 public abstract class GLStateManagerFogServiceMixin {
     @Unique

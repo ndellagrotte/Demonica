@@ -4,6 +4,8 @@ import com.demonica.celeritas.api.shader.vertex.BlockRenderContext;
 import com.demonica.celeritas.api.shader.vertex.BufferBuilderExtension;
 import com.demonica.celeritas.api.shader.vertex.ContextAwareChunkVertexEncoder;
 import com.demonica.celeritas.api.shader.vertex.VanillaQuadContext;
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderBlockContexts;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
@@ -29,6 +31,7 @@ import java.util.List;
  * takes the contexts S10 left in that buffer (one per quad, in draw order), moves translucent fluid quads to the
  * pack's water pass, and has the extended vertex encoder write each quad with its block's context.
  */
+@Patch(value = "S11", group = PatchGroup.MESHING, uses = ShaderBlockContexts.class)
 @Mixin(value = VintageChunkBuildContext.class, remap = false, priority = 1100)
 public abstract class VintageChunkBuildContextMixin {
     // The contexts of the layer being copied, and the quad being copied. A build context serves one thread at a time.

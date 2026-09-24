@@ -1,5 +1,7 @@
 package com.demonica.mixin.celeritas.seam;
 
+import com.demonica.celeritas.guard.Patch;
+import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import org.embeddedt.embeddium.impl.render.chunk.RenderSectionManager;
 import org.embeddedt.embeddium.impl.render.chunk.occlusion.AsyncOcclusionMode;
@@ -19,6 +21,7 @@ import org.taumc.celeritas.impl.render.terrain.VintageRenderSectionManager;
  *   asynchronous occlusion becomes "only shadows".</li>
  * </ul>
  */
+@Patch(value = {"S3", "I1"}, group = PatchGroup.SHADOW)
 @Mixin(value = VintageRenderSectionManager.class, remap = false, priority = 1100)
 public abstract class VintageRenderSectionManagerShadowMixin {
     // Without a shadow pass there are no shadow lists to switch to (S1 may be missing, or the manager predates the

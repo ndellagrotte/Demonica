@@ -1,5 +1,9 @@
 package net.coderbot.iris.debug;
 
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+
 /**
  * Debug/regression switches consumed by the shader pipeline.
  *
@@ -26,6 +30,12 @@ public final class IrisDebugOptions {
         boolean disableF3Additions();
         boolean useTotalWorldTime();
         void cycleAnimationsMode();
+
+        /** Why shader packs cannot be used in this game, when the host turned the pipeline off; null otherwise. */
+        @Nullable String shadersUnavailableReason();
+
+        /** What shader packs lack in this game, one short sentence each; empty if nothing. */
+        List<String> shaderNotices();
     }
 
     private static volatile Bridge bridge;
@@ -113,5 +123,15 @@ public final class IrisDebugOptions {
         if (b != null) {
             b.cycleAnimationsMode();
         }
+    }
+
+    public static @Nullable String shadersUnavailableReason() {
+        Bridge b = bridge;
+        return b != null ? b.shadersUnavailableReason() : null;
+    }
+
+    public static List<String> shaderNotices() {
+        Bridge b = bridge;
+        return b != null ? b.shaderNotices() : List.of();
     }
 }

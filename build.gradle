@@ -70,6 +70,49 @@ def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', 
 
 sourceSets.main.output.dir(mergedEmbeddedLibraryClassesDir, builtBy: mergeEmbeddedLibraryClasses)
 
+/*
+ * META-INF/demonica/celeritas-anchors: the Celeritas build the jar is made for and every anchor of the quarantine's
+ * patches, extracted from the compiled mixins. QuarantineGuard reads it at startup, and checks the anchors when the
+ * installed Celeritas is not the pinned build (docs/celeritas/LEDGER.md, "The guard").
+ */
+def generatedAnchorsDir = layout.buildDirectory.dir('generated/celeritas-anchors')
+def generateCeleritasAnchors = tasks.register('generateCeleritasAnchors', JavaExec) {
+    description = 'Extracts the anchors of the Celeritas patches from the compiled quarantine mixins.'
+    def compiledClasses = tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory }
+    def quarantineConfig = file('src/main/resources/mixins.demonica.celeritas.json')
+    // The jar the build compiles against (Unimined's MCP remap of the pin): its upstream mixins name the same members.
+    def celeritasJar = configurations.compileClasspath.filter {
+        it.name.startsWith('celeritas-forge-mc12.2-') && !it.name.endsWith('-sources.jar')
+    }
+    def outputFile = generatedAnchorsDir.map { it.file('META-INF/demonica/celeritas-anchors') }
+    def pins = project.property('celeritas_sha256').toString()
+    def upstreamCommit = project.property('celeritas_sha').toString()
+    def celeritasVersion = project.property('celeritas_version').toString()
+
+    dependsOn mergeEmbeddedLibraryClasses
+    inputs.files(compiledClasses, mergedEmbeddedLibraryClassesDir).withPropertyName('classes')
+    inputs.file(quarantineConfig).withPropertyName('config')
+    inputs.files(celeritasJar).withPropertyName('celeritasJar')
+    inputs.property('pins', pins)
+    inputs.property('upstreamCommit', upstreamCommit)
+    inputs.property('celeritasVersion', celeritasVersion)
+    outputs.dir(generatedAnchorsDir)
+
+    classpath = files(compiledClasses) + configurations.compileClasspath
+    mainClass = 'com.demonica.celeritas.guard.AnchorExtractor'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    doFirst {
+        delete(generatedAnchorsDir)
+        args = [outputFile.get().asFile.absolutePath, quarantineConfig.absolutePath, celeritasJar.singleFile.absolutePath,
+                upstreamCommit, celeritasVersion, pins,
+                compiledClasses.get().asFile.absolutePath, mergedEmbeddedLibraryClassesDir.get().asFile.absolutePath]
+    }
+}
+
+sourceSets.main.output.dir(generatedAnchorsDir, builtBy: generateCeleritasAnchors)
+
 subprojects {
     apply plugin: 'java-library'
     group = rootProject.group
@@ -186,10 +229,11 @@ unimined.minecraft {
             if (project.findProperty('mixinExport') != null) {
                 systemProperty 'mixin.debug.export', 'true'
             }
-            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.disableFontBatcher=true.
+            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.disableFontBatcher=true. A
+            // value may hold commas (demonica.guard.drill=SHADOW,MESHING): only a comma before the next key= separates.
             def devProps = project.findProperty('devProps')
             if (devProps != null) {
-                devProps.toString().split(',').each { entry ->
+                devProps.toString().split(/,(?=[\w.-]+=)/).each { entry ->
                     def parts = entry.split('=', 2)
                     systemProperty parts[0], parts.length > 1 ? parts[1] : 'true'
                 }
@@ -401,6 +445,7 @@ processResources {
 
 tasks.named('classes').configure {
     dependsOn mergeEmbeddedLibraryClasses
+    dependsOn generateCeleritasAnchors
 }
 
 tasks.named('sourcesJar').configure {
@@ -492,6 +537,33 @@ def verifyCeleritasPin = tasks.register('verifyCeleritasPin') {
     }
 }
 
+/**
+ * The distributed jar's patch anchors, checked as QuarantineGuard checks them in a real install: through the jar's
+ * refmap, against the SRG-named pinned jar. On the pin the guard skips the check, so this is where its production
+ * naming is proven (docs/celeritas/LEDGER.md, "The guard").
+ */
+def verifyProductionAnchors = tasks.register('verifyProductionAnchors', JavaExec) {
+    group = 'verification'
+    description = 'Checks the distributed jar\'s Celeritas patch anchors against the pinned jar in production names.'
+    dependsOn tasks.named('remapJar'), tasks.named('testClasses')
+
+    def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
+    def pinnedJar = configurations.detachedConfiguration(dependencies.create(celeritasCoordinate)).tap {
+        transitive = false
+    }
+    inputs.file(remappedJar)
+    inputs.files(pinnedJar)
+
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.demonica.celeritas.guard.ProductionAnchorCheck'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    doFirst {
+        args = [pinnedJar.singleFile.absolutePath, remappedJar.get().asFile.absolutePath]
+    }
+}
+
 def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
     group = 'verification'
     description = 'Checks that no class is defined by more than one of the projects merged into the mod jar.'
@@ -577,6 +649,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica.conditions.properties',
                 'mixins.demonica.distanthorizons.json',
                 'mixins.demonica-refmap.json',
+                // The pin and the patches' anchors, which QuarantineGuard checks at startup.
+                'META-INF/demonica/celeritas-anchors',
                 // Loaded by path at runtime (Celeritas's ShaderLoader): the font renderer's and the panorama's shaders.
                 'assets/angelica/shaders/fontFilter.vsh',
                 'assets/angelica/shaders/panorama_cube.vert'
@@ -619,4 +693,5 @@ tasks.named('check').configure {
     dependsOn verifyCeleritasPin
     dependsOn verifyModuleBoundaries
     dependsOn verifyDistributedJar
+    dependsOn verifyProductionAnchors
 }

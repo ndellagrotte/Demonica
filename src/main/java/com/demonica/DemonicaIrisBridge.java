@@ -1,15 +1,20 @@
 package com.demonica;
 
+import com.demonica.celeritas.guard.QuarantineGuard;
 import com.demonica.config.DemonicaConfig;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.proxy.ClientProxy;
 import net.coderbot.iris.debug.IrisDebugOptions;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * The switches the Iris tree reads through {@link IrisDebugOptions}. Installed by the coremod, before {@code Iris} is
  * class-initialized: {@code Iris.enabled} is a static final read from {@link #enableIris()}. Each method reads
  * Demonica's settings only when it is called, so installing the bridge loads no configuration and no Celeritas class.
+ * Shaders are off when the Celeritas patch guard says the installed Celeritas cannot carry them ({@link QuarantineGuard}).
  */
 public final class DemonicaIrisBridge implements IrisDebugOptions.Bridge {
     @Override
@@ -54,12 +59,12 @@ public final class DemonicaIrisBridge implements IrisDebugOptions.Bridge {
 
     @Override
     public boolean enableIris() {
-        return DemonicaConfig.enableIris;
+        return DemonicaConfig.enableIris && QuarantineGuard.current().shadersAllowed();
     }
 
     @Override
     public boolean enableCeleritas() {
-        return DemonicaConfig.enableCeleritas;
+        return DemonicaConfig.enableCeleritas && QuarantineGuard.current().shadersAllowed();
     }
 
     @Override
@@ -85,5 +90,15 @@ public final class DemonicaIrisBridge implements IrisDebugOptions.Bridge {
     @Override
     public void cycleAnimationsMode() {
         ClientProxy.animationsMode.next();
+    }
+
+    @Override
+    public @Nullable String shadersUnavailableReason() {
+        return QuarantineGuard.current().shaderReason();
+    }
+
+    @Override
+    public List<String> shaderNotices() {
+        return QuarantineGuard.current().shaderNotices();
     }
 }
