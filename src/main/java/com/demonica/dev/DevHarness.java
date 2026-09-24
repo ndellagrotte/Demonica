@@ -1,10 +1,13 @@
 package com.demonica.dev;
 
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
+import com.demonica.gui.DemonicaGuiFactory;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.config.IrisConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiMainMenu;
+import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.util.ScreenShotHelper;
 import net.minecraft.world.GameType;
@@ -20,6 +23,8 @@ import org.taumc.celeritas.impl.gui.CeleritasVideoOptionsScreen;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,8 +54,12 @@ import java.util.function.BiFunction;
  *   <li>{@code shot <name>}: save {@code screenshots/<name>.png} after the next frame, with the HUD hidden</li>
  *   <li>{@code third <0|1|2>}: set the camera mode</li>
  *   <li>{@code glide <dx> <dz> <ticks>}: move the player by {@code dx, dz} blocks every tick (fast flight)</li>
- *   <li>{@code screen video|shaderpacks|close}: open Celeritas's video settings, open the screen that Celeritas's
- *   "Shader Packs" tab opens (through the same {@code ShaderModBridge} call), or close the current screen</li>
+ *   <li>{@code screen options|video|modconfig|shaderpacks|close}: open vanilla's Options screen, open Video Settings
+ *   (Celeritas's screen, which Demonica swaps for Reese's Sodium Options on display), open Demonica's Config screen from
+ *   the mod list, open the screen that Celeritas's "Shader Packs" tab opens (through the same {@code ShaderModBridge}
+ *   call), or close the current screen</li>
+ *   <li>{@code press <buttonId>}: press a button of the current vanilla screen, as a click does (Options' Video
+ *   Settings button is 101)</li>
  *   <li>{@code reload}: reload resources (F3+T)</li>
  *   <li>{@code pack <file>|off}: select the shader pack {@code shaderpacks/<file>} (the name may contain spaces), or
  *   turn shaders off, and reload Iris the way its shader toggle key does. Celeritas's renderer is not reloaded here;
@@ -234,7 +243,9 @@ public final class DevHarness {
             }
             case "screen" -> {
                 switch (args[1]) {
+                    case "options" -> mc.displayGuiScreen(new GuiOptions(mc.currentScreen, mc.gameSettings));
                     case "video" -> mc.displayGuiScreen(new CeleritasVideoOptionsScreen(mc.currentScreen));
+                    case "modconfig" -> mc.displayGuiScreen(new DemonicaGuiFactory().createConfigGui(mc.currentScreen));
                     case "shaderpacks" -> {
                         Object screen = ShaderModBridge.openShaderScreen(mc.currentScreen);
                         if (!(screen instanceof GuiScreen guiScreen)) {
@@ -245,6 +256,10 @@ public final class DevHarness {
                     case "close" -> mc.displayGuiScreen(null);
                     default -> throw new IllegalArgumentException("Unknown screen: " + args[1]);
                 }
+                return true;
+            }
+            case "press" -> {
+                press(mc.currentScreen, Integer.parseInt(args[1]));
                 return true;
             }
             case "reload" -> {
@@ -291,6 +306,23 @@ public final class DevHarness {
                 }
                 return handler.apply(this, args);
             }
+        }
+    }
+
+    // Dev only (MCP names): GuiScreen.actionPerformed is how a click reaches a button's screen, and what mods inject into.
+    private static void press(GuiScreen screen, int buttonId) {
+        try {
+            Field buttons = GuiScreen.class.getDeclaredField("buttonList");
+            buttons.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            List<GuiButton> buttonList = (List<GuiButton>) buttons.get(screen);
+            GuiButton button = buttonList.stream().filter(b -> b.id == buttonId).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(screen.getClass().getSimpleName() + " has no button " + buttonId));
+            Method actionPerformed = GuiScreen.class.getDeclaredMethod("actionPerformed", GuiButton.class);
+            actionPerformed.setAccessible(true);
+            actionPerformed.invoke(screen, button);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Cannot press button " + buttonId + " of " + screen, e);
         }
     }
 

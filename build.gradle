@@ -476,6 +476,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'META-INF/demonica_at.cfg',
                 'com/demonica/Demonica.class',
                 'com/demonica/mixins/MixinEarly.class',
+                'me/flashyreese/mods/reeses_sodium_options/client/gui/SodiumVideoOptionsScreen.class',
+                'assets/reeses-sodium-options/lang/en_us.lang',
                 'net/coderbot/iris/Iris.class',
                 'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
                 'com/gtnewhorizon/gtnhlib/asm/ClassConstantPoolParser.class',

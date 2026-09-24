@@ -63,6 +63,14 @@ class AnchorInventoryTest {
     static final String RENDER_BLOCK = "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/math/BlockPos;"
         + "Lorg/taumc/celeritas/impl/world/cloned/CeleritasBlockAccess;Lnet/minecraft/util/BlockRenderLayer;)V";
     static final String ANALYZER = "org/embeddedt/embeddium/impl/render/chunk/compile/pipeline/BakedQuadGroupAnalyzer";
+    static final String SLIDER = "org/taumc/celeritas/api/options/control/SliderControl";
+    static final String CYCLING = "org/taumc/celeritas/api/options/control/CyclingControl";
+    static final String OPTION_PAGES = "org/taumc/celeritas/impl/gui/SodiumGameOptionPages";
+    static final String PAGE = "()Lorg/taumc/celeritas/api/options/structure/OptionPage;";
+    static final String OPTION_ID = "Lorg/taumc/celeritas/api/options/OptionIdentifier;";
+    static final String STANDARD_GROUP = "org/taumc/celeritas/api/options/structure/StandardOptions$Group";
+    static final String STANDARD_OPTION = "org/taumc/celeritas/api/options/structure/StandardOptions$Option";
+    static final String VIDEO_SCREEN = "org/taumc/celeritas/impl/gui/CeleritasVideoOptionsScreen";
 
     /** A member the patches bind to. {@code call} anchors additionally require an invocation or field read in the body. */
     record Anchor(String id, String owner, String name, String desc, Kind kind, String callOwner, String callName, String callDesc) {
@@ -192,6 +200,22 @@ class AnchorInventoryTest {
             "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/EnumFacing;J)Ljava/util/List;"),
         Anchor.call("S20", BLOCK_RENDERER, "renderBlock", RENDER_BLOCK, "net/minecraft/block/state/IBlockState", "shouldSideBeRendered",
             "(Lnet/minecraft/world/IBlockAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/EnumFacing;)Z"),
+        // O1: what Reese's Sodium Options reads from the option controls.
+        Anchor.field("O1", SLIDER, "min", "I"),
+        Anchor.field("O1", SLIDER, "max", "I"),
+        Anchor.field("O1", SLIDER, "interval", "I"),
+        Anchor.field("O1", SLIDER, "mode", "Lorg/taumc/celeritas/api/options/control/ControlValueFormatter;"),
+        Anchor.field("O1", CYCLING, "allowedValues", "[Ljava/lang/Object;"),
+        // Not patches: the video settings that DemonicaOptionPages extends and OptionsScreens replaces. Video Settings
+        // builds Celeritas's screen, and its pages hold the groups and options Demonica's settings are placed by.
+        Anchor.call("options", "org/taumc/celeritas/mixin/features/options/MixinGuiOptions", "open",
+            "(Lnet/minecraft/client/gui/GuiButton;Lorg/spongepowered/asm/mixin/injection/callback/CallbackInfo;)V",
+            VIDEO_SCREEN, "<init>", "(Lnet/minecraft/client/gui/GuiScreen;)V"),
+        Anchor.read("options", OPTION_PAGES, "general", PAGE, STANDARD_GROUP, "WINDOW", OPTION_ID),
+        Anchor.read("options", OPTION_PAGES, "general", PAGE, STANDARD_OPTION, "FULLSCREEN", OPTION_ID),
+        Anchor.read("options", OPTION_PAGES, "general", PAGE, STANDARD_OPTION, "MAX_FRAMERATE", OPTION_ID),
+        Anchor.read("options", OPTION_PAGES, "quality", PAGE, STANDARD_GROUP, "SORTING", OPTION_ID),
+        Anchor.read("options", OPTION_PAGES, "advanced", PAGE, STANDARD_GROUP, "CPU_SAVING", OPTION_ID),
         // I1: the async-occlusion clamp.
         Anchor.method("I1", VRSM, "getAsyncOcclusionMode", "()Lorg/embeddedt/embeddium/impl/render/chunk/occlusion/AsyncOcclusionMode;"),
         // I2: the frame stamps of both searches.

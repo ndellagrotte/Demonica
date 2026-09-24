@@ -5,6 +5,9 @@ import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
 import com.demonica.dev.DevHarness;
+import com.demonica.dev.OptionsHarnessSteps;
+import com.demonica.gui.DemonicaOptionPages;
+import com.demonica.gui.options.OptionsScreens;
 import com.demonica.loading.ActiniumConflictException;
 import com.demonica.loading.Environment;
 import com.demonica.mixin.core.terrain.AccessorEntityRenderer;
@@ -40,7 +43,8 @@ import java.io.IOException;
     useMetadata = true,
     clientSideOnly = true,
     acceptableRemoteVersions = "*",
-    dependencies = "required-after:celeritas"
+    dependencies = "required-after:celeritas",
+    guiFactory = "com.demonica.gui.DemonicaGuiFactory"
 )
 public class Demonica {
     public static final String MODID = DemonicaRuntime.MODID;
@@ -71,6 +75,10 @@ public class Demonica {
         );
         GLSMPerfDebugHooks.setEnabledChangeListener(Demonica::reloadShaderPipelineForPerfDebug);
 
+        // Demonica's settings in Celeritas's video settings pages, and Reese's Sodium Options in place of its screen.
+        DemonicaOptionPages.register();
+        MinecraftForge.EVENT_BUS.register(new OptionsScreens());
+
         DemonicaDiagnostics.logConstruction();
         if (Iris.enabled && Mods.DISTANTHORIZONS) {
             // Distant Horizons binds its own Iris integration; Demonica only installs the shader-side LOD programs.
@@ -89,6 +97,7 @@ public class Demonica {
             Iris.INSTANCE.fmlInitEvent();
             MinecraftForge.EVENT_BUS.register(Iris.INSTANCE);
         }
+        OptionsHarnessSteps.register();
         DevHarness.install();
         DemonicaDiagnostics.logInitialization(DemonicaRuntime.version());
     }

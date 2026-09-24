@@ -23,8 +23,9 @@ propose them upstream is the maintainer's decision.
   patch whose anchor moved does nothing instead of crashing the game.
   `QuarantinePlugin` logs one line per applied mixin and names every injector
   that found no target: `Applied <mixin> to <class>: n of n injectors found
-  their targets`. A dev run lists all 14 lines; anything short of `n of n` is
-  a moved anchor. MixinExtras applies `@ModifyExpressionValue`,
+  their targets`. A dev run that loads a world and opens Video Settings lists
+  all 20 lines (a mixin is applied when its target class loads); anything short
+  of `n of n` is a moved anchor. MixinExtras applies `@ModifyExpressionValue`,
   `@WrapOperation`, `@WrapWithCondition` and `@WrapMethod` in its own
   transformer extensions, after every config plugin's `postApply`, so the
   plugin holds its lines back until `InjectionAuditExtension`, inserted right
@@ -47,6 +48,7 @@ What a patch's failure costs. The Phase 10 guard (pin check and anchor audit in
 | CORE_TERRAIN | S2, S5, S6m + S8, S9, S14 | Packs cannot draw terrain. Shaders are turned off with a named reason (L2). |
 | SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shaders without terrain shadows (L1). |
 | MESHING | S10, S11, S13 | Packs get no block IDs from terrain: plants do not wave, blocks fall back to the pack's defaults, and water is drawn in the translucent pass instead of the water pass. |
+| OPTIONS | O1 | Reese's Sodium Options cannot draw sliders and cycling options, so Video Settings keeps Celeritas's own screen, which still lists Demonica's settings. |
 | DEGRADE | S4, S17, S19, S20 | One feature degrades; see the row. |
 
 Two assignments differ from the plan:
@@ -83,6 +85,7 @@ Two assignments differ from the plan:
 | [S17](patches/S17.md) | `internal.GlProgramMixin` | `GlProgram.<init>(int, Function)`, `destroyInternal` | Register every linked program with Iris's `DepthColorStorage` | DEGRADE: Iris re-applies its pass after each terrain draw | no upstream change needed; candidate for removal |
 | [S19](patches/S19.md) | `internal.ChunkTrackerMixin` | `ChunkTracker.requiredNeighborRadius` | `@Shadow` read behind `ChunkTrackerAccess` | DEGRADE: Distant Horizons' neighbour-radius uniform falls back to its default | not proposed |
 | [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderBlock` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
+| [O1](patches/O1.md) | `internal.SliderControlMixin`, `internal.CyclingControlMixin` | `SliderControl.min`, `max`, `interval`, `mode`; `CyclingControl.allowedValues` | `@Shadow` reads behind `SliderControlAccess` and `CyclingControlAccess` (read through `OptionControls`), for Reese's Sodium Options' own slider and cycling rows | OPTIONS | not proposed |
 | [I1](patches/I1.md) | `seam.VintageRenderSectionManagerShadowMixin` | `VintageRenderSectionManager.getAsyncOcclusionMode` | RETURN: "Everything" becomes "Only Shadows" when the manager gets a shadow pass | SHADOW | a question for upstream |
 | [I2](patches/I2.md) | `internal.SimpleWorldRendererMixin` | `SimpleWorldRenderer.setupTerrain`, `setupShadowTerrain` | `@ModifyVariable(HEAD)` of `frame` to `DemonicaFrameClock.next()` | SHADOW | not proposed |
 
@@ -101,6 +104,18 @@ injector found its target in 0 of 1 methods, and the game runs on. The bytecode
 exported with `-PmixinExport` shows S16's injection in
 `DefaultChunkRenderer.render`, S8's `@ModifyArg` before `drawChunkLayer`, and
 I2's `@ModifyVariable` at the head of both searches.
+
+Checkpoint 7 (run/client/scripts/cp7a.txt, then cp7b.txt), 2026-09-24: all 20
+mixins apply (O1's two when Video Settings first opens). Options, then the Video
+Settings button, opens Reese's Sodium Options: Celeritas's four pages, with
+Demonica's settings where Actinium had them (Fullscreen Mode and the loading-screen
+frame limit in Window, the fast block renderer in Sorting, GLSM's upload strategy
+and the draw fast paths in CPU Saving, two groups at the end of Advanced), Iris's
+pages and RSO's own. One change in each storage (Demonica's, Celeritas's,
+vanilla's `options.txt`, RSO's) is applied, written to its file, and back after a
+restart. The mod list's Config button opens RSO too; with RSO's "enabled" off,
+Video Settings keeps Celeritas's screen, which lists Demonica's settings and RSO's
+page.
 
 Checkpoint 6 (run/client/scripts/cp6.txt; a water pool and tall grass at spawn),
 with the fast block renderer off and on: the extended vertex encoder receives
@@ -128,3 +143,10 @@ Actinium classes that changed shape on the way to upstream Celeritas.
 | The fast renderer's gates (Snow! Real Magic!, ArchitectureCraft, the Component Model Hider, `MissingModelCompat`) | Phase 9 | Ported with compat. Until then `performance.use_fast_block_renderer` stays off by default. |
 | `VintageChunkBuildContext.beginVanillaFluidRender` (Fluidlogged API fluids) | not ported | Upstream's own `FluidloggedCompat` draws those fluids, without a context, so they mesh with no block ID. Tagging them needs a hook in upstream's `FluidloggedCompat` (a Phase 9 candidate). |
 | The fork renderer's lighting (no quad-normal shading, AO depth blending, no brightness-based quad orientation) | not ported | Renderer choices, not shader glue: upstream's lighting stands. |
+| `MixinGuiOptions` (opened RSO from the Video Settings button) | `OptionsScreens`, a `GuiOpenEvent` listener | Upstream's own `MixinGuiOptions` already cancels that button to open its screen; a second cancelling HEAD injection on the same method would race it. Demonica swaps upstream's screen for RSO when it is displayed, with the screen being left as the parent. The mod list's Config button (`@Mod(guiFactory)`, `DemonicaGuiFactory`) goes the same way. |
+| The fork's option-API extensions (`Option.getAppliedValue`/`getDefaultValue`/`resetToDefault`/`shouldHideControl`, `OptionImpl.setDefaultValue`, `OptionGroup` names, slider getters, `CyclingControl.getAllowedValues`, `ExternalPage`, `ExternalButtonControl`, `ControlValueFormatter.translateDisabledOrVariable`) | O1 for the slider and cycling getters; the rest without a patch | Undo is `Option.reset()`, and "changed" is `Option.hasChanged()`, which upstream already defines against the applied value. Declared defaults are registered with RSO (`OptionDefaults`, held weakly). No page ever set a group name, so group headers stay empty as before. `ExternalPage` and `ExternalButtonControl` moved into RSO's package; `shouldHideControl` was never read. |
+| `ActiniumGameOptionPages` (the fork's copies of the General, Quality and Advanced pages) | `DemonicaOptionPages`, listeners on Celeritas's construction events | Upstream's pages are shown as upstream builds them; Demonica's settings are added into their groups (`OptionGroupConstructionEvent`), at the end of Advanced (`OptionPageConstructionEvent`), and as pages (`OptionGUIConstructionEvent`: Iris's, the Debug page, RSO's own). Both screens get them. Upstream's fast-renderer toggle, which only sets the static flag S13 overrides, is replaced by Demonica's. The fork-only multidraw mode is gone; dynamic FOV waits for its mixin (Phase 8); the biome colour noise settings are not shown, since nothing applies them on upstream (Actinium did in its forked biome colour cache). |
+| `ActiniumOptionHost` (pages collected once per game) | `DemonicaOptionHost`, collected for each screen | Celeritas builds its pages for every screen: slider ranges (GUI scale, chunk threads) and tooltips that depend on the window or the shader pack are current. |
+| `OptionGUIConstructionBridge` (each listener isolated and rolled back) | one `post`, then drop what RSO cannot show | Upstream's `EventHandlerRegistrar` has no per-listener dispatch. A throwing listener ends the loop; the pages added before it are kept (see O1's draft). |
+| RSO's text conversion (the first translation key) | the first key that has a translation | Upstream lists fallback keys for keys 1.12.2 lacks (the default graphics quality's `options.gamma.default`), as its own screen resolves them. |
+| The option labels in the fork's `assets/celeritas/lang` | `assets/actinium/lang` | The jar ships no `assets/celeritas`. The keys keep their names; `DemonicaOptionPagesTest` checks every key of Demonica's settings in all three languages. |
