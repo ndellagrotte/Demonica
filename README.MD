@@ -70,10 +70,12 @@ normal install. `runClient` takes:
 
 ## License
 
-Demonica combines Angelica's LGPL-3.0 code with code ported from Actinium,
-which is GPL-3.0, so the combined work is GPL-3.0. Nothing is published until
-the maintainer decides how to release it. See
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Demonica is distributed under GPL-3.0 ([`LICENSE`](LICENSE)). Angelica's and
+Iris's code is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
+Angelica's license file), which may be conveyed under GPL-3.0; the code ported
+from Actinium and the GTNHLib port in S8TNLib are GPL-3.0. The MIT- and
+BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+has the details, and the mod jar carries all three files.
 
 ## Credits
 

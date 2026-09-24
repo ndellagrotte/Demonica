@@ -70,6 +70,11 @@ how Demonica got here. They are not a rule for new changes.
 
 ## License
 
-Actinium's root project is GPL-3.0. Porting it makes the Demonica jar a GPL-3.0
-combined work. Nothing is published until the maintainer decides how to handle
-that (see [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)).
+Actinium's root project is GPL-3.0, so porting it makes the Demonica jar a
+GPL-3.0 combined work. On 2026-09-24 the maintainer settled on GPL-3.0 for
+Demonica as a whole ([`LICENSE`](../LICENSE)). Angelica's LGPL-3.0 license file
+stays as [`LICENSE-LGPL-3.0.txt`](../LICENSE-LGPL-3.0.txt): LGPL-3.0 is GPL-3.0
+plus additional permissions, which section 7 of GPL-3.0 lets a redistributor
+remove, and file headers still govern their files. The mod jar carries both
+texts and [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md), whose Notices
+section reproduces the MIT and BSD notices.

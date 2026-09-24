@@ -492,6 +492,8 @@ tasks.named('sourcesJar').configure {
     from({ configurations.s8tnlibSources.collect { zipTree(it) } }) {
         exclude 'META-INF/**'
     }
+    // The license texts and notices, as in the mod jar.
+    from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 }
 
 jar {
@@ -502,6 +504,9 @@ jar {
     into('/') {
         from configurations.contain
     }
+
+    // The license texts and the notices a binary copy must carry (THIRD_PARTY_NOTICES.md, "In the mod jar").
+    from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 
     doFirst {
         manifest {
@@ -700,7 +705,7 @@ def verifyRunClasspath = tasks.register('verifyRunClasspath') {
 
 /**
  * The distributed (remapped) jar: a mod on upstream Celeritas that vendors no renderer. It must carry the mod, its
- * configs and contained libraries, and must never carry Celeritas, a renamed copy of it, JOML, or anything that
+ * configs, its license files and contained libraries, and must never carry Celeritas, a renamed copy of it, JOML, or anything that
  * would replace or shadow upstream's classes, services or assets.
  */
 def verifyDistributedJar = tasks.register('verifyDistributedJar') {
@@ -729,6 +734,10 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
             }
             def required = [
                 'mcmod.info',
+                // The license texts and notices (THIRD_PARTY_NOTICES.md, "In the mod jar").
+                'LICENSE',
+                'LICENSE-LGPL-3.0.txt',
+                'THIRD_PARTY_NOTICES.md',
                 'META-INF/demonica_at.cfg',
                 'com/demonica/Demonica.class',
                 'com/demonica/mixins/MixinEarly.class',

@@ -153,16 +153,23 @@ is environmental, it is excluded with the reason recorded.
   interfaces. They are host glue, and 5 of them import `com.dhj.actinium`.
 - **The skipped tests**, listed in `tests.md`.
 - **`src/main/resources/LICENSE`.** Actinium replaced Angelica's ShadersMod
-  relicensing notice with its GPL-3.0 text. Demonica keeps Angelica's file
-  until the license question below is decided, so it is not part of the
-  `resources` scope.
+  relicensing notice with its GPL-3.0 text. Demonica kept Angelica's file
+  until the license was settled (below), so it was not part of the
+  `resources` scope. Decided with 0.1.0: the file is gone, and the jar carries
+  the root `LICENSE`, `LICENSE-LGPL-3.0.txt` and `THIRD_PARTY_NOTICES.md`
+  (see [License](#license)).
 - **The next sync**: Actinium `d3fb124c` and `653c862b` (the MC_VERSION
   rewrite and per-buffer blend), followed by the seven Angelica cherry-picks.
 
-## Open: license
+## License
 
-Actinium's root `LICENSE` is GPL-3.0, while Demonica's is Angelica's LGPL-3.0.
+Actinium's root `LICENSE` is GPL-3.0, while Demonica's was Angelica's LGPL-3.0.
 Demonica carries Actinium-authored changes from this sync and the previous one.
-Before anything is published beyond `mavenLocal`, that needs a decision: either
-GPL-3.0 for the combined work, or permission to relicense. Until then the POMs
-carry no `<licenses>` block. See [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+Before anything was published beyond `mavenLocal`, that needed a decision:
+either GPL-3.0 for the combined work, or permission to relicense.
+
+Decided on 2026-09-24, with the 0.1.0 release: GPL-3.0 for the combined work.
+The root `LICENSE` is the GPL-3.0 text, Angelica's file is
+`LICENSE-LGPL-3.0.txt`, and the mod jar carries both with
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). See
+[`FORK.md`](FORK.md#license).
