@@ -1,5 +1,6 @@
 package com.demonica;
 
+import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
@@ -17,6 +18,7 @@ import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
 import com.gtnewhorizons.angelica.iris.IrisGLSMBridge;
 import com.mojang.realmsclient.gui.ChatFormatting;
 import net.coderbot.iris.Iris;
+import net.coderbot.iris.celeritas.WorldRendererCompatBridge;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
 import net.coderbot.iris.rendertarget.IRenderTargetExt;
@@ -61,6 +63,8 @@ public class Demonica {
         PostProcessingBridge.setNightVisionBrightnessInvoker(
             (entity, partialTicks) -> ((AccessorEntityRenderer) Minecraft.getMinecraft().entityRenderer)
                 .invokeGetNightVisionBrightness(entity, partialTicks));
+        // Iris's shadow pass draws Celeritas's terrain through this adapter (S7).
+        WorldRendererCompatBridge.setProvider(CeleritasWorldRendererCompat::current);
         GLSMPerfDebugHooks.addStatsProvider(Demonica::dumpExtraPerfStats);
         GLSMPerfDebugHooks.setConfiguredEnabled(
             DemonicaRuntimeOptions.resolvePerfDebugEnabled(DemonicaRuntime.options().debug.enablePerfDebug)

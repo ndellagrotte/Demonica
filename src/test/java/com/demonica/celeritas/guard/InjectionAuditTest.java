@@ -31,7 +31,9 @@ class InjectionAuditTest {
         mixin.methods.add(handler("demonica$everywhere", "Lorg/spongepowered/asm/mixin/injection/ModifyVariable;", "setupTerrain", "setupShadowTerrain"));
         mixin.methods.add(handler("demonica$halfway", "Lorg/spongepowered/asm/mixin/injection/ModifyVariable;", "setupTerrain", "setupShadowTerrain"));
         mixin.methods.add(handler("demonica$nowhere", "Lorg/spongepowered/asm/mixin/injection/ModifyArg;", "renderBlockLayer"));
-        mixin.methods.add(handler("demonica$notMerged", "Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;", "render"));
+        mixin.methods.add(handler("demonica$notMerged", "Lorg/spongepowered/asm/mixin/injection/Inject;", "render"));
+        // MixinExtras applies this one after the audit runs, so no call site exists yet.
+        mixin.methods.add(handler("demonica$late", "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;", "render"));
         mixin.methods.add(new MethodNode(Opcodes.ACC_PUBLIC, "demonica$notAnInjector", "()V", null, null));
 
         ClassNode target = new ClassNode();
@@ -40,16 +42,19 @@ class InjectionAuditTest {
         MethodNode halfway = merged("localvar$zca000$demonica$halfway", MIXIN);
         MethodNode nowhere = merged("modify$zca000$demonica$nowhere", MIXIN);
         // Another mixin's handler of the same name must not stand in for the missing one.
-        MethodNode foreign = merged("wrapOperation$zdb000$demonica$notMerged", "com.example.OtherMixin");
+        MethodNode foreign = merged("handler$zdb000$demonica$notMerged", "com.example.OtherMixin");
+        MethodNode late = merged("modifyExpressionValue$zca000$demonica$late", MIXIN);
         target.methods.add(caller("setupTerrain", everywhere, halfway, foreign));
         target.methods.add(caller("setupShadowTerrain", everywhere));
         target.methods.add(caller("renderBlockLayer"));
-        target.methods.addAll(List.of(everywhere, halfway, nowhere, foreign));
+        target.methods.addAll(List.of(everywhere, halfway, nowhere, foreign, late));
 
         Map<String, InjectionAudit.Injector> injectors = InjectionAudit.audit(target, mixin, MIXIN).stream()
             .collect(Collectors.toMap(InjectionAudit.Injector::handler, Function.identity()));
 
-        assertEquals(4, injectors.size(), injectors.toString());
+        assertEquals(5, injectors.size(), injectors.toString());
+        assertTrue(injectors.get("demonica$late").late());
+        assertFalse(injectors.get("demonica$everywhere").late());
         assertTrue(injectors.get("demonica$everywhere").applied());
         assertEquals(2, injectors.get("demonica$everywhere").callingMethods());
         assertFalse(injectors.get("demonica$halfway").applied());

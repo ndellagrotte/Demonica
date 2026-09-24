@@ -1,5 +1,6 @@
 package com.demonica.mixin.features.iris;
 
+import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import com.demonica.render.GuiGlStateBoundary;
 import com.demonica.render.RenderWorldRecursionGuard;
@@ -10,6 +11,7 @@ import com.gtnewhorizons.angelica.rendering.RenderingState;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.apiimpl.IrisApiV0Impl;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
@@ -30,6 +32,7 @@ import net.minecraft.client.renderer.EntityRenderer;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.culling.ICamera;
 import net.minecraft.client.renderer.debug.DebugRenderer;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.resources.IResourceManagerReloadListener;
@@ -142,11 +145,21 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         IrisGlDebug.recordWorldPassStage("iris-begin-to-sky");
     }
 
-    @Inject(
+    // The shadow pass runs first in the frame, just before the terrain pass sets up: upstream Celeritas's shadow
+    // protocol has the shadow pass run the frame's terrain search along with its own, and setupTerrain reuse it
+    // (docs/celeritas/patches/S7.md).
+    @WrapOperation(
         method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;setupTerrain(Lnet/minecraft/entity/Entity;DLnet/minecraft/client/renderer/culling/ICamera;IZ)V", shift = At.Shift.AFTER)
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;setupTerrain(Lnet/minecraft/entity/Entity;DLnet/minecraft/client/renderer/culling/ICamera;IZ)V")
     )
-    private void demonica$renderIrisShadows(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
+    private void demonica$renderIrisShadowsBeforeTerrain(RenderGlobal renderGlobal, Entity entity, double partialTicks, ICamera camera,
+                                                        int frame, boolean spectator, Operation<Void> original) {
+        this.demonica$renderIrisShadows(camera, (float) partialTicks);
+        original.call(renderGlobal, entity, partialTicks, camera, frame, spectator);
+    }
+
+    @Unique
+    private void demonica$renderIrisShadows(ICamera camera, float partialTicks) {
         if (RenderWorldRecursionGuard.isNested()) {
             return;
         }
@@ -159,11 +172,17 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
             return;
         }
 
+        IrisGlDebug.recordWorldPassStage("shadows");
         demonica$prepareRenderManagerForShadowPass(partialTicks);
-        IrisGlDebug.markStage("mixin:shadows:entry");
-        pipeline.renderShadows((EntityRenderer) (Object) this, Camera.INSTANCE);
-        IrisGlDebug.markStage("mixin:shadows:done");
-        IrisGlDebug.recordWorldPassStage("setup-terrain-to-shadows");
+        CeleritasWorldRendererCompat.beginFrame(camera);
+        try {
+            IrisGlDebug.markStage("mixin:shadows:entry");
+            pipeline.renderShadows((EntityRenderer) (Object) this, Camera.INSTANCE);
+            IrisGlDebug.markStage("mixin:shadows:done");
+        } finally {
+            CeleritasWorldRendererCompat.endFrame();
+        }
+        IrisGlDebug.recordWorldPassStage("shadows-to-setup-terrain");
     }
 
     @Inject(

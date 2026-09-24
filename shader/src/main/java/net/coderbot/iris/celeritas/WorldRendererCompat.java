@@ -22,11 +22,17 @@ public interface WorldRendererCompat {
     void setCurrentViewport(Viewport viewport);
 
     /**
-     * @return the viewport last used by the terrain pass, i.e. the player camera's viewport of the current frame.
-     * The main pass runs before the shadow pass within a frame, so this is the player viewport the shadow pass's
-     * terrain search needs as its receiver root set.
+     * @return the viewport the renderer last set up or drew with: the player camera's, or during the shadow pass the
+     * shadow frustum's.
      */
     Viewport getLastViewport();
+
+    /**
+     * @return the player camera's viewport for the frame being drawn. The shadow pass's terrain search starts from it,
+     * and the shadow pass restores it when it ends. The shadow pass runs before the terrain pass has set up the
+     * frame, so this is not {@link #getLastViewport()}.
+     */
+    Viewport getPlayerViewport();
 
     void drawChunkLayer(BlockRenderLayer renderLayer, double x, double y, double z);
 
@@ -39,11 +45,12 @@ public interface WorldRendererCompat {
 
     /**
      * Shadow-pass counterpart of {@link #setupTerrain}. The shadow pass precedes the terrain pass in a frame, so the
-     * terrain search it runs first needs the player camera's viewport, which the main pass prepared before the shadow
-     * pass began.
+     * terrain search it runs first needs the player camera's viewport ({@link #getPlayerViewport()}).
      *
      * @param playerViewport the player camera's viewport for this frame
      * @param shadowViewport the shadow frustum, centred on the player camera
+     * @param spectator      whether the player is a spectator, as for {@link #setupTerrain}: the terrain search does not
+     *                       cull by occlusion from a spectator camera inside a solid block
      */
     void setupShadowTerrain(Viewport playerViewport, Viewport shadowViewport, SimpleWorldRenderer.CameraState cameraState, int frame, boolean spectator);
 }

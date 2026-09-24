@@ -19,6 +19,10 @@ import java.util.Set;
  * <p>Mixin merges a handler into the target under a new name that ends with {@code $} and the handler's own name (the
  * source-id part it adds is {@code demonica$} for Demonica's {@code demonica$} handlers), and marks it
  * {@code @MixinMerged} with the mixin's class name.
+ *
+ * <p>MixinExtras applies {@code @ModifyExpressionValue}, {@code @WrapWithCondition} and {@code @WrapOperation} late,
+ * in its own transformer extension, after the config plugin's {@code postApply}. Those injectors cannot be checked
+ * here; they are reported as late instead.
  */
 final class InjectionAudit {
     private static final String MIXIN_MERGED = "Lorg/spongepowered/asm/mixin/transformer/meta/MixinMerged;";
@@ -32,18 +36,26 @@ final class InjectionAudit {
         "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;",
         "Lcom/llamalad7/mixinextras/injector/ModifyReceiver;",
         "Lcom/llamalad7/mixinextras/injector/ModifyReturnValue;",
+        "Lcom/llamalad7/mixinextras/injector/WrapWithCondition;",
         "Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;",
         "Lcom/llamalad7/mixinextras/injector/wrapmethod/WrapMethod;",
+        "Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;");
+    // Applied by MixinExtras's LateInjectionApplicatorExtension, after postApply.
+    private static final Set<String> LATE_INJECTORS = Set.of(
+        "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;",
+        "Lcom/llamalad7/mixinextras/injector/WrapWithCondition;",
+        "Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;",
         "Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;");
 
     private InjectionAudit() {
     }
 
     /**
-     * An injector handler of the mixin, how many target methods its {@code method} selectors name, and how many
-     * methods of the target now call it (-1 if Mixin did not merge the handler at all).
+     * An injector handler of the mixin, how many target methods its {@code method} selectors name, how many methods of
+     * the target now call it (-1 if Mixin did not merge the handler at all), and whether MixinExtras applies it only
+     * after this check.
      */
-    record Injector(String handler, int selectors, int callingMethods) {
+    record Injector(String handler, int selectors, int callingMethods, boolean late) {
         boolean applied() {
             return this.callingMethods >= this.selectors;
         }
@@ -59,7 +71,7 @@ final class InjectionAudit {
             }
             MethodNode merged = findMerged(target, handler.name, mixinClassName);
             int calling = merged == null ? -1 : callingMethods(target, merged);
-            injectors.add(new Injector(handler.name, selectorCount(injector), calling));
+            injectors.add(new Injector(handler.name, selectorCount(injector), calling, LATE_INJECTORS.contains(injector.desc)));
         }
         return injectors;
     }

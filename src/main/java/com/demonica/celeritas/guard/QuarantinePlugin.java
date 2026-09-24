@@ -63,8 +63,11 @@ public class QuarantinePlugin implements IMixinConfigPlugin {
             return;
         }
         int applied = 0;
+        int late = 0;
         for (InjectionAudit.Injector injector : injectors) {
-            if (injector.applied()) {
+            if (injector.late()) {
+                late++;
+            } else if (injector.applied()) {
                 applied++;
             } else if (injector.callingMethods() < 0) {
                 LOGGER.warn("{}.{} was not merged into {}; that part of the patch is inactive", patch, injector.handler(), targetClassName);
@@ -73,6 +76,11 @@ public class QuarantinePlugin implements IMixinConfigPlugin {
                     patch, injector.handler(), injector.callingMethods(), injector.selectors(), targetClassName);
             }
         }
-        LOGGER.info("Applied {} to {}: {} of {} injectors found their targets", patch, targetClassName, applied, injectors.size());
+        if (late == 0) {
+            LOGGER.info("Applied {} to {}: {} of {} injectors found their targets", patch, targetClassName, applied, injectors.size());
+        } else {
+            LOGGER.info("Applied {} to {}: {} of {} injectors found their targets; {} more are applied later by MixinExtras "
+                + "and not checked", patch, targetClassName, applied, injectors.size() - late, late);
+        }
     }
 }

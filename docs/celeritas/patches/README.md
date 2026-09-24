@@ -19,7 +19,7 @@ forge122 has none of this: a 1.12 shader mod ships separately, so it cannot be
 compiled in. Every decision the modern code makes by calling Iris directly has
 to come from something forge122 can query at runtime. One small provider
 interface in `common`, registered by the shader mod, would retire S1–S5, S6m,
-S9, S14 and S16, and most of S8:
+S6s, S9, S14 and S16, and most of S8:
 
 ```java
 // A name for upstream to settle; common, next to ShaderModBridge.
@@ -34,6 +34,7 @@ public interface TerrainShaderProvider {
     default void beginTerrainLayer(Object layer, float partialTicks) {}                   // S8
     default void endTerrainLayer(Object layer) {}                                         // S8
     default float terrainEyeOffset() { return 0f; }                                       // S6m, S8
+    default @Nullable ChunkRenderMatrices shadowMatrices() { return null; }               // S6s
     default void beginBlockEntities() {}                                                  // S9
     default void endBlockEntities() {}                                                    // S9
 }
@@ -47,6 +48,7 @@ upstream's own services.
 Without a provider registered, every call site keeps today's behaviour, so the
 change is inert for users without a shader mod.
 
-The remaining drafts are independent small changes: S15 (fog service
-selection), S19 (a getter), I2 (finish deprecating the `frame` parameters).
-S17 needs nothing from upstream.
+The remaining drafts are independent small changes: S7 (two members of
+`SimpleWorldRenderer`), S15 (fog service selection), S19 (a getter), I2 (finish
+deprecating the `frame` parameters). I1 is a question for upstream, and S17
+needs nothing from upstream.

@@ -780,6 +780,8 @@ public class ShadowRenderer {
 			0
 		);
 
+		// The terrain renderer this pass drew with, whose viewport is restored to the player's when the pass ends.
+		WorldRendererCompat shadowTerrain = null;
 		try {
 		profiler.startSection("terrain_setup");
 
@@ -825,12 +827,13 @@ public class ShadowRenderer {
 		// draws entities and block entities only.
 		final WorldRendererCompat terrainRenderer = IrisDebugOptions.enableCeleritas() ? WorldRendererCompatBridge.instanceNullable() : null;
 		if (terrainRenderer != null) {
+			shadowTerrain = terrainRenderer;
 			RenderDevice.enterManagedCode();
 			celeritasManaged = true;
 			var terrainViewport = ((ViewportProvider)terrainFrustumHolder.getFrustum()).sodium$createViewport();
 			terrainRenderer.markSectionGraphDirty();
 			terrainRenderer.setupShadowTerrain(
-				terrainRenderer.getLastViewport(),
+				terrainRenderer.getPlayerViewport(),
 				terrainViewport,
 				new SimpleWorldRenderer.CameraState(
 					entityX,
@@ -841,7 +844,9 @@ public class ShadowRenderer {
 					halfPlaneLength
 				),
 				this.celeritasShadowFrame++,
-				false
+				// As vanilla passes it to setupTerrain: this search is also the frame's terrain search, which must not
+				// cull by occlusion from a spectator camera inside a solid block.
+				mc.player != null && mc.player.isSpectator()
 			);
 			terrainRenderer.setCurrentViewport(terrainViewport);
 		}
@@ -974,6 +979,11 @@ public class ShadowRenderer {
 			InternalShadowRenderingState.end();
 			ACTIVE = false;
 			CURRENT_TARGETS = null;
+			if (shadowTerrain != null) {
+				// The shadow and entity frustums' viewports must not outlive the pass: the terrain pass's visibility
+				// checks read the renderer's viewport.
+				shadowTerrain.setCurrentViewport(shadowTerrain.getPlayerViewport());
+			}
 		}
 	}
 

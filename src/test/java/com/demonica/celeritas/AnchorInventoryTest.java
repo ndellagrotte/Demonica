@@ -116,6 +116,9 @@ class AnchorInventoryTest {
         Anchor.method("S7", SWR, "getLastViewport", "()" + VIEWPORT),
         Anchor.method("S7", SWR, "scheduleTerrainUpdate", "()V"),
         Anchor.method("S7", SWR, "drawChunkLayer", "(Ljava/lang/Object;DDD)V"),
+        Anchor.method("S7", SWR, "createChunkRenderMatrices", "()Lorg/embeddedt/embeddium/impl/render/chunk/ChunkRenderMatrices;"),
+        Anchor.method("S7", RSM, "renderLayer", "(Lorg/embeddedt/embeddium/impl/render/chunk/ChunkRenderMatrices;" + PASS
+            + "Lorg/embeddedt/embeddium/impl/render/viewport/CameraTransform;Lorg/embeddedt/embeddium/impl/render/viewport/CameraTransform;)V"),
         // S8: upstream's renderBlockLayer overwrite and the terrain draw inside it.
         Anchor.call("S8", RENDER_GLOBAL_MIXIN, "renderBlockLayer", "(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
             CWR, "drawChunkLayer", "(Lnet/minecraft/util/BlockRenderLayer;DDD)V"),

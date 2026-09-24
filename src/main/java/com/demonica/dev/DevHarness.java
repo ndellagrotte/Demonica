@@ -1,5 +1,6 @@
 package com.demonica.dev;
 
+import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.config.IrisConfig;
 import net.minecraft.client.Minecraft;
@@ -54,6 +55,7 @@ import java.util.function.BiFunction;
  *   <li>{@code pack <file>|off}: select the shader pack {@code shaderpacks/<file>} (the name may contain spaces), or
  *   turn shaders off, and reload Iris the way its shader toggle key does. Celeritas's renderer is not reloaded here;
  *   it follows on the next frame, as after the toggle key.</li>
+ *   <li>{@code stats}: log the frame rate, Celeritas's chunk counts and the sections the last shadow pass drew</li>
  *   <li>{@code log <text>}: write a marker to the log</li>
  *   <li>{@code exit}: shut the client down</li>
  * </ul>
@@ -265,6 +267,12 @@ public final class DevHarness {
                     throw new UncheckedIOException(e);
                 }
                 LOGGER.info("Dev shader pack: {} (loaded: {})", Iris.getCurrentPackName(), Iris.getCurrentPack().isPresent());
+                return true;
+            }
+            case "stats" -> {
+                String terrain = mc.world != null ? mc.renderGlobal.getDebugInfoRenders() : "no world";
+                LOGGER.info("Dev stats: {} fps; terrain {}; shadow sections {}", Minecraft.getDebugFPS(), terrain,
+                    CeleritasWorldRendererCompat.shadowSections());
                 return true;
             }
             case "log" -> {

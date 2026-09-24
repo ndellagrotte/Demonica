@@ -9,6 +9,7 @@ import net.coderbot.iris.Iris;
 import net.coderbot.iris.apiimpl.IrisApiV0Impl;
 import net.coderbot.iris.gl.framebuffer.MinecraftFramebufferHelper;
 import net.coderbot.iris.pipeline.HandRenderer;
+import net.coderbot.iris.pipeline.ShadowRenderer;
 import net.coderbot.iris.pipeline.WorldRenderingPhase;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.shadows.ShadowRenderingState;
@@ -56,6 +57,26 @@ public final class ShaderTerrain {
     /** Whether a shader pack is loaded and Iris supplies the terrain programs. */
     public static boolean isPackActive() {
         return ShaderProviderHolder.isActive();
+    }
+
+    /** S3, S6s, S16: whether terrain is being set up or drawn for the shadow map. */
+    public static boolean isShadowPass() {
+        return ShaderProviderHolder.isShadowPass();
+    }
+
+    /**
+     * S1: whether a section manager built now gets a shadow pass (a second render list and search, for the shadow
+     * map). As on upstream's modern loaders ({@code ShaderModBridge.areShadersEnabled()}), that is whenever a pack is
+     * active, even one without shadows, whose shadow lists then stay unused. The answer changes exactly when the pass
+     * configuration does (S14), so {@link #reloadIfStale} needs no check of its own.
+     */
+    public static boolean needsShadowPass() {
+        return isPackActive();
+    }
+
+    /** S6s: the matrices of the shadow pass's terrain draws, which ShadowRenderer sets for the frame. */
+    public static ChunkRenderMatrices shadowMatrices() {
+        return matrices(ShadowRenderer.PROJECTION, ShadowRenderer.MODELVIEW);
     }
 
     /**
