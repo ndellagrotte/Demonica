@@ -11,7 +11,7 @@ import net.coderbot.iris.rendertarget.RenderTarget;
 import net.coderbot.iris.rendertarget.RenderTargets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import dhj.embeddedt.embeddium.impl.gl.attribute.GlVertexAttribute;
+import org.embeddedt.embeddium.impl.gl.attribute.GlVertexAttribute;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;

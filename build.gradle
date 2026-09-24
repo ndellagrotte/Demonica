@@ -7,7 +7,8 @@
  * mixins, remapping and packaging (docs/HOST_CONTRACT.md).
  *
  * Published: com.demonica:demonica (this project) and com.demonica:demonica-glsm (:glsm).
- * Never published: :GTNHLib and :celeritas-common, vendored compile-only from Actinium.
+ * Never published: :GTNHLib, vendored compile-only from Actinium. Celeritas is the upstream mod,
+ * pinned in gradle.properties (docs/celeritas/PIN.md).
  */
 plugins {
     id 'java-library'
@@ -42,8 +43,7 @@ configurations {
 
 def libraryProjects = [
     project(':glsm'),
-    project(':GTNHLib'),
-    project(':celeritas-common')
+    project(':GTNHLib')
 ]
 
 ext.sharedMinecraftCompileClasspath = {
@@ -157,7 +157,6 @@ dependencies {
     api project(':glsm')
     // Vendored from Actinium (vendor/README.md); the host supplies both at runtime.
     compileOnly project(':GTNHLib')
-    compileOnly project(':celeritas-common')
 
     compileOnly 'org.jetbrains:annotations:24.1.0'
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
@@ -192,7 +191,6 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'com.google.guava:guava:21.0'
     testImplementation project(':GTNHLib')
-    testImplementation project(':celeritas-common')
     testImplementation files(sharedMinecraftCompileClasspath())
 }
 
@@ -284,8 +282,7 @@ def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
         def componentOutputs = [
             demonica: files(tasks.named('compileJava', JavaCompile).get().destinationDirectory),
             glsm: project(':glsm').sourceSets.main.output.classesDirs,
-            GTNHLib: project(':GTNHLib').sourceSets.main.output.classesDirs,
-            celeritas: project(':celeritas-common').sourceSets.main.output.classesDirs
+            GTNHLib: project(':GTNHLib').sourceSets.main.output.classesDirs
         ]
         def owners = [:]
         def duplicates = []
@@ -335,7 +332,7 @@ def verifyPublishedJars = tasks.register('verifyPublishedJars') {
 
     doLast {
         def forbiddenEntries = [
-            ~/^dhj\//, ~/^grondag\//, ~/^com\/gtnewhorizon\/gtnhlib\//, ~/^com\/dhj\//,
+            ~/^dhj\//, ~/^grondag\//, ~/^com\/gtnewhorizon\/gtnhlib\//, ~/^com\/dhj\//, ~/^org\/embeddedt\//,
             ~/^org\/joml\//, ~/^org\/taumc\//, ~/^org\/antlr\//, ~/^org\/anarres\//,
             ~/^net\/minecraft\//,
             // GLSM ships its own net.minecraftforge.eventbus shim; nothing else from Forge.
@@ -362,7 +359,7 @@ def verifyPublishedJars = tasks.register('verifyPublishedJars') {
             (rootPath): 'net/coderbot/iris/Iris.java',
             ':glsm': 'com/gtnewhorizons/angelica/glsm/GLStateManager.java'
         ]
-        def unpublished = ['GTNHLib', 'celeritas-common']
+        def unpublished = ['GTNHLib', 'celeritas-forge-mc12.2']
         def problems = []
 
         published.each { p ->

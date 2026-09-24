@@ -1,7 +1,7 @@
 package net.coderbot.iris.celeritas.debug;
 
 import net.coderbot.iris.debug.IrisGlDebug;
-import dhj.embeddedt.embeddium.api.debug.RenderDebugHooks;
+import com.demonica.celeritas.api.debug.RenderDebugHooks;
 
 public final class IrisRenderDebugHooks implements RenderDebugHooks {
     public static final IrisRenderDebugHooks INSTANCE = new IrisRenderDebugHooks();

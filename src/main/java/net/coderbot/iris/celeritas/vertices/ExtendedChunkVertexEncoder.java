@@ -5,24 +5,23 @@ import net.coderbot.iris.vertices.NormalHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDynamicLiquid;
 import net.minecraft.block.BlockStaticLiquid;
-import dhj.embeddedt.embeddium.api.util.NormI8;
-import dhj.embeddedt.embeddium.impl.render.chunk.terrain.material.Material;
-import dhj.embeddedt.embeddium.impl.render.chunk.vertex.format.ChunkVertexEncoder;
-import dhj.embeddedt.embeddium.impl.render.chunk.vertex.format.impl.VanillaLikeChunkVertex;
+import org.embeddedt.embeddium.api.util.NormI8;
+import org.embeddedt.embeddium.impl.render.chunk.terrain.material.Material;
 import org.joml.Vector3f;
-import dhj.embeddedt.embeddium.api.shader.ShaderProvider;
-import dhj.embeddedt.embeddium.api.shader.ShaderProviderHolder;
-import dhj.embeddedt.embeddium.api.shader.vertex.BlockRenderContext;
-import dhj.embeddedt.embeddium.api.shader.vertex.ContextAwareChunkVertexEncoder;
-import dhj.embeddedt.embeddium.api.shader.vertex.ExtendedDataHelper;
+import com.demonica.celeritas.api.shader.ShaderProvider;
+import com.demonica.celeritas.api.shader.ShaderProviderHolder;
+import com.demonica.celeritas.api.shader.vertex.BlockRenderContext;
+import com.demonica.celeritas.api.shader.vertex.ContextAwareChunkVertexEncoder;
+import net.coderbot.iris.vertices.ExtendedDataHelper;
 
 import static com.mitchej123.lwjgl.LWJGLServiceProvider.LWJGL;
 
 public class ExtendedChunkVertexEncoder implements ContextAwareChunkVertexEncoder {
     private static final float TEX_CENTROID_BIAS = 1.0f / 32768.0f;
+    /** Where the extended attributes start (see {@link #writeBase}). */
+    private static final int BASE_STRIDE = 28;
 
     private final ExtendedChunkVertexType vertexType;
-    private final ChunkVertexEncoder baseEncoder = VanillaLikeChunkVertex.createBaseEncoder();
     private final LwjglQuadView quad = new LwjglQuadView();
     private final Vector3f normal = new Vector3f();
     private final int midTexOffset;
@@ -113,7 +112,7 @@ public class ExtendedChunkVertexEncoder implements ContextAwareChunkVertexEncode
         }
 
         vertex.rdhFactor = 0;
-        this.baseEncoder.write(ptr, material, vertex, sectionIndex);
+        writeBase(ptr, material, vertex, sectionIndex);
 
         BlockRenderContext ctx = this.context;
         if (this.mcEntityOffset >= 0 || this.midBlockOffset >= 0) {
@@ -170,7 +169,7 @@ public class ExtendedChunkVertexEncoder implements ContextAwareChunkVertexEncode
                 this.quad.setup(ptr, this.stride);
                 NormalHelper.computeFaceNormal(this.normal, this.quad);
                 if (this.normalOffset >= 0) {
-                    writeQuadInt(ptr, this.normalOffset, NormI8.pack(this.normal));
+                    writeQuadInt(ptr, this.normalOffset, NormI8.pack(this.normal.x(), this.normal.y(), this.normal.z()));
                 }
                 if (this.tangentOffset >= 0) {
                     int tangent = NormalHelper.computeTangent(this.normal.x(), this.normal.y(), this.normal.z(), this.quad);
@@ -180,6 +179,24 @@ public class ExtendedChunkVertexEncoder implements ContextAwareChunkVertexEncode
         }
 
         return ptr + this.stride;
+    }
+
+    /**
+     * The first {@value #BASE_STRIDE} bytes of every extended vertex: Celeritas's vanilla-like layout (position,
+     * colour, texture, light and draw parameters) without its trailing {@code a_RdhFactor}, where the extended
+     * attributes begin. Upstream's {@code VanillaLikeChunkVertex} always writes that trailing int, so this repeats
+     * its encoding.
+     */
+    private static void writeBase(long ptr, Material material, Vertex vertex, int sectionIndex) {
+        LWJGL.memPutFloat(ptr, vertex.x);
+        LWJGL.memPutFloat(ptr + 4, vertex.y);
+        LWJGL.memPutFloat(ptr + 8, vertex.z);
+        LWJGL.memPutInt(ptr + 12, vertex.color);
+        LWJGL.memPutFloat(ptr + 16, Math.min(0.99999997F, vertex.u));
+        LWJGL.memPutFloat(ptr + 20, Math.min(0.99999997F, vertex.v));
+        int drawParameters = ((sectionIndex & 0xFF) << 8) | (material.bits() & 0xFF);
+        int light = (vertex.light & 0xFF) | (((vertex.light >> 16) & 0xFF) << 8);
+        LWJGL.memPutInt(ptr + 24, drawParameters | (light << 16));
     }
 
     private int getOffset(TerrainVertexFormatRequirements.Attribute attribute, String name) {

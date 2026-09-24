@@ -8,7 +8,8 @@ import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.pipeline.SkyRenderDistance;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
-import dhj.embeddedt.embeddium.impl.render.chunk.map.ChunkTrackerHolder;
+import com.demonica.celeritas.ChunkTrackers;
+import org.embeddedt.embeddium.impl.render.chunk.map.ChunkTrackerHolder;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
@@ -99,7 +100,7 @@ public class CameraUniforms {
 			return 0;
 		}
 
-		return ChunkTrackerHolder.get(world).getRequiredNeighborRadius();
+		return ChunkTrackers.requiredNeighborRadius(ChunkTrackerHolder.get(world));
 	}
 
 	public static Vector3d getUnshiftedCameraPosition() {

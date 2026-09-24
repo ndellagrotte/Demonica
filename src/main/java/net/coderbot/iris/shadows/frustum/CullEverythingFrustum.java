@@ -5,13 +5,12 @@ import com.seibel.distanthorizons.api.objects.math.DhApiMat4f;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraftforge.fml.common.Optional;
-import dhj.embeddedt.embeddium.impl.render.viewport.Viewport;
-import dhj.embeddedt.embeddium.impl.render.viewport.ViewportProvider;
-import org.joml.Vector3d;
+import com.demonica.celeritas.CeleritasJoml;
+import org.embeddedt.embeddium.impl.render.viewport.Viewport;
+import org.embeddedt.embeddium.impl.render.viewport.ViewportProvider;
 
 @Optional.Interface(modid = "distanthorizons", iface = "com.seibel.distanthorizons.api.interfaces.override.rendering.IDhApiShadowCullingFrustum")
-public class CullEverythingFrustum extends Frustum implements ViewportProvider, dhj.embeddedt.embeddium.impl.render.viewport.frustum.Frustum, IDhApiShadowCullingFrustum {
-	private final Vector3d position = new Vector3d();
+public class CullEverythingFrustum extends Frustum implements ViewportProvider, org.embeddedt.embeddium.impl.render.viewport.frustum.Frustum, IDhApiShadowCullingFrustum {
 	private double x;
 	private double y;
 	private double z;
@@ -42,7 +41,7 @@ public class CullEverythingFrustum extends Frustum implements ViewportProvider, 
 
 	@Override
 	public Viewport sodium$createViewport() {
-		return new Viewport(this, position.set(x, y, z));
+		return CeleritasJoml.viewport(this, x, y, z);
 	}
 
 	@Optional.Method(modid = "distanthorizons")

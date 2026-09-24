@@ -1,7 +1,8 @@
 package net.coderbot.iris.celeritas;
 
-import dhj.embeddedt.embeddium.impl.render.chunk.RenderPassConfiguration;
-import dhj.embeddedt.embeddium.impl.render.chunk.terrain.TerrainRenderPass;
+import com.demonica.celeritas.api.shader.PassSemantics;
+import org.embeddedt.embeddium.impl.render.chunk.RenderPassConfiguration;
+import org.embeddedt.embeddium.impl.render.chunk.terrain.TerrainRenderPass;
 
 public enum IrisTerrainPass {
     SHADOW("shadow"),
@@ -36,7 +37,7 @@ public enum IrisTerrainPass {
     }
 
     public static IrisTerrainPass fromTerrainPass(TerrainRenderPass pass, boolean isShadow) {
-        return switch (pass.semantic()) {
+        return switch (PassSemantics.semantic(pass)) {
             case WATER, TRANSLUCENT -> isShadow ? SHADOW_TRANSLUCENT : GBUFFER_TRANSLUCENT;
             case CUTOUT -> isShadow ? SHADOW_CUTOUT : GBUFFER_CUTOUT;
             case SOLID -> isShadow ? SHADOW : GBUFFER_SOLID;

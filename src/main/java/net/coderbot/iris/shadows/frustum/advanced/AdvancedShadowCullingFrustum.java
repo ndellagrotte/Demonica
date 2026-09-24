@@ -6,12 +6,12 @@ import net.coderbot.iris.shadows.frustum.BoxCuller;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraftforge.fml.common.Optional;
-import dhj.embeddedt.embeddium.impl.render.viewport.Viewport;
-import dhj.embeddedt.embeddium.impl.render.viewport.ViewportProvider;
-import dhj.embeddedt.embeddium.impl.render.viewport.frustum.ShadowSearchFrustum;
+import com.demonica.celeritas.CeleritasJoml;
+import org.embeddedt.embeddium.impl.render.viewport.Viewport;
+import org.embeddedt.embeddium.impl.render.viewport.ViewportProvider;
+import org.embeddedt.embeddium.impl.render.viewport.frustum.ShadowSearchFrustum;
 import org.joml.Math;
 import org.joml.Matrix4fc;
-import org.joml.Vector3d;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 
@@ -36,7 +36,7 @@ import org.joml.Vector4f;
  * cost of slightly more computations.</p>
  */
 @Optional.Interface(modid = "distanthorizons", iface = "com.seibel.distanthorizons.api.interfaces.override.rendering.IDhApiShadowCullingFrustum")
-public class AdvancedShadowCullingFrustum extends Frustum implements ViewportProvider, dhj.embeddedt.embeddium.impl.render.viewport.frustum.Frustum, IDhApiShadowCullingFrustum, ShadowSearchFrustum {
+public class AdvancedShadowCullingFrustum extends Frustum implements ViewportProvider, org.embeddedt.embeddium.impl.render.viewport.frustum.Frustum, IDhApiShadowCullingFrustum, ShadowSearchFrustum {
 	private static final int MAX_CLIPPING_PLANES = 13;
 
 	/**
@@ -79,7 +79,6 @@ public class AdvancedShadowCullingFrustum extends Frustum implements ViewportPro
 
 	private final Vector3f shadowLightVectorFromOrigin = new Vector3f();
 	protected BoxCuller boxCuller;
-	private final Vector3d position = new Vector3d();
 	private double x;
 	private double y;
 	private double z;
@@ -331,7 +330,7 @@ public class AdvancedShadowCullingFrustum extends Frustum implements ViewportPro
 
 	@Override
 	public Viewport sodium$createViewport() {
-		return new Viewport(this, position.set(x, y, z));
+		return CeleritasJoml.viewport(this, x, y, z);
 	}
 
 	@Override

@@ -16,19 +16,21 @@ import net.coderbot.iris.shadows.ShadowRenderingState;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.demonica.celeritas.api.shader.PassSemantics;
 import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.PostProcessingBridge;
-import dhj.embeddedt.embeddium.impl.gl.shader.ShaderBindingContext;
-import dhj.embeddedt.embeddium.impl.gl.shader.uniform.GlUniformFloat3v;
-import dhj.embeddedt.embeddium.impl.gl.shader.uniform.GlUniformMatrix3f;
-import dhj.embeddedt.embeddium.impl.gl.shader.uniform.GlUniformMatrix4f;
-import dhj.embeddedt.embeddium.impl.gl.tessellation.GlPrimitiveType;
-import dhj.embeddedt.embeddium.impl.render.chunk.shader.ChunkShaderInterface;
-import dhj.embeddedt.embeddium.impl.render.chunk.shader.ChunkShaderTextureSlot;
-import dhj.embeddedt.embeddium.impl.render.chunk.terrain.TerrainRenderPass;
+import org.embeddedt.embeddium.impl.gl.shader.ShaderBindingContext;
+import org.embeddedt.embeddium.impl.gl.shader.uniform.GlUniformFloat3v;
+import org.embeddedt.embeddium.impl.gl.shader.uniform.GlUniformMatrix3f;
+import org.embeddedt.embeddium.impl.gl.shader.uniform.GlUniformMatrix4f;
+import org.embeddedt.embeddium.impl.gl.tessellation.GlPrimitiveType;
+import org.embeddedt.embeddium.impl.render.chunk.shader.ChunkShaderInterface;
+import org.embeddedt.embeddium.impl.render.chunk.shader.ChunkShaderTextureSlot;
+import org.embeddedt.embeddium.impl.render.chunk.terrain.TerrainRenderPass;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Matrix3f;
-import org.joml.Matrix4f;
-import org.joml.Matrix4fc;
+// Celeritas's shader interface takes its relocated JOML (see com.demonica.celeritas.CeleritasJoml).
+import org.embeddedt.embeddium.impl.shadow.joml.Matrix3f;
+import org.embeddedt.embeddium.impl.shadow.joml.Matrix4f;
+import org.embeddedt.embeddium.impl.shadow.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
@@ -165,7 +167,7 @@ public class IrisCeleritasChunkShaderInterface implements ChunkShaderInterface {
         // shaderless (fixed-function) policy, where vanilla keeps the mask on and TESRs draw first;
         // the Iris path therefore applies the per-semantic override itself instead of deferring to
         // the flag. Water keeps writing depth so stacked water sorts correctly (#79).
-        return shadowPass || (pass.writesDepth() && pass.semantic() != TerrainRenderPass.Semantic.TRANSLUCENT);
+        return shadowPass || (PassSemantics.writesDepth(pass) && PassSemantics.semantic(pass) != PassSemantics.Semantic.TRANSLUCENT);
     }
 
     @Override

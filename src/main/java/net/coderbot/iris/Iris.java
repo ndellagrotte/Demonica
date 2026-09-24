@@ -2,7 +2,7 @@ package net.coderbot.iris;
 
 import net.coderbot.iris.debug.IrisDebugOptions;
 import com.google.common.base.Throwables;
-import dhj.embeddedt.embeddium.api.shader.ShaderProviderHolder;
+import com.demonica.celeritas.api.shader.ShaderProviderHolder;
 import com.gtnewhorizons.angelica.Tags;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectMap;
@@ -48,7 +48,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.InputEvent;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.input.Keyboard;
-import dhj.embeddedt.embeddium.api.debug.RenderDebugHooksHolder;
+import com.demonica.celeritas.api.debug.RenderDebugHooksHolder;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -1,11 +1,13 @@
 package net.coderbot.iris.apiimpl;
 
 import net.coderbot.iris.Iris;
+import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.coderbot.iris.pipeline.FixedFunctionWorldRenderingPipeline;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.shadows.ShadowRenderingState;
 import net.irisshaders.iris.api.v0.IrisApi;
 import net.irisshaders.iris.api.v0.IrisApiConfig;
+import net.minecraft.client.gui.GuiScreen;
 
 
 public class IrisApiV0Impl implements IrisApi {
@@ -33,11 +35,13 @@ public class IrisApiV0Impl implements IrisApi {
 		return ShadowRenderingState.areShadowsCurrentlyBeingRendered();
 	}
 
+	/**
+	 * Celeritas's video settings screen adds a "Shader Packs" tab when it finds this API and opens whatever screen
+	 * this returns.
+	 */
 	@Override
 	public Object openMainIrisScreenObj(Object parent) {
-        return new Object();
-        // TODO: GUI
-        //		return new ShaderPackScreen((GuiScreen) parent);
+		return new ShaderPackScreen((GuiScreen) parent);
 	}
 
 	@Override
