@@ -86,4 +86,5 @@ accepted.
    `run/test/upstream-mixin-inventory.actual.txt`.
 4. For each change, re-derive the affected quarantine patch and update its ledger
    entry (`LEDGER.md`), then update the snapshot.
-5. Run the verification matrix in `SPIKE.md` before accepting the new pin.
+5. Repeat the spike's two runs ([`SPIKE.md`](SPIKE.md) sections 1 and 2) and the
+   current checkpoint's matrix before accepting the new pin.
