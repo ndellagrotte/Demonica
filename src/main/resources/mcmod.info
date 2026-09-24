@@ -5,7 +5,7 @@
   "mcversion": "1.12.2",
   "description": "Shader packs for Minecraft 1.12.2 on Cleanroom, running on Celeritas.",
   "authorList": ["Nicholas DellaGrotte"],
-  "credits": "Actinium (DHJComical, embeddedt), Celeritas (embeddedt), Iris, Angelica and GLSM, GTNHLib, GLSL Transformation Library, Reese's Sodium Options",
+  "credits": "Actinium (DHJComical, embeddedt), Celeritas (embeddedt), Iris, Angelica and GLSM, GTNHLib, GLSL Transformation Library, Reese's Sodium Options, ShadersMod (daxnitro, id_miner, karyonix)",
   "url": "https://github.com/ndellagrotte/Demonica",
   "updateJSON": "",
   "logoFile": "assets/actinium/icon.png",

@@ -33,6 +33,13 @@ Celeritas build is installed, Demonica checks what its patches bind to before
 applying any of them, and turns off what no longer fits: at worst shaders are
 off, and the log and the shader pack screen say why.
 
+## Installing
+
+Download `Demonica-<version>.jar` from the
+[releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
+`mods/`, next to the Celeritas jar named above. Nothing else is needed:
+GTNHLib's classes are inside the jar.
+
 ## Building
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
@@ -46,7 +53,7 @@ S8TNLib release that `gradle.properties` pins, from its tag.
 than `s8tnlib_commit`.
 
 ```sh
-git clone --branch v0.1.0 https://github.com/ndellagrotte/S8TNLib.git
+git clone --branch v0.1.1 https://github.com/ndellagrotte/S8TNLib.git
 (cd S8TNLib && ./gradlew publishToMavenLocal)
 ```
 
@@ -70,10 +77,12 @@ normal install. `runClient` takes:
 
 ## License
 
-Demonica combines Angelica's LGPL-3.0 code with code ported from Actinium,
-which is GPL-3.0, so the combined work is GPL-3.0. Nothing is published until
-the maintainer decides how to release it. See
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+Demonica is distributed under GPL-3.0 ([`LICENSE`](LICENSE)). Angelica's and
+Iris's code is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
+Angelica's license file), which may be conveyed under GPL-3.0; the code ported
+from Actinium and the GTNHLib port in S8TNLib are GPL-3.0. The MIT- and
+BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+has the details, and the mod jar carries all three files.
 
 ## Credits
 

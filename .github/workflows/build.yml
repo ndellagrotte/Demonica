@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [dev, main, 'sync/**']
+    tags: ['v*']
   pull_request:
 
 permissions:
@@ -55,6 +56,15 @@ jobs:
       # (verifyDistributedJar) and the patches' anchors in production names (verifyProductionAnchors).
       - name: Build
         run: ./gradlew build
+
+      # The mod jar and sources jar of every successful build. A release tag's run supplies the jars
+      # attached to the GitHub release, and a local build of the same commit is compared against them.
+      - name: Upload the jars
+        uses: actions/upload-artifact@v7
+        with:
+          name: demonica-jars
+          path: build/libs/Demonica-*.jar
+          if-no-files-found: error
 
       - name: Upload test reports
         if: failure()
