@@ -821,14 +821,16 @@ public class ShadowRenderer {
 		// Mark the shadow graph as needing update before terrain setup
 		// Modern Celeritas does this to ensure the shadow render lists get populated
 		boolean celeritasManaged = false;
-		if (IrisDebugOptions.enableCeleritas()) {
+		// Terrain reaches the shadow map only through the world renderer's shadow adapter; without one, the pass
+		// draws entities and block entities only.
+		final WorldRendererCompat terrainRenderer = IrisDebugOptions.enableCeleritas() ? WorldRendererCompatBridge.instanceNullable() : null;
+		if (terrainRenderer != null) {
 			RenderDevice.enterManagedCode();
 			celeritasManaged = true;
-			WorldRendererCompat renderer = WorldRendererCompatBridge.instance();
 			var terrainViewport = ((ViewportProvider)terrainFrustumHolder.getFrustum()).sodium$createViewport();
-			renderer.markSectionGraphDirty();
-			renderer.setupShadowTerrain(
-				renderer.getLastViewport(),
+			terrainRenderer.markSectionGraphDirty();
+			terrainRenderer.setupShadowTerrain(
+				terrainRenderer.getLastViewport(),
 				terrainViewport,
 				new SimpleWorldRenderer.CameraState(
 					entityX,
@@ -841,7 +843,7 @@ public class ShadowRenderer {
 				this.celeritasShadowFrame++,
 				false
 			);
-			renderer.setCurrentViewport(terrainViewport);
+			terrainRenderer.setCurrentViewport(terrainViewport);
 		}
 
 		// Execute the vanilla terrain setup / culling routines using our shadow frustum.
@@ -857,10 +859,10 @@ public class ShadowRenderer {
 		setupGlState(PROJECTION);
 
 		// Render all opaque terrain unless pack requests not to
-		if (shouldRenderTerrain) {
+		if (shouldRenderTerrain && terrainRenderer != null) {
             mc.renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
 			TerrainPhaseScope.runOpaque(renderingPipeline,
-				() -> WorldRendererCompatBridge.instance().drawChunkLayersDeduplicated(
+				() -> terrainRenderer.drawChunkLayersDeduplicated(
 					OPAQUE_SHADOW_TERRAIN_LAYERS, terrainX, terrainY, terrainZ));
 		}
 
@@ -886,8 +888,8 @@ public class ShadowRenderer {
 		entityShadowFrustum.setPosition(entityX, entityY, entityZ);
 
 		// Set viewport for entity visibility checks during shadow pass (matches modern Celeritas)
-		if (IrisDebugOptions.enableCeleritas()) {
-			WorldRendererCompatBridge.instance().setCurrentViewport(((ViewportProvider)entityShadowFrustum).sodium$createViewport());
+		if (terrainRenderer != null) {
+			terrainRenderer.setCurrentViewport(((ViewportProvider)entityShadowFrustum).sodium$createViewport());
 		}
 
 		// Render nearby entities
@@ -915,9 +917,9 @@ public class ShadowRenderer {
 		// TODO (Iris): Prevent these calls from scheduling translucent sorting...
 		// It doesn't matter a ton, since this just means that they won't be sorted in the getNormal rendering pass.
 		// Just something to watch out for, however...
-		if (shouldRenderTranslucent) {
+		if (shouldRenderTranslucent && terrainRenderer != null) {
 			TerrainPhaseScope.runTranslucent(renderingPipeline,
-				() -> WorldRendererCompatBridge.instance().drawChunkLayer(
+				() -> terrainRenderer.drawChunkLayer(
 					BlockRenderLayer.TRANSLUCENT, terrainX, terrainY, terrainZ));
 		}
 
@@ -952,7 +954,7 @@ public class ShadowRenderer {
 			shouldRenderEntities,
 			shouldRenderPlayer,
 			shouldRenderBlockEntities,
-			IrisDebugOptions.enableCeleritas() ? WorldRendererCompatBridge.instance().getVisibleChunkCount() : -1,
+			terrainRenderer != null ? terrainRenderer.getVisibleChunkCount() : -1,
 			renderedShadowEntities,
 			renderedShadowTileEntities
 		);
@@ -1004,7 +1006,8 @@ public class ShadowRenderer {
 			return;
 		}
 
-		String shadowTerrain = WorldRendererCompatBridge.instance().getChunksDebugString();
+		WorldRendererCompat terrainRenderer = WorldRendererCompatBridge.instanceNullable();
+		String shadowTerrain = terrainRenderer != null ? terrainRenderer.getChunksDebugString() : "not drawn";
 		if (Iris.getIrisConfig().areDebugOptionsEnabled()) {
 			messages.add("[" + Iris.MODNAME + "] Shadow Maps: " + debugStringOverall);
 			messages.add("[" + Iris.MODNAME + "] Shadow Distance Terrain: " + terrainFrustumHolder.getDistanceInfo() + " Entity: " + entityFrustumHolder.getDistanceInfo());

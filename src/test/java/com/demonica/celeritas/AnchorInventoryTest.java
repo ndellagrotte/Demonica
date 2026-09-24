@@ -119,6 +119,8 @@ class AnchorInventoryTest {
         // S8: upstream's renderBlockLayer overwrite and the terrain draw inside it.
         Anchor.call("S8", RENDER_GLOBAL_MIXIN, "renderBlockLayer", "(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
             CWR, "drawChunkLayer", "(Lnet/minecraft/util/BlockRenderLayer;DDD)V"),
+        Anchor.call("S8", RENDER_GLOBAL_MIXIN, "renderBlockLayer", "(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
+            "net/minecraft/client/renderer/EntityRenderer", "enableLightmap", "()V"),
         // S9: the block-entity phase, by its full descriptor (not the erased bridge).
         Anchor.method("S9", CWR, "renderBlockEntities", "(L" + CWR + "$TileEntityRenderContext;)I"),
         // S10: the meshing loop's layer test and vanilla fallback.
@@ -153,9 +155,9 @@ class AnchorInventoryTest {
             + "Lorg/embeddedt/embeddium/impl/gl/device/CommandList;Lorg/embeddedt/embeddium/impl/render/chunk/lists/ChunkRenderListIterable;"
             + PASS + "Lorg/embeddedt/embeddium/impl/render/viewport/CameraTransform;Lorg/embeddedt/embeddium/impl/render/viewport/CameraTransform;)V",
             DEFAULT_RENDERER, "useBlockFaceCulling", "()Z"),
-        // S17: Iris's program hooks.
-        Anchor.method("S17", GL_PROGRAM, "bind", "()V"),
-        Anchor.method("S17", GL_PROGRAM, "unbind", "()V"),
+        // S17: every linked program is registered with Iris for as long as it lives.
+        Anchor.method("S17", GL_PROGRAM, "<init>", "(ILjava/util/function/Function;)V"),
+        Anchor.method("S17", GL_PROGRAM, "destroyInternal", "()V"),
         // S18: shadow block entities come from the public iterator.
         Anchor.method("S18", SWR, "forEachVisibleBlockEntity", "(Ljava/util/function/Consumer;)V"),
         // S19: DH's neighbour radius.

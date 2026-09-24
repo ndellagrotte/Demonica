@@ -29,6 +29,8 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
 
     private static final List<String> MIXIN_CONFIGS = List.of(
         "mixins.demonica.core.json",
+        // Iris's hooks into vanilla rendering.
+        "mixins.demonica.iris.json",
         // The quarantine: every patch against Celeritas's own classes (docs/celeritas/LEDGER.md).
         "mixins.demonica.celeritas.json"
     );

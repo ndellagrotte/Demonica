@@ -4,6 +4,7 @@ import net.coderbot.iris.debug.flight.GlFlightRecording;
 import net.coderbot.iris.debug.flight.GlFlightStreamingSource;
 import com.demonica.gui.DemonicaWindowModeController;
 import com.demonica.render.BufferBuilderStreamingDrawer;
+import com.demonica.render.EndPortalCompositeRenderer;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
 import net.minecraft.client.Minecraft;
@@ -38,6 +39,7 @@ public class MixinMinecraft {
     @Inject(method = "runGameLoop", at = @At("HEAD"))
     private void beginRenderFrame(CallbackInfo ci) {
         GlFlightRecording.beginFrame();
+        EndPortalCompositeRenderer.beginFrame();
     }
 
     @Inject(

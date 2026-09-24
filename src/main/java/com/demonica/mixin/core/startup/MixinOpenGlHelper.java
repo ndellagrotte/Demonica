@@ -20,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.demonica.runtime.DemonicaRuntime;
 import com.demonica.render.BufferBuilderStreamingDrawer;
+import com.demonica.render.EndPortalCompositeRenderer;
 
 @Mixin(value = OpenGlHelper.class, priority = 100)
 public class MixinOpenGlHelper {
@@ -39,6 +40,7 @@ public class MixinOpenGlHelper {
             .streamingDrawerDestroy(() -> {
                 TessellatorStreamingDrawer.destroy();
                 BufferBuilderStreamingDrawer.destroy();
+                EndPortalCompositeRenderer.destroy();
             })
             .build());
 

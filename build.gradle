@@ -472,6 +472,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend',
                 'META-INF/services/com.mitchej123.glsm.GLStateManagerService',
                 'mixins.demonica.core.json',
+                'mixins.demonica.iris.json',
                 'mixins.demonica.celeritas.json',
                 'mixins.demonica-refmap.json'
             ] + containedJars.get()

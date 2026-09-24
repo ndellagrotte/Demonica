@@ -1,5 +1,7 @@
 package com.demonica.dev;
 
+import net.coderbot.iris.Iris;
+import net.coderbot.iris.config.IrisConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiScreen;
@@ -16,6 +18,7 @@ import org.embeddedt.embeddium.impl.render.ShaderModBridge;
 import org.taumc.celeritas.impl.gui.CeleritasVideoOptionsScreen;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +51,9 @@ import java.util.function.BiFunction;
  *   <li>{@code screen video|shaderpacks|close}: open Celeritas's video settings, open the screen that Celeritas's
  *   "Shader Packs" tab opens (through the same {@code ShaderModBridge} call), or close the current screen</li>
  *   <li>{@code reload}: reload resources (F3+T)</li>
+ *   <li>{@code pack <file>|off}: select the shader pack {@code shaderpacks/<file>} (the name may contain spaces), or
+ *   turn shaders off, and reload Iris the way its shader toggle key does. Celeritas's renderer is not reloaded here;
+ *   it follows on the next frame, as after the toggle key.</li>
  *   <li>{@code log <text>}: write a marker to the log</li>
  *   <li>{@code exit}: shut the client down</li>
  * </ul>
@@ -241,6 +247,24 @@ public final class DevHarness {
             }
             case "reload" -> {
                 mc.refreshResources();
+                return true;
+            }
+            case "pack" -> {
+                String pack = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                boolean enable = !pack.equalsIgnoreCase("off");
+                IrisConfig config = Iris.getIrisConfig();
+                if (enable) {
+                    config.setShaderPackName(pack);
+                }
+                config.setShadersEnabled(enable);
+                try {
+                    // Iris.reload() reads the config back from disk.
+                    config.save();
+                    Iris.reload();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                LOGGER.info("Dev shader pack: {} (loaded: {})", Iris.getCurrentPackName(), Iris.getCurrentPack().isPresent());
                 return true;
             }
             case "log" -> {

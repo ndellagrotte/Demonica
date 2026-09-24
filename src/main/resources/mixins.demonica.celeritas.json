@@ -9,7 +9,15 @@
   "mixins": [],
   "server": [],
   "client": [
-    "seam.GLStateManagerFogServiceMixin"
+    "internal.ChunkTrackerMixin",
+    "internal.GlProgramMixin",
+    "internal.ShaderChunkRendererMixin",
+    "internal.SimpleWorldRendererMixin",
+    "seam.CeleritasWorldRendererMixin",
+    "seam.GLStateManagerFogServiceMixin",
+    "seam.RenderGlobalTerrainMixin",
+    "seam.VintageRenderPassConfigurationBuilderMixin",
+    "seam.VintageRenderSectionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 0

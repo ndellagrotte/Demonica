@@ -19,7 +19,7 @@ import org.taumc.celeritas.impl.render.terrain.fog.GLStateManagerFogService;
  * in solid fog colour. Each accessor returns GLSM's fog state instead. The fog shape is planar, matching vanilla
  * 1.12's eye-plane fog.
  */
-@Mixin(value = GLStateManagerFogService.class, remap = false)
+@Mixin(value = GLStateManagerFogService.class, remap = false, priority = 1100)
 public abstract class GLStateManagerFogServiceMixin {
     @Unique
     private final float[] demonica$fogColor = new float[4];

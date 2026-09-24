@@ -8,6 +8,7 @@ import com.demonica.loading.ActiniumConflictException;
 import com.demonica.loading.Environment;
 import com.demonica.mixin.core.terrain.AccessorEntityRenderer;
 import com.demonica.mixins.MixinEarly;
+import com.demonica.render.FastLitItemDisplayListCache;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizon.gtnhlib.client.renderer.RuntimeOptionsBridge;
 import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.PostProcessingBridge;
@@ -18,6 +19,7 @@ import com.mojang.realmsclient.gui.ChatFormatting;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
+import net.coderbot.iris.rendertarget.IRenderTargetExt;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -53,12 +55,13 @@ public class Demonica {
         ModContainer container = Loader.instance().getIndexedModList().get(MODID);
         DemonicaRuntime.setVersion(container != null ? container.getVersion() : "unknown");
         RuntimeOptionsBridge.setAllowDirectMemoryAccess(DemonicaRuntimeOptions::allowDirectMemoryAccess);
+        PostProcessingBridge.setDepthTextureProvider(framebuffer -> ((IRenderTargetExt) framebuffer).iris$getDepthTextureId());
         PostProcessingBridge.setLightmapColorAccessor(renderer -> ((AccessorEntityRenderer) renderer).getLightmapColors());
         PostProcessingBridge.setLightmapTextureAccessor(renderer -> ((AccessorEntityRenderer) renderer).getLightmapTexture());
         PostProcessingBridge.setNightVisionBrightnessInvoker(
             (entity, partialTicks) -> ((AccessorEntityRenderer) Minecraft.getMinecraft().entityRenderer)
                 .invokeGetNightVisionBrightness(entity, partialTicks));
-        GLSMPerfDebugHooks.addStatsProvider(AdaptiveShadowBoundsStats::dumpStatsAndReset);
+        GLSMPerfDebugHooks.addStatsProvider(Demonica::dumpExtraPerfStats);
         GLSMPerfDebugHooks.setConfiguredEnabled(
             DemonicaRuntimeOptions.resolvePerfDebugEnabled(DemonicaRuntime.options().debug.enablePerfDebug)
         );
@@ -89,6 +92,18 @@ public class Demonica {
     /** Demonica's settings. GLSM's debug switches read this reflectively (GLSMDebug). */
     public static DemonicaOptions options() {
         return DemonicaRuntime.options();
+    }
+
+    private static String dumpExtraPerfStats() {
+        String fastLitStats = FastLitItemDisplayListCache.dumpStatsAndReset();
+        String shadowStats = AdaptiveShadowBoundsStats.dumpStatsAndReset();
+        if (shadowStats.isEmpty()) {
+            return fastLitStats;
+        }
+        if (fastLitStats.isEmpty()) {
+            return shadowStats;
+        }
+        return fastLitStats + " " + shadowStats;
     }
 
     private static void reloadShaderPipelineForPerfDebug() {
