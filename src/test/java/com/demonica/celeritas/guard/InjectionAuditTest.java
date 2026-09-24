@@ -65,6 +65,27 @@ class InjectionAuditTest {
         assertEquals(-1, injectors.get("demonica$notMerged").callingMethods());
     }
 
+    @Test
+    void marksWhatMixinExtrasAppliesAfterThePlugin() {
+        ClassNode mixin = new ClassNode();
+        mixin.name = MIXIN.replace('.', '/');
+        Map<String, Boolean> late = Map.of(
+            "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;", true,
+            "Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;", true,
+            "Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;", true,
+            "Lcom/llamalad7/mixinextras/injector/wrapmethod/WrapMethod;", true,
+            // The deprecated one is applied with Mixin's own injectors.
+            "Lcom/llamalad7/mixinextras/injector/WrapWithCondition;", false,
+            "Lcom/llamalad7/mixinextras/injector/ModifyReturnValue;", false,
+            "Lorg/spongepowered/asm/mixin/injection/Inject;", false);
+        late.keySet().forEach(injector -> mixin.methods.add(handler(injector, injector, "render")));
+
+        Map<String, Boolean> marked = InjectionAudit.audit(new ClassNode(), mixin, MIXIN).stream()
+            .collect(Collectors.toMap(InjectionAudit.Injector::handler, InjectionAudit.Injector::late));
+
+        assertEquals(late, marked);
+    }
+
     private static MethodNode handler(String name, String injector, String... targets) {
         MethodNode method = new MethodNode(Opcodes.ACC_PRIVATE, name, "(I)I", null, null);
         AnnotationNode annotation = new AnnotationNode(injector);

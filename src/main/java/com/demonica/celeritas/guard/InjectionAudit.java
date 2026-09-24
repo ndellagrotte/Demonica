@@ -20,9 +20,9 @@ import java.util.Set;
  * source-id part it adds is {@code demonica$} for Demonica's {@code demonica$} handlers), and marks it
  * {@code @MixinMerged} with the mixin's class name.
  *
- * <p>MixinExtras applies {@code @ModifyExpressionValue}, {@code @WrapWithCondition} and {@code @WrapOperation} late,
- * in its own transformer extension, after the config plugin's {@code postApply}. Those injectors cannot be checked
- * here; they are reported as late instead.
+ * <p>MixinExtras applies {@code @ModifyExpressionValue}, {@code @WrapOperation}, {@code @WrapWithCondition} and
+ * {@code @WrapMethod} late, in its own transformer extensions, after the config plugin's {@code postApply}. They are
+ * marked late: only an audit that runs after those extensions ({@link InjectionAuditExtension}) can check them.
  */
 final class InjectionAudit {
     private static final String MIXIN_MERGED = "Lorg/spongepowered/asm/mixin/transformer/meta/MixinMerged;";
@@ -40,11 +40,12 @@ final class InjectionAudit {
         "Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;",
         "Lcom/llamalad7/mixinextras/injector/wrapmethod/WrapMethod;",
         "Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;");
-    // Applied by MixinExtras's LateInjectionApplicatorExtension, after postApply.
+    // Applied by MixinExtras's LateInjectionApplicatorExtension and WrapMethodApplicatorExtension, after postApply. The
+    // deprecated injector.WrapWithCondition is not among them: Mixin applies it with its own injectors.
     private static final Set<String> LATE_INJECTORS = Set.of(
         "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;",
-        "Lcom/llamalad7/mixinextras/injector/WrapWithCondition;",
         "Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;",
+        "Lcom/llamalad7/mixinextras/injector/wrapmethod/WrapMethod;",
         "Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;");
 
     private InjectionAudit() {
@@ -53,7 +54,7 @@ final class InjectionAudit {
     /**
      * An injector handler of the mixin, how many target methods its {@code method} selectors name, how many methods of
      * the target now call it (-1 if Mixin did not merge the handler at all), and whether MixinExtras applies it only
-     * after this check.
+     * after the config plugin's {@code postApply}.
      */
     record Injector(String handler, int selectors, int callingMethods, boolean late) {
         boolean applied() {

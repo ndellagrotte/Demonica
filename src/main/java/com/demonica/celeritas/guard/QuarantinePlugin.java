@@ -15,15 +15,20 @@ import java.util.Set;
  * The plugin of {@code mixins.demonica.celeritas.json}, the quarantine: the only config allowed to patch Celeritas's
  * own classes (docs/celeritas/LEDGER.md). The config is non-fatal ({@code required: false}, {@code defaultRequire: 0}),
  * so a patch whose anchor moved is skipped instead of crashing the game. This plugin is where the pin check and the
- * anchor audit switch off failed patch groups; it must never load a Celeritas class. After each patch is applied, it
- * logs any injector that found no target ({@link InjectionAudit}), which Mixin itself does not report here.
+ * anchor audit switch off failed patch groups; it must never load a Celeritas class. Once Mixin has finished a patched
+ * class, including the injectors MixinExtras applies late ({@link InjectionAuditExtension}), it logs any injector that
+ * found no target ({@link InjectionAudit}), which Mixin itself does not report here.
  */
 public class QuarantinePlugin implements IMixinConfigPlugin {
     private static final Logger LOGGER = LogManager.getLogger("DemonicaQuarantine");
 
+    // Null if it could not be registered: the reports are then written at once, without MixinExtras's late injectors.
+    private InjectionAuditExtension auditExtension;
+
     @Override
     public void onLoad(String mixinPackage) {
         LOGGER.info("Loaded the Celeritas patch quarantine ({})", mixinPackage);
+        this.auditExtension = InjectionAuditExtension.register();
     }
 
     @Override
@@ -51,22 +56,29 @@ public class QuarantinePlugin implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-        String patch = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
-        List<InjectionAudit.Injector> injectors;
         try {
             // The mixin as compiled: IMixinInfo.getClassNode copies Mixin's preprocessed tree, in which MixinExtras has
             // replaced the annotation of an injector with sugared parameters.
             ClassNode mixin = MixinService.getService().getBytecodeProvider().getClassNode(mixinClassName, false, ClassReader.SKIP_CODE);
-            injectors = InjectionAudit.audit(targetClass, mixin, mixinClassName);
+            if (this.auditExtension != null) {
+                this.auditExtension.defer(targetClass.name,
+                    lateInjectorsApplied -> report(targetClassName, targetClass, mixinClassName, mixin, lateInjectorsApplied));
+            } else {
+                report(targetClassName, targetClass, mixinClassName, mixin, false);
+            }
         } catch (Exception e) {
-            LOGGER.warn("Could not audit the injectors of {} in {}", patch, targetClassName, e);
-            return;
+            LOGGER.warn("Could not audit the injectors of {} in {}", patchName(mixinClassName), targetClassName, e);
         }
+    }
+
+    private static void report(String targetClassName, ClassNode targetClass, String mixinClassName, ClassNode mixin, boolean lateInjectorsApplied) {
+        String patch = patchName(mixinClassName);
+        List<InjectionAudit.Injector> injectors = InjectionAudit.audit(targetClass, mixin, mixinClassName);
         int applied = 0;
-        int late = 0;
+        int unchecked = 0;
         for (InjectionAudit.Injector injector : injectors) {
-            if (injector.late()) {
-                late++;
+            if (injector.late() && !lateInjectorsApplied) {
+                unchecked++;
             } else if (injector.applied()) {
                 applied++;
             } else if (injector.callingMethods() < 0) {
@@ -76,11 +88,15 @@ public class QuarantinePlugin implements IMixinConfigPlugin {
                     patch, injector.handler(), injector.callingMethods(), injector.selectors(), targetClassName);
             }
         }
-        if (late == 0) {
+        if (unchecked == 0) {
             LOGGER.info("Applied {} to {}: {} of {} injectors found their targets", patch, targetClassName, applied, injectors.size());
         } else {
             LOGGER.info("Applied {} to {}: {} of {} injectors found their targets; {} more are applied later by MixinExtras "
-                + "and not checked", patch, targetClassName, applied, injectors.size() - late, late);
+                + "and not checked", patch, targetClassName, applied, injectors.size() - unchecked, unchecked);
         }
+    }
+
+    private static String patchName(String mixinClassName) {
+        return mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
     }
 }

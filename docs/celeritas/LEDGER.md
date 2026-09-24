@@ -24,10 +24,14 @@ propose them upstream is the maintainer's decision.
   `QuarantinePlugin` logs one line per applied mixin and names every injector
   that found no target: `Applied <mixin> to <class>: n of n injectors found
   their targets`. A dev run lists all 14 lines; anything short of `n of n` is
-  a moved anchor. Injectors that MixinExtras applies after the plugin's check
-  (`@ModifyExpressionValue`, `@WrapWithCondition`, `@WrapOperation`) are only
-  counted as "applied later"; checking them needs a transformer extension that
-  runs after MixinExtras's.
+  a moved anchor. MixinExtras applies `@ModifyExpressionValue`,
+  `@WrapOperation`, `@WrapWithCondition` and `@WrapMethod` in its own
+  transformer extensions, after every config plugin's `postApply`, so the
+  plugin holds its lines back until `InjectionAuditExtension`, inserted right
+  after MixinExtras's extensions, has seen the finished class. If that
+  extension cannot register, or a newer MixinExtras registers after it, the
+  lines say how many injectors were "applied later by MixinExtras and not
+  checked" instead.
 - `AnchorInventoryTest` pins every anchor, upstream's mixin priorities and
   overwrites, and a snapshot of upstream's whole mixin inventory to the pinned
   jar.
@@ -80,12 +84,12 @@ Two assignments differ from the plan:
 S18 is not a patch: the shadow pass's block entities come from the public
 `SimpleWorldRenderer.forEachVisibleBlockEntity` (see S7).
 
-Verified in the dev client on 2026-09-23: all 14 mixins apply, and all 25 of
-their injectors that `QuarantinePlugin` can check find their targets. The 26th,
-S16's `@ModifyExpressionValue`, is one of the injectors MixinExtras applies after
-the plugin's check (`@ModifyExpressionValue`, `@WrapWithCondition`,
-`@WrapOperation`), so the plugin reports it as applied later. The bytecode
-exported with `-PmixinExport` shows it in `DefaultChunkRenderer.render`, S8's
+Verified in the dev client on 2026-09-23: all 14 mixins apply, and all 26 of
+their injectors find their targets, S16's `@ModifyExpressionValue` among them
+(checked after MixinExtras applied it). With S16's anchor pointed at a method
+that does not exist, the same run warns that the injector found its target in
+0 of 1 methods, and the game runs on. The bytecode exported with
+`-PmixinExport` shows S16's injection in `DefaultChunkRenderer.render`, S8's
 `@ModifyArg` before `drawChunkLayer`, and I2's `@ModifyVariable` at the head of
 both searches.
 
