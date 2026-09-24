@@ -10,6 +10,7 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.client.model.SimpleModelFontRenderer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.Final;
@@ -59,6 +60,16 @@ public abstract class MixinFontRenderer implements FontRendererAccessor, IFontPa
         return demonica$disableBatcher || demonica$neoFontRenderLoaded;
     }
 
+    /**
+     * Whether this renderer draws through the batcher. Forge's {@link SimpleModelFontRenderer} does not draw: it turns
+     * text into baked quads (the label of {@code FancyMissingModel}, the model of a block whose model failed to load),
+     * without GL and also on chunk mesh worker threads, so it keeps vanilla's path.
+     */
+    @Unique
+    private boolean demonica$batches() {
+        return !demonica$isFontBatcherDisabled() && !((Object) this instanceof SimpleModelFontRenderer);
+    }
+
     @Inject(method = "<init>", at = @At("TAIL"))
     private void demonica$injectBatcher(GameSettings settings, ResourceLocation fontLocation, TextureManager texManager,
         boolean unicodeMode, CallbackInfo ci) {
@@ -83,7 +94,7 @@ public abstract class MixinFontRenderer implements FontRendererAccessor, IFontPa
     @Inject(method = "drawString(Ljava/lang/String;FFIZ)I", at = @At("HEAD"), cancellable = true)
     private void demonica$drawStringBatched(String text, float x, float y, int argb, boolean dropShadow,
         CallbackInfoReturnable<Integer> cir) {
-        if (!demonica$isFontBatcherDisabled() && GLStateManager.getListMode() == 0) {
+        if (this.demonica$batches() && GLStateManager.getListMode() == 0) {
             cir.setReturnValue(angelica$drawStringBatched(text, (int) x, (int) y, argb, dropShadow));
         }
     }
@@ -91,7 +102,7 @@ public abstract class MixinFontRenderer implements FontRendererAccessor, IFontPa
     @Inject(method = "renderString", at = @At("HEAD"), cancellable = true)
     private void demonica$renderStringBatched(String text, float x, float y, int argb, boolean dropShadow,
         CallbackInfoReturnable<Integer> cir) {
-        if (!demonica$isFontBatcherDisabled() && GLStateManager.getListMode() == 0) {
+        if (this.demonica$batches() && GLStateManager.getListMode() == 0) {
             cir.setReturnValue(angelica$drawStringBatched(text, (int) x, (int) y, argb, dropShadow));
         }
     }
@@ -175,7 +186,7 @@ public abstract class MixinFontRenderer implements FontRendererAccessor, IFontPa
 
     @Inject(method = "getCharWidth", at = @At("HEAD"), cancellable = true)
     private void demonica$getCharWidth(char c, CallbackInfoReturnable<Integer> cir) {
-        if (!demonica$isFontBatcherDisabled()) {
+        if (this.demonica$batches()) {
             cir.setReturnValue((int) angelica$getBatcher().getCharWidthFine(c));
         }
     }
