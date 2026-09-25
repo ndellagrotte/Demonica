@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.backend;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import org.lwjgl.opengl.GL20;
 
@@ -338,7 +338,7 @@ public abstract class RenderBackend {
      */
     public long mapBufferRangeAddress(int target, long offset, long length, int access) {
         final ByteBuffer buf = mapBufferRange(target, offset, length, access);
-        return buf == null ? 0L : MemoryUtilities.memAddress0(buf);
+        return buf == null ? 0L : MemoryUtil.memAddress0(buf);
     }
 
     public abstract int genVertexArrays();
@@ -356,10 +356,10 @@ public abstract class RenderBackend {
     }
     public abstract void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long pointer);
     public void vertexAttribPointer(int index, int size, int type, boolean normalized, int stride, ByteBuffer pointer) {
-        vertexAttribPointer(index, size, type, normalized, stride, MemoryUtilities.memAddress0(pointer));
+        vertexAttribPointer(index, size, type, normalized, stride, MemoryUtil.memAddress0(pointer));
     }
     public void vertexAttribIPointer(int index, int size, int type, int stride, ByteBuffer pointer) {
-        vertexAttribIPointer(index, size, type, stride, MemoryUtilities.memAddress0(pointer));
+        vertexAttribIPointer(index, size, type, stride, MemoryUtil.memAddress0(pointer));
     }
     public abstract void vertexAttribIPointer(int index, int size, int type, int stride, long pointer);
     public abstract void enableVertexAttribArray(int index);

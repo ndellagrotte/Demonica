@@ -10,15 +10,15 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress0;
+import static org.lwjgl.system.MemoryUtil.memAddress0;
 import static com.gtnewhorizons.angelica.glsm.backend.BackendManager.RENDER_BACKEND;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAlloc;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memFree;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetByte;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetShort;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memPutInt;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memPutShort;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memFree;
+import static org.lwjgl.system.MemoryUtil.memGetByte;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memGetShort;
+import static org.lwjgl.system.MemoryUtil.memPutInt;
+import static org.lwjgl.system.MemoryUtil.memPutShort;
 
 /**
  * Shared quad-to-triangle EBO for core profile GL_QUADS emulation.

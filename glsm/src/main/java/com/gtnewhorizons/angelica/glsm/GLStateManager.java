@@ -1,7 +1,7 @@
 package com.gtnewhorizons.angelica.glsm;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
-import com.gtnewhorizon.gtnhlib.bytebuf.Pointer;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.Pointer;
 import com.gtnewhorizon.gtnhlib.client.renderer.DirectTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.stacks.IStateStack;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFlags;
@@ -2638,7 +2638,7 @@ public class GLStateManager {
         CommandRecorder savedRecorder = null;
         final RecordMode recordMode = DisplayListManager.getRecordMode();
         if (recordMode != RecordMode.NONE) {
-            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, indices.remaining(), GL11.GL_UNSIGNED_BYTE, MemoryUtilities.memAddress(indices), indices.remaining());
+            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, indices.remaining(), GL11.GL_UNSIGNED_BYTE, MemoryUtil.memAddress(indices), indices.remaining());
             if (capture != null) {
                 DisplayListManager.recordIndexedDrawCapture(capture);
             }
@@ -2670,7 +2670,7 @@ public class GLStateManager {
         CommandRecorder savedRecorder = null;
         final RecordMode recordMode = DisplayListManager.getRecordMode();
         if (recordMode != RecordMode.NONE) {
-            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, indices.remaining(), GL11.GL_UNSIGNED_INT, MemoryUtilities.memAddress(indices), (long) indices.remaining() << 2);
+            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, indices.remaining(), GL11.GL_UNSIGNED_INT, MemoryUtil.memAddress(indices), (long) indices.remaining() << 2);
             if (capture != null) {
                 DisplayListManager.recordIndexedDrawCapture(capture);
             }
@@ -2706,7 +2706,7 @@ public class GLStateManager {
         CommandRecorder savedRecorder = null;
         final RecordMode recordMode = DisplayListManager.getRecordMode();
         if (recordMode != RecordMode.NONE) {
-            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, indices.remaining(), GL11.GL_UNSIGNED_SHORT, MemoryUtilities.memAddress(indices), (long) indices.remaining() << 1);
+            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, indices.remaining(), GL11.GL_UNSIGNED_SHORT, MemoryUtil.memAddress(indices), (long) indices.remaining() << 1);
             if (capture != null) {
                 DisplayListManager.recordIndexedDrawCapture(capture);
             }
@@ -2742,7 +2742,7 @@ public class GLStateManager {
         CommandRecorder savedRecorder = null;
         final RecordMode recordMode = DisplayListManager.getRecordMode();
         if (recordMode != RecordMode.NONE) {
-            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, count, type, MemoryUtilities.memAddress(indices), indices.remaining());
+            final IndexedDrawCapture capture = IndexedDrawCapture.createFromClientIndices(mode, count, type, MemoryUtil.memAddress(indices), indices.remaining());
             if (capture != null) {
                 DisplayListManager.recordIndexedDrawCapture(capture);
             }
@@ -3125,19 +3125,19 @@ public class GLStateManager {
     }
 
     public static void glVertexPointer(int size, int stride, IntBuffer pointer) {
-        glVertexPointer(size, GL11.GL_INT, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexPointer(size, GL11.GL_INT, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glVertexPointer(int size, int stride, ShortBuffer pointer) {
-        glVertexPointer(size, GL11.GL_SHORT, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexPointer(size, GL11.GL_SHORT, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glVertexPointer(int size, int stride, FloatBuffer pointer) {
-        glVertexAttribPointer(Usage.POSITION.getAttributeLocation(), size, GL11.GL_FLOAT, false, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.POSITION.getAttributeLocation(), size, GL11.GL_FLOAT, false, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glVertexPointer(int size, int stride, DoubleBuffer pointer) {
-        glVertexAttribPointer(Usage.POSITION.getAttributeLocation(), size, GL11.GL_DOUBLE, false, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.POSITION.getAttributeLocation(), size, GL11.GL_DOUBLE, false, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glVertexPointer(int size, int type, int stride, ByteBuffer pointer) {
@@ -3149,11 +3149,11 @@ public class GLStateManager {
     }
 
     public static void glColorPointer(int size, int stride, FloatBuffer pointer) {
-        glVertexAttribPointer(Usage.COLOR.getAttributeLocation(), size, GL11.GL_FLOAT, Usage.COLOR.isNormalized(), stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.COLOR.getAttributeLocation(), size, GL11.GL_FLOAT, Usage.COLOR.isNormalized(), stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glColorPointer(int size, int stride, DoubleBuffer pointer) {
-        glVertexAttribPointer(Usage.COLOR.getAttributeLocation(), size, GL11.GL_DOUBLE, Usage.COLOR.isNormalized(), stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.COLOR.getAttributeLocation(), size, GL11.GL_DOUBLE, Usage.COLOR.isNormalized(), stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glColorPointer(int size, int type, int stride, ByteBuffer pointer) {
@@ -3190,19 +3190,19 @@ public class GLStateManager {
     }
 
     public static void glNormalPointer(int type, int stride, FloatBuffer pointer) {
-        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_FLOAT, Usage.NORMAL.isNormalized(), stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_FLOAT, Usage.NORMAL.isNormalized(), stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glNormalPointer(int type, int stride, ShortBuffer pointer) {
-        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_SHORT, Usage.NORMAL.isNormalized(), stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_SHORT, Usage.NORMAL.isNormalized(), stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glNormalPointer(int type, int stride, IntBuffer pointer) {
-        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_INT, Usage.NORMAL.isNormalized(), stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_INT, Usage.NORMAL.isNormalized(), stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glNormalPointer(int type, int stride, DoubleBuffer pointer) {
-        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_DOUBLE, Usage.NORMAL.isNormalized(), stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(Usage.NORMAL.getAttributeLocation(), 3, GL11.GL_DOUBLE, Usage.NORMAL.isNormalized(), stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glNormalPointer(int type, int stride, long pointer_buffer_offset) {
@@ -3240,7 +3240,7 @@ public class GLStateManager {
         // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
         // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
-        glVertexAttribPointer(loc, size, GL11.GL_FLOAT, false, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(loc, size, GL11.GL_FLOAT, false, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, ShortBuffer pointer) {
@@ -3249,7 +3249,7 @@ public class GLStateManager {
         // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
         // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
-        glVertexAttribPointer(loc, size, GL11.GL_SHORT, false, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(loc, size, GL11.GL_SHORT, false, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, IntBuffer pointer) {
@@ -3258,7 +3258,7 @@ public class GLStateManager {
         // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
         // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
-        glVertexAttribPointer(loc, size, GL11.GL_INT, false, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(loc, size, GL11.GL_INT, false, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, DoubleBuffer pointer) {
@@ -3267,7 +3267,7 @@ public class GLStateManager {
         // never silently dropped (issue #175). texCoordAttributeLocation() reports unsupported units
         // (Fail Fast); this guard only avoids feeding GL an out-of-range attribute index.
         if (loc < 0) return;
-        glVertexAttribPointer(loc, size, GL11.GL_DOUBLE, false, stride, MemoryUtilities.memByteBuffer(pointer));
+        glVertexAttribPointer(loc, size, GL11.GL_DOUBLE, false, stride, MemoryUtil.memByteBuffer(pointer));
     }
 
     public static void glTexCoordPointer(int size, int type, int stride, long pointer_buffer_offset) {
@@ -3319,19 +3319,19 @@ public class GLStateManager {
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, FloatBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtilities.memByteBuffer(pointer), 0);
+        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, DoubleBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtilities.memByteBuffer(pointer), 0);
+        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, IntBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtilities.memByteBuffer(pointer), 0);
+        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, ShortBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtilities.memByteBuffer(pointer), 0);
+        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, ByteBuffer pointer) {
@@ -3348,11 +3348,11 @@ public class GLStateManager {
     }
 
     public static void glVertexAttribIPointer(int index, int size, int type, int stride, IntBuffer pointer) {
-        VertexAttribState.set(index, size, type, false, stride, MemoryUtilities.memByteBuffer(pointer), 0);
+        VertexAttribState.set(index, size, type, false, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribIPointer(int index, int size, int type, int stride, ShortBuffer pointer) {
-        VertexAttribState.set(index, size, type, false, stride, MemoryUtilities.memByteBuffer(pointer), 0);
+        VertexAttribState.set(index, size, type, false, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribDivisor(int index, int divisor) { RENDER_BACKEND.vertexAttribDivisor(index, divisor); }
@@ -3509,23 +3509,23 @@ public class GLStateManager {
     }
 
     public static void glInterleavedArrays(int format, int stride, ByteBuffer pointer) {
-        glInterleavedArrays(format, stride, MemoryUtilities.memAddress0(pointer));
+        glInterleavedArrays(format, stride, MemoryUtil.memAddress0(pointer));
     }
 
     public static void glInterleavedArrays(int format, int stride, FloatBuffer pointer) {
-        glInterleavedArrays(format, stride, MemoryUtilities.memAddress0(MemoryUtilities.memByteBuffer(pointer)));
+        glInterleavedArrays(format, stride, MemoryUtil.memAddress0(MemoryUtil.memByteBuffer(pointer)));
     }
 
     public static void glInterleavedArrays(int format, int stride, DoubleBuffer pointer) {
-        glInterleavedArrays(format, stride, MemoryUtilities.memAddress0(MemoryUtilities.memByteBuffer(pointer)));
+        glInterleavedArrays(format, stride, MemoryUtil.memAddress0(MemoryUtil.memByteBuffer(pointer)));
     }
 
     public static void glInterleavedArrays(int format, int stride, IntBuffer pointer) {
-        glInterleavedArrays(format, stride, MemoryUtilities.memAddress0(MemoryUtilities.memByteBuffer(pointer)));
+        glInterleavedArrays(format, stride, MemoryUtil.memAddress0(MemoryUtil.memByteBuffer(pointer)));
     }
 
     public static void glInterleavedArrays(int format, int stride, ShortBuffer pointer) {
-        glInterleavedArrays(format, stride, MemoryUtilities.memAddress0(MemoryUtilities.memByteBuffer(pointer)));
+        glInterleavedArrays(format, stride, MemoryUtil.memAddress0(MemoryUtil.memByteBuffer(pointer)));
     }
 
     public static void glLogicOp(int opcode) {
@@ -5567,9 +5567,9 @@ public class GLStateManager {
     }
 
     private static String decodeShaderSourceString(long strings, long lengths, int i) {
-        final long strAddr = MemoryUtilities.memGetAddress(strings + (long) i * Pointer.POINTER_SIZE);
-        final int len = lengths == MemoryUtilities.NULL ? -1 : MemoryUtilities.memGetInt(lengths + (long) i * 4);
-        return len < 0 ? MemoryUtilities.memUTF8(strAddr) : MemoryUtilities.memUTF8(strAddr, len);
+        final long strAddr = MemoryUtil.memGetAddress(strings + (long) i * Pointer.POINTER_SIZE);
+        final int len = lengths == MemoryUtil.NULL ? -1 : MemoryUtil.memGetInt(lengths + (long) i * 4);
+        return len < 0 ? MemoryUtil.memUTF8(strAddr) : MemoryUtil.memUTF8(strAddr, len);
     }
 
     public static void nglShaderSource(int shader, int count, long strings, long lengths) {
@@ -6252,61 +6252,61 @@ public class GLStateManager {
     public static void glBufferData(int target, java.nio.IntBuffer data, int usage) { RENDER_BACKEND.bufferData(target, data, usage); }
     public static void glBufferData(int target, java.nio.FloatBuffer data, int usage) { RENDER_BACKEND.bufferData(target, data, usage); }
     public static void glBufferData(int target, java.nio.DoubleBuffer data, int usage) { RENDER_BACKEND.bufferData(target, data, usage); }
-    public static void glBufferData(int target, LongBuffer data, int usage) { glBufferData(target, MemoryUtilities.memByteBuffer(data), usage); }
+    public static void glBufferData(int target, LongBuffer data, int usage) { glBufferData(target, MemoryUtil.memByteBuffer(data), usage); }
     public static void glBufferData(int target, short[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glBufferData(target, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferData(int target, long[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glBufferData(target, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferData(int target, double[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glBufferData(target, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void nglBufferData(int target, long size, long data, int usage) {
         if (data == 0L) {
             glBufferData(target, size, usage);
             return;
         }
-        glBufferData(target, MemoryUtilities.memByteBuffer(data, checkedSize(size)), usage);
+        glBufferData(target, MemoryUtil.memByteBuffer(data, checkedSize(size)), usage);
     }
     public static void glBufferSubData(int target, long offset, java.nio.ByteBuffer data) { RENDER_BACKEND.bufferSubData(target, offset, data); }
     public static void glBufferSubData(int target, long offset, java.nio.ShortBuffer data) { RENDER_BACKEND.bufferSubData(target, offset, data); }
     public static void glBufferSubData(int target, long offset, java.nio.IntBuffer data) { RENDER_BACKEND.bufferSubData(target, offset, data); }
     public static void glBufferSubData(int target, long offset, java.nio.FloatBuffer data) { RENDER_BACKEND.bufferSubData(target, offset, data); }
     public static void glBufferSubData(int target, long offset, java.nio.DoubleBuffer data) { RENDER_BACKEND.bufferSubData(target, offset, data); }
-    public static void glBufferSubData(int target, long offset, LongBuffer data) { glBufferSubData(target, offset, MemoryUtilities.memByteBuffer(data)); }
+    public static void glBufferSubData(int target, long offset, LongBuffer data) { glBufferSubData(target, offset, MemoryUtil.memByteBuffer(data)); }
     public static void glBufferSubData(int target, long offset, short[] data) {
         final ByteBuffer copy = copyOf(data);
         glBufferSubData(target, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferSubData(int target, long offset, int[] data) {
         final ByteBuffer copy = copyOf(data);
         glBufferSubData(target, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferSubData(int target, long offset, long[] data) {
         final ByteBuffer copy = copyOf(data);
         glBufferSubData(target, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferSubData(int target, long offset, float[] data) {
         final ByteBuffer copy = copyOf(data);
         glBufferSubData(target, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferSubData(int target, long offset, double[] data) {
         final ByteBuffer copy = copyOf(data);
         glBufferSubData(target, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
-    public static void nglBufferSubData(int target, long offset, long size, long data) { glBufferSubData(target, offset, MemoryUtilities.memByteBuffer(data, checkedSize(size))); }
+    public static void nglBufferSubData(int target, long offset, long size, long data) { glBufferSubData(target, offset, MemoryUtil.memByteBuffer(data, checkedSize(size))); }
     public static ByteBuffer glMapBuffer(int target, int access) { return RENDER_BACKEND.mapBuffer(target, access); }
     public static ByteBuffer glMapBuffer(int target, int access, ByteBuffer old_buffer) { return glMapBuffer(target, access); }
     public static ByteBuffer glMapBuffer(int target, int access, long length, ByteBuffer old_buffer) { return RENDER_BACKEND.mapBuffer(target, access, length, old_buffer); }
@@ -6314,7 +6314,7 @@ public class GLStateManager {
     public static ByteBuffer glMapBufferRange(int target, long offset, long length, int access, ByteBuffer old_buffer) { return glMapBufferRange(target, offset, length, access); }
     public static long nglMapBuffer(int target, int access) {
         final ByteBuffer buf = RENDER_BACKEND.mapBuffer(target, access);
-        return buf == null ? 0L : MemoryUtilities.memAddress0(buf);
+        return buf == null ? 0L : MemoryUtil.memAddress0(buf);
     }
     public static boolean glUnmapBuffer(int target) { return RENDER_BACKEND.unmapBuffer(target); }
     public static void glGetBufferSubData(int target, long offset, java.nio.ByteBuffer data) { RENDER_BACKEND.getBufferSubData(target, offset, data); }
@@ -6322,38 +6322,38 @@ public class GLStateManager {
     public static void glGetBufferSubData(int target, long offset, java.nio.IntBuffer data) { RENDER_BACKEND.getBufferSubData(target, offset, data); }
     public static void glGetBufferSubData(int target, long offset, java.nio.FloatBuffer data) { RENDER_BACKEND.getBufferSubData(target, offset, data); }
     public static void glGetBufferSubData(int target, long offset, java.nio.DoubleBuffer data) { RENDER_BACKEND.getBufferSubData(target, offset, data); }
-    public static void glGetBufferSubData(int target, long offset, LongBuffer data) { glGetBufferSubData(target, offset, MemoryUtilities.memByteBuffer(data)); }
+    public static void glGetBufferSubData(int target, long offset, LongBuffer data) { glGetBufferSubData(target, offset, MemoryUtil.memByteBuffer(data)); }
     public static void glGetBufferSubData(int target, long offset, short[] data) {
-        final ByteBuffer copy = MemoryUtilities.memAlloc(data.length << 1);
+        final ByteBuffer copy = MemoryUtil.memAlloc(data.length << 1);
         glGetBufferSubData(target, offset, copy);
         copy.asShortBuffer().get(data);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glGetBufferSubData(int target, long offset, int[] data) {
-        final ByteBuffer copy = MemoryUtilities.memAlloc(data.length << 2);
+        final ByteBuffer copy = MemoryUtil.memAlloc(data.length << 2);
         glGetBufferSubData(target, offset, copy);
         copy.asIntBuffer().get(data);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glGetBufferSubData(int target, long offset, long[] data) {
-        final ByteBuffer copy = MemoryUtilities.memAlloc(data.length << 3);
+        final ByteBuffer copy = MemoryUtil.memAlloc(data.length << 3);
         glGetBufferSubData(target, offset, copy);
         copy.asLongBuffer().get(data);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glGetBufferSubData(int target, long offset, float[] data) {
-        final ByteBuffer copy = MemoryUtilities.memAlloc(data.length << 2);
+        final ByteBuffer copy = MemoryUtil.memAlloc(data.length << 2);
         glGetBufferSubData(target, offset, copy);
         copy.asFloatBuffer().get(data);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glGetBufferSubData(int target, long offset, double[] data) {
-        final ByteBuffer copy = MemoryUtilities.memAlloc(data.length << 3);
+        final ByteBuffer copy = MemoryUtil.memAlloc(data.length << 3);
         glGetBufferSubData(target, offset, copy);
         copy.asDoubleBuffer().get(data);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
-    public static void nglGetBufferSubData(int target, long offset, long size, long data) { glGetBufferSubData(target, offset, MemoryUtilities.memByteBuffer(data, checkedSize(size))); }
+    public static void nglGetBufferSubData(int target, long offset, long size, long data) { glGetBufferSubData(target, offset, MemoryUtil.memByteBuffer(data, checkedSize(size))); }
     public static int glGetBufferParameteri(int target, int pname) { return RENDER_BACKEND.getBufferParameteri(target, pname); }
     public static int glGetBufferParameter(int target, int pname) { return glGetBufferParameteri(target, pname); }
     public static void glGetBufferParameter(int target, int pname, IntBuffer params) { params.put(params.position(), glGetBufferParameteri(target, pname)); }
@@ -6361,94 +6361,94 @@ public class GLStateManager {
     public static void glGetBufferParameteriv(int target, int pname, int[] params) { params[0] = glGetBufferParameteri(target, pname); }
     public static void glBufferStorage(int target, java.nio.ByteBuffer data, int flags) { RENDER_BACKEND.bufferStorage(target, data, flags); }
     public static void glBufferStorage(int target, long size, int flags) { RENDER_BACKEND.bufferStorage(target, size, flags); }
-    public static void glBufferStorage(int target, ShortBuffer data, int flags) { glBufferStorage(target, MemoryUtilities.memByteBuffer(data), flags); }
-    public static void glBufferStorage(int target, IntBuffer data, int flags) { glBufferStorage(target, MemoryUtilities.memByteBuffer(data), flags); }
-    public static void glBufferStorage(int target, FloatBuffer data, int flags) { glBufferStorage(target, MemoryUtilities.memByteBuffer(data), flags); }
-    public static void glBufferStorage(int target, DoubleBuffer data, int flags) { glBufferStorage(target, MemoryUtilities.memByteBuffer(data), flags); }
+    public static void glBufferStorage(int target, ShortBuffer data, int flags) { glBufferStorage(target, MemoryUtil.memByteBuffer(data), flags); }
+    public static void glBufferStorage(int target, IntBuffer data, int flags) { glBufferStorage(target, MemoryUtil.memByteBuffer(data), flags); }
+    public static void glBufferStorage(int target, FloatBuffer data, int flags) { glBufferStorage(target, MemoryUtil.memByteBuffer(data), flags); }
+    public static void glBufferStorage(int target, DoubleBuffer data, int flags) { glBufferStorage(target, MemoryUtil.memByteBuffer(data), flags); }
     public static void glBufferStorage(int target, short[] data, int flags) {
         final ByteBuffer copy = copyOf(data);
         glBufferStorage(target, copy, flags);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferStorage(int target, int[] data, int flags) {
         final ByteBuffer copy = copyOf(data);
         glBufferStorage(target, copy, flags);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferStorage(int target, float[] data, int flags) {
         final ByteBuffer copy = copyOf(data);
         glBufferStorage(target, copy, flags);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glBufferStorage(int target, double[] data, int flags) {
         final ByteBuffer copy = copyOf(data);
         glBufferStorage(target, copy, flags);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
 
     public static void glNamedBufferData(int buffer, long size, int usage) { RENDER_BACKEND.namedBufferData(buffer, size, usage); }
     public static void glNamedBufferData(int buffer, ByteBuffer data, int usage) { RENDER_BACKEND.namedBufferData(buffer, data, usage); }
     public static void glNamedBufferData(int buffer, FloatBuffer data, int usage) { RENDER_BACKEND.namedBufferData(buffer, data, usage); }
-    public static void glNamedBufferData(int buffer, ShortBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtilities.memByteBuffer(data), usage); }
-    public static void glNamedBufferData(int buffer, IntBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtilities.memByteBuffer(data), usage); }
-    public static void glNamedBufferData(int buffer, LongBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtilities.memByteBuffer(data), usage); }
-    public static void glNamedBufferData(int buffer, DoubleBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtilities.memByteBuffer(data), usage); }
+    public static void glNamedBufferData(int buffer, ShortBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtil.memByteBuffer(data), usage); }
+    public static void glNamedBufferData(int buffer, IntBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtil.memByteBuffer(data), usage); }
+    public static void glNamedBufferData(int buffer, LongBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtil.memByteBuffer(data), usage); }
+    public static void glNamedBufferData(int buffer, DoubleBuffer data, int usage) { glNamedBufferData(buffer, MemoryUtil.memByteBuffer(data), usage); }
     public static void glNamedBufferData(int buffer, short[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferData(buffer, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferData(int buffer, int[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferData(buffer, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferData(int buffer, long[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferData(buffer, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferData(int buffer, float[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferData(buffer, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferData(int buffer, double[] data, int usage) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferData(buffer, copy, usage);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
 
     public static void glNamedBufferSubData(int buffer, long offset, ByteBuffer data) { RENDER_BACKEND.namedBufferSubData(buffer, offset, data); }
-    public static void glNamedBufferSubData(int buffer, long offset, ShortBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtilities.memByteBuffer(data)); }
-    public static void glNamedBufferSubData(int buffer, long offset, IntBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtilities.memByteBuffer(data)); }
-    public static void glNamedBufferSubData(int buffer, long offset, LongBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtilities.memByteBuffer(data)); }
-    public static void glNamedBufferSubData(int buffer, long offset, FloatBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtilities.memByteBuffer(data)); }
-    public static void glNamedBufferSubData(int buffer, long offset, DoubleBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtilities.memByteBuffer(data)); }
+    public static void glNamedBufferSubData(int buffer, long offset, ShortBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtil.memByteBuffer(data)); }
+    public static void glNamedBufferSubData(int buffer, long offset, IntBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtil.memByteBuffer(data)); }
+    public static void glNamedBufferSubData(int buffer, long offset, LongBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtil.memByteBuffer(data)); }
+    public static void glNamedBufferSubData(int buffer, long offset, FloatBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtil.memByteBuffer(data)); }
+    public static void glNamedBufferSubData(int buffer, long offset, DoubleBuffer data) { glNamedBufferSubData(buffer, offset, MemoryUtil.memByteBuffer(data)); }
     public static void glNamedBufferSubData(int buffer, long offset, short[] data) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferSubData(buffer, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferSubData(int buffer, long offset, int[] data) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferSubData(buffer, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferSubData(int buffer, long offset, long[] data) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferSubData(buffer, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferSubData(int buffer, long offset, float[] data) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferSubData(buffer, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
     public static void glNamedBufferSubData(int buffer, long offset, double[] data) {
         final ByteBuffer copy = copyOf(data);
         glNamedBufferSubData(buffer, offset, copy);
-        MemoryUtilities.memFree(copy);
+        MemoryUtil.memFree(copy);
     }
 
     public static void nglMultiDrawElementsBaseVertex(int mode, long count, int type, long indices, int primcount, long basevertex) {
@@ -6463,31 +6463,31 @@ public class GLStateManager {
     }
 
     private static ByteBuffer copyOf(short[] data) {
-        final ByteBuffer bb = MemoryUtilities.memAlloc(data.length << 1);
+        final ByteBuffer bb = MemoryUtil.memAlloc(data.length << 1);
         bb.asShortBuffer().put(data);
         return bb;
     }
 
     private static ByteBuffer copyOf(int[] data) {
-        final ByteBuffer bb = MemoryUtilities.memAlloc(data.length << 2);
+        final ByteBuffer bb = MemoryUtil.memAlloc(data.length << 2);
         bb.asIntBuffer().put(data);
         return bb;
     }
 
     private static ByteBuffer copyOf(long[] data) {
-        final ByteBuffer bb = MemoryUtilities.memAlloc(data.length << 3);
+        final ByteBuffer bb = MemoryUtil.memAlloc(data.length << 3);
         bb.asLongBuffer().put(data);
         return bb;
     }
 
     private static ByteBuffer copyOf(float[] data) {
-        final ByteBuffer bb = MemoryUtilities.memAlloc(data.length << 2);
+        final ByteBuffer bb = MemoryUtil.memAlloc(data.length << 2);
         bb.asFloatBuffer().put(data);
         return bb;
     }
 
     private static ByteBuffer copyOf(double[] data) {
-        final ByteBuffer bb = MemoryUtilities.memAlloc(data.length << 3);
+        final ByteBuffer bb = MemoryUtil.memAlloc(data.length << 3);
         bb.asDoubleBuffer().put(data);
         return bb;
     }

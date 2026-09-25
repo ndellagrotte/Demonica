@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.recording;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.GLTypes;
 import com.gtnewhorizons.angelica.glsm.states.VertexAttribState;
@@ -58,7 +58,7 @@ public final class AttribSnapshot {
         if (freed) return;
         freed = true;
         for (ByteBuffer buf : allocatedBuffers) {
-            MemoryUtilities.memFree(buf);
+            MemoryUtil.memFree(buf);
         }
         allocatedBuffers.clear();
     }
@@ -165,7 +165,7 @@ public final class AttribSnapshot {
                             return null;
                         }
 
-                        buf = MemoryUtilities.memAlloc(rs);
+                        buf = MemoryUtil.memAlloc(rs);
                         GLStateManager.glGetBufferSubData(GL15.GL_ARRAY_BUFFER, ro, buf);
                         allocated.add(buf);
                         readOffset = ro;
@@ -196,7 +196,7 @@ public final class AttribSnapshot {
         } finally {
             GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, prevVBO);
             if (!success) {
-                for (ByteBuffer b : allocated) MemoryUtilities.memFree(b);
+                for (ByteBuffer b : allocated) MemoryUtil.memFree(b);
             }
         }
     }

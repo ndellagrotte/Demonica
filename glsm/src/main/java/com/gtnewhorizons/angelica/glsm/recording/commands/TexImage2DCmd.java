@@ -12,7 +12,7 @@ import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memFree;
+import static org.lwjgl.system.MemoryUtil.memFree;
 
 /**
  * Command: glTexImage2D(target, level, internalformat, width, height, border, format, type, pixels)

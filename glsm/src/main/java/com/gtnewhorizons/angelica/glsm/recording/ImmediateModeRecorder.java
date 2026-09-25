@@ -5,7 +5,7 @@ import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormatElement.Usage;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.states.VertexAttribState;
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
 
@@ -240,14 +240,14 @@ public final class ImmediateModeRecorder {
                 GLStateManager.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, prevEBO);
                 return null;
             }
-            final ByteBuffer eboData = MemoryUtilities.memAlloc(eboReadSize);
+            final ByteBuffer eboData = MemoryUtil.memAlloc(eboReadSize);
             RENDER_BACKEND.getBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, eboReadOffset, eboData);
             GLStateManager.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, prevEBO);
 
             try {
                 return readVerticesFromBufferIndexed(mode, eboData, indexType, 0, indicesCount);
             } finally {
-                MemoryUtilities.memFree(eboData);
+                MemoryUtil.memFree(eboData);
             }
         } finally {
             freeReadbackBuffers(readVBOCount);
@@ -319,7 +319,7 @@ public final class ImmediateModeRecorder {
 
                     if (readSize <= 0) continue;
 
-                    final ByteBuffer buf = MemoryUtilities.memAlloc(readSize);
+                    final ByteBuffer buf = MemoryUtil.memAlloc(readSize);
                     RENDER_BACKEND.getBufferSubData(GL15.GL_ARRAY_BUFFER, readOffset, buf);
                     scratchAttribBuffers[i] = buf;
                     scratchAttribBaseOffsets[i] = readOffset;
@@ -341,7 +341,7 @@ public final class ImmediateModeRecorder {
 
     private static void freeReadbackBuffers(int readVBOCount) {
         for (int i = 0; i < readVBOCount; i++) {
-            MemoryUtilities.memFree(scratchVBOBuffers[i]);
+            MemoryUtil.memFree(scratchVBOBuffers[i]);
             scratchVBOBuffers[i] = null;
         }
     }

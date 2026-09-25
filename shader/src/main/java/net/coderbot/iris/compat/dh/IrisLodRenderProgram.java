@@ -31,7 +31,7 @@ import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
-import com.mitchej123.lwjgl.MemoryStack;
+import org.lwjgl.system.MemoryStack;
 
 import java.nio.FloatBuffer;
 import java.util.ArrayList;

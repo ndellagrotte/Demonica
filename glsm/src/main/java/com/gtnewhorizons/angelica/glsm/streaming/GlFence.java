@@ -1,7 +1,7 @@
 package com.gtnewhorizons.angelica.glsm.streaming;
 
 import com.mitchej123.lwjgl.GL32;
-import com.mitchej123.lwjgl.MemoryStack;
+import org.lwjgl.system.MemoryStack;
 
 import java.nio.IntBuffer;
 

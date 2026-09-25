@@ -9,9 +9,9 @@ import org.lwjgl.opengl.GL30;
 
 import java.nio.ByteBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress0;
+import static org.lwjgl.system.MemoryUtil.memAddress0;
 import static com.gtnewhorizons.angelica.glsm.backend.BackendManager.RENDER_BACKEND;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memCopy;
+import static org.lwjgl.system.MemoryUtil.memCopy;
 
 
 public final class StreamingUploader {

@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import com.gtnewhorizon.gtnhlib.client.renderer.DirectTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import com.gtnewhorizon.gtnhlib.client.renderer.vbo.VBOManager;
@@ -34,8 +34,8 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memAddress;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
 
 /**
  * VBO-based display list emulation with command recording, transform collapsing, and format-based batching.
@@ -1168,7 +1168,7 @@ public class DisplayListManager {
                 case GLCommand.MULT_MATRIX, GLCommand.LOAD_MATRIX -> {
                     sb.append("(");
                     for (int i = 0; i < 16; i++) {
-                        float value = MemoryUtilities.memGetFloat(ptr + 4 + i * 4);
+                        float value = MemoryUtil.memGetFloat(ptr + 4 + i * 4);
                         sb.append(i == 0 ? value : ", " + value);
                     }
                     sb.append(")");

@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.recording.commands;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.GLTypes;
 import com.gtnewhorizons.angelica.glsm.QuadConverter;
@@ -11,10 +11,10 @@ import org.lwjgl.opengl.GL15;
 
 import java.nio.ByteBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetLong;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memPutInt;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memPutLong;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memGetLong;
+import static org.lwjgl.system.MemoryUtil.memPutInt;
+import static org.lwjgl.system.MemoryUtil.memPutLong;
 
 
 /**
@@ -48,8 +48,8 @@ public final class IndexedDrawCapture {
     public void freeBuffers() {
         if (freed) return;
         freed = true;
-        if (vertexData != null) MemoryUtilities.memFree(vertexData);
-        if (indexData != null) MemoryUtilities.memFree(indexData);
+        if (vertexData != null) MemoryUtil.memFree(vertexData);
+        if (indexData != null) MemoryUtil.memFree(indexData);
     }
 
     public boolean isFreed() {
@@ -84,11 +84,11 @@ public final class IndexedDrawCapture {
                 GLStateManager.warnOnce("ebo-range", "[IndexedDrawCapture] EBO range {}+{} exceeds buffer size {} — skipping", indicesOffset, eboReadSize, eboBufferSize);
                 return null;
             }
-            eboSrc = MemoryUtilities.memAlloc((int) eboReadSize);
+            eboSrc = MemoryUtil.memAlloc((int) eboReadSize);
             GLStateManager.glGetBufferSubData(GL15.GL_ELEMENT_ARRAY_BUFFER, indicesOffset, eboSrc);
-            return bake(mode, indicesCount, srcIndexType, MemoryUtilities.memAddress0(eboSrc));
+            return bake(mode, indicesCount, srcIndexType, MemoryUtil.memAddress0(eboSrc));
         } finally {
-            if (eboSrc != null) MemoryUtilities.memFree(eboSrc);
+            if (eboSrc != null) MemoryUtil.memFree(eboSrc);
             GLStateManager.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, prevEBO);
             GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, prevVBO);
         }
@@ -170,7 +170,7 @@ public final class IndexedDrawCapture {
                 if (a == 0) {
                     sharedSrcBuffer = d.readBuffer();
                     sharedSrcStride = d.effectiveStride();
-                    sharedSrcBase = MemoryUtilities.memAddress0(sharedSrcBuffer) + relOffset + (long) minVtx * sharedSrcStride;
+                    sharedSrcBase = MemoryUtil.memAddress0(sharedSrcBuffer) + relOffset + (long) minVtx * sharedSrcStride;
                     if (relOffset != layoutKey.offset(0)) tightSrc = false;
                 } else if (d.readBuffer() != sharedSrcBuffer || d.effectiveStride() != sharedSrcStride || relOffset != layoutKey.offset(a)) {
                     tightSrc = false;
@@ -178,16 +178,16 @@ public final class IndexedDrawCapture {
             }
             if (tightSrc && sharedSrcStride != tightStride) tightSrc = false;
 
-            vertexData = MemoryUtilities.memAlloc(vertexCount * tightStride);
-            final long dstAddr = MemoryUtilities.memAddress0(vertexData);
+            vertexData = MemoryUtil.memAlloc(vertexCount * tightStride);
+            final long dstAddr = MemoryUtil.memAddress0(vertexData);
             if (tightSrc) {
-                MemoryUtilities.memCopy(sharedSrcBase, dstAddr, (long) vertexCount * tightStride);
+                MemoryUtil.memCopy(sharedSrcBase, dstAddr, (long) vertexCount * tightStride);
             } else {
                 for (int a = 0; a < enabledCount; a++) {
                     final AttribSnapshot.AttribDesc d = snap.get(locations[a]);
                     final int attribBytes = d.size() * d.typeSizeBytes();
                     final int srcStride = d.effectiveStride();
-                    final long srcStart = MemoryUtilities.memAddress0(d.readBuffer()) + (d.offset() - d.readBufferBaseOffset()) + (long) minVtx * srcStride;
+                    final long srcStart = MemoryUtil.memAddress0(d.readBuffer()) + (d.offset() - d.readBufferBaseOffset()) + (long) minVtx * srcStride;
                     final long dstStart = dstAddr + layoutKey.offset(a);
                     copyStrided(srcStart, srcStride, dstStart, tightStride, attribBytes, vertexCount);
                 }
@@ -198,13 +198,13 @@ public final class IndexedDrawCapture {
             if (mode == GL11.GL_QUADS) {
                 final int quadCount = indicesCount / 4;
                 bakedIndexCount = quadCount * 6;
-                indexData = MemoryUtilities.memAlloc(bakedIndexCount * 4);
-                QuadConverter.triangulateQuads(indexSrcAddr, srcIndexType, MemoryUtilities.memAddress0(indexData), GL11.GL_UNSIGNED_INT, quadCount, minVtx);
+                indexData = MemoryUtil.memAlloc(bakedIndexCount * 4);
+                QuadConverter.triangulateQuads(indexSrcAddr, srcIndexType, MemoryUtil.memAddress0(indexData), GL11.GL_UNSIGNED_INT, quadCount, minVtx);
                 bakedDrawMode = GL11.GL_TRIANGLES;
             } else {
                 bakedIndexCount = indicesCount;
-                indexData = MemoryUtilities.memAlloc(bakedIndexCount * 4);
-                QuadConverter.widenIndices(indexSrcAddr, srcIndexType, MemoryUtilities.memAddress0(indexData), GL11.GL_UNSIGNED_INT, indicesCount, minVtx);
+                indexData = MemoryUtil.memAlloc(bakedIndexCount * 4);
+                QuadConverter.widenIndices(indexSrcAddr, srcIndexType, MemoryUtil.memAddress0(indexData), GL11.GL_UNSIGNED_INT, indicesCount, minVtx);
                 bakedDrawMode = mode;
             }
 
@@ -216,8 +216,8 @@ public final class IndexedDrawCapture {
         } finally {
             if (snap != null) snap.free();
             if (!success) {
-                if (vertexData != null) MemoryUtilities.memFree(vertexData);
-                if (indexData != null) MemoryUtilities.memFree(indexData);
+                if (vertexData != null) MemoryUtil.memFree(vertexData);
+                if (indexData != null) MemoryUtil.memFree(indexData);
             }
         }
     }
@@ -260,7 +260,7 @@ public final class IndexedDrawCapture {
             }
             default -> {
                 for (int v = 0; v < vertexCount; v++) {
-                    MemoryUtilities.memCopy(src, dst, attribBytes);
+                    MemoryUtil.memCopy(src, dst, attribBytes);
                     src += srcStride; dst += dstStride;
                 }
             }

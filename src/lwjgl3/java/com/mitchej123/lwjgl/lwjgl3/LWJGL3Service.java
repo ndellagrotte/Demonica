@@ -9,7 +9,6 @@ import org.lwjgl.system.Pointer;
 import com.mitchej123.lwjgl.DebugMessageHandler;
 import com.mitchej123.lwjgl.GLExtension;
 import com.mitchej123.lwjgl.LWJGLService;
-import com.mitchej123.lwjgl.MemoryStack;
 
 import java.io.PrintStream;
 import java.nio.Buffer;
@@ -743,13 +742,6 @@ public record LWJGL3Service(
     @Override
     public int glGetAttribLocation(int program, CharSequence name) {
         return GL20C.glGetAttribLocation(program, name);
-    }
-
-    // ===================== MEMORY STACK OPERATIONS =====================
-
-    @Override
-    public MemoryStack stackPush() {
-        return new LWJGL3MemoryStack(org.lwjgl.system.MemoryStack.stackPush());
     }
 
     // ===================== NATIVE MEMORY OPERATIONS =====================

@@ -1,6 +1,6 @@
 package com.demonica.render.vertex;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
@@ -12,8 +12,8 @@ import java.nio.ByteBuffer;
  *
  * <p>Motivation: the vertex write hot path performs absolute stores straight into the
  * staging buffer of {@code BufferBuilder} to avoid the per-call index and bounds work of
- * {@code ByteBuffer.putXxx}. The address itself comes from GTNHLib
- * {@code MemoryUtilities#memAddress0}, the same non-reflective entry point the other
+ * {@code ByteBuffer.putXxx}. The address itself comes from LWJGL's
+ * {@code MemoryUtil#memAddress0}, the same non-reflective entry point the other
  * raw-memory paths in this codebase already use. The single reflective lookup of
  * {@code sun.misc.Unsafe#theUnsafe} remains because no in-repo facility exposes an
  * {@code Unsafe} instance and the FFM API is unavailable under {@code --release 21};
@@ -48,7 +48,7 @@ public final class DirectBufferAddress {
         if (!buffer.isDirect()) {
             throw new IllegalArgumentException("Vertex staging buffer must be direct");
         }
-        long address = MemoryUtilities.memAddress0(buffer);
+        long address = MemoryUtil.memAddress0(buffer);
         if (address == 0) {
             throw new IllegalStateException("Direct vertex staging buffer has no native address");
         }

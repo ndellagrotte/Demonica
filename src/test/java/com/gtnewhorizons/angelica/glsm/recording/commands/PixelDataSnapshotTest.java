@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.recording.commands;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -36,7 +36,7 @@ class PixelDataSnapshotTest {
                 assertEquals(src.get(1 + i), copy.get(i), "byte[" + i + "]");
             }
         } finally {
-            MemoryUtilities.memFree(copy);
+            MemoryUtil.memFree(copy);
         }
     }
 
@@ -53,7 +53,7 @@ class PixelDataSnapshotTest {
             assertEquals(8, view.get(0));
             assertEquals(9, view.get(1));
         } finally {
-            MemoryUtilities.memFree(copy);
+            MemoryUtil.memFree(copy);
         }
     }
 
@@ -70,7 +70,7 @@ class PixelDataSnapshotTest {
             assertEquals(1.5f, view.get(1));
             assertEquals(2.5f, view.get(2));
         } finally {
-            MemoryUtilities.memFree(copy);
+            MemoryUtil.memFree(copy);
         }
     }
 
@@ -86,7 +86,7 @@ class PixelDataSnapshotTest {
             assertEquals(Math.PI, view.get(0));
             assertEquals(Math.E, view.get(1));
         } finally {
-            MemoryUtilities.memFree(copy);
+            MemoryUtil.memFree(copy);
         }
     }
 
@@ -101,7 +101,7 @@ class PixelDataSnapshotTest {
             src.put(0, (byte) 99);
             assertEquals(1, copy.get(0), "snapshot must not see later source writes");
         } finally {
-            MemoryUtilities.memFree(copy);
+            MemoryUtil.memFree(copy);
         }
     }
 }

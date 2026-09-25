@@ -14,10 +14,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress0;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAlloc;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memCopy;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.nmemFree;
+import static org.lwjgl.system.MemoryUtil.memAddress0;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memCopy;
+import static org.lwjgl.system.MemoryUtil.nmemFree;
 
 /**
  * Compiles multiple ByteBuffers of the same Vertex format into a VBO. Any buffer added to the builder will be freed afterward.

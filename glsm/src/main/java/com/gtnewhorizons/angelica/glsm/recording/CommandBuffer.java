@@ -9,7 +9,7 @@ import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.*;
+import static org.lwjgl.system.MemoryUtil.*;
 
 public final class CommandBuffer {
     private static final int DEFAULT_CAPACITY = 4096; // Guess at typical display list size
