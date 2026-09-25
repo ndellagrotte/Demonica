@@ -2,7 +2,6 @@ package com.demonica;
 
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
 import com.demonica.compat.kirino.KirinoCompat;
-import com.demonica.compat.neofontrender.NeoFontRenderCompat;
 import com.demonica.compat.neverenoughanimations.NeverEnoughAnimationsAlphaOverride;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
@@ -97,9 +96,6 @@ public class Demonica {
         }
         KirinoCompat.install();
         NeverEnoughAnimationsAlphaOverride.install();
-        if (Mods.NEOFONTRENDER) {
-            NeoFontRenderCompat.initialize();
-        }
         if (Iris.enabled) {
             IrisGLSMBridge.register();
             Iris.INSTANCE.fmlInitEvent();

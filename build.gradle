@@ -262,7 +262,7 @@ unimined.minecraft {
             if (project.findProperty('mixinExport') != null) {
                 systemProperty 'mixin.debug.export', 'true'
             }
-            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.disableFontBatcher=true. A
+            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.perfDebug=true. A
             // value may hold commas (demonica.guard.drill=SHADOW,MESHING): only a comma before the next key= separates.
             def devProps = project.findProperty('devProps')
             if (devProps != null) {
@@ -381,8 +381,7 @@ dependencies {
     modCompileOnly('maven.modrinth:fluidlogged-api:3.0.6') {
         transitive = false
     }
-    // NeoFontRender and its UI addons (RevoUI).
-    modCompileOnly 'curse.maven:revo-font-1617673:8586768'
+    // RevoUI (NeoFontRender's UI addons).
     modCompileOnly 'curse.maven:revo-ui-1620532:8593682'
     // Component Model Hider 1.0 (Multiblocked's block-model hiding API, driven by Modular Machinery CE).
     modCompileOnly 'curse.maven:component-model-hider-940949:4885858'
@@ -759,8 +758,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica-refmap.json',
                 // The pin and the patches' anchors, which QuarantineGuard checks at startup.
                 'META-INF/demonica/celeritas-anchors',
-                // Loaded by path at runtime (Celeritas's ShaderLoader): the font renderer's and the panorama's shaders.
-                'assets/angelica/shaders/fontFilter.vsh',
+                // Loaded by path at runtime (Celeritas's ShaderLoader): the panorama's shaders.
                 'assets/angelica/shaders/panorama_cube.vert'
             ] + containedJars.get()
             (required - names).each { problems << "missing entry ${it}" }
