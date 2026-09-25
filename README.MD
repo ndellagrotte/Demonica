@@ -8,13 +8,18 @@ the role of [Actinium](https://github.com/DHJComical/Actinium), from which it
 forked at `4a19c959` ([`docs/FORK.md`](docs/FORK.md)); unlike Actinium, it
 carries no copy of the terrain renderer.
 
-**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested) and Celeritas's 1.12.2
-mod, the build pinned in [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md):
-upstream commit `06999aab`, as published by the Celeritas auto-build (the release
-asset `01-celeritas-forge-mc12.2-2.4.0-dev.jar` or the Maven jar; both are
-accepted).
-Demonica does not run next to Actinium, and does nothing without Celeritas, so
-that the game can tell you it is missing.
+**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested), and two mods:
+
+- Celeritas's 1.12.2 mod, the build pinned in
+  [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md): upstream commit
+  `06999aab`, as published by the Celeritas auto-build (the release asset
+  `01-celeritas-forge-mc12.2-2.4.0-dev.jar` or the Maven jar; both are
+  accepted).
+- [S8TNLib](https://github.com/ndellagrotte/S8TNLib) 0.3.0 or later, which
+  brings GTNHLib's classes.
+
+Demonica does not run next to Actinium, and does nothing without Celeritas or
+S8TNLib, so that the game can tell you which is missing.
 
 ## What it does
 
@@ -37,10 +42,9 @@ off, and the log and the shader pack screen say why.
 
 Download `Demonica-<version>.jar` from the
 [releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
-`mods/`, next to the Celeritas jar named above and
-[S8TNLib](https://github.com/ndellagrotte/S8TNLib/releases), which brings
-GTNHLib's classes: `s8tnlib-<version>.jar`, at the version Demonica's release
-notes name (0.3.0 or later). Without either mod, Forge lists what is missing.
+`mods/`, next to the Celeritas jar named above and `s8tnlib-<version>.jar`
+from [S8TNLib's releases](https://github.com/ndellagrotte/S8TNLib/releases),
+0.3.0 or later. Without either mod, Forge lists what is missing.
 
 ## Building
 
@@ -55,7 +59,9 @@ from `maven.outlands.top` and the pinned S8TNLib from its GitHub release.
 ```
 
 To try an S8TNLib build that has no release yet, pass its `build/libs` with
-`-Ps8tnlibDir=<dir>`; the S8TNLib pin is then only reported.
+`-Ps8tnlibDir=<dir>`; the S8TNLib pin is then only reported. The build looks
+for the version in `s8tnlib_version`, so a snapshot also needs
+`-Ps8tnlib_version=<version>`, such as `0.4.0-SNAPSHOT`.
 
 The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
 normal install. `runClient` takes:
@@ -66,6 +72,7 @@ normal install. `runClient` takes:
 | `-PdevProps=key=value,...` | pass system properties, for example `demonica.guard.drill=SHADOW` to rehearse a patch group failing |
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
+| `-PwithoutS8tnlib` | leave S8TNLib out, likewise |
 | `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |
 
 ## License
