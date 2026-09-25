@@ -5,8 +5,6 @@ import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.gui.options.DemonicaOptionsStorage;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
-import me.flashyreese.mods.reeses_sodium_options.client.config.ReeseSodiumOptionsConfigEntryPoint;
-import me.flashyreese.mods.reeses_sodium_options.client.gui.option.OptionDefaults;
 import net.irisshaders.iris.compat.sodium.IrisConfigEntryPoint;
 import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
 import org.taumc.celeritas.api.OptionGUIConstructionEvent;
@@ -29,19 +27,18 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Demonica's settings in the video settings screens, Reese's Sodium Options and Celeritas's own. They are added through
- * Celeritas's construction events and land where Actinium had them:
+ * Demonica's settings in Celeritas's video settings screen. They are added through Celeritas's construction events and
+ * land where Actinium had them:
  * <ul>
  *   <li>Quality, Sorting group: the fast block renderer toggle is Demonica's setting, which the meshing patch S13
  *   reads, in place of Celeritas's toggle of its static flag, which S13 overrides.</li>
  *   <li>Advanced: GLSM's upload strategy joins the CPU Saving group; direct memory access and ignoring framebuffer
  *   errors follow as groups of their own.</li>
- *   <li>Pages: Iris's (shadow distance, shader packs), Demonica's Debug page while {@code enable_debug_tab} is set,
- *   and RSO's own settings.</li>
+ *   <li>Pages: Iris's (shadow distance) and Demonica's Debug page while {@code enable_debug_tab} is set. The shader
+ *   pack screen is Celeritas's own "Shader Packs" tab, which finds Iris through {@code IrisApi}.</li>
  * </ul>
- * Celeritas builds its pages anew for every screen, so the events come often: twice for each Video Settings click, once
- * for Celeritas's screen and once for the RSO screen that replaces it. Each listener only edits the list of its own
- * event, and adds a page only when no page with that id is there yet.
+ * Celeritas builds its pages anew for every screen, so the events come once for each Video Settings click. Each
+ * listener only edits the list of its own event, and adds a page only when no page with that id is there yet.
  */
 public final class DemonicaOptionPages {
     public static final OptionIdentifier<Void> DEBUG_PAGE = OptionIdentifier.create(DemonicaRuntime.MODID, "debug");
@@ -54,8 +51,6 @@ public final class DemonicaOptionPages {
     static final String CELERITAS_FAST_BLOCK_RENDERER = "celeritas:fast_block_renderer";
 
     private static final DemonicaOptionsStorage STORAGE = new DemonicaOptionsStorage();
-    // The values a new options file starts with, declared as the options' defaults for RSO's reset button.
-    private static final DemonicaOptions DEFAULTS = new DemonicaOptions();
 
     private static boolean registered;
 
@@ -96,13 +91,11 @@ public final class DemonicaOptionPages {
 
     static void onGui(OptionGUIConstructionEvent event) {
         List<OptionPage> pages = event.getPages();
-        for (OptionPage page : new IrisConfigEntryPoint().createPages()) {
-            addIfAbsent(pages, page.getId(), () -> page);
-        }
+        OptionPage iris = new IrisConfigEntryPoint().createPage();
+        addIfAbsent(pages, iris.getId(), () -> iris);
         if (DemonicaRuntime.options().enableDebugTab) {
             addIfAbsent(pages, DEBUG_PAGE, DemonicaOptionPages::debug);
         }
-        addIfAbsent(pages, ReeseSodiumOptionsConfigEntryPoint.PAGE_ID, ReeseSodiumOptionsConfigEntryPoint::createOptionsPage);
     }
 
     static OptionPage debug() {
@@ -144,16 +137,15 @@ public final class DemonicaOptionPages {
         for (int i = 0; i < strategies.length; i++) {
             names[i] = TextComponent.translatable(strategies[i].translationKey());
         }
-        Function<DemonicaOptions, DemonicaOptions.StreamingUploadStrategy> getter = o -> o.advanced.streamingUploadStrategy;
-        return OptionDefaults.declare(OptionImpl.createBuilder(DemonicaOptions.StreamingUploadStrategy.class, STORAGE)
+        return OptionImpl.createBuilder(DemonicaOptions.StreamingUploadStrategy.class, STORAGE)
             .setId(OptionIdentifier.create(DemonicaRuntime.MODID, "streaming_upload_strategy", DemonicaOptions.StreamingUploadStrategy.class))
             .setName(TextComponent.translatable("sodium.options.streaming_upload_strategy.name"))
             .setTooltip(TextComponent.translatable("sodium.options.streaming_upload_strategy.tooltip"))
             .setControl(option -> new CyclingControl<>(option, DemonicaOptions.StreamingUploadStrategy.class, names))
-            .setBinding((o, v) -> o.advanced.streamingUploadStrategy = v, getter)
+            .setBinding((o, v) -> o.advanced.streamingUploadStrategy = v, o -> o.advanced.streamingUploadStrategy)
             // GLSM picks its uploader once, when the GL context is created.
             .setFlags(OptionFlag.REQUIRES_GAME_RESTART)
-            .build(), getter.apply(DEFAULTS));
+            .build();
     }
 
     private static Option<Boolean> debugTickBox(String path, OptionImpact impact, Function<DemonicaOptions, Boolean> getter,
@@ -164,7 +156,7 @@ public final class DemonicaOptionPages {
     /** A tick box over one of Demonica's settings, named by {@code <key>.name} and {@code <key>.tooltip}. */
     private static Option<Boolean> tickBox(String path, String key, OptionImpact impact, Function<DemonicaOptions, Boolean> getter,
                                            BiConsumer<DemonicaOptions, Boolean> setter, OptionFlag... flags) {
-        return OptionDefaults.declare(OptionImpl.createBuilder(boolean.class, STORAGE)
+        return OptionImpl.createBuilder(boolean.class, STORAGE)
             .setId(OptionIdentifier.create(DemonicaRuntime.MODID, path, boolean.class))
             .setName(TextComponent.translatable(key + ".name"))
             .setTooltip(TextComponent.translatable(key + ".tooltip"))
@@ -172,7 +164,7 @@ public final class DemonicaOptionPages {
             .setImpact(impact)
             .setBinding(setter, getter)
             .setFlags(flags)
-            .build(), getter.apply(DEFAULTS));
+            .build();
     }
 
     private static OptionGroup group(OptionIdentifier<Void> id, Option<?>... options) {

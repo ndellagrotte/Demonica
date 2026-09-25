@@ -39,7 +39,7 @@ class AnchorInventoryTest {
     static final String STANDARD_OPTION = "Lorg/taumc/celeritas/api/options/structure/StandardOptions$Option;";
 
     /**
-     * Not patches: the video settings that DemonicaOptionPages extends and OptionsScreens replaces. Video Settings builds
+     * Not patches: the video settings that DemonicaOptionPages extends and DemonicaGuiFactory opens. Video Settings builds
      * Celeritas's screen, and its pages hold the groups and options Demonica's settings are placed by. A change here
      * misplaces Demonica's settings rather than breaking a patch, so the build checks it and the game does not.
      */
@@ -55,7 +55,8 @@ class AnchorInventoryTest {
     );
 
     private static Anchor context(String owner, String method, String target, Anchor.Kind kind) {
-        return new Anchor("com.demonica.gui.DemonicaOptionPages", PatchGroup.OPTIONS, "options", kind, owner, method, target);
+        // No group: the guard never sees these, since they are not patches.
+        return new Anchor("com.demonica.gui.DemonicaOptionPages", null, "options", kind, owner, method, target);
     }
 
     @Test

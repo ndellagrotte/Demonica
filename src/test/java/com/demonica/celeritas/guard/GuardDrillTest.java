@@ -39,7 +39,6 @@ class GuardDrillTest {
     private static final String DEFAULT_RENDERER = "org/embeddedt/embeddium/impl/render/chunk/DefaultChunkRenderer";
     private static final String ASYNC_OCCLUSION = "org/embeddedt/embeddium/impl/render/chunk/occlusion/AsyncOcclusionMode";
     private static final String MESHING_TASK = "org/taumc/celeritas/impl/render/terrain/compile/task/ChunkBuilderMeshingTask";
-    private static final String SLIDER = "org/taumc/celeritas/api/options/control/SliderControl";
     private static final String TRACKER = "org/embeddedt/embeddium/impl/render/chunk/map/ChunkTracker";
     private static final String GL_PROGRAM = "org/embeddedt/embeddium/impl/gl/shader/GlProgram";
     private static final String FOG_SERVICE = "org/taumc/celeritas/impl/render/terrain/fog/GLStateManagerFogService";
@@ -134,16 +133,6 @@ class GuardDrillTest {
         assertTrue(verdict.shadersAllowed());
         assertEquals(mixinsOf(PatchGroup.MESHING), verdict.disabledMixins());
         assertTrue(verdict.notices().stream().anyMatch(n -> n.contains("no block IDs") && n.contains("USE_NEW_BLOCK_RENDERER")),
-            verdict.notices()::toString);
-    }
-
-    @Test
-    void aFailedOptionsPatchKeepsCeleritassScreen() {
-        QuarantineGuard.Verdict verdict = decide(new ChangedJar().renameFieldAndAccesses(SLIDER, "min", "minimum"), UNPINNED, Set.of(), Map.of());
-
-        assertEquals(QuarantineGuard.Level.L0, verdict.level());
-        assertEquals(mixinsOf(PatchGroup.OPTIONS), verdict.disabledMixins());
-        assertTrue(verdict.notices().stream().anyMatch(n -> n.startsWith("Video Settings keeps Celeritas's own screen") && n.contains("O1")),
             verdict.notices()::toString);
     }
 

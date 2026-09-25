@@ -62,7 +62,7 @@ import java.util.function.BiFunction;
  *   <li>{@code third <0|1|2>}: set the camera mode</li>
  *   <li>{@code glide <dx> <dz> <ticks>}: move the player by {@code dx, dz} blocks every tick (fast flight)</li>
  *   <li>{@code screen options|video|modconfig|shaderpacks|inventory|close}: open vanilla's Options screen, open Video
- *   Settings (Celeritas's screen, which Demonica swaps for Reese's Sodium Options on display), open Demonica's Config
+ *   Settings (Celeritas's screen), open Demonica's Config
  *   screen from the mod list, open the screen that Celeritas's "Shader Packs" tab opens (through the same
  *   {@code ShaderModBridge} call), open the player's inventory (the creative one in creative mode), or close the current
  *   screen</li>

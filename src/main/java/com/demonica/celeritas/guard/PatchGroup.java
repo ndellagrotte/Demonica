@@ -14,8 +14,6 @@ public enum PatchGroup {
     SHADOW(Gate.GROUP),
     /** Shader packs get no block IDs from terrain, and water is drawn as translucent terrain. */
     MESHING(Gate.GROUP),
-    /** Reese's Sodium Options cannot draw Celeritas's options, so Video Settings keeps Celeritas's screen. */
-    OPTIONS(Gate.GROUP),
     /** Independent patches that each degrade one feature. */
     DEGRADE(Gate.MIXIN),
     /** Mod compat on Celeritas's classes: each mixin serves its own mods. */

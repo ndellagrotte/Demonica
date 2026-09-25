@@ -23,8 +23,8 @@ propose them upstream is the maintainer's decision.
   patch whose anchor moved does nothing instead of crashing the game.
   `QuarantinePlugin` logs one line per applied mixin and names every injector
   that found no target: `Applied <mixin> to <class>: n of n injectors found
-  their targets`. A dev run that loads a world and opens Video Settings lists
-  all 21 lines (a mixin is applied when its target class loads); anything short
+  their targets`. A dev run that loads a world lists all 19 lines (a mixin is
+  applied when its target class loads); anything short
   of `n of n` is a moved anchor. MixinExtras applies `@ModifyExpressionValue`,
   `@WrapOperation`, `@WrapWithCondition` and `@WrapMethod` in its own
   transformer extensions, after every config plugin's `postApply`, so the
@@ -57,7 +57,6 @@ except where the group says otherwise.
 | CORE_TERRAIN | S2, S5, S6m + S8, S9, S14 | Packs cannot draw terrain. Shaders are turned off with a named reason (L2). |
 | SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shaders without terrain shadows (L1). |
 | MESHING | S10, S11, S13 | Packs get no block IDs from terrain: plants do not wave, blocks fall back to the pack's defaults, and water is drawn in the translucent pass instead of the water pass. |
-| OPTIONS | O1 | Reese's Sodium Options cannot draw sliders and cycling options, so Video Settings keeps Celeritas's own screen, which still lists Demonica's settings. |
 | DEGRADE | S4, S17, S19, S20 | One feature degrades; see the row. Only the failing mixin is turned off. |
 | COMPAT | C1 | The mods it serves lose that part of their rendering; see the row. Nothing else changes. Only the failing mixin is turned off. |
 
@@ -111,7 +110,7 @@ class.
 
 | Level | When | Result |
 |---|---|---|
-| L0 | Nothing failed, or only MESHING, OPTIONS, DEGRADE, COMPAT or BASE | Shaders with terrain shadows; each failed group costs its own feature |
+| L0 | Nothing failed, or only MESHING, DEGRADE, COMPAT or BASE | Shaders with terrain shadows; each failed group costs its own feature |
 | L1 | SHADOW failed | Shaders without terrain shadows. The shader pack screen says so |
 | L2 | CORE_TERRAIN failed | Shaders off: `IrisDebugOptions.enableIris()` and `enableCeleritas()` return false, the log names the anchor that moved, and "Shader Packs" opens a screen with the reason instead of the pack list |
 | L3 | The anchor list cannot be read, or the guard itself fails | Shaders off, and only the patches outside CORE_TERRAIN, SHADOW and MESHING apply |
@@ -158,7 +157,6 @@ dev run audits and logs "All N anchors ... hold".
 | [S19](patches/S19.md) | `internal.ChunkTrackerMixin` | `ChunkTracker.requiredNeighborRadius` | `@Shadow` read behind `ChunkTrackerAccess` | DEGRADE: Distant Horizons' neighbour-radius uniform falls back to its default | not proposed |
 | [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderBlock` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
 | [C1](patches/C1.md) | `seam.ChunkBuilderMeshingTaskCompatMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): the whole method, its `canRenderInLayer` call, its `convertVanillaDataToCeleritasData` call | Only while the mod is installed: the Component Model Hider's build flag around the build (`@WrapMethod`) and no geometry for its hidden positions; LittleTiles' cached tile geometry appended to the vanilla-format buffers before they are converted | COMPAT: hidden multiblock parts are drawn, or LittleTiles blocks that are not full blocks are invisible | not proposed |
-| [O1](patches/O1.md) | `internal.SliderControlMixin`, `internal.CyclingControlMixin` | `SliderControl.min`, `max`, `interval`, `mode`; `CyclingControl.allowedValues` | `@Shadow` reads behind `SliderControlAccess` and `CyclingControlAccess` (read through `OptionControls`), for Reese's Sodium Options' own slider and cycling rows | OPTIONS | not proposed |
 | [I1](patches/I1.md) | `seam.VintageRenderSectionManagerShadowMixin` | `VintageRenderSectionManager.getAsyncOcclusionMode` | RETURN: "Everything" becomes "Only Shadows" when the manager gets a shadow pass | SHADOW | a question for upstream |
 | [I2](patches/I2.md) | `internal.SimpleWorldRendererMixin` | `SimpleWorldRenderer.setupTerrain`, `setupShadowTerrain` | `@ModifyVariable(HEAD)` of `frame` to `DemonicaFrameClock.next()` | SHADOW | not proposed |
 

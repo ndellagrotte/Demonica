@@ -26,7 +26,7 @@ class QuarantineLedgerTest {
     private static final String MIXIN_PACKAGE = "com.demonica.mixin.celeritas.";
     private static final Pattern PATCH_ROW = Pattern.compile("^\\| \\[([A-Za-z0-9]+)\\]\\(patches/\\1\\.md\\) \\|(.*)$");
     private static final Pattern MIXIN_NAME = Pattern.compile("`((?:internal|seam)\\.[A-Za-z]+)`");
-    private static final Pattern GROUP_NAME = Pattern.compile("\\b(BASE|CORE_TERRAIN|SHADOW|MESHING|OPTIONS|DEGRADE|COMPAT)\\b");
+    private static final Pattern GROUP_NAME = Pattern.compile("\\b(BASE|CORE_TERRAIN|SHADOW|MESHING|DEGRADE|COMPAT)\\b");
 
     private record Row(String id, List<String> mixins, PatchGroup group) {
     }
@@ -70,7 +70,7 @@ class QuarantineLedgerTest {
             declared.computeIfAbsent(anchor.group(), k -> new TreeSet<>()).addAll(List.of(anchor.patches().split(",")));
         }
         Map<PatchGroup, Set<String>> ledger = new LinkedHashMap<>();
-        Pattern row = Pattern.compile("^\\| (BASE|CORE_TERRAIN|SHADOW|MESHING|OPTIONS|DEGRADE|COMPAT) \\| ([^|]+) \\|");
+        Pattern row = Pattern.compile("^\\| (BASE|CORE_TERRAIN|SHADOW|MESHING|DEGRADE|COMPAT) \\| ([^|]+) \\|");
         for (String line : section("## Groups")) {
             Matcher matcher = row.matcher(line);
             if (matcher.find()) {
