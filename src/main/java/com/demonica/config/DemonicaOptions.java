@@ -90,8 +90,6 @@ public final class DemonicaOptions {
 
     public static class AdvancedSettings {
         public boolean allowDirectMemoryAccess = true;
-        public boolean useModelRendererBatching = true;
-        public boolean useModelRendererDisplayLists = true;
         public StreamingUploadStrategy streamingUploadStrategy = StreamingUploadStrategy.MAP_BUFFER_RANGE;
     }
 

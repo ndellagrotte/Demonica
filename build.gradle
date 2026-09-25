@@ -361,7 +361,6 @@ dependencies {
     modCompileOnly 'curse.maven:botania-ceu-1179448:8706250'
     modCompileOnly 'curse.maven:cofh-core-69162:2920433'
     modCompileOnly 'curse.maven:extra-utilities-2-225561:2678374'
-    modCompileOnly 'curse.maven:gibbed-1480667:7737413'
     modCompileOnly 'curse.maven:ichunutil-229060:2801262'
     modCompileOnly 'curse.maven:creativecore-257814:4722163'
     modCompileOnly 'curse.maven:littletiles-257818:5180387'

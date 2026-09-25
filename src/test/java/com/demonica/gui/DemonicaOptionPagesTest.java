@@ -100,8 +100,7 @@ class DemonicaOptionPagesTest {
 
         OptionPage advanced = SodiumGameOptionPages.advanced();
 
-        assertEquals(List.of("celeritas:cpu_render_ahead_limit", "demonica:streaming_upload_strategy",
-                        "demonica:model_renderer_batching", "demonica:model_renderer_display_lists"),
+        assertEquals(List.of("celeritas:cpu_render_ahead_limit", "demonica:streaming_upload_strategy"),
                 ids(group(advanced, StandardOptions.Group.CPU_SAVING).getOptions()));
         assertEquals(List.of("celeritas:cpu_saving", "demonica:direct_memory", "demonica:framebuffer_errors"),
                 advanced.getGroups().stream().map(g -> g.getId().toString()).toList());

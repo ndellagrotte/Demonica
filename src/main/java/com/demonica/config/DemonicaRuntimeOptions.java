@@ -4,8 +4,6 @@ import com.demonica.runtime.DemonicaRuntime;
 
 public final class DemonicaRuntimeOptions {
     private static final String ALLOW_DIRECT_MEMORY_ACCESS_PROPERTY = "demonica.allowDirectMemoryAccess";
-    private static final String MODEL_RENDERER_BATCHING_PROPERTY = "demonica.modelRendererBatching";
-    private static final String MODEL_RENDERER_DISPLAY_LISTS_PROPERTY = "demonica.modelRendererDisplayLists";
     private static final String PERF_DEBUG_PROPERTY = "demonica.perfDebug";
     private static final String PBR_DEBUG_PROPERTY = "demonica.pbrDebug";
 
@@ -20,32 +18,6 @@ public final class DemonicaRuntimeOptions {
 
         try {
             return DemonicaRuntime.options().advanced.allowDirectMemoryAccess;
-        } catch (RuntimeException | LinkageError ignored) {
-            return true;
-        }
-    }
-
-    public static boolean useModelRendererBatching() {
-        String override = System.getProperty(MODEL_RENDERER_BATCHING_PROPERTY);
-        if (override != null) {
-            return Boolean.parseBoolean(override);
-        }
-
-        try {
-            return DemonicaRuntime.options().advanced.useModelRendererBatching;
-        } catch (RuntimeException | LinkageError ignored) {
-            return true;
-        }
-    }
-
-    public static boolean useModelRendererDisplayLists() {
-        String override = System.getProperty(MODEL_RENDERER_DISPLAY_LISTS_PROPERTY);
-        if (override != null) {
-            return Boolean.parseBoolean(override);
-        }
-
-        try {
-            return DemonicaRuntime.options().advanced.useModelRendererDisplayLists;
         } catch (RuntimeException | LinkageError ignored) {
             return true;
         }
