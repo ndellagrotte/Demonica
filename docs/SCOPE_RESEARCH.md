@@ -54,6 +54,7 @@ The ten findings, by leverage:
 5. **Reese's Sodium Options can go.** 10,620 lines including 24 files that
    re-create Mojang's 1.20 GUI API. The ledger records that Celeritas's own
    Video Settings screen lists Demonica's settings when RSO is off.
+   *Done on `feat/drop-rso` (0.3.0-SNAPSHOT), with O1: see 3.4.*
 6. **Two of the shipped class transformers are never installed.** Actinium's
    coremod registers the StellarCore and Gnetum HUD-caching transformers;
    Demonica's does not, so `GLSMConfig.hudCacheOverride` never becomes true and
@@ -338,6 +339,17 @@ Checkpoint 7 records that with RSO off "Video Settings keeps Celeritas's
 screen, which lists Demonica's settings and RSO's page". On modern versions RSO
 is a separate optional mod; nothing about it is Iris.
 
+**Status (2026-09-25, `feat/drop-rso`).** Deleted, with no separate
+mod: RSO and its GUI API copy, `OptionsScreens`, `DemonicaOptionHost`, the apply
+actions, `OptionGUIConstructionBridge`, the harness's `rso` step, the three
+language files, O1 with its accessors, and the OPTIONS group. Video Settings is
+Celeritas's screen, with Iris's page, Demonica's additions and the Debug page.
+Iris's shader pack `ExternalPage` is not needed: Celeritas's screen has its own
+"Shader Packs" tab, which finds Demonica's `IrisApi` through `ShaderModBridge`.
+The quarantine is now 19 mixins and 22 ledger entries, and the anchor list is 253
+anchors, not 316, because O1's `usesPackages` covered everything RSO read from
+Celeritas. About 12,300 lines went, including the tests.
+
 ### 3.5 Mod compatibility
 
 15 conditional configs (32 mixins), 3 class transformers, 25 compat classes,
@@ -485,7 +497,8 @@ for BASE (S15) whose failure mode, solid-fog terrain, is the one that hurts
 without a shader pack. Dependency: none; this is a subtraction. It also makes A
 less urgent, since a moved anchor costs a bump instead of a debugging session.
 
-**C. Drop Reese's Sodium Options.** 10,620 lines, O1, the OPTIONS group, five
+**C. Drop Reese's Sodium Options.** *Done on `feat/drop-rso`; see 3.4's
+Status.* 10,620 lines, O1, the OPTIONS group, five
 tests, three lang files, two `verifyDistributedJar` entries, and the
 `OptionsScreens` swap. Demonica's settings stay where they already are: in
 Celeritas's pages, through the construction events `DemonicaOptionPages`
@@ -648,7 +661,7 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 
 | Phase | Items | Approximate lines removed from the jar | Notes |
 |---|---|---|---|
-| 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible |
+| 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible. C done (with O1) |
 | 2. Upstream conversations | A (provider interface to Celeritas), C1 and the mesher compat to Celeritas, the DH mod-id issue, the Lumenized and Scannable reports, the shared-engine question to Actinium, the GLSM artifact question to Angelica | 0 now; 3,000 to 6,000 when merged | Start these early; they run in parallel with everything else |
 | 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Do before the next pin move |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |

@@ -36,10 +36,9 @@ class AnchorInventoryTest {
     static final String PAGE = "()Lorg/taumc/celeritas/api/options/structure/OptionPage;";
     static final String OPTION_ID = "Lorg/taumc/celeritas/api/options/OptionIdentifier;";
     static final String STANDARD_GROUP = "Lorg/taumc/celeritas/api/options/structure/StandardOptions$Group;";
-    static final String STANDARD_OPTION = "Lorg/taumc/celeritas/api/options/structure/StandardOptions$Option;";
 
     /**
-     * Not patches: the video settings that DemonicaOptionPages extends and OptionsScreens replaces. Video Settings builds
+     * Not patches: the video settings that DemonicaOptionPages extends and DemonicaGuiFactory opens. Video Settings builds
      * Celeritas's screen, and its pages hold the groups and options Demonica's settings are placed by. A change here
      * misplaces Demonica's settings rather than breaking a patch, so the build checks it and the game does not.
      */
@@ -47,15 +46,13 @@ class AnchorInventoryTest {
         context("org/taumc/celeritas/mixin/features/options/MixinGuiOptions",
             "open(Lnet/minecraft/client/gui/GuiButton;Lorg/spongepowered/asm/mixin/injection/callback/CallbackInfo;)V",
             "Lorg/taumc/celeritas/impl/gui/CeleritasVideoOptionsScreen;<init>(Lnet/minecraft/client/gui/GuiScreen;)V", Anchor.Kind.INVOKE),
-        context(OPTION_PAGES, "general" + PAGE, STANDARD_GROUP + "WINDOW:" + OPTION_ID, Anchor.Kind.ACCESS),
-        context(OPTION_PAGES, "general" + PAGE, STANDARD_OPTION + "FULLSCREEN:" + OPTION_ID, Anchor.Kind.ACCESS),
-        context(OPTION_PAGES, "general" + PAGE, STANDARD_OPTION + "MAX_FRAMERATE:" + OPTION_ID, Anchor.Kind.ACCESS),
         context(OPTION_PAGES, "quality" + PAGE, STANDARD_GROUP + "SORTING:" + OPTION_ID, Anchor.Kind.ACCESS),
         context(OPTION_PAGES, "advanced" + PAGE, STANDARD_GROUP + "CPU_SAVING:" + OPTION_ID, Anchor.Kind.ACCESS)
     );
 
     private static Anchor context(String owner, String method, String target, Anchor.Kind kind) {
-        return new Anchor("com.demonica.gui.DemonicaOptionPages", PatchGroup.OPTIONS, "options", kind, owner, method, target);
+        // No group: the guard never sees these, since they are not patches.
+        return new Anchor("com.demonica.gui.DemonicaOptionPages", null, "options", kind, owner, method, target);
     }
 
     @Test

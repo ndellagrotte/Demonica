@@ -22,7 +22,8 @@ that the game can tell you it is missing.
   packs use for waving plants and water.
 - GLSM, Angelica's GL state manager, to which vanilla's and mods' GL calls are
   redirected.
-- Reese's Sodium Options for Video Settings, with Demonica's own settings.
+- Iris's and Demonica's settings in Celeritas's Video Settings, next to its
+  Shader Packs tab.
 - Actinium's end portal and debug tools, and its compatibility with other mods.
 
 Demonica patches Celeritas's own classes in one place only, and each patch is
@@ -92,7 +93,6 @@ has the details, and the mod jar carries all three files.
 - embeddedt for Celeritas; JellySquid and the CaffeineMC team for Sodium
 - The GTNewHorizons team for GTNHLib; embeddedt and Ferri_Arnus for
   [glsl-transformation-lib](https://github.com/TauMC/glsl-transformation-lib)
-- FlashyReese for [Reese's Sodium Options](https://github.com/FlashyReese/reeses-sodium-options)
 - The original ShadersMod authors: karyonix, sonic ether, id_miner and daxnitro
 - [Mesa](https://gitlab.freedesktop.org/mesa/mesa), for the display-list ID
   allocator port and the fixed-function shader generation it inspired

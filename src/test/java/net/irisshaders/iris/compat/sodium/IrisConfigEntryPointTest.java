@@ -1,46 +1,28 @@
 package net.irisshaders.iris.compat.sodium;
 
 import net.coderbot.iris.gui.option.IrisVideoSettings;
-import me.flashyreese.mods.reeses_sodium_options.client.gui.option.ExternalPage;
 import org.taumc.celeritas.api.options.structure.Option;
 import org.taumc.celeritas.api.options.structure.OptionPage;
 import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IrisConfigEntryPointTest {
     @Test
-    void buildsShadowOptionPageAndExternalPageAndAppliesInjectedBinding() {
+    void buildsShadowOptionPageAndAppliesInjectedBinding() {
         AtomicInteger persisted = new AtomicInteger(32);
-        AtomicBoolean openedCalled = new AtomicBoolean();
-        IrisConfigEntryPoint entryPoint = new IrisConfigEntryPoint(persisted::set, persisted::get,
-                ignored -> openedCalled.set(true));
+        IrisConfigEntryPoint entryPoint = new IrisConfigEntryPoint(persisted::set, persisted::get);
 
-        List<OptionPage> pages = entryPoint.createPages();
-        assertEquals(2, pages.size());
-        OptionPage videoSettings = pages.stream()
-                .filter(page -> "video_settings".equals(page.getId().getPath()))
-                .findFirst().orElseThrow();
-        ExternalPage shaderPacks = pages.stream()
-                .filter(ExternalPage.class::isInstance)
-                .map(ExternalPage.class::cast)
-                .findFirst().orElseThrow();
+        OptionPage videoSettings = entryPoint.createPage();
 
         assertEquals("iris", videoSettings.getId().getModId());
+        assertEquals("video_settings", videoSettings.getId().getPath());
         assertTrue(videoSettings.getName() instanceof TextComponent.Translatable);
         assertEquals("options.iris.title", ((TextComponent.Translatable) videoSettings.getName()).keys().get(0));
-        assertEquals("options.iris.shaderPackSelection",
-                ((TextComponent.Translatable) shaderPacks.getName()).keys().get(0));
-
-        shaderPacks.getScreenConsumer().accept(null);
-        assertTrue(openedCalled.get());
 
         @SuppressWarnings("unchecked")
         Option<Integer> shadow = (Option<Integer>) videoSettings.getOptions().stream()
@@ -57,13 +39,5 @@ class IrisConfigEntryPointTest {
         shadow.setValue(64);
         shadow.applyChanges();
         assertEquals(64, persisted.get());
-    }
-
-    @Test
-    void externalPageActivationSkipsVideoSettingsWhenOpeningShaderPacks() {
-        IrisConfigEntryPoint entryPoint = new IrisConfigEntryPoint(value -> { }, () -> 32, ignored -> { });
-        List<OptionPage> pages = entryPoint.createPages();
-        assertInstanceOf(ExternalPage.class, pages.get(1));
-        assertEquals("shader_pack_selection", pages.get(1).getId().getPath());
     }
 }

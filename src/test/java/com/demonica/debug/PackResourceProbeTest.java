@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PackResourceProbeTest {
 
     /** The asset domains whose lang files the jar ships; Celeritas ships its own. */
-    private static final String[] DOMAINS = {"actinium", "iris", "reeses-sodium-options"};
+    private static final String[] DOMAINS = {"actinium", "iris"};
     private static final Pattern PACK_FORMAT = Pattern.compile("\"pack_format\"\\s*:\\s*(\\d+)");
 
     @Test

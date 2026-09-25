@@ -1,8 +1,6 @@
 package com.demonica.gui;
 
 import com.demonica.runtime.DemonicaRuntime;
-import me.flashyreese.mods.reeses_sodium_options.client.config.ReeseSodiumOptionsConfigEntryPoint;
-import me.flashyreese.mods.reeses_sodium_options.client.gui.option.OptionDefaults;
 import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
 import org.junit.jupiter.api.Test;
 import org.taumc.celeritas.api.OptionGUIConstructionEvent;
@@ -65,8 +63,6 @@ class DemonicaOptionPagesTest {
         List<String> ids = ids(sorting.getOptions());
         assertTrue(ids.contains("demonica:fast_block_renderer"), ids.toString());
         assertFalse(ids.contains("celeritas:fast_block_renderer"), ids.toString());
-        Option<?> toggle = sorting.getOptions().get(ids.indexOf("demonica:fast_block_renderer"));
-        assertEquals(Boolean.FALSE, OptionDefaults.get(toggle), "off by default, like upstream's production setting (S13)");
     }
 
     /** Celeritas's own advanced page, built from the pinned jar, with Demonica's fast paths and its two groups. */
@@ -86,18 +82,16 @@ class DemonicaOptionPagesTest {
     void pagesAreAddedOnceAndTheDebugPageOnlyWhenEnabled() {
         boolean debugTab = DemonicaRuntime.options().enableDebugTab;
         try {
-            // Stands in for RSO's own page, which needs FML's config directory to build.
-            List<OptionPage> pages = new ArrayList<>(List.of(emptyPage(ReeseSodiumOptionsConfigEntryPoint.PAGE_ID)));
+            List<OptionPage> pages = new ArrayList<>();
 
             DemonicaRuntime.options().enableDebugTab = false;
             DemonicaOptionPages.onGui(new OptionGUIConstructionEvent(pages));
-            assertEquals(List.of("reeses-sodium-options:rso_options", "iris:video_settings", "iris:shader_pack_selection"), pageIds(pages));
+            assertEquals(List.of("iris:video_settings"), pageIds(pages));
 
             DemonicaRuntime.options().enableDebugTab = true;
             DemonicaOptionPages.onGui(new OptionGUIConstructionEvent(pages));
             DemonicaOptionPages.onGui(new OptionGUIConstructionEvent(pages));
-            assertEquals(List.of("reeses-sodium-options:rso_options", "iris:video_settings", "iris:shader_pack_selection",
-                    "demonica:debug"), pageIds(pages));
+            assertEquals(List.of("iris:video_settings", "demonica:debug"), pageIds(pages));
         } finally {
             DemonicaRuntime.options().enableDebugTab = debugTab;
         }
@@ -165,10 +159,6 @@ class DemonicaOptionPagesTest {
 
     private static List<String> pageIds(List<OptionPage> pages) {
         return pages.stream().map(page -> page.getId().toString()).toList();
-    }
-
-    private static OptionPage emptyPage(OptionIdentifier<Void> id) {
-        return new OptionPage(id, TextComponent.literal(id.toString()), List.of());
     }
 
     /** A tick box standing in for one of Celeritas's options, by id. */

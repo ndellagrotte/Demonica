@@ -312,8 +312,6 @@ public final class QuarantineGuard {
                     + evidence + ").");
                 case MESHING -> notices.add("Shader packs get no block IDs from terrain, and water is drawn as translucent terrain: "
                     + "Demonica's meshing patches do not fit the installed Celeritas (" + evidence + ").");
-                case OPTIONS -> notices.add("Video Settings keeps Celeritas's own screen: Reese's Sodium Options needs a patch that "
-                    + "does not fit the installed Celeritas (" + evidence + ").");
                 case BASE -> notices.add("Terrain fog may be drawn wrong: Demonica's fog patch does not fully fit the installed "
                     + "Celeritas (" + evidence + ").");
                 case DEGRADE, COMPAT -> byMixin.forEach((mixin, mixinFailures) -> {

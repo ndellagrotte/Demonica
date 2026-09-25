@@ -6,9 +6,7 @@ import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
 import com.demonica.dev.DevHarness;
-import com.demonica.dev.OptionsHarnessSteps;
 import com.demonica.gui.DemonicaOptionPages;
-import com.demonica.gui.options.OptionsScreens;
 import com.demonica.loading.ActiniumConflictException;
 import com.demonica.loading.Environment;
 import com.demonica.mixin.core.terrain.AccessorEntityRenderer;
@@ -75,9 +73,8 @@ public class Demonica {
         );
         GLSMPerfDebugHooks.setEnabledChangeListener(Demonica::reloadShaderPipelineForPerfDebug);
 
-        // Demonica's settings in Celeritas's video settings pages, and Reese's Sodium Options in place of its screen.
+        // Demonica's settings in Celeritas's video settings pages.
         DemonicaOptionPages.register();
-        MinecraftForge.EVENT_BUS.register(new OptionsScreens());
 
         DemonicaDiagnostics.logConstruction();
         if (Iris.enabled && Mods.DISTANTHORIZONS) {
@@ -98,7 +95,6 @@ public class Demonica {
             Iris.INSTANCE.fmlInitEvent();
             MinecraftForge.EVENT_BUS.register(Iris.INSTANCE);
         }
-        OptionsHarnessSteps.register();
         DevHarness.install();
         DemonicaDiagnostics.logInitialization(DemonicaRuntime.version());
     }
