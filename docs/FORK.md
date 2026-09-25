@@ -59,6 +59,11 @@ Demonica reached are not in S8TNLib.
 - A change to GTNHLib is made in S8TNLib, released there, and then pinned
   here. S8TNLib's `docs/HOST_CONTRACT.md` lists what Demonica supplies to
   it.
+- Two of the 60 served only Demonica, and are Demonica's own now, with only
+  their package lines changed: `compat/Mods` is `com.demonica.compat.Mods`
+  in `:shader`, and `util/font/IFontParameters` is
+  `com.demonica.render.font.IFontParameters`. S8TNLib 0.1.1's copies ride
+  along in the jar, unused, until the pin moves to a release without them.
 
 ## History
 
