@@ -47,7 +47,6 @@ class MixinConfigurationTest {
         QUARANTINE_CONFIG,
         "mixins.demonica.kirino.json",
         "mixins.demonica.hbm.early.json",
-        "mixins.demonica.gibbed.json",
         "mixins.demonica.ichunutil.json",
         "mixins.demonica.lumenized.json",
         "mixins.demonica.revoui.json",

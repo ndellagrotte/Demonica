@@ -34,11 +34,6 @@ public final class VanillaBufferBuilderRenderer {
     }
 
     public static void draw(BufferBuilder bufferBuilder, String debugSource) {
-        if (BufferBuilderStreamingDrawer.isEnabled()) {
-            BufferBuilderStreamingDrawer.draw(bufferBuilder, debugSource);
-            return;
-        }
-
         if (bufferBuilder.getVertexCount() <= 0) {
             bufferBuilder.reset();
             return;
@@ -58,11 +53,6 @@ public final class VanillaBufferBuilderRenderer {
     }
 
     public static void drawRaw(ByteBuffer buffer, VertexFormat format, int vertexCount, int drawMode, String debugSource) {
-        if (BufferBuilderStreamingDrawer.isEnabled()) {
-            BufferBuilderStreamingDrawer.drawRaw(buffer, format, vertexCount, drawMode, debugSource);
-            return;
-        }
-
         if (vertexCount <= 0) {
             return;
         }
@@ -104,6 +94,31 @@ public final class VanillaBufferBuilderRenderer {
         if (checkDrawErrors) {
             RenderDebugHooksHolder.checkDrawError("bufferbuilder:after-restore", debugSource, drawMode, vertexFlags, stride, vertexCount, formatDescription, vao, vbo);
         }
+    }
+
+    /**
+     * Recreates the per-format VAOs on the current context. Splash replacements can migrate the
+     * game to a different GL context when the splash finishes (issue #150); VAOs from the
+     * previous context are invalid afterward, while the VBOs are shared and stay valid.
+     */
+    public static void recreateVertexArrays() {
+        for (Map.Entry<VertexFormat, Integer> entry : VAOS.entrySet()) {
+            if (!VanillaVertexBufferRenderer.vaoMatchesCurrentContext(entry.getValue())) {
+                entry.setValue(VanillaVertexBufferRenderer.createStreamingVertexArray(entry.getKey(), VBOS.get(entry.getKey())));
+            }
+        }
+    }
+
+    public static void destroy() {
+        for (int vao : VAOS.values()) {
+            GLStateManager.glDeleteVertexArrays(vao);
+        }
+        for (int vbo : VBOS.values()) {
+            GLStateManager.glDeleteBuffers(vbo);
+        }
+        VAOS.clear();
+        VBOS.clear();
+        VERTEX_FLAGS.clear();
     }
 
     private static void ensureDrawState(VertexFormat format) {

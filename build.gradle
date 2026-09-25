@@ -262,7 +262,7 @@ unimined.minecraft {
             if (project.findProperty('mixinExport') != null) {
                 systemProperty 'mixin.debug.export', 'true'
             }
-            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.disableFontBatcher=true. A
+            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.perfDebug=true. A
             // value may hold commas (demonica.guard.drill=SHADOW,MESHING): only a comma before the next key= separates.
             def devProps = project.findProperty('devProps')
             if (devProps != null) {
@@ -358,12 +358,9 @@ dependencies {
     modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
     // Mod compat (com.demonica.compat, com.demonica.mixin.mod), compiled against and loaded only when the mod is
     // present: mixin configs through MixinLate and mixins.demonica.conditions.properties, classes behind Mods flags.
-    // NeverEnoughAnimation 1.0.7: its GUI fade scales item vertex alpha, which the fast lit item path must honour.
-    modCompileOnly 'curse.maven:neverenoughanimation-1062347:7289408'
     modCompileOnly 'curse.maven:botania-ceu-1179448:8706250'
     modCompileOnly 'curse.maven:cofh-core-69162:2920433'
     modCompileOnly 'curse.maven:extra-utilities-2-225561:2678374'
-    modCompileOnly 'curse.maven:gibbed-1480667:7737413'
     modCompileOnly 'curse.maven:ichunutil-229060:2801262'
     modCompileOnly 'curse.maven:creativecore-257814:4722163'
     modCompileOnly 'curse.maven:littletiles-257818:5180387'
@@ -381,8 +378,7 @@ dependencies {
     modCompileOnly('maven.modrinth:fluidlogged-api:3.0.6') {
         transitive = false
     }
-    // NeoFontRender and its UI addons (RevoUI).
-    modCompileOnly 'curse.maven:revo-font-1617673:8586768'
+    // RevoUI (NeoFontRender's UI addons).
     modCompileOnly 'curse.maven:revo-ui-1620532:8593682'
     // Component Model Hider 1.0 (Multiblocked's block-model hiding API, driven by Modular Machinery CE).
     modCompileOnly 'curse.maven:component-model-hider-940949:4885858'
@@ -403,7 +399,6 @@ dependencies {
         modRuntimeOnly 'curse.maven:ichunutil-229060:2801262'
         modRuntimeOnly 'curse.maven:creativecore-257814:4722163'
         modRuntimeOnly 'curse.maven:littletiles-257818:5180387'
-        modRuntimeOnly 'curse.maven:neverenoughanimation-1062347:7289408'
         modRuntimeOnly 'curse.maven:snow-real-magic-308663:6275195'
         modRuntimeOnly 'curse.maven:architecturecraft-tridev-277631:4344128'
         modRuntimeOnly 'curse.maven:scannable-266784:3146549'
@@ -759,9 +754,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica-refmap.json',
                 // The pin and the patches' anchors, which QuarantineGuard checks at startup.
                 'META-INF/demonica/celeritas-anchors',
-                // Loaded by path at runtime (Celeritas's ShaderLoader): the font renderer's and the panorama's shaders.
-                'assets/angelica/shaders/fontFilter.vsh',
-                'assets/angelica/shaders/panorama_cube.vert'
+                // Loaded by path at runtime (Celeritas's ShaderLoader): the shaders of Iris's CenterDepthSampler.
+                'assets/angelica/shaders/centerDepth.vsh'
             ] + containedJars.get()
             (required - names).each { problems << "missing entry ${it}" }
 

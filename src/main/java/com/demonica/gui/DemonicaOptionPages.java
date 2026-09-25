@@ -3,21 +3,17 @@ package com.demonica.gui;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.gui.options.DemonicaOptionsStorage;
-import com.demonica.render.FastLitItemDisplayListCache;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
 import me.flashyreese.mods.reeses_sodium_options.client.config.ReeseSodiumOptionsConfigEntryPoint;
 import me.flashyreese.mods.reeses_sodium_options.client.gui.option.OptionDefaults;
 import net.irisshaders.iris.compat.sodium.IrisConfigEntryPoint;
-import net.minecraft.client.Minecraft;
 import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
 import org.taumc.celeritas.api.OptionGUIConstructionEvent;
 import org.taumc.celeritas.api.OptionGroupConstructionEvent;
 import org.taumc.celeritas.api.OptionPageConstructionEvent;
 import org.taumc.celeritas.api.options.OptionIdentifier;
-import org.taumc.celeritas.api.options.control.ControlValueFormatter;
 import org.taumc.celeritas.api.options.control.CyclingControl;
-import org.taumc.celeritas.api.options.control.SliderControl;
 import org.taumc.celeritas.api.options.control.TickBoxControl;
 import org.taumc.celeritas.api.options.structure.Option;
 import org.taumc.celeritas.api.options.structure.OptionFlag;
@@ -36,12 +32,10 @@ import java.util.function.Supplier;
  * Demonica's settings in the video settings screens, Reese's Sodium Options and Celeritas's own. They are added through
  * Celeritas's construction events and land where Actinium had them:
  * <ul>
- *   <li>General, Window group: Fullscreen Mode (with borderless) replaces vanilla's fullscreen toggle, and the
- *   loading-screen frame limit follows Max Framerate.</li>
  *   <li>Quality, Sorting group: the fast block renderer toggle is Demonica's setting, which the meshing patch S13
  *   reads, in place of Celeritas's toggle of its static flag, which S13 overrides.</li>
- *   <li>Advanced: GLSM's upload strategy and the draw fast paths join the CPU Saving group; direct memory access and
- *   ignoring framebuffer errors follow as groups of their own.</li>
+ *   <li>Advanced: GLSM's upload strategy joins the CPU Saving group; direct memory access and ignoring framebuffer
+ *   errors follow as groups of their own.</li>
  *   <li>Pages: Iris's (shadow distance, shader packs), Demonica's Debug page while {@code enable_debug_tab} is set,
  *   and RSO's own settings.</li>
  * </ul>
@@ -82,35 +76,10 @@ public final class DemonicaOptionPages {
     static void onGroup(OptionGroupConstructionEvent event) {
         List<Option<?>> options = event.getOptions();
         OptionIdentifier<Void> id = event.getId();
-        if (StandardOptions.Group.WINDOW.equals(id)) {
-            replaceOrAdd(options, StandardOptions.Option.FULLSCREEN.toString(), fullscreenMode());
-            insertAfterOrAdd(options, StandardOptions.Option.MAX_FRAMERATE.toString(), loadingScreenFramerateLimit());
-        } else if (StandardOptions.Group.DETAILS.equals(id)) {
-            insertAfterOrAdd(options, StandardOptions.Option.VIGNETTE.toString(), dynamicFov());
-        } else if (StandardOptions.Group.SORTING.equals(id)) {
+        if (StandardOptions.Group.SORTING.equals(id)) {
             replaceOrAdd(options, CELERITAS_FAST_BLOCK_RENDERER, fastBlockRenderer());
         } else if (StandardOptions.Group.CPU_SAVING.equals(id)) {
             options.add(streamingUploadStrategy());
-            options.add(tickBox("deferred_particle_batching", "sodium.options.enable_deferred_batching", OptionImpact.MEDIUM,
-                o -> o.advanced.enableDeferredBatching, (o, v) -> o.advanced.enableDeferredBatching = v));
-            options.add(tickBox("model_renderer_batching", "sodium.options.actinium.model_renderer_batching", OptionImpact.MEDIUM,
-                o -> o.advanced.useModelRendererBatching, (o, v) -> o.advanced.useModelRendererBatching = v));
-            options.add(tickBox("model_renderer_display_lists", "sodium.options.model_renderer_display_lists", OptionImpact.MEDIUM,
-                o -> o.advanced.useModelRendererDisplayLists, (o, v) -> o.advanced.useModelRendererDisplayLists = v));
-            options.add(tickBox("fast_lit_item_rendering", "sodium.options.fast_lit_item_rendering", OptionImpact.LOW,
-                o -> o.advanced.useFastLitItemRendering, (o, v) -> {
-                    if (o.advanced.useFastLitItemRendering != v) {
-                        o.advanced.useFastLitItemRendering = v;
-                        FastLitItemDisplayListCache.clear();
-                    }
-                }));
-            options.add(tickBox("fast_lit_item_display_lists", "sodium.options.fast_lit_item_display_lists", OptionImpact.MEDIUM,
-                o -> o.advanced.useFastLitItemDisplayLists, (o, v) -> {
-                    if (o.advanced.useFastLitItemDisplayLists != v) {
-                        o.advanced.useFastLitItemDisplayLists = v;
-                        FastLitItemDisplayListCache.clear();
-                    }
-                }));
         }
     }
 
@@ -161,34 +130,6 @@ public final class DemonicaOptionPages {
                 o -> o.debug.enableRedirectorLogSpam, (o, v) -> o.debug.enableRedirectorLogSpam = v, OptionFlag.REQUIRES_GAME_RESTART),
             debugTickBox("redirector_class_dump", OptionImpact.HIGH,
                 o -> o.debug.enableRedirectorClassDump, (o, v) -> o.debug.enableRedirectorClassDump = v, OptionFlag.REQUIRES_GAME_RESTART))));
-    }
-
-    private static Option<FullscreenMode> fullscreenMode() {
-        return OptionDefaults.declare(OptionImpl.createBuilder(FullscreenMode.class, STORAGE)
-            .setId(OptionIdentifier.create(DemonicaRuntime.MODID, "fullscreen_mode", FullscreenMode.class))
-            .setName(TextComponent.translatable("celeritas.options.fullscreen_mode.name"))
-            .setTooltip(TextComponent.translatable("celeritas.options.fullscreen_mode.tooltip"))
-            .setControl(option -> new CyclingControl<>(option, FullscreenMode.class))
-            .setBinding((o, mode) -> DemonicaWindowModeController.applyMode(Minecraft.getMinecraft(), o, mode),
-                DemonicaWindowModeController::resolveConfiguredMode)
-            .build(), FullscreenMode.OFF);
-    }
-
-    private static Option<Integer> loadingScreenFramerateLimit() {
-        Function<DemonicaOptions, Integer> getter = o -> o.performance.loadingScreenFramerateLimit;
-        return OptionDefaults.declare(OptionImpl.createBuilder(int.class, STORAGE)
-            .setId(OptionIdentifier.create(DemonicaRuntime.MODID, "loading_screen_framerate_limit", int.class))
-            .setName(TextComponent.translatable("options.actinium.loadingScreenFramerateLimit"))
-            .setTooltip(TextComponent.translatable("options.actinium.loadingScreenFramerateLimit.tooltip"))
-            .setControl(option -> new SliderControl(option, 30, 240, 10, ControlValueFormatter.fpsLimit()))
-            .setBinding((o, v) -> o.performance.loadingScreenFramerateLimit = v, getter)
-            .build(), getter.apply(DEFAULTS));
-    }
-
-    /** Vanilla's sprint, flight and bow-draw widening of the field of view (MixinEntityRendererDynamicFov). */
-    private static Option<Boolean> dynamicFov() {
-        return tickBox("dynamic_fov", "sodium.options.dynamic_fov", OptionImpact.LOW,
-            o -> o.quality.dynamicFov, (o, v) -> o.quality.dynamicFov = v);
     }
 
     private static Option<Boolean> fastBlockRenderer() {
@@ -250,12 +191,6 @@ public final class DemonicaOptionPages {
         } else {
             options.add(option);
         }
-    }
-
-    /** Puts {@code option} after the option {@code id}, or at the end when the group has no such option. */
-    static void insertAfterOrAdd(List<Option<?>> options, String id, Option<?> option) {
-        int index = indexOf(options, id);
-        options.add(index >= 0 ? index + 1 : options.size(), option);
     }
 
     private static int indexOf(List<Option<?>> options, String id) {

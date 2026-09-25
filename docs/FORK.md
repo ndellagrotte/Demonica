@@ -66,7 +66,8 @@ reached are not in S8TNLib.
 - Two of the 60 served only Demonica, and are Demonica's own since the pin
   moved to 0.2.0, with only their package lines changed: `compat/Mods` is
   `com.demonica.compat.Mods` in `:shader`, and `util/font/IFontParameters`
-  is `com.demonica.render.font.IFontParameters`.
+  was `com.demonica.render.font.IFontParameters` until the batching font
+  renderer that implemented it was dropped in 0.3.0.
 
 ## History
 

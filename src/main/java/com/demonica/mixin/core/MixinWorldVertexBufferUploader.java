@@ -1,6 +1,5 @@
 package com.demonica.mixin.core;
 
-import com.gtnewhorizons.angelica.client.rendering.DeferredDrawBatcher;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.WorldVertexBufferUploader;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
@@ -15,11 +14,6 @@ public class MixinWorldVertexBufferUploader {
     @Inject(method = "draw", at = @At("HEAD"), cancellable = true)
     private void demonica$coreProfileDraw(BufferBuilder bufferBuilder, CallbackInfo ci) {
         if (VanillaBufferBuilderRenderer.shouldUseVanillaPositionDraw(bufferBuilder)) {
-            return;
-        }
-
-        if (DeferredDrawBatcher.capture(bufferBuilder)) {
-            ci.cancel();
             return;
         }
 

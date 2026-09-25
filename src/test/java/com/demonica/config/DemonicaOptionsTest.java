@@ -10,7 +10,6 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Demonica's settings file, and the one-time takeover of Demonica's settings from Actinium's file. */
@@ -33,24 +32,23 @@ class DemonicaOptionsTest {
         DemonicaOptions options = DemonicaOptions.load(dir);
 
         assertTrue(options.enableDebugTab);
-        assertFalse(options.quality.dynamicFov);
-        assertEquals(90, options.performance.loadingScreenFramerateLimit);
         assertFalse(options.performance.useFastBlockRenderer, "Actinium's fast renderer had gates Demonica has not ported");
         assertEquals(DemonicaOptions.StreamingUploadStrategy.BUFFER_DATA, options.advanced.streamingUploadStrategy);
-        assertFalse(options.advanced.useFastLitItemRendering);
         assertTrue(options.debug.enableGlDebug, "renamed from enable_actinium_gl_debug");
         assertTrue(options.debug.enablePerfDebug, "renamed from enable_actinium_perf_debug");
         assertTrue(options.debug.enableRedirectorDebug);
-        assertEquals("BORDERLESS", options.window.fullscreenMode);
         assertEquals(ACTINIUM, Files.readString(actinium), "Actinium's file is left alone");
 
         String written = Files.readString(dir.resolve(DemonicaOptions.FILE_NAME));
         assertFalse(written.contains("weather_quality") || written.contains("multi_draw_mode") || written.contains("chunk_builder_threads"),
             "Celeritas's settings stay out of Demonica's file: " + written);
+        assertFalse(written.contains("dynamic_fov") || written.contains("loading_screen_framerate_limit")
+                || written.contains("use_fast_lit_item_rendering") || written.contains("fullscreen_mode"),
+            "Actinium's settings that Demonica dropped stay out of Demonica's file: " + written);
 
         // Once Demonica has its own file, Actinium's is not read again.
-        Files.writeString(actinium, ACTINIUM.replace("\"loading_screen_framerate_limit\": 90", "\"loading_screen_framerate_limit\": 120"));
-        assertEquals(90, DemonicaOptions.load(dir).performance.loadingScreenFramerateLimit);
+        Files.writeString(actinium, ACTINIUM.replace("\"BUFFER_DATA\"", "\"BUFFER_SUB_DATA\""));
+        assertEquals(DemonicaOptions.StreamingUploadStrategy.BUFFER_DATA, DemonicaOptions.load(dir).advanced.streamingUploadStrategy);
     }
 
     @Test
@@ -59,9 +57,7 @@ class DemonicaOptionsTest {
 
         assertFalse(options.enableDebugTab);
         assertFalse(options.performance.useFastBlockRenderer);
-        assertEquals(60, options.performance.loadingScreenFramerateLimit);
         assertEquals(DemonicaOptions.StreamingUploadStrategy.MAP_BUFFER_RANGE, options.advanced.streamingUploadStrategy);
-        assertNull(options.window.fullscreenMode);
         assertTrue(Files.exists(dir.resolve(DemonicaOptions.FILE_NAME)));
     }
 

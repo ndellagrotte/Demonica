@@ -3,7 +3,7 @@ package com.demonica.mixin.core.startup;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.recording.ImmediateModeRecorder;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
-import com.demonica.render.BufferBuilderStreamingDrawer;
+import com.demonica.render.VanillaBufferBuilderRenderer;
 import com.demonica.render.VanillaVertexBufferRenderer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +52,7 @@ public class MixinSplashProgress {
             GLStateManager.recreateDefaultVertexArray();
         }
         VanillaVertexBufferRenderer.recreateVertexArrays();
-        BufferBuilderStreamingDrawer.recreateVertexArrays();
+        VanillaBufferBuilderRenderer.recreateVertexArrays();
         GLStateManager.glBindVertexArray(0);
         GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
         GLStateManager.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);

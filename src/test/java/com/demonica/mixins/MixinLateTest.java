@@ -47,7 +47,6 @@ class MixinLateTest {
 
         assertEquals(
             Set.of(
-                "mixins.demonica.gibbed.json",
                 "mixins.demonica.ichunutil.json",
                 "mixins.demonica.lumenized.json",
                 "mixins.demonica.revoui.json",

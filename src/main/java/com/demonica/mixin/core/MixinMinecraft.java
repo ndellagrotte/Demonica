@@ -2,39 +2,16 @@ package com.demonica.mixin.core;
 
 import net.coderbot.iris.debug.flight.GlFlightRecording;
 import net.coderbot.iris.debug.flight.GlFlightStreamingSource;
-import com.demonica.gui.DemonicaWindowModeController;
-import com.demonica.render.BufferBuilderStreamingDrawer;
 import com.demonica.render.EndPortalCompositeRenderer;
-import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Minecraft.class)
 public class MixinMinecraft {
-    @Inject(method = "runTick", at = @At("HEAD"))
-    private void preRender(CallbackInfo ci) {
-        DemonicaWindowModeController.synchronize((Minecraft) (Object) this);
-    }
-
-    @Inject(method = "toggleFullscreen", at = @At("HEAD"), cancellable = true)
-    private void demonica$toggleFullscreenMode(CallbackInfo ci) {
-        DemonicaWindowModeController.toggleFullscreen((Minecraft) (Object) this);
-        ci.cancel();
-    }
-
-    @Inject(method = "getLimitFramerate", at = @At("HEAD"), cancellable = true)
-    private void demonica$useLoadingScreenFramerateLimit(CallbackInfoReturnable<Integer> cir) {
-        Minecraft minecraft = (Minecraft) (Object) this;
-        if (minecraft.world == null && minecraft.currentScreen != null) {
-            cir.setReturnValue(DemonicaRuntime.options().performance.loadingScreenFramerateLimit);
-        }
-    }
-
     // Celeritas's own MinecraftMixin runs the CPU render-ahead limiter; Actinium's copy of it is gone.
     @Inject(method = "runGameLoop", at = @At("HEAD"))
     private void beginRenderFrame(CallbackInfo ci) {
@@ -54,9 +31,6 @@ public class MixinMinecraft {
         GlFlightRecording.beginStreamingSync(GlFlightStreamingSource.TESSELLATOR);
         TessellatorStreamingDrawer.endFrame();
         GlFlightRecording.endStreamingSync(GlFlightStreamingSource.TESSELLATOR);
-        GlFlightRecording.beginStreamingSync(GlFlightStreamingSource.BUFFER_BUILDER);
-        BufferBuilderStreamingDrawer.endFrame();
-        GlFlightRecording.endStreamingSync(GlFlightStreamingSource.BUFFER_BUILDER);
         GlFlightRecording.beginSwap();
     }
 

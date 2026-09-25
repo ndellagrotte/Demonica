@@ -1,6 +1,5 @@
 package com.demonica.mixin.features.iris;
 
-import com.gtnewhorizons.angelica.client.rendering.DeferredDrawBatcher;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.apiimpl.IrisApiV0Impl;
 import net.coderbot.iris.pipeline.WorldRenderingPhase;
@@ -26,7 +25,6 @@ public class ParticleManagerIrisMixin {
 
     @Inject(method = "renderParticles", at = @At("RETURN"))
     private void demonica$endParticles(Entity entityIn, float partialTicks, CallbackInfo ci) {
-        DeferredDrawBatcher.exitAndFlush();
         this.demonica$endParticlePhase();
     }
 
@@ -38,29 +36,6 @@ public class ParticleManagerIrisMixin {
     @Inject(method = "renderLitParticles", at = @At("RETURN"))
     private void demonica$endLitParticles(Entity entityIn, float partialTicks, CallbackInfo ci) {
         this.demonica$endParticlePhase();
-    }
-
-    @Inject(
-        method = "renderParticles",
-        at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/BufferBuilder;begin(ILnet/minecraft/client/renderer/vertex/VertexFormat;)V",
-            shift = At.Shift.AFTER
-        )
-    )
-    private void demonica$enterDeferredParticleBatch(Entity entityIn, float partialTicks, CallbackInfo ci) {
-        DeferredDrawBatcher.enter();
-    }
-
-    @Inject(
-        method = "renderParticles",
-        at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/Tessellator;draw()V"
-        )
-    )
-    private void demonica$exitDeferredParticleBatch(Entity entityIn, float partialTicks, CallbackInfo ci) {
-        DeferredDrawBatcher.exitAndFlush();
     }
 
     /**

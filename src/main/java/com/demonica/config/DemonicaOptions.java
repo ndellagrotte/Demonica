@@ -57,31 +57,14 @@ public final class DemonicaOptions {
      */
     public boolean enableDebugTab = false;
 
-    public final QualitySettings quality = new QualitySettings();
     public final PerformanceSettings performance = new PerformanceSettings();
     public final AdvancedSettings advanced = new AdvancedSettings();
     public final DebugSettings debug = new DebugSettings();
-    public final WindowSettings window = new WindowSettings();
 
     private boolean readOnly;
     private Path configPath;
 
-    public static class QualitySettings {
-        // Vanilla widens the field of view while sprinting or flying and narrows it while drawing a bow. That factor
-        // reaches the projection only when getFOVModifier is called with useFOVSetting=true, so turning this off
-        // drops the dynamic factor and keeps vanilla's underwater and death-camera scaling.
-        public boolean dynamicFov = true;
-
-        // Biome colour position noise (Actinium issue #56). Actinium applied it in its forked biome colour cache;
-        // upstream Celeritas has no equivalent yet (docs/celeritas/LEDGER.md), so these are kept but not applied.
-        public boolean useBiomeColorNoise = true;
-        public float biomeColorNoiseGrassIntensity = 0.08F;
-        public float biomeColorNoiseFoliageIntensity = 0.08F;
-        public float biomeColorNoiseWaterIntensity = 0.08F;
-    }
-
     public static class PerformanceSettings {
-        public int loadingScreenFramerateLimit = 60;
         // Celeritas's fast block renderer. Upstream turns it on only in dev; Demonica sets it explicitly
         // (docs/celeritas/LEDGER.md, S13), off by default like upstream's production setting. Blocks that mods render
         // through vanilla's dispatcher stay on the vanilla path either way (FastBlockRendererCompat).
@@ -90,11 +73,6 @@ public final class DemonicaOptions {
 
     public static class AdvancedSettings {
         public boolean allowDirectMemoryAccess = true;
-        public boolean enableDeferredBatching = true;
-        public boolean useModelRendererBatching = true;
-        public boolean useModelRendererDisplayLists = true;
-        public boolean useFastLitItemRendering = true;
-        public boolean useFastLitItemDisplayLists = true;
         public StreamingUploadStrategy streamingUploadStrategy = StreamingUploadStrategy.MAP_BUFFER_RANGE;
     }
 
@@ -112,11 +90,6 @@ public final class DemonicaOptions {
         public boolean enableRedirectorDebug = false;
         public boolean enableRedirectorLogSpam = false;
         public boolean enableRedirectorClassDump = false;
-    }
-
-    public static class WindowSettings {
-        public String fullscreenMode;
-        public String lastFullscreenMode;
     }
 
     public enum StreamingUploadStrategy {

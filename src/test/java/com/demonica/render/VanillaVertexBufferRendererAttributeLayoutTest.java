@@ -16,9 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the vanilla {@link VertexFormat} to generic-vertex-attribute mapping that every BufferBuilder
- * draw path resolves through ({@link VanillaBufferBuilderRenderer}, {@code BufferBuilderStreamingDrawer}
- * and {@link com.gtnewhorizons.angelica.client.rendering.DeferredDrawBatcher} all feed
+ * Locks the vanilla {@link VertexFormat} to generic-vertex-attribute mapping that BufferBuilder draws
+ * resolve through ({@link VanillaBufferBuilderRenderer} feeds
  * {@link VanillaVertexBufferRenderer#attributeLocation}).
  *
  * <p>Issue #175 was a collision/drop in exactly this mapping: a UV element whose {@code index} (the

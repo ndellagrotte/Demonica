@@ -13,7 +13,6 @@ import java.util.Set;
 public final class DemonicaDiagnostics {
     private static final Logger LOGGER = LogManager.getLogger("DemonicaDiagnostics");
     private static final Set<String> APPLIED_MIXINS = Collections.synchronizedSet(new LinkedHashSet<>());
-    private static final Set<String> GIBBED_RENDER_PATHS = Collections.synchronizedSet(new LinkedHashSet<>());
 
     private DemonicaDiagnostics() {
     }
@@ -65,19 +64,8 @@ public final class DemonicaDiagnostics {
         }
     }
 
-    public static void recordGibbedRenderPath(String path) {
-        if (!isEnabled()) {
-            return;
-        }
-
-        if (GIBBED_RENDER_PATHS.add(path)) {
-            LOGGER.info("gibbed-render-path {}", path);
-        }
-    }
-
     private static boolean isKeyMixin(String mixinClassName) {
         return mixinClassName.startsWith("com.demonica.mixin.features.iris.")
-            || mixinClassName.startsWith("com.demonica.mixin.mod.gibbed.")
             || mixinClassName.startsWith("com.demonica.mixin.core.")
             || mixinClassName.startsWith("com.demonica.mixin.celeritas.");
     }
@@ -91,10 +79,6 @@ public final class DemonicaDiagnostics {
             var options = DemonicaRuntime.options();
             return "advanced{streaming=" + options.advanced.streamingUploadStrategy
                 + ",directMemory=" + DemonicaRuntimeOptions.allowDirectMemoryAccess()
-                + ",modelRendererBatching=" + DemonicaRuntimeOptions.useModelRendererBatching()
-                + ",modelRendererDisplayLists=" + DemonicaRuntimeOptions.useModelRendererDisplayLists()
-                + ",fastLitItemRendering=" + DemonicaRuntimeOptions.useFastLitItemRendering()
-                + ",fastLitItemDisplayLists=" + DemonicaRuntimeOptions.useFastLitItemDisplayLists()
                 + "} debug{gl=" + options.debug.enableGlDebug
                 + ",perf=" + options.debug.enablePerfDebug
                 + ",gpuPerf=" + options.debug.enableGpuPerfDebug
