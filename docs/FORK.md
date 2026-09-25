@@ -45,11 +45,15 @@ same classes, and Actinium carries a second renderer.
 
 GTNHLib is not in this repository. The mod jar merges the jar of
 [S8TNLib](https://github.com/ndellagrotte/S8TNLib), which ports GTNHLib to
-1.12.2 on Cleanroom and keeps the 60 of its files that Demonica reaches.
-Those files are byte-identical in S8TNLib's `v0.1.0` and `v0.1.1`, and in
-`GTNHLib/` at `61fa479d` (S8TNLib's tag `demonica-syncline/61fa479d`), which
-is what `GTNHLib/` held when it was removed here. The 30 files that nothing in
-Demonica reached are not in S8TNLib.
+1.12.2 on Cleanroom and keeps 58 of its files: the 60 that Demonica reached,
+less the two that moved here. Up to S8TNLib's `v0.1.1`, those 60 were
+byte-identical to `GTNHLib/` at `61fa479d` (S8TNLib's tag
+`demonica-syncline/61fa479d`), which is what `GTNHLib/` held when it was
+removed here. From `v0.2.0` on, S8TNLib changes on its own: 0.2.0 fixes the
+`PointerBuffer` path of `bytebuf`, which nothing here calls, drops its Java 8
+branches, frees a thread's capture buffers once the thread ends, and no
+longer carries the two moved types. The 30 files that nothing in Demonica
+reached are not in S8TNLib.
 
 - `gradle.properties` pins the release and the commit its jar was built
   from, and `verifyS8tnlibPin` checks that commit in the jar's manifest.
@@ -59,11 +63,10 @@ Demonica reached are not in S8TNLib.
 - A change to GTNHLib is made in S8TNLib, released there, and then pinned
   here. S8TNLib's `docs/HOST_CONTRACT.md` lists what Demonica supplies to
   it.
-- Two of the 60 served only Demonica, and are Demonica's own now, with only
-  their package lines changed: `compat/Mods` is `com.demonica.compat.Mods`
-  in `:shader`, and `util/font/IFontParameters` is
-  `com.demonica.render.font.IFontParameters`. S8TNLib 0.1.1's copies ride
-  along in the jar, unused, until the pin moves to a release without them.
+- Two of the 60 served only Demonica, and are Demonica's own since the pin
+  moved to 0.2.0, with only their package lines changed: `compat/Mods` is
+  `com.demonica.compat.Mods` in `:shader`, and `util/font/IFontParameters`
+  is `com.demonica.render.font.IFontParameters`.
 
 ## History
 
