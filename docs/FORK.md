@@ -16,9 +16,8 @@ From the fork point on:
   [`celeritas/PIN.md`](celeritas/PIN.md).
 - **Packages may be renamed.** Actinium's own `com.dhj.actinium` code becomes
   `com.demonica`. Upstream-derived packages keep their names: `net.coderbot`,
-  `net.irisshaders`, `kroppeb`, `com.gtnewhorizons.angelica`,
-  `me.flashyreese`. Asset namespaces (`iris`, `angelica`, `actinium`,
-  `reeses-sodium-options`) stay.
+  `net.irisshaders`, `kroppeb`, `com.gtnewhorizons.angelica`. Asset namespaces
+  (`iris`, `angelica`, `actinium`) stay.
 - **Actinium's code enters by porting, not syncing.** Commits that port code
   from Actinium carry `Ported-From: actinium@4a19c959`, only so that `git log
   --grep=Ported-From` can trace where the code came from. Once ported, the

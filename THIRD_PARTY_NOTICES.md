@@ -23,7 +23,6 @@ LGPL-3.0 text stays in the repository and in the jar
 | Iris | https://github.com/IrisShaders/Iris, via Angelica's backport | `shader/src/main/java/{net/coderbot, kroppeb, net/irisshaders}`, `src/main/java/net/irisshaders/iris/compat/`, `src/main/resources/assets/iris/**`. Some files are based on Sodium's, as their headers say | LGPL-3.0 | yes |
 | Actinium | https://github.com/DHJComical/Actinium, synced until `fee5de38` (tag `actinium-syncline/fee5de38`) and forked at `4a19c959` (tag `actinium-fork-point/4a19c959`, [`docs/FORK.md`](docs/FORK.md)) | its 1.12.2 adaptation of all of the above; its root project, ported to the root `src/main/java` (`com.dhj.actinium` became `com.demonica`); `src/main/resources/assets/actinium/**`; the ported tests. The Gradle build is derived from Actinium's | GPL-3.0 ([`third-party/actinium/LICENSE`](third-party/actinium/LICENSE)). Actinium's own inventory, which also covers the renderer Demonica does not carry, is [`third-party/actinium/THIRD_PARTY_NOTICES.md`](third-party/actinium/THIRD_PARTY_NOTICES.md) | yes |
 | GTNHLib, through S8TNLib | https://github.com/GTNewHorizons/GTNHLib, ported to 1.12.2 by Actinium. S8TNLib (https://github.com/ndellagrotte/S8TNLib) publishes the 58 files Demonica uses as `com.s8tnlib:s8tnlib`, at the release `gradle.properties` pins | `shader/src/main/java/com/demonica/compat/Mods.java`, derived from its `compat/Mods`; otherwise none: the build merges S8TNLib's jar into the mod jar | GPL-3.0, as S8TNLib distributes it: GTNHLib's files are LGPL-3.0, and whether LGPL-3.0 or GPL-3.0 covers Actinium's changes is unstated. Plus file-level notices: the `bytebuf/` sources carry LWJGL's, `asm/ClassConstantPoolParser` carries ASM's | yes |
-| Reese's Sodium Options | https://github.com/FlashyReese/reeses-sodium-options, via Actinium's 1.12.2 port | `src/main/java/me/flashyreese/**`, `src/main/java/com/demonica/gui/rso/compat/`, `src/main/resources/assets/reeses-sodium-options/**` | MIT ([`third-party/reeses-sodium-options/LICENSE.md`](third-party/reeses-sodium-options/LICENSE.md)) | yes |
 | ShadersMod | karyonix, sonic ether, id_miner, daxnitro | the notice at the top of [`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt) (relicensed under LGPL by the GTNH developers) | see that notice | yes |
 | Mesa | https://gitlab.freedesktop.org/mesa/mesa | `glsm/.../glsm/DisplayListIDAllocator.java` (port of `util_idalloc`, Copyright 2017 Valve Corporation); the fixed-function shader generators in `glsm/.../glsm/ffp/` are inspired by Mesa | MIT, as in the file headers | yes |
 | LWJGL utility code | https://github.com/LWJGL/lwjgl3 | `glsm/.../glsm/GLDebug.java`; 9 `bytebuf/` files in S8TNLib's jar | BSD-style LWJGL license, as in the file headers | yes |
@@ -71,39 +70,11 @@ The mod jar and the sources jar carry three files from the repository root:
 `LICENSE` (the GPL-3.0 text), `LICENSE-LGPL-3.0.txt` (Angelica's license file:
 the ShadersMod notice, then the LGPL-3.0 text) and this page, whose
 [Notices](#notices) reproduce the MIT and BSD notices that binary copies must
-carry: Reese's Sodium Options', Mesa's, LWJGL's and ASM's. `verifyDistributedJar`
+carry: Mesa's, LWJGL's and ASM's. `verifyDistributedJar`
 fails the build if any of the three files is missing. This page's links do not
 resolve inside the jar; the notices below are complete on their own.
 
 ## Notices
-
-### Reese's Sodium Options (MIT)
-
-From [`third-party/reeses-sodium-options/LICENSE.md`](third-party/reeses-sodium-options/LICENSE.md):
-
-```text
-The MIT License (MIT)
-
-Copyright (c) 2021 FlashyReese
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-```
 
 ### Mesa (MIT)
 
