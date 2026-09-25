@@ -8,7 +8,7 @@ build/
 /eclipse/
 .classpath
 .project
-/bin/
+bin/
 /config/
 /crash-reports/
 /logs/
