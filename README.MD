@@ -53,7 +53,7 @@ S8TNLib release that `gradle.properties` pins, from its tag.
 than `s8tnlib_commit`.
 
 ```sh
-git clone --branch v0.1.1 https://github.com/ndellagrotte/S8TNLib.git
+git clone --branch v0.2.0 https://github.com/ndellagrotte/S8TNLib.git
 (cd S8TNLib && ./gradlew publishToMavenLocal)
 ```
 

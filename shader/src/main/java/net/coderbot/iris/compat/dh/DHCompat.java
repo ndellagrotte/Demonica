@@ -1,6 +1,6 @@
 package net.coderbot.iris.compat.dh;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import com.gtnewhorizons.angelica.rendering.RenderingState;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;

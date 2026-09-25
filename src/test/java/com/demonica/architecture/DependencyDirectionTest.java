@@ -23,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * time via each subproject's classpath; this test backstops that constraint on the
  * compiled output, so a build-configuration regression cannot silently re-introduce a
  * reverse dependency. The shader tree's own {@code com.demonica} packages (the Celeritas
- * seam types, {@code CeleritasJoml}, the GL timer queries) are not root classes.
+ * seam types, {@code CeleritasJoml}, the GL timer queries, the {@code Mods} flags) are not
+ * root classes.
  */
 class DependencyDirectionTest {
 

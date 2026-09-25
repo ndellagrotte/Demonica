@@ -4,7 +4,7 @@ import com.cleanroommc.neverenoughanimations.NEA;
 import com.demonica.render.ItemVertexAlphaOverride;
 import com.demonica.render.ItemVertexAlphaOverrides;
 import com.demonica.runtime.DemonicaRuntime;
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 
 /**
  * Bridges NeverEnoughAnimation's GUI open/close fade (mod id {@code neverenoughanimations}) into

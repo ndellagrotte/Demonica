@@ -1,6 +1,6 @@
 package com.demonica.compat.hbm;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.tileentity.TileEntity;

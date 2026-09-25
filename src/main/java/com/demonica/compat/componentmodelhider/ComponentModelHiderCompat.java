@@ -1,6 +1,6 @@
 package com.demonica.compat.componentmodelhider;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 

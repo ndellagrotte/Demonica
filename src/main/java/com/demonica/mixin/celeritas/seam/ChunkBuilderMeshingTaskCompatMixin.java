@@ -4,7 +4,7 @@ import com.demonica.celeritas.guard.Patch;
 import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.compat.componentmodelhider.ComponentModelHiderCompat;
 import com.demonica.compat.littletiles.LittleTilesCompat;
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
