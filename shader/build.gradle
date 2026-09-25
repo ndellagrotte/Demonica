@@ -1,6 +1,7 @@
-// The Iris shader pipeline (net.coderbot, net.irisshaders, kroppeb) and the Celeritas seam types
-// (com.demonica.celeritas). Merged into the Demonica mod jar. It compiles against the pinned
-// Celeritas mod through the root project's compile classpath.
+// The Iris shader pipeline (net.coderbot, net.irisshaders, kroppeb), the Celeritas seam types
+// (com.demonica.celeritas) and the mod-presence flags (com.demonica.compat.Mods), which the Iris
+// tree and the root project both read. Merged into the Demonica mod jar. It compiles against the
+// pinned Celeritas mod through the root project's compile classpath.
 plugins {
     id 'java-library'
 }

@@ -1,6 +1,6 @@
 package net.coderbot.iris.compat.rfp2;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import net.minecraft.entity.Entity;
 
 /**

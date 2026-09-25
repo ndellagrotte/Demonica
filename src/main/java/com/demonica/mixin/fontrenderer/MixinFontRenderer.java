@@ -1,6 +1,6 @@
 package com.demonica.mixin.fontrenderer;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import com.gtnewhorizon.gtnhlib.util.font.IFontParameters;
 import com.gtnewhorizons.angelica.client.font.BatchingFontRenderer;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;

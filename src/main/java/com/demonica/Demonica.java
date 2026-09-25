@@ -19,7 +19,7 @@ import com.demonica.render.FastLitItemDisplayListCache;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizon.gtnhlib.client.renderer.RuntimeOptionsBridge;
 import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.PostProcessingBridge;
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
 import com.gtnewhorizons.angelica.iris.IrisGLSMBridge;
 import com.mojang.realmsclient.gui.ChatFormatting;

@@ -1,6 +1,6 @@
 package com.demonica.mixins;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import zone.rong.mixinbooter.ILateMixinLoader;
 
 import java.io.IOException;

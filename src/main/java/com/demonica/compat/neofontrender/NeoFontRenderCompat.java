@@ -1,6 +1,6 @@
 package com.demonica.compat.neofontrender;
 
-import com.gtnewhorizon.gtnhlib.compat.Mods;
+import com.demonica.compat.Mods;
 import neofontrender.api.NeoFontRenderApi;
 import neofontrender.api.color.TextColorPaletteProvider;
 
