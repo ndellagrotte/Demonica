@@ -23,8 +23,7 @@ that the game can tell you it is missing.
 - GLSM, Angelica's GL state manager, to which vanilla's and mods' GL calls are
   redirected.
 - Reese's Sodium Options for Video Settings, with Demonica's own settings.
-- Actinium's draw fast paths, batching font renderer, end portal, title-screen
-  panorama and debug tools, and its compatibility with other mods.
+- Actinium's end portal and debug tools, and its compatibility with other mods.
 
 Demonica patches Celeritas's own classes in one place only, and each patch is
 recorded with a draft of the upstream change that would make it unnecessary
