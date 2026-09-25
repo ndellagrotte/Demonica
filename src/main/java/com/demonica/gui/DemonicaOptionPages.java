@@ -91,8 +91,6 @@ public final class DemonicaOptionPages {
             replaceOrAdd(options, CELERITAS_FAST_BLOCK_RENDERER, fastBlockRenderer());
         } else if (StandardOptions.Group.CPU_SAVING.equals(id)) {
             options.add(streamingUploadStrategy());
-            options.add(tickBox("deferred_particle_batching", "sodium.options.enable_deferred_batching", OptionImpact.MEDIUM,
-                o -> o.advanced.enableDeferredBatching, (o, v) -> o.advanced.enableDeferredBatching = v));
             options.add(tickBox("model_renderer_batching", "sodium.options.actinium.model_renderer_batching", OptionImpact.MEDIUM,
                 o -> o.advanced.useModelRendererBatching, (o, v) -> o.advanced.useModelRendererBatching = v));
             options.add(tickBox("model_renderer_display_lists", "sodium.options.model_renderer_display_lists", OptionImpact.MEDIUM,

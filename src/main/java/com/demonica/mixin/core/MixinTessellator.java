@@ -2,7 +2,6 @@ package com.demonica.mixin.core;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.ITessellatorInstance;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
-import com.gtnewhorizons.angelica.client.rendering.DeferredDrawBatcher;
 import com.demonica.celeritas.api.shader.vertex.BufferBuilderExtension;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.Tessellator;
@@ -27,11 +26,6 @@ public class MixinTessellator implements ITessellatorInstance {
     @Inject(method = "draw", at = @At("HEAD"), cancellable = true)
     private void demonica$coreProfileDraw(CallbackInfo ci) {
         if (VanillaBufferBuilderRenderer.shouldUseVanillaPositionDraw(this.buffer)) {
-            return;
-        }
-
-        if (DeferredDrawBatcher.capture(this.buffer)) {
-            ci.cancel();
             return;
         }
 

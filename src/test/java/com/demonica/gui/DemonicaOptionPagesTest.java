@@ -101,8 +101,7 @@ class DemonicaOptionPagesTest {
         OptionPage advanced = SodiumGameOptionPages.advanced();
 
         assertEquals(List.of("celeritas:cpu_render_ahead_limit", "demonica:streaming_upload_strategy",
-                        "demonica:deferred_particle_batching", "demonica:model_renderer_batching",
-                        "demonica:model_renderer_display_lists", "demonica:fast_lit_item_rendering",
+                        "demonica:model_renderer_batching", "demonica:model_renderer_display_lists", "demonica:fast_lit_item_rendering",
                         "demonica:fast_lit_item_display_lists"),
                 ids(group(advanced, StandardOptions.Group.CPU_SAVING).getOptions()));
         assertEquals(List.of("celeritas:cpu_saving", "demonica:direct_memory", "demonica:framebuffer_errors"),
