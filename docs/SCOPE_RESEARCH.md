@@ -73,6 +73,8 @@ The ten findings, by leverage:
    `mavenLocal` by hand, and two verification tasks exist only because of that.
    Its `bytebuf` package, 55% of the library, backports LWJGL 3 memory
    utilities that Cleanroom's LWJGL 3 already provides.
+   *Done on `feat/s8tnlib-mod` (0.3.0-SNAPSHOT, S8TNLib 0.3.0) as a separate
+   required mod, and `bytebuf` is gone: see 3.7.*
 10. **The toolchain is current but has avoidable dependencies**: a Unimined fork
     on a third-party Maven although upstream Unimined 1.4.2 lists Cleanroom
     support and the same DSL calls; Lombok in 65 files; a Jabel stub; mixin
@@ -396,16 +398,34 @@ to consume GTNHLib. While Demonica is the only host, it costs:
 - Two release trains for one consumer (S8TNLib 0.2.0 and Demonica 0.2.0
   shipped a day apart).
 
-Inside the library: `bytebuf` (9 files, 5,699 lines, 55% of the library) is
+Inside the library: `bytebuf` (11 files, 5,699 lines, 55% of the library) is
 GTNHLib's backport of LWJGL 3's `MemoryUtil`, `MemoryStack` and `PointerBuffer`
-for LWJGL 2 on 1.7.10. Cleanroom ships LWJGL 3.3, so the real classes exist at
-runtime; Demonica also carries a second wrapper,
+for LWJGL 2 on 1.7.10. Cleanroom ships LWJGL 3.4.1 (0.6.12's POM depends on
+`lwjgl`, `lwjgl-opengl` and `lwjgl-jemalloc` 3.4.1), so the real classes exist
+at runtime; Demonica also carries a second wrapper,
 `com.mitchej123.lwjgl.MemoryStack`, over the same thing. The `cel/` quad and
 colour types (10 files, 1,351 lines) are copies of Sodium types that Celeritas
 `common` ships under `org.embeddedt.embeddium` (`ColorABGR`, `NormI8`,
 `ModelQuadView`, `ModelQuadFacing`); nothing in Demonica imports the S8TNLib
 copies directly. `PostProcessingBridge` is set by Demonica and read only by
 Demonica's Iris tree, so it is host code that happens to live in the library.
+
+**Status (2026-09-25, `feat/s8tnlib-mod`; S8TNLib `feat/mod`).** S8TNLib stays a
+separate project and becomes a separate required mod, not a submodule: players
+install `s8tnlib-<version>.jar` next to Celeritas, and Demonica's build downloads
+it from S8TNLib's GitHub release, pinned by SHA-256 as Celeritas is. CI no longer
+checks S8TNLib out, contributors no longer publish it, and `verifyS8tnlibPin`
+checks a hash instead of a manifest commit. `verifyRunClasspath` stays, since the
+jar still must not reach the app class loader. The jar is coremod-flagged:
+Cleanroom 0.6.12 adds a mods-folder jar to the `LaunchClassLoader` while coremods
+load only if its manifest names an `FMLCorePlugin`, and Demonica's coremod code
+(`GLSMRedirector`, `MixinTessellator`, `AngelicaLateTweaker`) needs GTNHLib then.
+`MixinEarly` stays inactive without S8TNLib, so FML's missing-mods screen shows.
+`bytebuf` is gone from S8TNLib 0.3.0, and Demonica imports `org.lwjgl.system`
+directly; `com.mitchej123.lwjgl.MemoryStack` went with it. Every `bytebuf`
+member Demonica used has an identical public counterpart in LWJGL 3.4.1, checked
+with `javap`. S8TNLib keeps 47 files, 4,750 lines. The `cel/` copies and
+`PostProcessingBridge` are still there.
 
 ### 3.8 Build and toolchain
 
@@ -542,7 +562,10 @@ that `runClient` sees and `jar` does not. Put the flight recorder and
 guard's reasons. Rename what is left away from Actinium's names. About 5,000
 lines out of the release jar.
 
-**H. Fold S8TNLib back, or make it a normal dependency.** With one host,
+**H. Fold S8TNLib back, or make it a normal dependency.** *Done as a normal
+dependency on `feat/s8tnlib-mod`: a separate required mod, resolved from its
+GitHub release and pinned by SHA-256; `bytebuf` and
+`com.mitchej123.lwjgl.MemoryStack` are gone. See 3.7's Status.* With one host,
 the cheapest honest arrangement is a git submodule plus `includeBuild`: the
 submodule SHA is the pin, no publishing, no manifest check, CI needs only
 `submodules: true`. If S8TNLib is meant to serve other Cleanroom mods, publish
@@ -666,7 +689,7 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 | 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Do before the next pin move |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |
 | 5. Core profile optional | E, then measurement | 0 immediately; 10,000 to 15,000 cold | Feeds 4.4 |
-| 6. S8TNLib | H | 7,000 in the library; the CI double build | Submodule plus `includeBuild` or a published artifact |
+| 6. S8TNLib | H | 7,000 in the library; the CI double build | Done: a separate required mod from S8TNLib's GitHub releases, pinned by SHA-256; `bytebuf` gone (5,699 lines); the `cel/` copies and `PostProcessingBridge` remain |
 | 7. Toolchain | Unimined 1.4.2 trial, Lombok removal, formatter for `com.demonica`, CI jobs | 0 | Any time; Lombok removal touches 65 files, so after phase 1 to avoid conflicts |
 
 After phases 1 through 6 the jar is roughly 85,000 to 90,000 lines: the Iris
@@ -682,6 +705,8 @@ compat. That is the shape "Iris for 1.12.2" implies.
 3. Is a sibling mod for the performance features wanted, or is deletion fine?
    *Answered: deletion.*
 4. Will S8TNLib have a second host? If not, fold it back or submodule it.
+   *Answered: it stays separate, as a mod that players install; its releases
+   are the artifact Demonica pins.*
 5. Is Actinium open to sharing `shader/` and `glsm/` as modules? Their structure
    plan suggests the timing is right.
 6. Should the Celeritas drafts go upstream under the maintainer's name, and in

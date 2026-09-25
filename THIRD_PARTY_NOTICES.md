@@ -22,20 +22,21 @@ LGPL-3.0 text stays in the repository and in the jar
 | Angelica, including GLSM | https://github.com/GTNewHorizons/Angelica at `9fd02900ef` (tag `angelica-baseline/9fd02900ef`) | the repository's origin; GLSM in `glsm/`, `src/lwjglCommon/`, `src/lwjgl3/`; `com.gtnewhorizons.angelica.*` in `shader/` and in the root project, as Actinium adapted it; `src/main/resources/assets/angelica/**` | LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt), Angelica's license file), plus file-level notices | yes |
 | Iris | https://github.com/IrisShaders/Iris, via Angelica's backport | `shader/src/main/java/{net/coderbot, kroppeb, net/irisshaders}`, `src/main/java/net/irisshaders/iris/compat/`, `src/main/resources/assets/iris/**`. Some files are based on Sodium's, as their headers say | LGPL-3.0 | yes |
 | Actinium | https://github.com/DHJComical/Actinium, synced until `fee5de38` (tag `actinium-syncline/fee5de38`) and forked at `4a19c959` (tag `actinium-fork-point/4a19c959`, [`docs/FORK.md`](docs/FORK.md)) | its 1.12.2 adaptation of all of the above; its root project, ported to the root `src/main/java` (`com.dhj.actinium` became `com.demonica`); `src/main/resources/assets/actinium/**`; the ported tests. The Gradle build is derived from Actinium's | GPL-3.0 ([`third-party/actinium/LICENSE`](third-party/actinium/LICENSE)). Actinium's own inventory, which also covers the renderer Demonica does not carry, is [`third-party/actinium/THIRD_PARTY_NOTICES.md`](third-party/actinium/THIRD_PARTY_NOTICES.md) | yes |
-| GTNHLib, through S8TNLib | https://github.com/GTNewHorizons/GTNHLib, ported to 1.12.2 by Actinium. S8TNLib (https://github.com/ndellagrotte/S8TNLib) publishes the 58 files Demonica uses as `com.s8tnlib:s8tnlib`, at the release `gradle.properties` pins | `shader/src/main/java/com/demonica/compat/Mods.java`, derived from its `compat/Mods`; otherwise none: the build merges S8TNLib's jar into the mod jar | GPL-3.0, as S8TNLib distributes it: GTNHLib's files are LGPL-3.0, and whether LGPL-3.0 or GPL-3.0 covers Actinium's changes is unstated. Plus file-level notices: the `bytebuf/` sources carry LWJGL's, `asm/ClassConstantPoolParser` carries ASM's | yes |
+| GTNHLib, through S8TNLib | https://github.com/GTNewHorizons/GTNHLib, ported to 1.12.2 by Actinium and carried by S8TNLib up to 0.1.1 | `shader/src/main/java/com/demonica/compat/Mods.java`, derived from its `compat/Mods`. The rest of GTNHLib is S8TNLib's, installed separately (below) | GPL-3.0, as S8TNLib distributes it: GTNHLib's files are LGPL-3.0, and whether LGPL-3.0 or GPL-3.0 covers Actinium's changes is unstated | yes |
 | ShadersMod | karyonix, sonic ether, id_miner, daxnitro | the notice at the top of [`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt) (relicensed under LGPL by the GTNH developers) | see that notice | yes |
 | Mesa | https://gitlab.freedesktop.org/mesa/mesa | `glsm/.../glsm/DisplayListIDAllocator.java` (port of `util_idalloc`, Copyright 2017 Valve Corporation); the fixed-function shader generators in `glsm/.../glsm/ffp/` are inspired by Mesa | MIT, as in the file headers | yes |
-| LWJGL utility code | https://github.com/LWJGL/lwjgl3 | `glsm/.../glsm/GLDebug.java`; 9 `bytebuf/` files in S8TNLib's jar | BSD-style LWJGL license, as in the file headers | yes |
+| LWJGL utility code | https://github.com/LWJGL/lwjgl3 | `glsm/.../glsm/GLDebug.java` | BSD-style LWJGL license, as in the file header | yes |
 
 ## Installed separately
 
-Demonica runs on Celeritas and never contains it: `verifyDistributedJar` fails
-the build if the mod jar holds a Celeritas class, a renamed copy of one, JOML or
-Celeritas's assets.
+Demonica runs on Celeritas and S8TNLib and contains neither:
+`verifyDistributedJar` fails the build if the mod jar holds a Celeritas class, a
+renamed copy of one, JOML, Celeritas's assets, or S8TNLib's classes.
 
 | Mod | Upstream | Terms | Relationship |
 |---|---|---|---|
 | Celeritas, the 1.12.2 mod `celeritas` | https://git.taumc.org/embeddedt/celeritas at `06999aab`, as built by kappa-maintainer/Celeritas-auto-build ([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md)) | LGPL-3.0 (the `COPYING.LESSER` in its jar); the JOML it relocates is MIT | Required. Demonica compiles against the pinned jar and patches its classes at runtime through `mixins.demonica.celeritas.json` ([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)) |
+| S8TNLib, the 1.12.2 mod `s8tnlib` | https://github.com/ndellagrotte/S8TNLib, the release `gradle.properties` pins by SHA-256 ([`docs/FORK.md`](docs/FORK.md#gtnhlib)): GTNHLib, ported to 1.12.2 by Actinium | GPL-3.0; its jar carries its license and notices, including ASM's for `asm/ClassConstantPoolParser` | Required. Demonica compiles against the pinned jar, and its GLSM redirector and mixins use GTNHLib's classes at runtime |
 
 ## Contained libraries
 
@@ -70,7 +71,7 @@ The mod jar and the sources jar carry three files from the repository root:
 `LICENSE` (the GPL-3.0 text), `LICENSE-LGPL-3.0.txt` (Angelica's license file:
 the ShadersMod notice, then the LGPL-3.0 text) and this page, whose
 [Notices](#notices) reproduce the MIT and BSD notices that binary copies must
-carry: Mesa's, LWJGL's and ASM's. `verifyDistributedJar`
+carry: Mesa's and LWJGL's. `verifyDistributedJar`
 fails the build if any of the three files is missing. This page's links do not
 resolve inside the jar; the notices below are complete on their own.
 
@@ -110,9 +111,9 @@ Original author: Samuel Pitoiset <samuel.pitoiset@gmail.com>
 
 ### LWJGL (BSD 3-Clause)
 
-`glsm/src/main/java/com/gtnewhorizons/angelica/glsm/GLDebug.java` and the nine
-`bytebuf/` files that S8TNLib's jar brings carry "Copyright LWJGL. All rights
-reserved. License terms: https://www.lwjgl.org/license". That license, as
+`glsm/src/main/java/com/gtnewhorizons/angelica/glsm/GLDebug.java` carries
+"Copyright LWJGL. All rights reserved. License terms:
+https://www.lwjgl.org/license". That license, as
 published in LWJGL's repository (`LICENSE.md` at commit `022178269d`,
 retrieved 2026-09-24):
 
@@ -146,35 +147,4 @@ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
 LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
-### ASM (BSD 3-Clause)
-
-The header of S8TNLib's `asm/ClassConstantPoolParser.java`, which is derived
-from ASM's `ClassReader`:
-
-```text
-ASM: a very small and fast Java bytecode manipulation framework Copyright (c)
-2000-2011 INRIA, France Telecom All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met: 1.
-Redistributions of source code must retain the above copyright notice, this
-list of conditions and the following disclaimer. 2. Redistributions in binary
-form must reproduce the above copyright notice, this list of conditions and
-the following disclaimer in the documentation and/or other materials provided
-with the distribution. 3. Neither the name of the copyright holders nor the
-names of its contributors may be used to endorse or promote products derived
-from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```

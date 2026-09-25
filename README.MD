@@ -37,32 +37,25 @@ off, and the log and the shader pack screen say why.
 
 Download `Demonica-<version>.jar` from the
 [releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
-`mods/`, next to the Celeritas jar named above. Nothing else is needed:
-GTNHLib's classes are inside the jar.
+`mods/`, next to the Celeritas jar named above and
+[S8TNLib](https://github.com/ndellagrotte/S8TNLib/releases), which brings
+GTNHLib's classes: `s8tnlib-<version>.jar`, at the version Demonica's release
+notes name (0.3.0 or later). Without either mod, Forge lists what is missing.
 
 ## Building
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
-1.12.2/Cleanroom workspace through Unimined and downloads the pinned Celeritas
-from `maven.outlands.top`.
-
-GTNHLib comes from [S8TNLib](https://github.com/ndellagrotte/S8TNLib), whose
-jar the build merges into the mod jar. First publish to `mavenLocal` the
-S8TNLib release that `gradle.properties` pins, from its tag.
-`verifyS8tnlibPin` fails the build if that jar was built from another commit
-than `s8tnlib_commit`.
-
-```sh
-git clone --branch v0.2.0 https://github.com/ndellagrotte/S8TNLib.git
-(cd S8TNLib && ./gradlew publishToMavenLocal)
-```
-
-Then build Demonica:
+1.12.2/Cleanroom workspace through Unimined, downloads the pinned Celeritas
+from `maven.outlands.top` and the pinned S8TNLib from its GitHub release.
+`verifyCeleritasPin` and `verifyS8tnlibPin` check both jars' SHA-256.
 
 ```sh
 ./gradlew build      # compile, test, and check the pins, the patches' anchors and the mod jar
-./gradlew runClient  # dev client with Celeritas and Demonica
+./gradlew runClient  # dev client with Celeritas, S8TNLib and Demonica
 ```
+
+To try an S8TNLib build that has no release yet, pass its `build/libs` with
+`-Ps8tnlibDir=<dir>`; the S8TNLib pin is then only reported.
 
 The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
 normal install. `runClient` takes:
@@ -80,8 +73,8 @@ normal install. `runClient` takes:
 Demonica is distributed under GPL-3.0 ([`LICENSE`](LICENSE)). Angelica's and
 Iris's code is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
 Angelica's license file), which may be conveyed under GPL-3.0; the code ported
-from Actinium and the GTNHLib port in S8TNLib are GPL-3.0. The MIT- and
-BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+from Actinium is GPL-3.0. S8TNLib, installed separately, is GPL-3.0 too. The
+MIT- and BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 has the details, and the mod jar carries all three files.
 
 ## Credits
