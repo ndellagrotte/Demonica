@@ -9,7 +9,6 @@
   "server": [],
   "client": [
     "core.AccessorActiveRenderInfo",
-    "core.MinecraftAccessor",
     "core.MixinMinecraft",
     "core.MixinRenderGlobalDestroyBlock",
     "core.MixinTessellator",
@@ -24,8 +23,7 @@
     "core.startup.MixinOpenGlHelper",
     "core.startup.MixinSplashProgress",
     "core.terrain.AccessorEntityRenderer",
-    "core.vertex.MixinVertexBuffer",
-    "features.options.MixinEntityRendererDynamicFov"
+    "core.vertex.MixinVertexBuffer"
   ],
   "injectors": {
     "defaultRequire": 1

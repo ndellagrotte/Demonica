@@ -35,48 +35,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DemonicaOptionPagesTest {
     @Test
-    void fullscreenModeReplacesTheFullscreenToggleAndTheLoadingLimitFollowsMaxFramerate() {
-        List<Option<?>> window = new ArrayList<>(List.of(
-                placeholder(StandardOptions.Option.GUI_SCALE),
-                placeholder(StandardOptions.Option.FULLSCREEN),
-                placeholder(StandardOptions.Option.VSYNC),
-                placeholder(StandardOptions.Option.MAX_FRAMERATE)));
+    void theFastBlockRendererToggleGoesToTheEndWhenCeleritasHasNone() {
+        List<Option<?>> sorting = new ArrayList<>(List.of(placeholder(StandardOptions.Option.VSYNC)));
 
-        DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.WINDOW, window));
+        DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.SORTING, sorting));
 
-        assertEquals(List.of("minecraft:gui_scale", "demonica:fullscreen_mode", "minecraft:vsync", "minecraft:max_frame_rate",
-                "demonica:loading_screen_framerate_limit"), ids(window));
-    }
-
-    @Test
-    void optionsWhoseNeighboursAreMissingGoToTheEnd() {
-        List<Option<?>> window = new ArrayList<>(List.of(placeholder(StandardOptions.Option.VSYNC)));
-
-        DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.WINDOW, window));
-
-        assertEquals(List.of("minecraft:vsync", "demonica:fullscreen_mode", "demonica:loading_screen_framerate_limit"), ids(window));
-    }
-
-    @Test
-    void dynamicFovFollowsVignette() {
-        List<Option<?>> details = new ArrayList<>(List.of(
-                placeholder(StandardOptions.Option.CLOUDS),
-                placeholder(StandardOptions.Option.VIGNETTE),
-                placeholder(StandardOptions.Option.BIOME_BLEND)));
-
-        DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.DETAILS, details));
-
-        assertEquals(List.of("minecraft:clouds", "minecraft:vignette", "demonica:dynamic_fov", "minecraft:biome_blend"),
-                ids(details));
+        assertEquals(List.of("minecraft:vsync", "demonica:fast_block_renderer"), ids(sorting));
     }
 
     @Test
     void otherGroupsAreLeftAlone() {
-        List<Option<?>> graphics = new ArrayList<>(List.of(placeholder(StandardOptions.Option.GRAPHICS_MODE)));
+        for (OptionIdentifier<Void> group : List.of(StandardOptions.Group.GRAPHICS, StandardOptions.Group.WINDOW,
+                StandardOptions.Group.DETAILS)) {
+            List<Option<?>> options = new ArrayList<>(List.of(placeholder(StandardOptions.Option.GRAPHICS_MODE)));
 
-        DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(StandardOptions.Group.GRAPHICS, graphics));
+            DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(group, options));
 
-        assertEquals(List.of("minecraft:graphics_mode"), ids(graphics));
+            assertEquals(List.of("minecraft:graphics_mode"), ids(options), group.toString());
+        }
     }
 
     /** Celeritas's own quality page, built from the pinned jar: its fast renderer toggle becomes Demonica's (S13). */
@@ -131,8 +107,7 @@ class DemonicaOptionPagesTest {
     @Test
     void everyTranslationKeyIsInDemonicasLangFiles() throws IOException {
         List<Option<?>> options = new ArrayList<>();
-        for (OptionIdentifier<Void> group : List.of(StandardOptions.Group.WINDOW, StandardOptions.Group.DETAILS,
-                StandardOptions.Group.SORTING, StandardOptions.Group.CPU_SAVING)) {
+        for (OptionIdentifier<Void> group : List.of(StandardOptions.Group.SORTING, StandardOptions.Group.CPU_SAVING)) {
             List<Option<?>> added = new ArrayList<>();
             DemonicaOptionPages.onGroup(new OptionGroupConstructionEvent(group, added));
             options.addAll(added);
@@ -153,7 +128,7 @@ class DemonicaOptionPagesTest {
                 }
             }
         }
-        assertTrue(keys.size() > 40, "found only " + keys);
+        assertTrue(keys.size() > 30, "found only " + keys);
 
         for (String locale : List.of("en_us", "ru_ru", "zh_cn")) {
             Set<String> defined = langKeys("/assets/actinium/lang/" + locale + ".lang");
