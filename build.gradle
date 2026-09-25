@@ -758,8 +758,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica-refmap.json',
                 // The pin and the patches' anchors, which QuarantineGuard checks at startup.
                 'META-INF/demonica/celeritas-anchors',
-                // Loaded by path at runtime (Celeritas's ShaderLoader): the panorama's shaders.
-                'assets/angelica/shaders/panorama_cube.vert'
+                // Loaded by path at runtime (Celeritas's ShaderLoader): the shaders of Iris's CenterDepthSampler.
+                'assets/angelica/shaders/centerDepth.vsh'
             ] + containedJars.get()
             (required - names).each { problems << "missing entry ${it}" }
 
