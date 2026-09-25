@@ -3,7 +3,6 @@ package com.demonica.mixin.core;
 import net.coderbot.iris.debug.flight.GlFlightRecording;
 import net.coderbot.iris.debug.flight.GlFlightStreamingSource;
 import com.demonica.gui.DemonicaWindowModeController;
-import com.demonica.render.BufferBuilderStreamingDrawer;
 import com.demonica.render.EndPortalCompositeRenderer;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
@@ -54,9 +53,6 @@ public class MixinMinecraft {
         GlFlightRecording.beginStreamingSync(GlFlightStreamingSource.TESSELLATOR);
         TessellatorStreamingDrawer.endFrame();
         GlFlightRecording.endStreamingSync(GlFlightStreamingSource.TESSELLATOR);
-        GlFlightRecording.beginStreamingSync(GlFlightStreamingSource.BUFFER_BUILDER);
-        BufferBuilderStreamingDrawer.endFrame();
-        GlFlightRecording.endStreamingSync(GlFlightStreamingSource.BUFFER_BUILDER);
         GlFlightRecording.beginSwap();
     }
 

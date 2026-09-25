@@ -16,9 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks the vanilla {@link VertexFormat} to generic-vertex-attribute mapping that every BufferBuilder
- * draw path resolves through ({@link VanillaBufferBuilderRenderer} and {@code BufferBuilderStreamingDrawer}
- * both feed {@link VanillaVertexBufferRenderer#attributeLocation}).
+ * Locks the vanilla {@link VertexFormat} to generic-vertex-attribute mapping that BufferBuilder draws
+ * resolve through ({@link VanillaBufferBuilderRenderer} feeds
+ * {@link VanillaVertexBufferRenderer#attributeLocation}).
  *
  * <p>Issue #175 was a collision/drop in exactly this mapping: a UV element whose {@code index} (the
  * legacy texture unit it feeds) was 2 or 3 resolved to {@code -1}, so its attribute slot was never
