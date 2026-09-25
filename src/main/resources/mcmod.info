@@ -9,6 +9,6 @@
   "url": "https://github.com/ndellagrotte/Demonica",
   "updateJSON": "",
   "logoFile": "assets/actinium/icon.png",
-  "requiredMods": ["celeritas"],
-  "dependencies": ["celeritas"]
+  "requiredMods": ["celeritas", "s8tnlib"],
+  "dependencies": ["celeritas", "s8tnlib"]
 }]

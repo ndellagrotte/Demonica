@@ -41,7 +41,7 @@ import java.io.IOException;
     useMetadata = true,
     clientSideOnly = true,
     acceptableRemoteVersions = "*",
-    dependencies = "required-after:celeritas",
+    dependencies = "required-after:celeritas;required-after:s8tnlib@[0.3.0,)",
     guiFactory = "com.demonica.gui.DemonicaGuiFactory"
 )
 public class Demonica {

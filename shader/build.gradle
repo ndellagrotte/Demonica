@@ -1,13 +1,11 @@
 // The Iris shader pipeline (net.coderbot, net.irisshaders, kroppeb), the Celeritas seam types
 // (com.demonica.celeritas) and the mod-presence flags (com.demonica.compat.Mods), which the Iris
 // tree and the root project both read. Merged into the Demonica mod jar. It compiles against the
-// pinned Celeritas mod through the root project's compile classpath.
+// pinned Celeritas and S8TNLib mods through the root project's compile classpath.
 plugins {
     id 'java-library'
 }
 
 dependencies {
     api project(':glsm')
-    // GTNHLib, from S8TNLib (gradle.properties), which the Iris tree also uses directly.
-    api "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}"
 }
