@@ -14,9 +14,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress0;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetFloat;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memAddress0;
+import static org.lwjgl.system.MemoryUtil.memGetFloat;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
 
 public final class GLSMDebug {
     private static final Logger LOGGER = LogManager.getLogger("GLSMDebug");

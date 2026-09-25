@@ -1,6 +1,6 @@
 package com.demonica.render.vertex;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -16,7 +16,7 @@ class ByteVertexWriterTest {
 
     private static ByteBuffer writeColor(boolean littleEndian) {
         ByteBuffer buffer = ByteBuffer.allocateDirect(4);
-        ByteVertexWriter.putColorBytes(MemoryUtilities.memAddress0(buffer),
+        ByteVertexWriter.putColorBytes(MemoryUtil.memAddress0(buffer),
             RED, GREEN, BLUE, ALPHA, littleEndian);
         return buffer;
     }

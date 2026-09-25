@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.recording;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
 
 /**
  * Command opcodes for ByteBuffer-based display list serialization.

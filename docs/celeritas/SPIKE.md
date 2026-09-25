@@ -89,6 +89,10 @@ at Checkpoint 3.
   mod jar, so in dev their jars go on the extrapath next to the mod classes.
 - **`runClient` must depend on `classes`** and the `:glsm`/`:GTNHLib` jars.
   Unimined's `preRunClient` does not, so a run can start with stale classes.
+- *Note, 2026-09-25:* GTNHLib no longer travels with the mod. Since S8TNLib
+  0.3.0 it is a separate, coremod-flagged mod jar, which dev runs load from
+  the extrapath as they load Celeritas, and `verifyRunClasspath` still keeps
+  it off the app classpath ([`../FORK.md`](../FORK.md#gtnhlib)).
 - `-Dmixin.env.ignoreConstraints` is not needed.
 - Only the client run is enabled. Celeritas's coremod registers client-only
   mixin targets, and `runServer` is not used.

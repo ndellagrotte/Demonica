@@ -1,6 +1,6 @@
 package net.coderbot.iris.texture.util;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryStack;
+import org.lwjgl.system.MemoryStack;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
@@ -9,7 +9,7 @@ import org.lwjgl.opengl.GL30;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryStack.stackPush;
 
 public class TextureManipulationUtil {
 	private static int colorFillFBO = -1;

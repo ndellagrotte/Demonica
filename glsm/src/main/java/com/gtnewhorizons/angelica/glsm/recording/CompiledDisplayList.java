@@ -12,9 +12,9 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memFree;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memAddress;
+import static org.lwjgl.system.MemoryUtil.memFree;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
 
 /**
  * Represents a compiled display list.

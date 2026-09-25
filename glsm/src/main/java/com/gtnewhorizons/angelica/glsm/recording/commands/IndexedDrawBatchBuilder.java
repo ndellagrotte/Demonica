@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.recording.commands;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import org.lwjgl.opengl.GL11;
@@ -10,10 +10,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAddress0;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memCopy;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memGetInt;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memPutInt;
+import static org.lwjgl.system.MemoryUtil.memAddress0;
+import static org.lwjgl.system.MemoryUtil.memCopy;
+import static org.lwjgl.system.MemoryUtil.memGetInt;
+import static org.lwjgl.system.MemoryUtil.memPutInt;
 
 /**
  * Groups a display list's {@link IndexedDrawCapture}s by {@link AttribLayoutKey} and
@@ -107,7 +107,7 @@ public final class IndexedDrawBatchBuilder {
             sharedVAO = GLStateManager.glGenVertexArrays();
             sharedVBO = GLStateManager.glGenBuffers();
             sharedEBO = GLStateManager.glGenBuffers();
-            eboData = MemoryUtilities.memAlloc((int) totalIndexBytes);
+            eboData = MemoryUtil.memAlloc((int) totalIndexBytes);
 
             GLStateManager.glBindVertexArray(sharedVAO);
             GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, sharedVBO);
@@ -165,7 +165,7 @@ public final class IndexedDrawBatchBuilder {
             return new GroupResult(new IndexedDrawBatch(sharedVAO, sharedVBO, sharedEBO),
                 group, drawModes, indexCounts, indexOffsets);
         } finally {
-            if (eboData != null) MemoryUtilities.memFree(eboData);
+            if (eboData != null) MemoryUtil.memFree(eboData);
             if (!success) {
                 if (sharedVAO != 0) GLStateManager.glDeleteVertexArrays(sharedVAO);
                 if (sharedVBO != 0) GLStateManager.glDeleteBuffers(sharedVBO);

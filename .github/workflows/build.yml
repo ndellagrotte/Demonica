@@ -26,34 +26,19 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # GTNHLib comes from S8TNLib's jar, which the build resolves from mavenLocal. Check out the
-      # release that gradle.properties names (the tag v<s8tnlib_version>) and publish it there.
-      # verifyS8tnlibPin then checks the commit it was built from.
-      - name: Read the S8TNLib release
-        id: s8tnlib
-        run: |
-          version=$(sed -n 's/^s8tnlib_version *= *//p' gradle.properties)
-          test -n "$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Check out S8TNLib
-        uses: actions/checkout@v6
-        with:
-          repository: ndellagrotte/S8TNLib
-          ref: v${{ steps.s8tnlib.outputs.version }}
-          path: s8tnlib
-
-      - name: Publish S8TNLib to mavenLocal
-        working-directory: s8tnlib
-        run: ./gradlew publishToMavenLocal
-
       # Fetches the pinned Celeritas jar from maven.outlands.top and checks its SHA-256
       # (docs/celeritas/PIN.md), so an unreachable or moved pin fails here, by name.
       - name: Check the Celeritas pin
         run: ./gradlew verifyCeleritasPin
 
-      # Compiles and tests, then checks the S8TNLib pin (verifyS8tnlibPin), the mod jar
-      # (verifyDistributedJar) and the patches' anchors in production names (verifyProductionAnchors).
+      # Fetches the pinned S8TNLib mod jar from the assets of its GitHub release v<s8tnlib_version>
+      # and checks its SHA-256 (docs/FORK.md).
+      - name: Check the S8TNLib pin
+        run: ./gradlew verifyS8tnlibPin
+
+      # Compiles and tests, then checks the mod jar (verifyDistributedJar), that no S8TNLib jar is
+      # on the dev client's class path (verifyRunClasspath) and the patches' anchors in production
+      # names (verifyProductionAnchors).
       - name: Build
         run: ./gradlew build
 

@@ -1,8 +1,8 @@
 package net.coderbot.iris.gl.framebuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryStack.*;
+import static org.lwjgl.system.MemoryStack.*;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryStack;
+import org.lwjgl.system.MemoryStack;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import com.gtnewhorizons.angelica.glsm.texture.TextureInfoCache;

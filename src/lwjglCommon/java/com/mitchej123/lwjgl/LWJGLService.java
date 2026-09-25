@@ -129,8 +129,6 @@ public interface LWJGLService {
     String glGetString(int pname);
     int glGetAttribLocation(int program, CharSequence name);
 
-    MemoryStack stackPush();
-
     long nmemAlloc(long size);
     long nmemCalloc(long count, long size);
     long nmemAlignedAlloc(long alignment, long size);

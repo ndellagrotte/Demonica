@@ -8,7 +8,7 @@ import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
 
 /**
  * Record-time deep copy of client pixel data into off-heap memory, so a recorded

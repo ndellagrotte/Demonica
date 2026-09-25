@@ -1,6 +1,6 @@
 package com.gtnewhorizons.angelica.glsm.streaming;
 
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -10,8 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Regression tests for the JVM crash where a failed {@code glMapBufferRange} (NULL return) was fed
- * straight into {@code MemoryUtilities.memAddress0}, killing the process with an access violation
- * (hs_err: {@code MemoryUtilities.memAddress0(ByteBuffer)} reading address 0x10). The uploader must
+ * straight into {@code MemoryUtil.memAddress0}, killing the process with an access violation
+ * (hs_err: {@code MemoryUtil.memAddress0(ByteBuffer)} reading address 0x10). The uploader must
  * instead fall back to {@code bufferData}.
  */
 class StreamingUploaderTest {
@@ -86,6 +86,6 @@ class StreamingUploaderTest {
         long address = backend.mapBufferRangeAddress(0, 0, 64, 0);
 
         assertNotEquals(0L, address);
-        assertEquals(MemoryUtilities.memAddress0(mapped), address);
+        assertEquals(MemoryUtil.memAddress0(mapped), address);
     }
 }

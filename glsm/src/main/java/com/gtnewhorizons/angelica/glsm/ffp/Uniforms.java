@@ -15,8 +15,8 @@ import org.joml.Vector4f;
 
 import java.nio.FloatBuffer;
 
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memAllocFloat;
-import static com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities.memFree;
+import static org.lwjgl.system.MemoryUtil.memAllocFloat;
+import static org.lwjgl.system.MemoryUtil.memFree;
 import static com.gtnewhorizons.angelica.glsm.backend.BackendManager.RENDER_BACKEND;
 
 /**

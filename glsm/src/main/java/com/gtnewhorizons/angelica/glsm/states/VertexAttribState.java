@@ -2,7 +2,7 @@ package com.gtnewhorizons.angelica.glsm.states;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFlags;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormatElement.Usage;
-import com.gtnewhorizon.gtnhlib.bytebuf.MemoryUtilities;
+import org.lwjgl.system.MemoryUtil;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 import org.lwjgl.opengl.GL11;
@@ -142,7 +142,7 @@ public class VertexAttribState {
     private static ByteBuffer captureClientPointer(ByteBuffer pointer) {
         final int position = pointer.position();
         final int capacity = pointer.capacity() - position;
-        return MemoryUtilities.memByteBuffer(MemoryUtilities.memAddress(pointer), capacity);
+        return MemoryUtil.memByteBuffer(MemoryUtil.memAddress(pointer), capacity);
     }
 
 

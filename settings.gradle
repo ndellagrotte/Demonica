@@ -30,6 +30,6 @@ plugins {
 
 rootProject.name = 'Demonica'
 
-// GLSM and the Iris tree (shader) are merged into the Demonica mod jar, and so is GTNHLib, which comes from
-// S8TNLib's jar (build.gradle).
+// GLSM and the Iris tree (shader) are merged into the Demonica mod jar. GTNHLib comes from S8TNLib, a separate mod
+// (build.gradle).
 include 'glsm', 'shader'
