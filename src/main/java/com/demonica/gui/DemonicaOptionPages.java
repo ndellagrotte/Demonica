@@ -3,7 +3,6 @@ package com.demonica.gui;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.gui.options.DemonicaOptionsStorage;
-import com.demonica.render.FastLitItemDisplayListCache;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
 import me.flashyreese.mods.reeses_sodium_options.client.config.ReeseSodiumOptionsConfigEntryPoint;
@@ -95,20 +94,6 @@ public final class DemonicaOptionPages {
                 o -> o.advanced.useModelRendererBatching, (o, v) -> o.advanced.useModelRendererBatching = v));
             options.add(tickBox("model_renderer_display_lists", "sodium.options.model_renderer_display_lists", OptionImpact.MEDIUM,
                 o -> o.advanced.useModelRendererDisplayLists, (o, v) -> o.advanced.useModelRendererDisplayLists = v));
-            options.add(tickBox("fast_lit_item_rendering", "sodium.options.fast_lit_item_rendering", OptionImpact.LOW,
-                o -> o.advanced.useFastLitItemRendering, (o, v) -> {
-                    if (o.advanced.useFastLitItemRendering != v) {
-                        o.advanced.useFastLitItemRendering = v;
-                        FastLitItemDisplayListCache.clear();
-                    }
-                }));
-            options.add(tickBox("fast_lit_item_display_lists", "sodium.options.fast_lit_item_display_lists", OptionImpact.MEDIUM,
-                o -> o.advanced.useFastLitItemDisplayLists, (o, v) -> {
-                    if (o.advanced.useFastLitItemDisplayLists != v) {
-                        o.advanced.useFastLitItemDisplayLists = v;
-                        FastLitItemDisplayListCache.clear();
-                    }
-                }));
         }
     }
 

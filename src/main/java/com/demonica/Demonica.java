@@ -2,7 +2,6 @@ package com.demonica;
 
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
 import com.demonica.compat.kirino.KirinoCompat;
-import com.demonica.compat.neverenoughanimations.NeverEnoughAnimationsAlphaOverride;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
@@ -14,7 +13,6 @@ import com.demonica.loading.ActiniumConflictException;
 import com.demonica.loading.Environment;
 import com.demonica.mixin.core.terrain.AccessorEntityRenderer;
 import com.demonica.mixins.MixinEarly;
-import com.demonica.render.FastLitItemDisplayListCache;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizon.gtnhlib.client.renderer.RuntimeOptionsBridge;
 import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.PostProcessingBridge;
@@ -71,7 +69,7 @@ public class Demonica {
                 .invokeGetNightVisionBrightness(entity, partialTicks));
         // Iris's shadow pass draws Celeritas's terrain through this adapter (S7).
         WorldRendererCompatBridge.setProvider(CeleritasWorldRendererCompat::current);
-        GLSMPerfDebugHooks.addStatsProvider(Demonica::dumpExtraPerfStats);
+        GLSMPerfDebugHooks.addStatsProvider(AdaptiveShadowBoundsStats::dumpStatsAndReset);
         GLSMPerfDebugHooks.setConfiguredEnabled(
             DemonicaRuntimeOptions.resolvePerfDebugEnabled(DemonicaRuntime.options().debug.enablePerfDebug)
         );
@@ -95,7 +93,6 @@ public class Demonica {
             return;
         }
         KirinoCompat.install();
-        NeverEnoughAnimationsAlphaOverride.install();
         if (Iris.enabled) {
             IrisGLSMBridge.register();
             Iris.INSTANCE.fmlInitEvent();
@@ -109,18 +106,6 @@ public class Demonica {
     /** Demonica's settings. GLSM's debug switches read this reflectively (GLSMDebug). */
     public static DemonicaOptions options() {
         return DemonicaRuntime.options();
-    }
-
-    private static String dumpExtraPerfStats() {
-        String fastLitStats = FastLitItemDisplayListCache.dumpStatsAndReset();
-        String shadowStats = AdaptiveShadowBoundsStats.dumpStatsAndReset();
-        if (shadowStats.isEmpty()) {
-            return fastLitStats;
-        }
-        if (fastLitStats.isEmpty()) {
-            return shadowStats;
-        }
-        return fastLitStats + " " + shadowStats;
     }
 
     private static void reloadShaderPipelineForPerfDebug() {

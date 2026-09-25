@@ -358,8 +358,6 @@ dependencies {
     modCompileOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons 3.3.0-1.12.2
     // Mod compat (com.demonica.compat, com.demonica.mixin.mod), compiled against and loaded only when the mod is
     // present: mixin configs through MixinLate and mixins.demonica.conditions.properties, classes behind Mods flags.
-    // NeverEnoughAnimation 1.0.7: its GUI fade scales item vertex alpha, which the fast lit item path must honour.
-    modCompileOnly 'curse.maven:neverenoughanimation-1062347:7289408'
     modCompileOnly 'curse.maven:botania-ceu-1179448:8706250'
     modCompileOnly 'curse.maven:cofh-core-69162:2920433'
     modCompileOnly 'curse.maven:extra-utilities-2-225561:2678374'
@@ -402,7 +400,6 @@ dependencies {
         modRuntimeOnly 'curse.maven:ichunutil-229060:2801262'
         modRuntimeOnly 'curse.maven:creativecore-257814:4722163'
         modRuntimeOnly 'curse.maven:littletiles-257818:5180387'
-        modRuntimeOnly 'curse.maven:neverenoughanimation-1062347:7289408'
         modRuntimeOnly 'curse.maven:snow-real-magic-308663:6275195'
         modRuntimeOnly 'curse.maven:architecturecraft-tridev-277631:4344128'
         modRuntimeOnly 'curse.maven:scannable-266784:3146549'

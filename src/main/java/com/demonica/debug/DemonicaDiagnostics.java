@@ -93,8 +93,6 @@ public final class DemonicaDiagnostics {
                 + ",directMemory=" + DemonicaRuntimeOptions.allowDirectMemoryAccess()
                 + ",modelRendererBatching=" + DemonicaRuntimeOptions.useModelRendererBatching()
                 + ",modelRendererDisplayLists=" + DemonicaRuntimeOptions.useModelRendererDisplayLists()
-                + ",fastLitItemRendering=" + DemonicaRuntimeOptions.useFastLitItemRendering()
-                + ",fastLitItemDisplayLists=" + DemonicaRuntimeOptions.useFastLitItemDisplayLists()
                 + "} debug{gl=" + options.debug.enableGlDebug
                 + ",perf=" + options.debug.enablePerfDebug
                 + ",gpuPerf=" + options.debug.enableGpuPerfDebug

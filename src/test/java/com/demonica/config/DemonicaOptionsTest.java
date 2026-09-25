@@ -37,7 +37,6 @@ class DemonicaOptionsTest {
         assertEquals(90, options.performance.loadingScreenFramerateLimit);
         assertFalse(options.performance.useFastBlockRenderer, "Actinium's fast renderer had gates Demonica has not ported");
         assertEquals(DemonicaOptions.StreamingUploadStrategy.BUFFER_DATA, options.advanced.streamingUploadStrategy);
-        assertFalse(options.advanced.useFastLitItemRendering);
         assertTrue(options.debug.enableGlDebug, "renamed from enable_actinium_gl_debug");
         assertTrue(options.debug.enablePerfDebug, "renamed from enable_actinium_perf_debug");
         assertTrue(options.debug.enableRedirectorDebug);
