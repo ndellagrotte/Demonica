@@ -50,11 +50,6 @@ public class RenderSystem {
     private static int maxGlslVersion;
     private static boolean supportsGpuShader4;
 
-    private static volatile boolean isGLES;
-    private static volatile int glesVersion;
-    private static volatile boolean glesDetected;
-    private static volatile boolean hasClipCullDistance;
-
     private static volatile boolean isLTW;
     private static volatile boolean ltwDetected;
 
@@ -71,33 +66,26 @@ public class RenderSystem {
         if (rendererInitialized) return;
         rendererInitialized = true;
 
-        final boolean wasDetected = glesDetected;
-        if (isGLES() && !wasDetected) {
-            GLStateManager.LOGGER.info("OpenGL ES {}.{} detected", glesVersion / 100, (glesVersion / 10) % 10);
+        try {
+            if (GLStateManager.capabilities.OpenGL45) {
+                dsaState = (Runtime.version().feature() > 8 && GLStateManager.capabilities.GL_EXT_direct_state_access) ? new DSAEXT() : new DSACore();
+                GLStateManager.LOGGER.info("OpenGL 4.5 detected, enabling DSA.");
+            }
+
+        } catch (NoSuchFieldError ignored) {
         }
-
-        if (!isGLES) {
-            try {
-                if (GLStateManager.capabilities.OpenGL45) {
-                    dsaState = (Runtime.version().feature() > 8 && GLStateManager.capabilities.GL_EXT_direct_state_access) ? new DSAEXT() : new DSACore();
-                    GLStateManager.LOGGER.info("OpenGL 4.5 detected, enabling DSA.");
-                }
-
-            } catch (NoSuchFieldError ignored) {
+        try {
+            // lwjglx's ContextCapabilities has no GL_ARB_direct_state_access field, so probe
+            // the extension string instead of the capability flag Angelica uses.
+            if (dsaState == null && hasExtension("GL_ARB_direct_state_access")) {
+                dsaState = new DSAARB();
+                GLStateManager.LOGGER.info("ARB_direct_state_access detected, enabling DSA.");
             }
-            try {
-                // lwjglx's ContextCapabilities has no GL_ARB_direct_state_access field, so probe
-                // the extension string instead of the capability flag Angelica uses.
-                if (dsaState == null && hasExtension("GL_ARB_direct_state_access")) {
-                    dsaState = new DSAARB();
-                    GLStateManager.LOGGER.info("ARB_direct_state_access detected, enabling DSA.");
-                }
-            } catch (NoSuchFieldError ignored) {
-            }
+        } catch (NoSuchFieldError ignored) {
         }
         if (dsaState == null) {
             dsaState = new DSAUnsupported();
-            GLStateManager.LOGGER.info("{}", isGLES ? "GLES context, using DSAUnsupported (bind-based) fallback." : "No DSA support detected, falling back to legacy OpenGL.");
+            GLStateManager.LOGGER.info("No DSA support detected, falling back to legacy OpenGL.");
         }
 
         BackendManager.init();
@@ -109,9 +97,8 @@ public class RenderSystem {
                 || GLStateManager.capabilities.GL_ARB_shader_image_load_store
                 || GLStateManager.capabilities.GL_EXT_shader_image_load_store;
         supportsSSBO = GLStateManager.capabilities.OpenGL43 || GLStateManager.capabilities.GL_ARB_shader_storage_buffer_object;
-        supportsBufferStorage = !isGLES && (GLStateManager.capabilities.OpenGL44 || GLStateManager.capabilities.GL_ARB_buffer_storage);
+        supportsBufferStorage = GLStateManager.capabilities.OpenGL44 || GLStateManager.capabilities.GL_ARB_buffer_storage;
         supportsClearTexture = GLStateManager.capabilities.OpenGL44 || GLStateManager.capabilities.GL_ARB_clear_texture;
-        hasClipCullDistance = !isGLES || hasExtension("GL_EXT_clip_cull_distance");
 
         // Cache maximum image units
         if (supportsImageLoadStore) {
@@ -151,10 +138,7 @@ public class RenderSystem {
         GLStateManager.LOGGER.info("SSBO: {}, Max SSBO Bindings: {}", supportsSSBO, maxSSBOBindings);
         GLStateManager.LOGGER.info("Buffer Storage: {}, Clear Texture: {}, Sampler Objects: {}", supportsBufferStorage, supportsClearTexture, supportsSamplerObjects);
 
-        if (isGLES) {
-            GLStateManager.LOGGER.info("GL ES context detected, enabling shader transformer.");
-            ShaderManager.getInstance().enable();
-        } else if (GLStateManager.capabilities.OpenGL32) {
+        if (GLStateManager.capabilities.OpenGL32) {
             final int profileMask = RENDER_BACKEND.getInteger(GL32.GL_CONTEXT_PROFILE_MASK);
             if ((profileMask & GL32.GL_CONTEXT_CORE_PROFILE_BIT) != 0) {
                 GLStateManager.LOGGER.info("GL 3.3 core profile detected, enabling FFP shader emulation.");
@@ -180,10 +164,7 @@ public class RenderSystem {
     }
 
     public static void texImage2D(int texture, int target, int level, int internalformat, int width, int height, int border, int format, int type, @Nullable ByteBuffer pixels) {
-        final GLStateManager.GLESTexImageRemap remap = GLStateManager.remapTexImageForGLES(internalformat, format, type);
-        internalformat = remap.internalFormat();
-        format = remap.format();
-        type = remap.type();
+        internalformat = GLTypes.promoteAlphaFormat(internalformat);
         GLStateManager.glBindTexture(target, texture);
         GLStateManager.suspendPixelUnpackBuffer();
         RENDER_BACKEND.texImage2D(target, level, internalformat, width, height, border, format, type, pixels);
@@ -351,36 +332,12 @@ public class RenderSystem {
         return supportsImageLoadStore;
     }
 
-    public static boolean hasClipCullDistance() {
-        return hasClipCullDistance;
-    }
-
     private static boolean hasExtension(String name) {
         final int count = GLStateManager.glGetInteger(GL30.GL_NUM_EXTENSIONS);
         for (int i = 0; i < count; i++) {
             if (name.equals(GLStateManager.glGetStringi(GL11.GL_EXTENSIONS, i))) return true;
         }
         return false;
-    }
-
-    public static boolean isGLES() {
-        if (!glesDetected) detectGLES();
-        return isGLES;
-    }
-
-    private static synchronized void detectGLES() {
-        if (glesDetected) return;
-        try {
-            final String v = RENDER_BACKEND.getString(GL11.GL_VERSION);
-            if (v != null && v.startsWith("OpenGL ES ")) {
-                isGLES = true;
-                glesVersion = Integer.parseInt(parseGlVersionString(v));
-            }
-            glesDetected = true;
-        } catch (Throwable t) {
-            // No GL context on this thread yet (splash); retry on next call.
-            GLStateManager.LOGGER.debug("GLES detection deferred (no GL context yet): {}", t.toString());
-        }
     }
 
     public static boolean isLTW() {
@@ -593,7 +550,6 @@ public class RenderSystem {
     }
 
     public static boolean supportsSnormFormats() {
-        if (isGLES()) return false;
         return GLStateManager.capabilities.OpenGL31;
     }
 
@@ -641,17 +597,10 @@ public class RenderSystem {
         }
     }
 
-    /** Parse a GL version string (e.g. "4.6.0 NVIDIA ...") into concatenated digits "460". Strips
-     *  "OpenGL ES " / "OpenGL ES GLSL ES " prefixes so ES contexts parse too. */
+    /** Parse a GL version string (e.g. "4.6.0 NVIDIA ...") into concatenated digits "460". */
     public static String parseGlVersionString(String info) {
         Objects.requireNonNull(info);
-        String stripped = info;
-        if (stripped.startsWith("OpenGL ES GLSL ES ")) {
-            stripped = stripped.substring("OpenGL ES GLSL ES ".length());
-        } else if (stripped.startsWith("OpenGL ES ")) {
-            stripped = stripped.substring("OpenGL ES ".length());
-        }
-        final Matcher matcher = SEMVER_PATTERN.matcher(stripped);
+        final Matcher matcher = SEMVER_PATTERN.matcher(info);
         if (!matcher.matches()) {
             throw new IllegalStateException("Could not parse GL version from \"" + info + "\"");
         }
