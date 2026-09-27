@@ -1,0 +1,16 @@
+{
+  "package": "com.demonica.diagnostics.mixin",
+  "required": false,
+  "refmap": "mixins.demonica.diagnostics-refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8.5",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [],
+  "server": [],
+  "client": [
+    "TextureManagerDebugLabelsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

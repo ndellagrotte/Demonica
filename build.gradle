@@ -6,6 +6,10 @@
  * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar. GTNHLib comes from S8TNLib, a separate
  * mod that players install next to Celeritas (docs/FORK.md); like Celeritas, its release jar is pinned by SHA-256 in
  * gradle.properties. The distributed jar is the SRG-remapped output of `remapJar`; verifyDistributedJar checks it.
+ *
+ * :diagnostics is the companion jar, Demonica-diagnostics-<version>.jar (remapDiagnosticsJar): the GL debug logs, the
+ * flight recorder and the dev harness, which the mod jar reaches only through no-op facades. Dev runs load it unless
+ * -PwithoutDiagnostics; verifyDiagnosticsJar checks it.
  */
 plugins {
     id 'java'
@@ -197,6 +201,37 @@ repositories {
     maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
 }
 
+def diagnosticsProject = project(':diagnostics')
+
+// The companion jar in MCP names; remapDiagnosticsJar makes the distributed one. It is kept out of build/libs, which
+// holds only what is distributed.
+def diagnosticsJar = tasks.register('diagnosticsJar', Jar) {
+    group = 'build'
+    description = 'Assembles the diagnostics companion jar (MCP names).'
+    archiveBaseName = 'Demonica-diagnostics'
+    archiveClassifier = 'dev'
+    destinationDirectory = layout.buildDirectory.dir('devlibs')
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    inputs.property('version', project.version.toString())
+
+    from diagnosticsProject.sourceSets.main.output
+    // The license texts and notices, as in the mod jar (THIRD_PARTY_NOTICES.md, "In the jars").
+    from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
+
+    manifest {
+        attributes(
+            'ModType': 'CRL',
+            'Implementation-Title': 'Demonica diagnostics',
+            'Implementation-Version': project.version.toString(),
+            'FMLCorePlugin': 'com.demonica.diagnostics.DiagnosticsCoremod',
+            'FMLCorePluginContainsFMLMod': 'true',
+            'ForceLoadAsMod': 'true'
+        )
+    }
+
+    finalizedBy 'remapDiagnosticsJar'
+}
+
 unimined.minecraft {
     version '1.12.2'
 
@@ -240,9 +275,16 @@ unimined.minecraft {
                 // -PwithoutS8tnlib: check what a player sees when S8TNLib is missing.
                 extraPaths.removeIf { new File(it).name ==~ /s8tnlib-.*\.jar/ }
             }
+            // The diagnostics jar's classes, loaded like the mod's own. -PwithoutDiagnostics: run what a player has
+            // without the companion jar.
+            def withDiagnostics = project.findProperty('withoutDiagnostics') == null
+            if (withDiagnostics) {
+                extraPaths.addAll(diagnosticsProject.sourceSets.main.output.files.collect { it.absolutePath })
+            }
             jvmArgs = jvmArgs.findAll { !it.toString().startsWith(extraPathArgument) }
             jvmArgs += "${extraPathArgument}${extraPaths.join(File.pathSeparator)}"
-            systemProperty 'fml.coreMods.load', 'com.demonica.mixins.MixinEarly'
+            systemProperty 'fml.coreMods.load', 'com.demonica.mixins.MixinEarly' +
+                (withDiagnostics ? ',com.demonica.diagnostics.DiagnosticsCoremod' : '')
 
             // -PdevScript=@path/to/script drives the client (com.demonica.dev.DevHarness).
             def script = project.findProperty('devScript')
@@ -279,6 +321,18 @@ unimined.minecraft {
         }
     }
 
+    // The distributed diagnostics jar. Its remap classpath is the mod's compile classpath, which has :shader and :glsm
+    // but not the root project's own classes (verifyDiagnosticsRemap). Without the base name it would overwrite the
+    // mod jar.
+    remap(diagnosticsJar.get(), 'remapDiagnosticsJar') {
+        archiveBaseName = 'Demonica-diagnostics'
+        archiveClassifier = ''
+        mixinRemap {
+            enableBaseMixin()
+            enableMixinExtra()
+        }
+    }
+
     mods {
         // Celeritas ships SRG-named mixins without a refmap, and uses MixinExtras. Its jar also
         // carries a leftover Fabric access widener in the 'named' namespace, which Forge ignores.
@@ -294,6 +348,11 @@ unimined.minecraft {
 
 tasks.named('preRunClient').configure {
     dependsOn tasks.named('classes')
+    dependsOn diagnosticsProject.tasks.named('classes')
+}
+
+tasks.named('assemble').configure {
+    dependsOn 'remapDiagnosticsJar'
 }
 
 tasks.named('runClient', JavaExec).configure {
@@ -616,14 +675,16 @@ def verifyProductionAnchors = tasks.register('verifyProductionAnchors', JavaExec
 
 def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
     group = 'verification'
-    description = 'Checks that no class is defined by more than one of the projects merged into the mod jar.'
+    description = 'Checks that no class is defined by more than one of the mod\'s projects, the diagnostics included.'
     dependsOn tasks.named('compileJava')
     dependsOn embeddedLibraryProjects.collect { it.tasks.named('classes') }
+    dependsOn diagnosticsProject.tasks.named('classes')
 
     def componentOutputs = [
         demonica: files(tasks.named('compileJava', JavaCompile).get().destinationDirectory),
         glsm: project(':glsm').sourceSets.main.output.classesDirs,
-        shader: project(':shader').sourceSets.main.output.classesDirs
+        shader: project(':shader').sourceSets.main.output.classesDirs,
+        diagnostics: diagnosticsProject.sourceSets.main.output.classesDirs
     ]
 
     doLast {
@@ -649,22 +710,25 @@ def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
 }
 
 /**
- * The dev client loads S8TNLib's mod jar (Unimined's MCP remap) through -Dcrl.dev.extrapath, as it does Celeritas.
- * The jar must not also be on runClient's class path, where the app class loader would load it and a call from the
- * LaunchClassLoader would fail with a LinkageError (docs/celeritas/SPIKE.md, "Dev class loading").
+ * The dev client loads S8TNLib's mod jar (Unimined's MCP remap) and the diagnostics classes through
+ * -Dcrl.dev.extrapath, as it does Celeritas. Neither may also be on runClient's class path, where the app class loader
+ * would load them and a call from the LaunchClassLoader would fail with a LinkageError (docs/celeritas/SPIKE.md,
+ * "Dev class loading").
  */
 def verifyRunClasspath = tasks.register('verifyRunClasspath') {
     group = 'verification'
-    description = 'Checks that no S8TNLib jar is on runClient\'s class path.'
+    description = 'Checks that no S8TNLib jar and no diagnostics output is on runClient\'s class path.'
 
     def runClient = tasks.named('runClient', JavaExec).get()
+    def diagnosticsOutputs = diagnosticsProject.sourceSets.main.output
 
     doLast {
         def isS8tnlibJar = { String path -> new File(path).name ==~ /s8tnlib-.*\.jar/ }
-        def problems = runClient.classpath.files*.path.findAll(isS8tnlibJar)
+        def diagnosticsPaths = diagnosticsOutputs.files*.path as Set
+        def problems = runClient.classpath.files*.path.findAll { isS8tnlibJar(it) || diagnosticsPaths.contains(it) }
         if (!problems.isEmpty()) {
-            throw new GradleException("runClient must load S8TNLib only through -Dcrl.dev.extrapath, but its class " +
-                "path has:\n - ${problems.join('\n - ')}")
+            throw new GradleException("runClient must load S8TNLib and the diagnostics only through " +
+                "-Dcrl.dev.extrapath, but its class path has:\n - ${problems.join('\n - ')}")
         }
     }
 }
@@ -693,7 +757,9 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/^org\/embeddedt\//, ~/^org\/taumc\//, ~/^dhj\//, ~/^com\/dhj\//, ~/^grondag\//, ~/^org\/joml\//,
                 ~/^com\/gtnewhorizon\/gtnhlib\//, ~/^com\/s8tnlib\//,
                 ~/^assets\/celeritas\//, ~/^assets\/sodium\//,
-                ~/^META-INF\/services\/org\.embeddedt\./
+                ~/^META-INF\/services\/org\.embeddedt\./,
+                // The diagnostics live in the companion jar (verifyDiagnosticsJar).
+                ~/^com\/demonica\/diagnostics\//, ~/^mixins\.demonica\.diagnostics/
             ]
             names.each { name ->
                 if (forbidden.any { name =~ it }) {
@@ -762,7 +828,113 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
     }
 }
 
+/**
+ * The distributed diagnostics jar: only the companion's own classes (never a class of the mod, of Minecraft or of a
+ * library), its mixin config with its own refmap, and the manifest and metadata that make it a coremod-flagged mod of
+ * exactly the mod's version.
+ */
+def verifyDiagnosticsJar = tasks.register('verifyDiagnosticsJar') {
+    group = 'verification'
+    description = 'Checks the contents and manifest of the remapped diagnostics jar.'
+    dependsOn 'remapDiagnosticsJar'
+
+    def remappedJar = tasks.named('remapDiagnosticsJar').flatMap { it.archiveFile }
+    def expectedVersion = project.version.toString()
+    inputs.file(remappedJar)
+
+    doLast {
+        def jarFile = remappedJar.get().asFile
+        def problems = []
+        def config = 'mixins.demonica.diagnostics.json'
+        def refmap = 'mixins.demonica.diagnostics-refmap.json'
+        new java.util.jar.JarFile(jarFile).withCloseable { jar ->
+            def names = jar.entries().findAll { !it.directory }.collect { it.name } as Set
+            def allowed = [
+                ~/^com\/demonica\/diagnostics\/.*\.class$/,
+                ~/^META-INF\/MANIFEST\.MF$/,
+                ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider$/,
+                ~/^mcmod\.info$/, ~/^mixins\.demonica\.diagnostics\.json$/,
+                ~/^mixins\.demonica\.diagnostics-refmap\.json$/,
+                ~/^LICENSE$/, ~/^LICENSE-LGPL-3\.0\.txt$/, ~/^THIRD_PARTY_NOTICES\.md$/
+            ]
+            names.findAll { name -> !allowed.any { name =~ it } }.each { problems << "unexpected entry ${it}" }
+            def required = [
+                'mcmod.info', config, refmap, 'LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md',
+                'com/demonica/diagnostics/DiagnosticsCoremod.class',
+                'com/demonica/diagnostics/DemonicaDiagnosticsMod.class'
+            ]
+            (required - names).each { problems << "missing entry ${it}" }
+
+            def manifest = jar.manifest.mainAttributes
+            def expected = [
+                'ModType': 'CRL',
+                'FMLCorePlugin': 'com.demonica.diagnostics.DiagnosticsCoremod',
+                'FMLCorePluginContainsFMLMod': 'true',
+                'ForceLoadAsMod': 'true',
+                'Implementation-Version': expectedVersion
+            ]
+            expected.each { key, value ->
+                if (manifest.getValue(key) != value) {
+                    problems << "manifest ${key} is ${manifest.getValue(key)}, expected ${value}"
+                }
+            }
+
+            def slurper = new groovy.json.JsonSlurper()
+            def mod = slurper.parse(jar.getInputStream(jar.getEntry('mcmod.info')))[0]
+            def requirement = "demonica@[${expectedVersion}]".toString()
+            if (mod.modid != 'demonica_diagnostics' || mod.version != expectedVersion
+                    || !(mod.requiredMods as List).contains(requirement)) {
+                problems << "mcmod.info must declare modid demonica_diagnostics, version ${expectedVersion} and " +
+                    "require ${requirement}: ${mod}"
+            }
+
+            // Every mixin must be remapped: a refmap entry per mixin, since each one names Minecraft members.
+            if (names.contains(config) && names.contains(refmap)) {
+                def mixinConfig = slurper.parse(jar.getInputStream(jar.getEntry(config)))
+                def mappings = slurper.parse(jar.getInputStream(jar.getEntry(refmap))).mappings ?: [:]
+                def prefix = mixinConfig.package.replace('.', '/') + '/'
+                ((mixinConfig.mixins ?: []) + (mixinConfig.client ?: [])).each { mixin ->
+                    def internalName = prefix + mixin.replace('.', '/')
+                    if (!mappings.containsKey(internalName)) {
+                        problems << "${refmap} has no mappings for ${internalName}"
+                    }
+                }
+            }
+        }
+        if (!problems.isEmpty()) {
+            throw new GradleException("${jarFile.name} failed verification:\n - ${problems.join('\n - ')}")
+        }
+    }
+}
+
+/**
+ * The diagnostics jar's remap cannot see the root project's classes, so a call to a Minecraft member through a root
+ * class (a root type that extends a Minecraft class) would stay in MCP names and fail only in production. This finds
+ * such calls in the compiled diagnostics classes.
+ */
+def verifyDiagnosticsRemap = tasks.register('verifyDiagnosticsRemap', JavaExec) {
+    group = 'verification'
+    description = 'Checks that the diagnostics reach no Minecraft member through a root-project class.'
+    dependsOn diagnosticsProject.tasks.named('testClasses'), tasks.named('compileJava')
+
+    def diagnosticsClasses = diagnosticsProject.sourceSets.main.output.classesDirs
+    def rootClasses = tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory }
+    inputs.files(diagnosticsClasses).withPropertyName('diagnosticsClasses')
+    inputs.files(rootClasses).withPropertyName('rootClasses')
+
+    classpath = diagnosticsProject.sourceSets.test.runtimeClasspath
+    mainClass = 'com.demonica.diagnostics.remap.InheritedMemberCheck'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    doFirst {
+        args = [rootClasses.get().asFile.absolutePath] + diagnosticsClasses.files*.absolutePath
+    }
+}
+
 tasks.named('check').configure {
+    dependsOn verifyDiagnosticsJar
+    dependsOn verifyDiagnosticsRemap
     dependsOn verifyCeleritasPin
     dependsOn verifyS8tnlibPin
     dependsOn verifyModuleBoundaries

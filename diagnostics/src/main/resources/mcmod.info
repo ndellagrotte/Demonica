@@ -1,0 +1,14 @@
+[{
+  "modid": "demonica_diagnostics",
+  "name": "Demonica diagnostics",
+  "version": "${version}",
+  "mcversion": "1.12.2",
+  "description": "Demonica's GL debug logs, GL flight recorder and dev harness. Install it next to Demonica of the same version, when asked for a bug report.",
+  "authorList": ["Nicholas DellaGrotte"],
+  "credits": "Actinium (DHJComical, embeddedt), Angelica and GLSM",
+  "url": "https://github.com/ndellagrotte/Demonica",
+  "updateJSON": "",
+  "logoFile": "",
+  "requiredMods": ["demonica@[${version}]"],
+  "dependencies": ["demonica@[${version}]"]
+}]

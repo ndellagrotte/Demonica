@@ -1,0 +1,51 @@
+// Demonica's diagnostics: the GL debug logs and timing tables, the GL flight recorder, the GL state probe, GLSM's
+// draw logs, the PBR and regression logs, and the scripted dev harness. Built into a companion mod jar,
+// Demonica-diagnostics-<version>.jar, by the root project (diagnosticsJar, remapDiagnosticsJar), and never merged
+// into Demonica's own jar. The release jar reaches this code only through no-op facades (net.coderbot.iris.debug.
+// Diagnostics); dev runs load it unless -PwithoutDiagnostics.
+//
+// It compiles against the root project's classes, but the root project's remap of this jar cannot see them, so a
+// Minecraft member reached through a root class stays in MCP names in production. Call Minecraft members only through
+// Minecraft-typed references; verifyDiagnosticsRemap enforces it.
+plugins {
+    id 'java-library'
+}
+
+def rootClasses = rootProject.files(rootProject.tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory })
+
+dependencies {
+    compileOnly project(':shader')
+    compileOnly rootClasses
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation project(':shader')
+    testImplementation rootClasses
+    testImplementation rootProject.ext.sharedMinecraftCompileClasspath()
+}
+
+repositories {
+    mavenCentral()
+    // The GLSL transformation library that :glsm brings onto the test classpath.
+    maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
+}
+
+processResources {
+    def resourceProperties = [version: project.version.toString()]
+    inputs.properties(resourceProperties)
+    filesMatching('mcmod.info') {
+        expand(resourceProperties)
+    }
+}
+
+test {
+    useJUnitPlatform()
+    // Log4j writes logs/ into the working directory.
+    def testRunDirectory = layout.buildDirectory.dir('test-run')
+    workingDir = testRunDirectory.get().asFile
+    doFirst { mkdir(testRunDirectory) }
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}

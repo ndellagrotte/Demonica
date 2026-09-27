@@ -1,4 +1,4 @@
-package com.demonica.mixin.core;
+package com.demonica.diagnostics.mixin;
 
 import com.gtnewhorizons.angelica.glsm.GLDebug;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(TextureManager.class)
-public class MixinTextureManagerDebugLabels {
+public class TextureManagerDebugLabelsMixin {
     @Inject(method = "loadTexture", at = @At("RETURN"))
     private void demonica$nameTextureObject(ResourceLocation resource, ITextureObject texture, CallbackInfoReturnable<Boolean> cir) {
         // loadTexture can run on context-less threads (e.g. CQR reloads its custom textures on the
