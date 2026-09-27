@@ -3,16 +3,13 @@ package com.demonica.debug;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.mixins.MixinEarly;
 import com.demonica.runtime.DemonicaRuntime;
+import net.coderbot.iris.debug.Diagnostics;
 import net.minecraft.launchwrapper.Launch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 public final class DemonicaDiagnostics {
     private static final Logger LOGGER = LogManager.getLogger("DemonicaDiagnostics");
-    private static final Set<String> APPLIED_MIXINS = Collections.synchronizedSet(new LinkedHashSet<>());
 
     private DemonicaDiagnostics() {
     }
@@ -50,24 +47,9 @@ public final class DemonicaDiagnostics {
             return;
         }
 
-        LOGGER.info("init version={} config={}", version, describeConfig());
-    }
-
-    public static void recordMixinApplied(String targetClassName, String mixinClassName) {
-        if (!isEnabled() || !isKeyMixin(mixinClassName)) {
-            return;
-        }
-
-        String entry = mixinClassName + " -> " + targetClassName;
-        if (APPLIED_MIXINS.add(entry)) {
-            LOGGER.info("mixin-applied {}", entry);
-        }
-    }
-
-    private static boolean isKeyMixin(String mixinClassName) {
-        return mixinClassName.startsWith("com.demonica.mixin.features.iris.")
-            || mixinClassName.startsWith("com.demonica.mixin.core.")
-            || mixinClassName.startsWith("com.demonica.mixin.celeritas.");
+        String diagnosticsJar = Diagnostics.version();
+        LOGGER.info("init version={} diagnosticsJar={} config={}", version, diagnosticsJar != null ? diagnosticsJar : "absent",
+            describeConfig());
     }
 
     private static String describeMixinConfigs() {

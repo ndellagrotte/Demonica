@@ -1,6 +1,7 @@
 package com.demonica.mixin.core.startup;
 
 import com.demonica.debug.DemonicaStartupDebugConfig;
+import net.coderbot.iris.debug.Diagnostics;
 import net.coderbot.iris.debug.flight.GlFlightRecording;
 import net.coderbot.iris.debug.flight.GlFlightGpuCommandRecorder;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
@@ -30,6 +31,9 @@ public class MixinOpenGlHelper {
     @Inject(method = "initializeTextures", at = @At("RETURN"))
     private static void demonica$initializeGLStateManager(CallbackInfo ci) {
         final Minecraft mc = Minecraft.getMinecraft();
+
+        // The diagnostics jar, if installed, before anything it instruments runs.
+        Diagnostics.load();
 
         // The LWJGL service reads the calling thread's GL capabilities when it is created, so it is created here, on
         // the render thread. Otherwise its first user creates it: with a shader pack enabled at startup, that is a

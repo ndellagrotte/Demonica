@@ -759,7 +759,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/^assets\/celeritas\//, ~/^assets\/sodium\//,
                 ~/^META-INF\/services\/org\.embeddedt\./,
                 // The diagnostics live in the companion jar (verifyDiagnosticsJar).
-                ~/^com\/demonica\/diagnostics\//, ~/^mixins\.demonica\.diagnostics/
+                ~/^com\/demonica\/diagnostics\//, ~/^mixins\.demonica\.diagnostics/,
+                ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/
             ]
             names.each { name ->
                 if (forbidden.any { name =~ it }) {
@@ -777,6 +778,9 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'com/demonica/mixins/MixinEarly.class',
                 'net/coderbot/iris/Iris.class',
                 'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
+                // The no-op side of the diagnostics, which finds the companion jar.
+                'net/coderbot/iris/debug/Diagnostics.class',
+                'net/coderbot/iris/debug/DiagnosticsProvider.class',
                 'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend',
                 'META-INF/services/com.mitchej123.glsm.GLStateManagerService',
                 'mixins.demonica.core.json',
@@ -861,7 +865,9 @@ def verifyDiagnosticsJar = tasks.register('verifyDiagnosticsJar') {
             def required = [
                 'mcmod.info', config, refmap, 'LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md',
                 'com/demonica/diagnostics/DiagnosticsCoremod.class',
-                'com/demonica/diagnostics/DemonicaDiagnosticsMod.class'
+                'com/demonica/diagnostics/DemonicaDiagnosticsMod.class',
+                'com/demonica/diagnostics/DemonicaDiagnosticsProvider.class',
+                'META-INF/services/net.coderbot.iris.debug.DiagnosticsProvider'
             ]
             (required - names).each { problems << "missing entry ${it}" }
 
