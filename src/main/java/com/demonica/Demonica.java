@@ -33,6 +33,7 @@ import net.minecraftforge.fml.common.ModContainer;
 import net.minecraftforge.fml.common.event.FMLConstructionEvent;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import org.apache.logging.log4j.LogManager;
 
 import java.io.IOException;
 
@@ -97,8 +98,8 @@ public class Demonica {
         }
         String devScript = System.getProperty("demonica.dev.script");
         if (devScript != null && !devScript.isBlank() && !Diagnostics.present()) {
-            Iris.logger.warn("demonica.dev.script is set, but the dev harness is part of the diagnostics jar, which is "
-                + "not installed: add Demonica-diagnostics-{}.jar", DemonicaRuntime.version());
+            LogManager.getLogger("Demonica").warn("demonica.dev.script is set, but the dev harness is part of the "
+                + "diagnostics jar, which is not installed: add Demonica-diagnostics-{}.jar", DemonicaRuntime.version());
         }
         DemonicaDiagnostics.logInitialization(DemonicaRuntime.version());
     }
