@@ -149,7 +149,7 @@ public class GLStateManager {
         if (WARN_ONCE.add(key)) LOGGER.warn(fmt, args);
     }
     private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
-    /** Escape hatch: -Dactinium.glsmFullClientArrayUpload=true restores whole-allocation uploads per draw. */
+    /** Escape hatch: -Ddemonica.glsmFullClientArrayUpload=true restores whole-allocation uploads per draw. */
     private static final boolean FULL_CLIENT_ARRAY_UPLOAD = Boolean.getBoolean("demonica.glsmFullClientArrayUpload");
 
     // Thread Checking - must be early in static init order so isMainThread() works for state initialization

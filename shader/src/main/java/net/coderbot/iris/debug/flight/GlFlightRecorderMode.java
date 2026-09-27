@@ -33,7 +33,7 @@ public enum GlFlightRecorderMode {
             case "off" -> OFF;
             case "crash" -> CRASH;
             default -> throw new IllegalArgumentException(
-                "Invalid actinium.glFlightRecorder value '" + value + "'; expected off or crash"
+                "Invalid demonica.glFlightRecorder value '" + value + "'; expected off or crash"
             );
         };
     }

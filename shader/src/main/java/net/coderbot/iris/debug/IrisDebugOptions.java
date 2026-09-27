@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Debug/regression switches consumed by the shader pipeline.
  *
- * <p>Read live from a bridge registered by the host mod (Actinium), so
+ * <p>Read live from a bridge registered by the host mod (Demonica), so
  * in-game config changes take effect without a restart and the shader module
  * does not depend on the host's runtime.
  */

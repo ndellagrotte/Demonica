@@ -50,8 +50,8 @@ public final class IrisGlDebug {
 	private static final Map<String, TerrainRendererTiming> TERRAIN_RENDERER_TIMINGS = new ConcurrentHashMap<>();
 	private static final Map<String, Long> WHITE_SCREEN_PROBE_TIMES = new ConcurrentHashMap<>();
 	private static final Map<String, Integer> WHITE_SCREEN_PROBE_COUNTS = new ConcurrentHashMap<>();
-	private static final boolean ENABLE_TEXTURE_UNIT_LOGS = Boolean.getBoolean("actinium.debug.textureUnitLogs");
-	private static final boolean ENABLE_PORTAL_RENDER_LOGS = Boolean.getBoolean("actinium.debug.portalRenderLogs");
+	private static final boolean ENABLE_TEXTURE_UNIT_LOGS = Boolean.getBoolean("demonica.debug.textureUnitLogs");
+	private static final boolean ENABLE_PORTAL_RENDER_LOGS = Boolean.getBoolean("demonica.debug.portalRenderLogs");
 	private static long lastShadowEntityLogTime;
 	private static long lastShadowPassLogTime;
     private static long compositeTimingWindowStart;
