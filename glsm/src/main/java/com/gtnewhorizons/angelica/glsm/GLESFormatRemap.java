@@ -18,7 +18,7 @@ public final class GLESFormatRemap {
     public record Result(int internalFormat, int format, int type) {}
 
     public static Result apply(int internalformat, int format, int type, boolean isGLES) {
-        internalformat = promoteAlphaFormat(internalformat);
+        internalformat = GLTypes.promoteAlphaFormat(internalformat);
         if (isGLES) {
             internalformat = remapInternalFormat(internalformat);
             if (type == GL12.GL_UNSIGNED_INT_8_8_8_8_REV && (format == GL12.GL_BGRA || format == GL11.GL_RGBA)) {
@@ -29,16 +29,6 @@ public final class GLESFormatRemap {
             }
         }
         return new Result(internalformat, format, type);
-    }
-
-    public static int promoteAlphaFormat(int internalformat) {
-        return switch (internalformat) {
-            case GL11.GL_ALPHA4 -> GL11.GL_RGBA4;
-            case GL11.GL_ALPHA8 -> GL11.GL_RGBA8;
-            case GL11.GL_ALPHA12 -> GL11.GL_RGBA12;
-            case GL11.GL_ALPHA16 -> GL11.GL_RGBA16;
-            default -> internalformat;
-        };
     }
 
     public static int remapInternalFormat(int internalformat) {

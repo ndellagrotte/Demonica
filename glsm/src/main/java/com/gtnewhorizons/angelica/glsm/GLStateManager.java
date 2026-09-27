@@ -2152,7 +2152,7 @@ public class GLStateManager {
     }
 
     private static int changeFormatIfDeprecated(int internalformat) {
-        internalformat = GLESFormatRemap.promoteAlphaFormat(internalformat);
+        internalformat = GLTypes.promoteAlphaFormat(internalformat);
         if (RenderSystem.isGLES()) {
             internalformat = GLESFormatRemap.remapInternalFormat(internalformat);
         }
