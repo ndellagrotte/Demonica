@@ -5,7 +5,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Debug/regression switches consumed by the shader pipeline.
+ * Switches the shader pipeline reads from Demonica: whether Iris and its Celeritas integration run, pack-facing
+ * options, and why shaders are unavailable. The diagnostics' own switches are read by the diagnostics jar.
  *
  * <p>Read live from a bridge registered by the host mod (Demonica), so
  * in-game config changes take effect without a restart and the shader module
@@ -15,8 +16,6 @@ public final class IrisDebugOptions {
 
     /** Bridge implemented by the host mod; reads its own config live. */
     public interface Bridge {
-        boolean pbrDebugEnabled();
-        boolean enableActiniumGlDebug();
         boolean ignoreFramebufferErrors();
         boolean enableIris();
         boolean enableCeleritas();
@@ -40,16 +39,6 @@ public final class IrisDebugOptions {
 
     public static void setBridge(Bridge newBridge) {
         bridge = newBridge;
-    }
-
-    public static boolean pbrDebugEnabled() {
-        Bridge b = bridge;
-        return b != null && b.pbrDebugEnabled();
-    }
-
-    public static boolean enableActiniumGlDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableActiniumGlDebug();
     }
 
     public static boolean ignoreFramebufferErrors() {
