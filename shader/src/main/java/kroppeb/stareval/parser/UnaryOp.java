@@ -1,8 +1,5 @@
 package kroppeb.stareval.parser;
 
-import com.github.bsideup.jabel.Desugar;
-
-@Desugar
 public record UnaryOp(String name) {
 
 

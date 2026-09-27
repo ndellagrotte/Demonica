@@ -779,7 +779,9 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/\/GlStateDiffProbe/, ~/\/GpuCheckpointTracker/,
                 ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/,
                 // Angelica's GLStateManagerService layer, which nothing loaded.
-                ~/^com\/mitchej123\/glsm\//, ~/^META-INF\/services\/com\.mitchej123\.glsm\./
+                ~/^com\/mitchej123\/glsm\//, ~/^META-INF\/services\/com\.mitchej123\.glsm\./,
+                // Jabel's @Desugar stub; the build targets Java 21, where records need no desugaring.
+                ~/^com\/github\/bsideup\//
             ]
             names.each { name ->
                 if (forbidden.any { name =~ it }) {
