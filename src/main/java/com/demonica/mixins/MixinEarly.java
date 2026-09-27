@@ -2,7 +2,9 @@ package com.demonica.mixins;
 
 import com.demonica.DemonicaIrisBridge;
 import com.demonica.loading.Environment;
+import com.demonica.loading.fml.transformers.GnetumHudCachingCompatTransformer;
 import com.demonica.loading.fml.transformers.MacDisplayForwardCompatTransformer;
+import com.demonica.loading.fml.transformers.StellarCoreHudCachingCompatTransformer;
 import net.coderbot.iris.debug.IrisDebugOptions;
 import net.minecraft.launchwrapper.Launch;
 import net.minecraftforge.fml.relauncher.IFMLLoadingPlugin;
@@ -17,10 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Demonica's coremod. It registers the GL redirector and the early mixin configs, but only when upstream Celeritas and
- * S8TNLib are installed and Actinium is not: without either mod, FML's missing-mods screen must be what the player
- * sees, and with Actinium, the {@code @Mod} reports the conflict ({@link com.demonica.Demonica}). It never loads a
- * Celeritas or S8TNLib class: S8TNLib's jar may reach the class loader after this coremod is constructed.
+ * Demonica's coremod. It registers the GL redirector, the class transformers in {@code loading.fml.transformers} and
+ * the early mixin configs, but only when upstream Celeritas and S8TNLib are installed and Actinium is not: without
+ * either mod, FML's missing-mods screen must be what the player sees, and with Actinium, the {@code @Mod} reports the
+ * conflict ({@link com.demonica.Demonica}). It never loads a Celeritas or S8TNLib class: S8TNLib's jar may reach the
+ * class loader after this coremod is constructed.
  */
 @IFMLLoadingPlugin.Name("Demonica")
 @IFMLLoadingPlugin.MCVersion("1.12.2")
@@ -75,6 +78,9 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         }
         return new String[] {
             MacDisplayForwardCompatTransformer.class.getName(),
+            // StellarCore's and Gnetum's HUD caches, bridged to GLSM; each touches only its one target class.
+            StellarCoreHudCachingCompatTransformer.class.getName(),
+            GnetumHudCachingCompatTransformer.class.getName(),
             "com.gtnewhorizons.angelica.loading.fml.transformers.EarlyRedirectorTransformer"
         };
     }

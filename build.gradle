@@ -447,8 +447,8 @@ dependencies {
     modCompileOnly 'curse.maven:revo-ui-1620532:8593682'
     // Component Model Hider 1.0 (Multiblocked's block-model hiding API, driven by Modular Machinery CE).
     modCompileOnly 'curse.maven:component-model-hider-940949:4885858'
-    // Not compiled against: the tests of StellarCoreHudCachingCompatTransformer and of GLSM's redirector run them over
-    // these mods' classes (StellarCore's HUD caching, JourneyMap's grid colours).
+    // Not compiled against: StellarCoreHudCachingCompatTransformer's test and GLSM's redirector tests run over these
+    // mods' classes (StellarCore's HUD caching, JourneyMap's grid colours). -PwithHudCache=stellarcore loads both.
     modCompileOnly 'curse.maven:stellarcore-1064321:8406201'
     modCompileOnly 'curse.maven:journeymap-32274:5172461'
 

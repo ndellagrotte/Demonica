@@ -60,8 +60,9 @@ own license:
 - the mods Demonica has compatibility code for: Distant Horizons, Botania,
   CoFH Core, Extra Utilities 2, iChunUtil, CreativeCore, LittleTiles,
   GregTech CEu, CodeChickenLib, Obscure Tooltips, OldResearchReborn, Scannable,
-  VoxelMap, Fluidlogged API, RevoUI and the Component Model Hider;
-- what only the tests use: JUnit, Guava, Gnetum, StellarCore and JourneyMap.
+  VoxelMap, Fluidlogged API, RevoUI, the Component Model Hider, StellarCore and
+  Gnetum (whose classes the HUD-cache transformers and their tests read);
+- what only the tests use: JUnit, Guava and JourneyMap.
 
 See `build.gradle` for the exact coordinates.
 

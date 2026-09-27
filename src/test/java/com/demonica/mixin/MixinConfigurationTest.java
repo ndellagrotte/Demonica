@@ -103,6 +103,53 @@ class MixinConfigurationTest {
         assertEquals(Set.copyOf(MAIN_CONFIGS), allLoadedConfigs);
     }
 
+    /**
+     * A transformer that nothing registers is shipped dead code: the StellarCore and Gnetum HUD-cache bridges sat
+     * unregistered from the port until feat/drop-dead-code.
+     */
+    @Test
+    void everyCoremodTransformerIsRegistered() throws IOException, URISyntaxException {
+        ClassLoader classLoader = MixinConfigurationTest.class.getClassLoader();
+        String anchorResource = "com/demonica/loading/fml/transformers/MacDisplayForwardCompatTransformer.class";
+        URL anchorUrl = Objects.requireNonNull(classLoader.getResource(anchorResource), "Missing " + anchorResource);
+        assertEquals("file", anchorUrl.getProtocol(), "Compiled transformers must be available as files during tests");
+
+        Set<String> transformers = new HashSet<>();
+        try (Stream<Path> paths = Files.list(Path.of(anchorUrl.toURI()).getParent())) {
+            for (Path classFile : paths.filter(path -> path.getFileName().toString().endsWith(".class")).toList()) {
+                ClassNode node = new ClassNode();
+                try (var stream = Files.newInputStream(classFile)) {
+                    new ClassReader(stream).accept(node,
+                        ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+                }
+                if (node.interfaces.contains("net/minecraft/launchwrapper/IClassTransformer")) {
+                    transformers.add(node.name.replace('/', '.'));
+                }
+            }
+        }
+        assertFalse(transformers.isEmpty(), "No transformers found next to " + anchorResource);
+
+        MethodNode registration = readClass(classLoader, "com/demonica/mixins/MixinEarly.class").methods.stream()
+            .filter(method -> "getASMTransformerClass".equals(method.name))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("MixinEarly.getASMTransformerClass not found"));
+        Set<String> registered = new HashSet<>();
+        for (var instruction = registration.instructions.getFirst(); instruction != null;
+             instruction = instruction.getNext()) {
+            if (instruction instanceof LdcInsnNode ldc) {
+                if (ldc.cst instanceof Type type) {
+                    registered.add(type.getClassName());
+                } else if (ldc.cst instanceof String name) {
+                    registered.add(name);
+                }
+            }
+        }
+        for (String transformer : transformers) {
+            assertTrue(registered.contains(transformer),
+                transformer + " is not registered in MixinEarly.getASMTransformerClass");
+        }
+    }
+
     @Test
     void mainConfigsDeclareExpectedMetadataAndRefmapNames() throws IOException {
         ClassLoader classLoader = MixinConfigurationTest.class.getClassLoader();
