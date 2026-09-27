@@ -39,7 +39,8 @@ import org.objectweb.asm.tree.MethodNode;
  *   <li>after each {@code renderingCacheOverride} store, mirror the value onto
  *       {@code GLSMConfig.hudCacheOverride} so the GLSM blend/color paths apply
  *       the same overrides StellarCore would have applied;</li>
- *   <li>right before the {@code GuiIngame.renderGameOverlay} call inside the
+ *   <li>right before the {@code GuiIngame.renderGameOverlay} call ({@code func_175180_a}
+ *       in StellarCore's release jar) inside the
  *       override window, restore the HUD baseline (alpha test {@code GREATER/0.1}
  *       etc.), since the call site that normally carries the baseline
  *       restoration in {@code EntityRenderer.updateCameraAndRender} is replaced
@@ -69,7 +70,9 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
     private static final String BOUNDARY_DESC = "()V";
 
     private static final String GAME_OVERLAY_OWNER = "net/minecraft/client/gui/GuiIngame";
+    // StellarCore's release jar calls the SRG name; the dev client remaps it to the MCP name.
     private static final String GAME_OVERLAY_METHOD = "renderGameOverlay";
+    private static final String GAME_OVERLAY_SRG_METHOD = "func_175180_a";
     private static final String GAME_OVERLAY_DESC = "(F)V";
 
     @Override
@@ -81,23 +84,36 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
         ClassReader classReader = new ClassReader(basicClass);
         ClassNode classNode = new ClassNode();
         classReader.accept(classNode, 0);
-        boolean transformed = false;
+        Rewrite rewrite = Rewrite.NONE;
 
         for (MethodNode method : classNode.methods) {
             if (!TARGET_METHOD.equals(method.name) || !TARGET_METHOD_DESC.equals(method.desc)) {
                 continue;
             }
-            transformed = rewriteRenderCachedHud(method);
+            rewrite = rewriteRenderCachedHud(method);
             break;
         }
 
-        if (!transformed) {
+        if (rewrite.mirrored() == 0) {
             LOGGER.warn(
                 "Could not find the expected HudCaching instructions in {}; "
                     + "StellarCore's cached HUD may render incorrectly",
                 TARGET_CLASS
             );
             return basicClass;
+        }
+        if (rewrite.restored() == 0) {
+            LOGGER.warn(
+                "Mirrored {} renderingCacheOverride stores in {} but found no GuiIngame.renderGameOverlay "
+                    + "call to restore the HUD baseline before; StellarCore's cached HUD may render incorrectly",
+                rewrite.mirrored(), TARGET_CLASS
+            );
+        } else {
+            LOGGER.info(
+                "StellarCore HUD caching bridged: mirrored {} renderingCacheOverride stores and "
+                    + "restored the HUD baseline before {} cached HUD render(s)",
+                rewrite.mirrored(), rewrite.restored()
+            );
         }
 
         // No branches are added and the stack balance is unchanged, so the
@@ -108,8 +124,13 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
         return writer.toByteArray();
     }
 
-    private static boolean rewriteRenderCachedHud(MethodNode method) {
-        boolean transformed = false;
+    private record Rewrite(int mirrored, int restored) {
+        static final Rewrite NONE = new Rewrite(0, 0);
+    }
+
+    private static Rewrite rewriteRenderCachedHud(MethodNode method) {
+        int mirrored = 0;
+        int restored = 0;
         boolean insideOverrideWindow = false;
 
         for (AbstractInsnNode instruction = method.instructions.getFirst();
@@ -122,7 +143,7 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
                 int value = pushed != null ? constantValue(pushed) : -1;
                 if (value < 0) {
                     LOGGER.warn("renderingCacheOverride store without a constant push in {}; aborting", TARGET_CLASS);
-                    return false;
+                    return Rewrite.NONE;
                 }
                 // The pushed constant was consumed by the original store, so
                 // re-push it for the mirrored store (net stack change: zero).
@@ -138,7 +159,7 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
                     method.instructions.insertBefore(anchor, mirror);
                 }
                 insideOverrideWindow = value == 1;
-                transformed = true;
+                mirrored++;
                 continue;
             }
 
@@ -149,11 +170,11 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
                     instruction,
                     new MethodInsnNode(Opcodes.INVOKESTATIC, BOUNDARY_OWNER, BOUNDARY_METHOD, BOUNDARY_DESC, false)
                 );
-                transformed = true;
+                restored++;
             }
         }
 
-        return transformed;
+        return new Rewrite(mirrored, restored);
     }
 
     private static boolean isOverrideStore(FieldInsnNode field) {
@@ -164,7 +185,7 @@ public final class StellarCoreHudCachingCompatTransformer implements IClassTrans
 
     private static boolean isGameOverlayCall(MethodInsnNode call) {
         return GAME_OVERLAY_OWNER.equals(call.owner)
-            && GAME_OVERLAY_METHOD.equals(call.name)
+            && (GAME_OVERLAY_METHOD.equals(call.name) || GAME_OVERLAY_SRG_METHOD.equals(call.name))
             && GAME_OVERLAY_DESC.equals(call.desc);
     }
 
