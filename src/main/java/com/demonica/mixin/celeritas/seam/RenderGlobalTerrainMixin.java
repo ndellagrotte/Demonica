@@ -4,7 +4,6 @@ import com.demonica.celeritas.api.debug.RenderDebugHooksHolder;
 import com.demonica.celeritas.guard.Patch;
 import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
-import com.demonica.debug.GlStateDiffProbe;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -26,9 +25,9 @@ import java.util.Locale;
  * {@code @Overwrite}s {@code renderBlockLayer(BlockRenderLayer, double, int, Entity)} to draw through Celeritas; this
  * wraps that draw with Iris's terrain phases and translucent prelude, runs vanilla's one-argument overload for the
  * translucent layer (third-party injections, Distant Horizons' deferred LOD pass among them, are anchored inside it),
- * and moves the camera of the draw to the eye while a pack is active (see S6m). With the GL debug option on, the GL
- * state is compared across the draw and across that overload ({@link GlStateDiffProbe}); the perf-debug report times
- * the draw.
+ * and moves the camera of the draw to the eye while a pack is active (see S6m). With the diagnostics jar and the GL
+ * debug option on, the GL state is compared across the draw and across that overload ({@link RenderDebugHooksHolder});
+ * the perf-debug report times the draw.
  *
  * <p>The injections inside the overwritten body need a priority above upstream's 1000; HEAD and RETURN do not.
  */
@@ -48,16 +47,19 @@ public abstract class RenderGlobalTerrainMixin {
     }
 
     // Its renderContainer draws nothing, since Celeritas owns chunk rendering and never fills it. Distant Horizons
-    // anchors its deferred transparent LOD pass inside it, so the GL state is sampled across it (GlStateDiffProbe,
-    // a no-op while the GL debug option is off): a difference here belongs to DH, one across the draw to Celeritas.
+    // anchors its deferred transparent LOD pass inside it, so the GL state is sampled across it (the diagnostics jar's
+    // GL state probe, a no-op without it or while the GL debug option is off): a difference here belongs to DH, one
+    // across the draw to Celeritas.
     @Inject(method = "renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;enableLightmap()V"))
     private void demonica$runVanillaTranslucentLayer(BlockRenderLayer layer, double partialTicks, int pass, Entity entity,
                                                      CallbackInfoReturnable<Integer> cir) {
         if (layer == BlockRenderLayer.TRANSLUCENT) {
-            GlStateDiffProbe.Snapshot before = GlStateDiffProbe.capture();
+            Object before = RenderDebugHooksHolder.captureGlState();
             this.renderBlockLayer(layer);
-            GlStateDiffProbe.diffAndPrint("dh-injection-translucent-pass" + pass, before, GlStateDiffProbe.capture());
+            if (before != null) {
+                RenderDebugHooksHolder.compareGlState("dh-injection-translucent-pass" + pass, before);
+            }
         }
     }
 
@@ -78,13 +80,16 @@ public abstract class RenderGlobalTerrainMixin {
     private void demonica$observeTerrainDraw(CeleritasWorldRenderer renderer, BlockRenderLayer layer, double x, double y,
                                              double z, Operation<Void> original, @Local(argsOnly = true) int pass) {
         long startNanos = RenderDebugHooksHolder.beginRenderGlobalStageTiming();
-        GlStateDiffProbe.Snapshot before = GlStateDiffProbe.capture();
+        Object before = RenderDebugHooksHolder.captureGlState();
         try {
             original.call(renderer, layer, x, y, z);
         } finally {
-            String layerName = layer.name().toLowerCase(Locale.ROOT);
-            GlStateDiffProbe.diffAndPrint("celeritas-draw-" + layerName + "-pass" + pass, before, GlStateDiffProbe.capture());
-            RenderDebugHooksHolder.recordRenderGlobalStageTiming("terrain-" + layerName, pass, startNanos);
+            // Nothing to name while neither the probe nor the timing is on, as without the diagnostics jar.
+            if (before != null || startNanos != 0L) {
+                String layerName = layer.name().toLowerCase(Locale.ROOT);
+                RenderDebugHooksHolder.compareGlState("celeritas-draw-" + layerName + "-pass" + pass, before);
+                RenderDebugHooksHolder.recordRenderGlobalStageTiming("terrain-" + layerName, pass, startNanos);
+            }
         }
     }
 

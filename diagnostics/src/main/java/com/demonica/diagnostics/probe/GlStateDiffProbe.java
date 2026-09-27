@@ -1,6 +1,6 @@
-package com.demonica.debug;
+package com.demonica.diagnostics.probe;
 
-import com.demonica.runtime.DemonicaRuntime;
+import com.demonica.config.DemonicaRuntimeOptions;
 import org.apache.logging.log4j.LogManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -18,15 +18,15 @@ import static com.mitchej123.lwjgl.LWJGLServiceProvider.LWJGL;
  * this measurement, because a DH build carrying its own GL state logging crashed when combined with
  * Actinium. DH's own {@code GLStateSnapshot} / {@code diffAndPrint} (in its {@code MixinRenderGlobal},
  * currently disabled behind {@code DEBUG_GL_STATE = false}) is the model; this is Demonica's equivalent.
- * S8 ({@code RenderGlobalTerrainMixin}) hooks it twice, around vanilla's one-argument
- * {@code renderBlockLayer} (where DH's injection point is) and around Celeritas's terrain draw, so a leaked
- * state can be attributed to one of the two.</p>
+ * S8 ({@code RenderGlobalTerrainMixin}) hooks it twice through {@code RenderDebugHooks}, around vanilla's
+ * one-argument {@code renderBlockLayer} (where DH's injection point is) and around Celeritas's terrain draw, so a
+ * leaked state can be attributed to one of the two.</p>
  *
  * <p>The snapshot deliberately reads state through the LWJGL service (the driver's values) instead of
  * glsm's tracked values: the question being answered is precisely whether what the driver holds matches
  * what the state tracker believes.</p>
  *
- * <p>Gated by Demonica's GL debug option ({@code debug.enable_gl_debug}).
+ * <p>Gated by Demonica's GL debug option ({@code debug.enable_gl_debug}, or {@code -Ddemonica.glDebug}).
  * {@link #capture()} returns {@code null} while the option is off, so the disabled path allocates
  * nothing.</p>
  */
@@ -43,7 +43,7 @@ public final class GlStateDiffProbe {
      * @return true when the in-game GL debug option is enabled
      */
     public static boolean isEnabled() {
-        return DemonicaRuntime.options().debug.enableGlDebug;
+        return DemonicaRuntimeOptions.glDebugEnabled();
     }
 
     /**

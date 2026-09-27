@@ -1,6 +1,8 @@
 package com.demonica.diagnostics.iris;
 
 import com.demonica.celeritas.api.debug.RenderDebugHooks;
+import com.demonica.diagnostics.probe.GlStateDiffProbe;
+import org.jetbrains.annotations.Nullable;
 
 /** The Celeritas seam's debug hooks ({@link RenderDebugHooks}), on {@link IrisGlDiagnostics}. */
 public final class IrisRenderDebugHooks implements RenderDebugHooks {
@@ -12,6 +14,18 @@ public final class IrisRenderDebugHooks implements RenderDebugHooks {
     @Override
     public boolean shouldCaptureGlState() {
         return IrisGlDiagnostics.shouldCaptureGlState();
+    }
+
+    @Override
+    public @Nullable Object captureGlState() {
+        return GlStateDiffProbe.capture();
+    }
+
+    @Override
+    public void compareGlState(String label, @Nullable Object before) {
+        if (before instanceof GlStateDiffProbe.Snapshot snapshot) {
+            GlStateDiffProbe.diffAndPrint(label, snapshot, GlStateDiffProbe.capture());
+        }
     }
 
     @Override
