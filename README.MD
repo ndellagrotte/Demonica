@@ -29,7 +29,8 @@ S8TNLib, so that the game can tell you which is missing.
   redirected.
 - Iris's and Demonica's settings in Celeritas's Video Settings, next to its
   Shader Packs tab.
-- Actinium's end portal and debug tools, and its compatibility with other mods.
+- Actinium's end portal and its compatibility with other mods; its debug tools
+  are a separate, optional jar ([below](#the-diagnostics-jar)).
 
 Demonica patches Celeritas's own classes in one place only, and each patch is
 recorded with a draft of the upstream change that would make it unnecessary
@@ -64,16 +65,53 @@ for the version in `s8tnlib_version`, so a snapshot also needs
 `-Ps8tnlib_version=<version>`, such as `0.4.0-SNAPSHOT`.
 
 The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
-normal install. `runClient` takes:
+normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<version>.jar`.
+`runClient` takes:
 
 | Property | Effect |
 |---|---|
-| `-PdevScript=@scripts/<name>.txt` | drive the client from a script in `run/client/scripts` (steps in `com.demonica.dev.DevHarness`) |
+| `-PdevScript=@scripts/<name>.txt` | drive the client from a script in `run/client/scripts` (steps in `com.demonica.diagnostics.dev.DevHarness`, part of the diagnostics jar) |
 | `-PdevProps=key=value,...` | pass system properties, for example `demonica.guard.drill=SHADOW` to rehearse a patch group failing |
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
 | `-PwithoutS8tnlib` | leave S8TNLib out, likewise |
+| `-PwithoutDiagnostics` | leave the diagnostics jar out, as a player without it runs |
 | `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |
+
+## The diagnostics jar
+
+Demonica's GL debugging tools are a separate mod,
+`Demonica-diagnostics-<version>.jar`, which every build makes next to the mod
+jar. The mod jar calls them through no-op stand-ins, so without
+the diagnostics jar they cost nothing and log nothing. It carries:
+
+- the GL debug logs and timing tables of the Iris pipeline (world pass, game
+  loop, composite and final passes, framebuffer output), the GL state probe
+  around Celeritas's terrain draw, and GLSM's draw logs;
+- the PBR texture and shader regression logs;
+- the GL flight recorder, a crash-safe record of the last GL commands and
+  stages;
+- the scripted dev harness that `-PdevScript` drives.
+
+Dev runs load it; `-PwithoutDiagnostics` runs what a player without it has.
+For a bug report, put it in `mods/` next to `Demonica-<version>.jar` of the
+same version (it does nothing next to another version), then turn on what is
+asked for:
+
+| Switch | Effect |
+|---|---|
+| Video Settings → Debug → GL State Debug (`debug.enable_gl_debug`), or `-Ddemonica.glDebug=true` | GL state checkpoints, pipeline and framebuffer logs, the GL state probe, GLSM's draw logs, the regression logs |
+| Render Timing Debug, GPU Timing Debug, or `-Ddemonica.perfDebug=true`, `-Ddemonica.gpuPerfDebug=true` | the timing tables, with GPU timer queries |
+| PBR Texture Debug, or `-Ddemonica.pbrDebug=true` | PBR loading logs and an export of each PBR atlas to `pbr_debug/atlas` |
+| Cloud Control Debug, or `-Ddemonica.cloudControlDebug=true` | the cloud-control pixels Bliss's cloud passes read |
+| `-Ddemonica.glFlightRecorder=crash` | record to `diagnostics/gl-flight-*.bin` |
+| `-Ddemonica.glsm.verboseDrawLogs=true`, `-Ddemonica.debug.textureUnitLogs=true`, `-Ddemonica.debug.portalRenderLogs=true` | further GLSM draw, texture-unit and end-portal logs |
+
+The Debug page appears with `"enable_debug_tab": true` in
+`config/demonica-options.json`; its GL debug switches show only while the
+diagnostics jar is installed. A flight recording is read with
+`java -cp Demonica-diagnostics-<version>.jar com.demonica.diagnostics.flight.GlFlightRecordingDecoder <file>`,
+which prints it as JSON.
 
 ## License
 
@@ -82,7 +120,7 @@ Iris's code is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
 Angelica's license file), which may be conveyed under GPL-3.0; the code ported
 from Actinium is GPL-3.0. S8TNLib, installed separately, is GPL-3.0 too. The
 MIT- and BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-has the details, and the mod jar carries all three files.
+has the details, and the mod jar and the diagnostics jar carry all three files.
 
 ## Credits
 

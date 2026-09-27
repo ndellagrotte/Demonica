@@ -65,14 +65,14 @@ own license:
 
 See `build.gradle` for the exact coordinates.
 
-## In the mod jar
+## In the jars
 
-The mod jar and the sources jar carry three files from the repository root:
+The mod jar, the diagnostics jar and the sources jar carry three files from the repository root:
 `LICENSE` (the GPL-3.0 text), `LICENSE-LGPL-3.0.txt` (Angelica's license file:
 the ShadersMod notice, then the LGPL-3.0 text) and this page, whose
 [Notices](#notices) reproduce the MIT and BSD notices that binary copies must
-carry: Mesa's and LWJGL's. `verifyDistributedJar`
-fails the build if any of the three files is missing. This page's links do not
+carry: Mesa's and LWJGL's. `verifyDistributedJar` and `verifyDiagnosticsJar`
+fail the build if any of the three files is missing from their jar. This page's links do not
 resolve inside the jar; the notices below are complete on their own.
 
 ## Notices

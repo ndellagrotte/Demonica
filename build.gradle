@@ -553,7 +553,7 @@ jar {
         from configurations.contain
     }
 
-    // The license texts and the notices a binary copy must carry (THIRD_PARTY_NOTICES.md, "In the mod jar").
+    // The license texts and the notices a binary copy must carry (THIRD_PARTY_NOTICES.md, "In the jars").
     from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 
     doFirst {
@@ -772,7 +772,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
             }
             def required = [
                 'mcmod.info',
-                // The license texts and notices (THIRD_PARTY_NOTICES.md, "In the mod jar").
+                // The license texts and notices (THIRD_PARTY_NOTICES.md, "In the jars").
                 'LICENSE',
                 'LICENSE-LGPL-3.0.txt',
                 'THIRD_PARTY_NOTICES.md',

@@ -68,6 +68,8 @@ The ten findings, by leverage:
 8. **7,200 lines of diagnostics ship in the mod jar**, including a 2,789-line GL
    debug facility, a 1,667-line GL flight recorder and a scripted dev harness
    that `Demonica.onInit` installs in production.
+   *Done on `feat/diagnostics-out` (0.4.0-SNAPSHOT) as a companion jar,
+   `Demonica-diagnostics-<version>.jar`: see 3.6.*
 9. **S8TNLib's split costs more than it returns while Demonica is its only
    host.** CI checks out and builds it on every run, contributors publish it to
    `mavenLocal` by hand, and two verification tasks exist only because of that.
@@ -387,6 +389,50 @@ Celeritas user without Demonica.
 About 7,200 lines, five percent of the jar. Several switches still carry
 Actinium's names (`actinium.debug.textureUnitLogs`, `enableActiniumGlDebug`).
 
+**Status (2026-09-27, `feat/diagnostics-out`).** The diagnostics are a separate
+mod, `Demonica-diagnostics-<version>.jar`, built by the `:diagnostics` project
+next to the mod jar and remapped by Unimined with its own refmap. Dev runs load
+it (`-PwithoutDiagnostics` runs without it); a player adds it for a bug report.
+Its coremod registers its mixins only when Demonica is active and of the same
+version. The mod jar reaches it through no-op facades that keep their names
+(`IrisGlDebug`, `GlFlight`, `PBRDebug`, `ShaderRegressionDebug`, GLSM's
+`GLSMDebug`, and `RenderDebugHooks` for the seam), installed by
+`net.coderbot.iris.debug.Diagnostics`, which finds the jar with `ServiceLoader`
+when GLSM initializes. The table was wrong in one place, and one row hid a
+dependency:
+- `dev/` was `DevHarness` alone (374 lines): `OptionsHarnessSteps` went with
+  RSO. The harness did nothing without `-Ddemonica.dev.script`, but the
+  production smoke test drove the mod jar with it, so that test now needs the
+  diagnostics jar next to the mod. Its `press` step uses an accessor mixin
+  instead of reflection by MCP names, so it works in production too.
+- Of the root `debug/` row only `GlStateDiffProbe` was diagnostics:
+  `DemonicaDiagnostics` (the one-line startup log, which now names the
+  diagnostics jar), `DemonicaStartupDebugConfig` (the LWJGL debug context),
+  `CoreProfileContextAttributes` and `OpenGlVersion` (which create the
+  core-profile context) stay.
+
+Moved: `IrisGlDebug`'s implementation and the seam's debug hooks, the flight
+recorder and its tests, `PBRDebug`'s and `ShaderRegressionDebug`'s
+implementations (with the PBR atlas export), `GlStateDiffProbe`, GLSM's
+`GLSMDebug` and `GpuCheckpointTracker`, `DevHarness`, and every injector that
+only logged, timed or marked a stage: 33 in `EntityRendererIrisMixin`, the game
+loop's timing table, the framebuffer output logs, the flight recorder's frame
+markers and the texture debug labels. Stayed: `GLSMPerfDebug` and its hooks
+(Render Timing Debug; the glsl-transformer plan's measurements use them),
+`TimerQueryManager`, `IrisDebugOptions` with only its production switches, and
+the skipping of vanilla's per-frame "Pre render" and "Post render" glGetError
+checks, now `MinecraftGlErrorCheckMixin`. Without the diagnostics jar, the
+calls that remain are empty, and the arguments that cost something to build
+(`InputAvailability.toString()` on every phase change, a `glGetInteger` on
+every mod program override, the entity renderer lookup per entity, the terrain
+layer names per draw) are not built. The Debug page lists GL State Debug, PBR,
+Cloud Control and GPU Timing Debug only with the diagnostics jar. The switches
+lost Actinium's names: `-Ddemonica.debug.textureUnitLogs`,
+`-Ddemonica.debug.portalRenderLogs`, and `DemonicaRuntimeOptions` instead of
+`IrisDebugOptions.enableActinium*`. The mod's Java went from 109,788 to 103,645
+lines; the diagnostics jar is 7,620 lines (160 KB), including its coremod,
+facade adapters and the harness's accessor.
+
 ### 3.7 S8TNLib
 
 The split gives S8TNLib clear provenance and a place for other Cleanroom mods
@@ -555,7 +601,10 @@ either a port omission or dead code; the tests and the two mod pins go with the
 decision), `docs/opengl_32_core.xml`, and the Jabel stub. About 4,000 lines.
 Dependency: none.
 
-**G. Take the diagnostics out of the jar.** Move `dev/` to a `dev` source set
+**G. Take the diagnostics out of the jar.** *Done on `feat/diagnostics-out`, as a
+companion jar rather than a source set or a build flag, so that a player can
+add it for a bug report and the production smoke test can run the harness; see
+3.6's Status.* Move `dev/` to a `dev` source set
 that `runClient` sees and `jar` does not. Put the flight recorder and
 `IrisGlDebug`'s sampling and timing tables behind one compile-time module or a
 `-Pdiagnostics` build flag; keep the one-line startup diagnostics and the
@@ -684,7 +733,7 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 
 | Phase | Items | Approximate lines removed from the jar | Notes |
 |---|---|---|---|
-| 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible. C done (with O1) |
+| 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible. C done (with O1); G done, as a companion jar |
 | 2. Upstream conversations | A (provider interface to Celeritas), C1 and the mesher compat to Celeritas, the DH mod-id issue, the Lumenized and Scannable reports, the shared-engine question to Actinium, the GLSM artifact question to Angelica | 0 now; 3,000 to 6,000 when merged | Start these early; they run in parallel with everything else |
 | 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Do before the next pin move |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |

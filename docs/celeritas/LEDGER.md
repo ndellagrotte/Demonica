@@ -208,6 +208,10 @@ before Demonica's; the mods-folder search serves jars named to sort after it. Th
 one error in the logs is upstream's: `mixins.celeritas.json` names no refmap,
 which CleanMix reports as "Invalid REFMAP JSON" with Celeritas alone too.
 
+Since 0.4.0 (2026-09-27) the harness is part of the diagnostics jar,
+`Demonica-diagnostics-<version>.jar`, not of the mod jar: a production smoke test
+puts both jars of the same build in the instance's `mods/`.
+
 Checkpoint 9 (run/client/scripts/cp9.txt and cp9b.txt, with `-PwithCompatMods`),
 2026-09-24: with Distant Horizons, iChunUtil, LittleTiles, NeverEnoughAnimation,
 Snow! Real Magic!, ArchitectureCraft, Scannable, FluxLoading, Extra Utilities 2,
