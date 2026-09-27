@@ -761,6 +761,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/^META-INF\/services\/org\.embeddedt\./,
                 // The diagnostics live in the companion jar (verifyDiagnosticsJar).
                 ~/^com\/demonica\/diagnostics\//, ~/^com\/demonica\/dev\//, ~/^mixins\.demonica\.diagnostics/,
+                ~/^net\/coderbot\/iris\/celeritas\/debug\//,
                 ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/
             ]
             names.each { name ->
@@ -782,6 +783,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 // The no-op side of the diagnostics, which finds the companion jar.
                 'net/coderbot/iris/debug/Diagnostics.class',
                 'net/coderbot/iris/debug/DiagnosticsProvider.class',
+                'net/coderbot/iris/debug/IrisGlDebug.class',
                 'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend',
                 'META-INF/services/com.mitchej123.glsm.GLStateManagerService',
                 'mixins.demonica.core.json',

@@ -1,7 +1,11 @@
 package com.demonica.diagnostics;
 
+import com.demonica.celeritas.api.debug.RenderDebugHooksHolder;
+import com.demonica.diagnostics.iris.IrisGlDebugHooks;
+import com.demonica.diagnostics.iris.IrisRenderDebugHooks;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandRecorder;
 import net.coderbot.iris.debug.DiagnosticsProvider;
+import net.coderbot.iris.debug.IrisGlDebug;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
@@ -10,7 +14,12 @@ import java.util.Objects;
 public final class DemonicaDiagnosticsProvider implements DiagnosticsProvider {
     @Override
     public boolean install() {
-        return DiagnosticsCoremod.usable();
+        if (!DiagnosticsCoremod.usable()) {
+            return false;
+        }
+        IrisGlDebug.install(IrisGlDebugHooks.INSTANCE);
+        RenderDebugHooksHolder.setHooks(IrisRenderDebugHooks.INSTANCE);
+        return true;
     }
 
     @Override

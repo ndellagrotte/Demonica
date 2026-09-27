@@ -17,11 +17,6 @@ public final class IrisDebugOptions {
     public interface Bridge {
         boolean pbrDebugEnabled();
         boolean enableActiniumGlDebug();
-        boolean enableCloudControlDebug();
-        boolean enableFrameGlErrorCheck();
-        boolean enablePostRenderGlErrorCheck();
-        boolean enableActiniumPerfDebug();
-        boolean enableActiniumGpuPerfDebug();
         boolean ignoreFramebufferErrors();
         boolean enableIris();
         boolean enableCeleritas();
@@ -55,31 +50,6 @@ public final class IrisDebugOptions {
     public static boolean enableActiniumGlDebug() {
         Bridge b = bridge;
         return b != null && b.enableActiniumGlDebug();
-    }
-
-    public static boolean enableCloudControlDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableCloudControlDebug();
-    }
-
-    public static boolean enableFrameGlErrorCheck() {
-        Bridge b = bridge;
-        return b != null && b.enableFrameGlErrorCheck();
-    }
-
-    public static boolean enablePostRenderGlErrorCheck() {
-        Bridge b = bridge;
-        return b != null && b.enablePostRenderGlErrorCheck();
-    }
-
-    public static boolean enableActiniumPerfDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableActiniumPerfDebug();
-    }
-
-    public static boolean enableActiniumGpuPerfDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableActiniumGpuPerfDebug();
     }
 
     public static boolean ignoreFramebufferErrors() {

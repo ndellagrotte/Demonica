@@ -28,31 +28,6 @@ public final class DemonicaIrisBridge implements IrisDebugOptions.Bridge {
     }
 
     @Override
-    public boolean enableCloudControlDebug() {
-        return DemonicaRuntime.options().debug.enableCloudControlDebug;
-    }
-
-    @Override
-    public boolean enableFrameGlErrorCheck() {
-        return DemonicaRuntime.options().debug.enableFrameGlErrorCheck;
-    }
-
-    @Override
-    public boolean enablePostRenderGlErrorCheck() {
-        return DemonicaRuntime.options().debug.enablePostRenderGlErrorCheck;
-    }
-
-    @Override
-    public boolean enableActiniumPerfDebug() {
-        return DemonicaRuntime.options().debug.enablePerfDebug;
-    }
-
-    @Override
-    public boolean enableActiniumGpuPerfDebug() {
-        return DemonicaRuntime.options().debug.enableGpuPerfDebug;
-    }
-
-    @Override
     public boolean ignoreFramebufferErrors() {
         return DemonicaRuntime.options().debug.ignoreFramebufferErrors;
     }

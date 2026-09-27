@@ -1,5 +1,6 @@
 package com.demonica.mixin.features.iris;
 
+import com.demonica.config.DemonicaRuntimeOptions;
 import net.coderbot.iris.debug.IrisGlDebug;
 import net.minecraft.client.Minecraft;
 import com.demonica.gl.TimerQueryManager;
@@ -126,9 +127,9 @@ public class MinecraftGlDebugMixin {
     @Inject(method = "checkGLError(Ljava/lang/String;)V", at = @At("HEAD"), cancellable = true)
     private void demonica$markGlErrorCheck(String message, CallbackInfo ci) {
         IrisGlDebug.markStage("minecraft:check-gl-error:" + message);
-        if ("Pre render".equals(message) && !IrisGlDebug.shouldCheckPreRenderGlErrors()) {
+        if ("Pre render".equals(message) && !DemonicaRuntimeOptions.checkPreRenderGlErrors()) {
             ci.cancel();
-        } else if ("Post render".equals(message) && !IrisGlDebug.shouldCheckPostRenderGlErrors()) {
+        } else if ("Post render".equals(message) && !DemonicaRuntimeOptions.checkPostRenderGlErrors()) {
             ci.cancel();
         }
     }
