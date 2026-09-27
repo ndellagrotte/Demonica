@@ -5,7 +5,6 @@ import com.demonica.compat.kirino.KirinoCompat;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
-import com.demonica.dev.DevHarness;
 import com.demonica.gui.DemonicaOptionPages;
 import com.demonica.loading.ActiniumConflictException;
 import com.demonica.loading.Environment;
@@ -20,6 +19,7 @@ import com.gtnewhorizons.angelica.iris.IrisGLSMBridge;
 import com.mojang.realmsclient.gui.ChatFormatting;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.celeritas.WorldRendererCompatBridge;
+import net.coderbot.iris.debug.Diagnostics;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
 import net.coderbot.iris.rendertarget.IRenderTargetExt;
@@ -95,7 +95,11 @@ public class Demonica {
             Iris.INSTANCE.fmlInitEvent();
             MinecraftForge.EVENT_BUS.register(Iris.INSTANCE);
         }
-        DevHarness.install();
+        String devScript = System.getProperty("demonica.dev.script");
+        if (devScript != null && !devScript.isBlank() && !Diagnostics.present()) {
+            Iris.logger.warn("demonica.dev.script is set, but the dev harness is part of the diagnostics jar, which is "
+                + "not installed: add Demonica-diagnostics-{}.jar", DemonicaRuntime.version());
+        }
         DemonicaDiagnostics.logInitialization(DemonicaRuntime.version());
     }
 

@@ -1,6 +1,7 @@
-package com.demonica.dev;
+package com.demonica.diagnostics.dev;
 
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
+import com.demonica.diagnostics.mixin.GuiScreenAccessor;
 import com.demonica.gui.DemonicaGuiFactory;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.config.IrisConfig;
@@ -27,8 +28,6 @@ import org.taumc.celeritas.impl.gui.CeleritasVideoOptionsScreen;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,7 +46,8 @@ import java.util.function.BiFunction;
  * Drives a dev client through a scripted session so rendering can be checked without input tools: load a
  * world from a fixed seed, run commands, wait for terrain, take screenshots and exit. It does nothing unless
  * {@code -Ddemonica.dev.script} is set, either to the steps themselves (separated by {@code ;}) or to
- * {@code @path} of a file with one step per line.
+ * {@code @path} of a file with one step per line. It is part of the diagnostics jar, which installs it at init
+ * (DemonicaDiagnosticsMod), so a production install with that jar runs scripts too.
  *
  * <p>Steps:
  * <ul>
@@ -350,20 +350,15 @@ public final class DevHarness {
         }
     }
 
-    // Dev only (MCP names): GuiScreen.actionPerformed is how a click reaches a button's screen, and what mods inject into.
+    // GuiScreen.actionPerformed is how a click reaches a button's screen, and what mods inject into.
     private static void press(GuiScreen screen, int buttonId) {
+        GuiScreenAccessor access = (GuiScreenAccessor) screen;
+        GuiButton button = access.demonica$getButtonList().stream().filter(b -> b.id == buttonId).findFirst()
+            .orElseThrow(() -> new IllegalArgumentException(screen.getClass().getSimpleName() + " has no button " + buttonId));
         try {
-            Field buttons = GuiScreen.class.getDeclaredField("buttonList");
-            buttons.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            List<GuiButton> buttonList = (List<GuiButton>) buttons.get(screen);
-            GuiButton button = buttonList.stream().filter(b -> b.id == buttonId).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(screen.getClass().getSimpleName() + " has no button " + buttonId));
-            Method actionPerformed = GuiScreen.class.getDeclaredMethod("actionPerformed", GuiButton.class);
-            actionPerformed.setAccessible(true);
-            actionPerformed.invoke(screen, button);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot press button " + buttonId + " of " + screen, e);
+            access.demonica$actionPerformed(button);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot press button " + buttonId + " of " + screen, e);
         }
     }
 

@@ -286,7 +286,8 @@ unimined.minecraft {
             systemProperty 'fml.coreMods.load', 'com.demonica.mixins.MixinEarly' +
                 (withDiagnostics ? ',com.demonica.diagnostics.DiagnosticsCoremod' : '')
 
-            // -PdevScript=@path/to/script drives the client (com.demonica.dev.DevHarness).
+            // -PdevScript=@path/to/script drives the client (com.demonica.diagnostics.dev.DevHarness, in the diagnostics
+            // jar).
             def script = project.findProperty('devScript')
             if (script != null) {
                 systemProperty 'demonica.dev.script', script.toString()
@@ -759,7 +760,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/^assets\/celeritas\//, ~/^assets\/sodium\//,
                 ~/^META-INF\/services\/org\.embeddedt\./,
                 // The diagnostics live in the companion jar (verifyDiagnosticsJar).
-                ~/^com\/demonica\/diagnostics\//, ~/^mixins\.demonica\.diagnostics/,
+                ~/^com\/demonica\/diagnostics\//, ~/^com\/demonica\/dev\//, ~/^mixins\.demonica\.diagnostics/,
                 ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/
             ]
             names.each { name ->
