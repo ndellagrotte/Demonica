@@ -4,7 +4,6 @@ import kroppeb.stareval.element.AccessibleExpressionElement;
 import kroppeb.stareval.element.Element;
 import kroppeb.stareval.element.ExpressionElement;
 import kroppeb.stareval.element.PriorityOperatorElement;
-import kroppeb.stareval.element.token.BinaryOperatorToken;
 import kroppeb.stareval.element.token.IdToken;
 import kroppeb.stareval.element.token.NumberToken;
 import kroppeb.stareval.element.token.UnaryOperatorToken;
@@ -248,10 +247,10 @@ public class Parser {
 	/**
 	 * Executes following reduce steps:
 	 * <ul>
-	 *     <li>{@link ExpressionElement} | {@link BinaryOperatorToken} => {@link PartialBinaryExpression}</li>
-	 *     <li>{@link UnaryOperatorToken}, {@link ExpressionElement} | {@link BinaryOperatorToken} => {@link UnaryExpressionElement} | {@link BinaryOperatorToken}</li>
+	 *     <li>{@link ExpressionElement} | {@link BinaryOp} => {@link PartialBinaryExpression}</li>
+	 *     <li>{@link UnaryOperatorToken}, {@link ExpressionElement} | {@link BinaryOp} => {@link UnaryExpressionElement} | {@link BinaryOp}</li>
 	 *     <li>
-	 *         {@link PartialBinaryExpression}, {@link ExpressionElement} | {@link BinaryOperatorToken} <br/>
+	 *         {@link PartialBinaryExpression}, {@link ExpressionElement} | {@link BinaryOp} <br/>
 	 *         where the operator on the stack has a higher or equal priority to the one being added, the 3 items on the
 	 *         stack get popped, merged to a {@link BinaryExpressionElement} and placed on the stack.
 	 *         The new token is then pushed again.
