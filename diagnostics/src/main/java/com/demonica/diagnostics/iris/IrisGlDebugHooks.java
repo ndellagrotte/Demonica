@@ -19,16 +19,6 @@ public final class IrisGlDebugHooks implements IrisGlDebug.Hooks {
     }
 
     @Override
-    public long beginGameLoopStageTiming() {
-        return IrisGlDiagnostics.beginGameLoopStageTiming();
-    }
-
-    @Override
-    public void beginWorldPassTiming(int pass) {
-        IrisGlDiagnostics.beginWorldPassTiming(pass);
-    }
-
-    @Override
     public void check(String stage) {
         IrisGlDiagnostics.check(stage);
     }
@@ -36,16 +26,6 @@ public final class IrisGlDebugHooks implements IrisGlDebug.Hooks {
     @Override
     public void endFramebufferSamplePhase() {
         IrisGlDiagnostics.endFramebufferSamplePhase();
-    }
-
-    @Override
-    public void finishWorldPassTiming() {
-        IrisGlDiagnostics.finishWorldPassTiming();
-    }
-
-    @Override
-    public void incrementGameLoopFrameCount() {
-        IrisGlDiagnostics.incrementGameLoopFrameCount();
     }
 
     @Override
@@ -101,24 +81,6 @@ public final class IrisGlDebugHooks implements IrisGlDebug.Hooks {
     @Override
     public void logDebugInfo(String message, Object... params) {
         IrisGlDiagnostics.logDebugInfo(message, params);
-    }
-
-    @Override
-    public void logFrameOutputTiming(long cpuNanos, long gpuNanos) {
-        IrisGlDiagnostics.logFrameOutputTiming(cpuNanos, gpuNanos);
-    }
-
-    @Override
-    public void logFrameRenderTiming(long cpuNanos, long gpuNanos) {
-        IrisGlDiagnostics.logFrameRenderTiming(cpuNanos, gpuNanos);
-    }
-
-    @Override
-    public void logFramebufferOutputState(String label, int framebufferTexture, int framebufferWidth,
-        int framebufferHeight, int framebufferTextureWidth, int framebufferTextureHeight, int outputWidth,
-        int outputHeight, boolean disableBlend) {
-        IrisGlDiagnostics.logFramebufferOutputState(label, framebufferTexture, framebufferWidth, framebufferHeight,
-            framebufferTextureWidth, framebufferTextureHeight, outputWidth, outputHeight, disableBlend);
     }
 
     @Override
@@ -221,11 +183,6 @@ public final class IrisGlDebugHooks implements IrisGlDebug.Hooks {
     }
 
     @Override
-    public void logWhiteScreenProbe(String label) {
-        IrisGlDiagnostics.logWhiteScreenProbe(label);
-    }
-
-    @Override
     public void logWorldPassState(String stage, String phase, String subject) {
         IrisGlDiagnostics.logWorldPassState(stage, phase, subject);
     }
@@ -233,11 +190,6 @@ public final class IrisGlDebugHooks implements IrisGlDebug.Hooks {
     @Override
     public void markStage(String stage) {
         IrisGlDiagnostics.markStage(stage);
-    }
-
-    @Override
-    public void recordGameLoopStageTiming(String stage, long startNanos) {
-        IrisGlDiagnostics.recordGameLoopStageTiming(stage, startNanos);
     }
 
     @Override

@@ -2,7 +2,6 @@ package com.demonica.mixin.features.iris;
 
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import net.coderbot.iris.apiimpl.IrisApiV0Impl;
-import net.coderbot.iris.debug.IrisGlDebug;
 import net.coderbot.iris.gl.framebuffer.MinecraftFramebufferHelper;
 import net.coderbot.iris.rendertarget.IRenderTargetExt;
 import net.minecraft.client.renderer.OpenGlHelper;
@@ -34,24 +33,6 @@ public class FramebufferIrisMixin implements IRenderTargetExt {
 
     @Shadow
     public boolean useDepth;
-
-    @Shadow
-    public int framebufferTextureWidth;
-
-    @Shadow
-    public int framebufferTextureHeight;
-
-    @Shadow
-    public int framebufferWidth;
-
-    @Shadow
-    public int framebufferHeight;
-
-    @Shadow
-    public int framebufferObject;
-
-    @Shadow
-    public int framebufferTexture;
 
     @Shadow
     private boolean stencilEnabled;
@@ -89,121 +70,28 @@ public class FramebufferIrisMixin implements IRenderTargetExt {
     }
 
     @Inject(method = "framebufferRenderExt(IIZ)V", at = @At("HEAD"))
-    private void demonica$beginFramebufferOutputDiagnostics(int width, int height, boolean disableBlend, CallbackInfo ci) {
+    private void demonica$prepareFramebufferOutput(int width, int height, boolean disableBlend, CallbackInfo ci) {
         if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
             this.demonica$prepareFramebufferOutputState();
         }
-        IrisGlDebug.markStage("framebuffer-output:entry");
-        IrisGlDebug.beginFramebufferSamplePhase("minecraft-output");
-        IrisGlDebug.logFramebufferOutputState(
-            "entry",
-            this.framebufferTexture,
-            this.framebufferWidth,
-            this.framebufferHeight,
-            this.framebufferTextureWidth,
-            this.framebufferTextureHeight,
-            width,
-            height,
-            disableBlend
-        );
-        IrisGlDebug.logCurrentFramebufferSamples("before-framebuffer-render-ext", 1);
     }
 
     @Inject(
         method = "framebufferRenderExt(IIZ)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/Framebuffer;bindFramebufferTexture()V")
     )
-    private void demonica$beforeFramebufferTextureBind(int width, int height, boolean disableBlend, CallbackInfo ci) {
+    private void demonica$prepareFramebufferTextureBind(int width, int height, boolean disableBlend, CallbackInfo ci) {
         if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
             this.demonica$prepareFramebufferOutputState();
         }
-        IrisGlDebug.logFramebufferOutputState(
-            "before-bind-texture",
-            this.framebufferTexture,
-            this.framebufferWidth,
-            this.framebufferHeight,
-            this.framebufferTextureWidth,
-            this.framebufferTextureHeight,
-            width,
-            height,
-            disableBlend
-        );
-    }
-
-    @Inject(
-        method = "framebufferRenderExt(IIZ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/Framebuffer;bindFramebufferTexture()V", shift = At.Shift.AFTER)
-    )
-    private void demonica$afterFramebufferTextureBind(int width, int height, boolean disableBlend, CallbackInfo ci) {
-        IrisGlDebug.logFramebufferOutputState(
-            "after-bind-texture",
-            this.framebufferTexture,
-            this.framebufferWidth,
-            this.framebufferHeight,
-            this.framebufferTextureWidth,
-            this.framebufferTextureHeight,
-            width,
-            height,
-            disableBlend
-        );
-    }
-
-    @Inject(
-        method = "framebufferRenderExt(IIZ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/Tessellator;draw()V")
-    )
-    private void demonica$beforeFramebufferOutputDraw(int width, int height, boolean disableBlend, CallbackInfo ci) {
-        IrisGlDebug.logFramebufferOutputState(
-            "before-draw",
-            this.framebufferTexture,
-            this.framebufferWidth,
-            this.framebufferHeight,
-            this.framebufferTextureWidth,
-            this.framebufferTextureHeight,
-            width,
-            height,
-            disableBlend
-        );
-    }
-
-    @Inject(
-        method = "framebufferRenderExt(IIZ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/Tessellator;draw()V", shift = At.Shift.AFTER)
-    )
-    private void demonica$afterFramebufferOutputDraw(int width, int height, boolean disableBlend, CallbackInfo ci) {
-        IrisGlDebug.logFramebufferOutputState(
-            "after-draw",
-            this.framebufferTexture,
-            this.framebufferWidth,
-            this.framebufferHeight,
-            this.framebufferTextureWidth,
-            this.framebufferTextureHeight,
-            width,
-            height,
-            disableBlend
-        );
     }
 
     @Inject(method = "framebufferRenderExt(IIZ)V", at = @At("RETURN"))
-    private void demonica$endFramebufferOutputDiagnostics(int width, int height, boolean disableBlend, CallbackInfo ci) {
+    private void demonica$finishFramebufferOutput(int width, int height, boolean disableBlend, CallbackInfo ci) {
         if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
             GLStateManager.glActiveTexture(OpenGlHelper.defaultTexUnit);
             GLStateManager.glColorMask(true, true, true, true);
         }
-        IrisGlDebug.logFramebufferOutputState(
-            "return",
-            this.framebufferTexture,
-            this.framebufferWidth,
-            this.framebufferHeight,
-            this.framebufferTextureWidth,
-            this.framebufferTextureHeight,
-            width,
-            height,
-            disableBlend
-        );
-        IrisGlDebug.logCurrentFramebufferSamples("after-framebuffer-render-ext", 1);
-        IrisGlDebug.endFramebufferSamplePhase();
-        IrisGlDebug.markStage("framebuffer-output:return");
     }
 
     @Inject(method = "deleteFramebuffer()V", at = @At(value = "FIELD", target = "Lnet/minecraft/client/shader/Framebuffer;depthBuffer:I", shift = At.Shift.BEFORE, ordinal = 0))

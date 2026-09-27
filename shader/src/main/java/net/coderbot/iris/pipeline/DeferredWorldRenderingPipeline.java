@@ -827,18 +827,20 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			modProgramOverrode = true;
 			programBeforeModOverride = getActivePassProgramId();
 		}
-		IrisGlDebug.logModProgramOverride(
-			"on-mod-program-override",
-			getPhase().name(),
-			inputs.toString(),
-			isRenderingShadow,
-			isMainBound,
-			isRenderingWorld,
-			isRenderingFullScreenPass,
-			isPostChain,
-			GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
-			getActivePassProgramId()
-		);
+		if (IrisGlDebug.active()) {
+			IrisGlDebug.logModProgramOverride(
+				"on-mod-program-override",
+				getPhase().name(),
+				inputs.toString(),
+				isRenderingShadow,
+				isMainBound,
+				isRenderingWorld,
+				isRenderingFullScreenPass,
+				isPostChain,
+				GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
+				getActivePassProgramId()
+			);
+		}
 		current = null;
 	}
 
@@ -1120,7 +1122,9 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		});
 
         Program builtProgram = builder.build();
-        IrisGlDebug.logProgramSamplerState("create-pass", builtProgram.getProgramId(), availability.toString(), getPhase().name());
+        if (IrisGlDebug.active()) {
+            IrisGlDebug.logProgramSamplerState("create-pass", builtProgram.getProgramId(), availability.toString(), getPhase().name());
+        }
 
         Pass pass = new Pass(builtProgram, framebufferBeforeTranslucents, framebufferAfterTranslucents, alphaTestOverride,
             programDirectives.getBlendModeOverride().orElse(id.getBlendModeOverride()), bufferOverrides, shadow);
@@ -1965,17 +1969,19 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	public void setPhase(WorldRenderingPhase phase) {
 		WorldRenderingPhase previousPhase = this.phase;
 		this.phase = phase;
-		IrisGlDebug.logPhaseChange(
-			"set-phase",
-			previousPhase.name(),
-			phase.name(),
-			isRenderingShadow,
-			isMainBound,
-			isRenderingWorld,
-			isRenderingFullScreenPass,
-			isPostChain,
-			inputs.toString()
-		);
+		if (IrisGlDebug.active()) {
+			IrisGlDebug.logPhaseChange(
+				"set-phase",
+				previousPhase.name(),
+				phase.name(),
+				isRenderingShadow,
+				isMainBound,
+				isRenderingWorld,
+				isRenderingFullScreenPass,
+				isPostChain,
+				inputs.toString()
+			);
+		}
 		matchPass();
 		GbufferPrograms.runPhaseChangeNotifier();
 	}
@@ -1983,15 +1989,17 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	@Override
 	public void setInputs(InputAvailability availability) {
 		this.inputs = availability;
-		IrisGlDebug.logPipelineInputs(
-			"set-inputs",
-			getPhase().name(),
-			availability.toString(),
-			isRenderingShadow,
-			isMainBound,
-			isRenderingFullScreenPass,
-			isPostChain
-		);
+		if (IrisGlDebug.active()) {
+			IrisGlDebug.logPipelineInputs(
+				"set-inputs",
+				getPhase().name(),
+				availability.toString(),
+				isRenderingShadow,
+				isMainBound,
+				isRenderingFullScreenPass,
+				isPostChain
+			);
+		}
 		matchPass();
 	}
 

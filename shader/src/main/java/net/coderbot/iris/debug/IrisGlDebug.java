@@ -9,7 +9,7 @@ import java.util.Collection;
  * The GL debug logs and timing tables of the Iris pipeline, as called from the pipeline and from Demonica's mixins.
  * Every method is a no-op until the diagnostics jar installs its implementation ({@link Diagnostics}); the
  * implementation is com.demonica.diagnostics.iris.IrisGlDiagnostics. Calls that must build a string or query GL for
- * their arguments are guarded by {@link #active()} or {@link #shouldCaptureGlState()}.
+ * their arguments are guarded by {@link #active()}.
  */
 public final class IrisGlDebug {
     /** The implementation's side. Each default is what the pipeline sees without the diagnostics jar. */
@@ -20,23 +20,10 @@ public final class IrisGlDebug {
         default void beginFramebufferSamplePhase(String phase) {
         }
 
-        default long beginGameLoopStageTiming() {
-            return 0L;
-        }
-
-        default void beginWorldPassTiming(int pass) {
-        }
-
         default void check(String stage) {
         }
 
         default void endFramebufferSamplePhase() {
-        }
-
-        default void finishWorldPassTiming() {
-        }
-
-        default void incrementGameLoopFrameCount() {
         }
 
         default boolean isCloudControlDebugEnabled() {
@@ -72,17 +59,6 @@ public final class IrisGlDebug {
         }
 
         default void logDebugInfo(String message, Object... params) {
-        }
-
-        default void logFrameOutputTiming(long cpuNanos, long gpuNanos) {
-        }
-
-        default void logFrameRenderTiming(long cpuNanos, long gpuNanos) {
-        }
-
-        default void logFramebufferOutputState(String label, int framebufferTexture, int framebufferWidth,
-            int framebufferHeight, int framebufferTextureWidth, int framebufferTextureHeight, int outputWidth,
-            int outputHeight, boolean disableBlend) {
         }
 
         default void logFullscreenPassState(String stageName, String sourceName, int program, int[] drawBuffers,
@@ -146,16 +122,10 @@ public final class IrisGlDebug {
             int localY, int localZ, float u, float v) {
         }
 
-        default void logWhiteScreenProbe(String label) {
-        }
-
         default void logWorldPassState(String stage, String phase, String subject) {
         }
 
         default void markStage(String stage) {
-        }
-
-        default void recordGameLoopStageTiming(String stage, long startNanos) {
         }
 
         default void recordWorldPassStage(String nextStage) {
@@ -204,28 +174,12 @@ public final class IrisGlDebug {
         hooks.beginFramebufferSamplePhase(phase);
     }
 
-    public static long beginGameLoopStageTiming() {
-        return hooks.beginGameLoopStageTiming();
-    }
-
-    public static void beginWorldPassTiming(int pass) {
-        hooks.beginWorldPassTiming(pass);
-    }
-
     public static void check(String stage) {
         hooks.check(stage);
     }
 
     public static void endFramebufferSamplePhase() {
         hooks.endFramebufferSamplePhase();
-    }
-
-    public static void finishWorldPassTiming() {
-        hooks.finishWorldPassTiming();
-    }
-
-    public static void incrementGameLoopFrameCount() {
-        hooks.incrementGameLoopFrameCount();
     }
 
     public static boolean isCloudControlDebugEnabled() {
@@ -271,21 +225,6 @@ public final class IrisGlDebug {
 
     public static void logDebugInfo(String message, Object... params) {
         hooks.logDebugInfo(message, params);
-    }
-
-    public static void logFrameOutputTiming(long cpuNanos, long gpuNanos) {
-        hooks.logFrameOutputTiming(cpuNanos, gpuNanos);
-    }
-
-    public static void logFrameRenderTiming(long cpuNanos, long gpuNanos) {
-        hooks.logFrameRenderTiming(cpuNanos, gpuNanos);
-    }
-
-    public static void logFramebufferOutputState(String label, int framebufferTexture, int framebufferWidth,
-        int framebufferHeight, int framebufferTextureWidth, int framebufferTextureHeight, int outputWidth,
-        int outputHeight, boolean disableBlend) {
-        hooks.logFramebufferOutputState(label, framebufferTexture, framebufferWidth, framebufferHeight,
-            framebufferTextureWidth, framebufferTextureHeight, outputWidth, outputHeight, disableBlend);
     }
 
     public static void logFullscreenPassState(String stageName, String sourceName, int program, int[] drawBuffers,
@@ -372,20 +311,12 @@ public final class IrisGlDebug {
         hooks.logTerrainMaterialSample(source, blockId, renderType, lightValue, localX, localY, localZ, u, v);
     }
 
-    public static void logWhiteScreenProbe(String label) {
-        hooks.logWhiteScreenProbe(label);
-    }
-
     public static void logWorldPassState(String stage, String phase, String subject) {
         hooks.logWorldPassState(stage, phase, subject);
     }
 
     public static void markStage(String stage) {
         hooks.markStage(stage);
-    }
-
-    public static void recordGameLoopStageTiming(String stage, long startNanos) {
-        hooks.recordGameLoopStageTiming(stage, startNanos);
     }
 
     public static void recordWorldPassStage(String nextStage) {
