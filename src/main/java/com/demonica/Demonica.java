@@ -103,7 +103,7 @@ public class Demonica {
         DemonicaDiagnostics.logInitialization(DemonicaRuntime.version());
     }
 
-    /** Demonica's settings. GLSM's debug switches read this reflectively (GLSMDebug). */
+    /** Demonica's settings. The diagnostics jar's GLSM draw logs read this reflectively (GlsmDrawLog). */
     public static DemonicaOptions options() {
         return DemonicaRuntime.options();
     }

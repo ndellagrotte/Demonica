@@ -1,6 +1,8 @@
 package com.demonica.diagnostics;
 
+import com.demonica.diagnostics.glsm.GlsmDrawLogSink;
 import com.demonica.mixins.MixinEarly;
+import com.gtnewhorizons.angelica.glsm.debug.GLSMDebug;
 import net.minecraftforge.fml.relauncher.IFMLLoadingPlugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -112,6 +114,11 @@ public class DiagnosticsCoremod implements IFMLLoadingPlugin, IEarlyMixinLoader 
 
     @Override
     public void injectData(Map<String, Object> data) {
+        // Now rather than with the rest of the diagnostics: the GL redirector reports unmapped GL calls while it
+        // transforms classes, and most are transformed before the game initializes GL.
+        if (usable()) {
+            GLSMDebug.install(GlsmDrawLogSink.INSTANCE);
+        }
     }
 
     @Override
