@@ -42,7 +42,6 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.BlockRenderLayer;
 import org.joml.Vector3d;
 import org.lwjgl.opengl.GL11;
-import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -85,11 +84,10 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
     }
 
     @Inject(method = "renderWorldPass(IFJ)V", at = @At("HEAD"))
-    private void demonica$beginWorldPassTiming(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
+    private void demonica$beginWireframe(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
         if (RenderWorldRecursionGuard.isNested()) {
             return;
         }
-        IrisGlDebug.beginWorldPassTiming(pass);
         if (Iris.shouldActivateWireframe() && this.mc.isSingleplayer()) {
             GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
             this.demonica$wireframeActive = true;
@@ -97,7 +95,7 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
     }
 
     @Inject(method = "renderWorldPass(IFJ)V", at = @At("RETURN"))
-    private void demonica$finishWorldPassTiming(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
+    private void demonica$endWireframe(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
         if (RenderWorldRecursionGuard.isNested()) {
             return;
         }
@@ -105,7 +103,6 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
             GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
             this.demonica$wireframeActive = false;
         }
-        IrisGlDebug.finishWorldPassTiming();
     }
 
     @Inject(
@@ -208,46 +205,6 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
 
     @Inject(
         method = "updateCameraAndRender(FJ)V",
-        at = @At(
-            value = "FIELD",
-            target = "Lnet/minecraft/client/renderer/EntityRenderer;renderEndNanoTime:J",
-            opcode = Opcodes.PUTFIELD,
-            ordinal = 0,
-            shift = At.Shift.AFTER
-        )
-    )
-    // Somnia rewrites the renderWorld call in updateCameraAndRender to SomniaUtil.renderWorld,
-    // so anchor this stage to the first field write that follows the world render instead.
-    private void demonica$checkAfterRenderWorld(float partialTicks, long nanoTime, CallbackInfo ci) {
-        IrisGlDebug.markStage("entity-renderer:after-render-world");
-    }
-
-    @Inject(
-        method = "updateCameraAndRender(FJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderEntityOutlineFramebuffer()V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterEntityOutlineFramebuffer(float partialTicks, long nanoTime, CallbackInfo ci) {
-        IrisGlDebug.markStage("entity-renderer:after-entity-outline-fbo");
-    }
-
-    @Inject(
-        method = "updateCameraAndRender(FJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/shader/ShaderGroup;render(F)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterShaderGroup(float partialTicks, long nanoTime, CallbackInfo ci) {
-        IrisGlDebug.markStage("entity-renderer:after-shader-group");
-    }
-
-    @Inject(
-        method = "updateCameraAndRender(FJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiIngame;renderGameOverlay(F)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterGameOverlay(float partialTicks, long nanoTime, CallbackInfo ci) {
-        IrisGlDebug.markStage("entity-renderer:after-game-overlay");
-    }
-
-    @Inject(
-        method = "updateCameraAndRender(FJ)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiIngame;renderGameOverlay(F)V")
     )
     private void demonica$restoreBeforeGameOverlay(float partialTicks, long nanoTime, CallbackInfo ci) {
@@ -279,14 +236,6 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
 
     @Inject(
         method = "updateCameraAndRender(FJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraftforge/client/ForgeHooksClient;drawScreen(Lnet/minecraft/client/gui/GuiScreen;IIF)V", shift = At.Shift.AFTER, remap = false)
-    )
-    private void demonica$checkAfterDrawScreen(float partialTicks, long nanoTime, CallbackInfo ci) {
-        IrisGlDebug.markStage("entity-renderer:after-draw-screen");
-    }
-
-    @Inject(
-        method = "updateCameraAndRender(FJ)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraftforge/client/ForgeHooksClient;drawScreen(Lnet/minecraft/client/gui/GuiScreen;IIF)V", remap = false)
     )
     private void demonica$restoreGuiScreenState(float partialTicks, long nanoTime, CallbackInfo ci) {
@@ -303,153 +252,6 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
             this.mc.gameSettings,
             partialTicks
         );
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GlStateManager;clear(I)V", ordinal = 0, shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterClear(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("clear-to-camera");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;setupCameraTransform(FI)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterCameraTransform(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("camera-to-active-render-info");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/ActiveRenderInfo;updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterActiveRenderInfo(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("active-render-info-to-frustum");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/culling/ClippingHelperImpl;getInstance()Lnet/minecraft/client/renderer/culling/ClippingHelper;", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterClippingHelper(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("clipping-helper-to-culling");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/culling/ICamera;setPosition(DDD)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterFrustumPosition(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("culling-to-sky-fog");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;setupFog(IF)V", ordinal = 0, shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSkyFog(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("sky-fog-to-projection");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderSky(FI)V")
-    )
-    private void demonica$checkBeforeSky(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("render-sky-call");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GlStateManager;matrixMode(I)V", ordinal = 0, shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSkyProjectionMatrixMode(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("sky-matrix-mode-to-load-identity");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GlStateManager;loadIdentity()V", ordinal = 0, shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSkyProjectionLoadIdentity(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("sky-load-identity-to-fov");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;getFOVModifier(FZ)F", ordinal = 0, shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSkyFov(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("sky-fov-to-perspective");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lorg/lwjgl/util/glu/Project;gluPerspective(FFFF)V", ordinal = 0, shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSkyPerspective(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.recordWorldPassStage("sky-perspective-to-modelview");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderSky(FI)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSky(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-sky");
-        IrisGlDebug.recordWorldPassStage("render-sky-to-clouds");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;renderCloudsCheck(Lnet/minecraft/client/renderer/RenderGlobal;FIDDD)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterClouds(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        if (Iris.enabled && IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
-            IrisGlDebug.recordWorldPassStage("cloud-check-to-setup-terrain");
-            return;
-        }
-
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-clouds");
-        IrisGlDebug.recordWorldPassStage("clouds-to-setup-terrain");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;setupTerrain(Lnet/minecraft/entity/Entity;DLnet/minecraft/client/renderer/culling/ICamera;IZ)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSetupTerrain(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-setup-terrain");
-        IrisGlDebug.recordWorldPassStage("setup-terrain-to-update-chunks");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;updateChunks(J)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterUpdateChunks(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-update-chunks");
-        IrisGlDebug.recordWorldPassStage("update-chunks-to-terrain-solid");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I", shift = At.Shift.AFTER, ordinal = 0)
-    )
-    private void demonica$checkAfterSolidTerrain(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-terrain-solid");
-        IrisGlDebug.recordWorldPassStage("terrain-solid-to-cutout-mipped");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I", shift = At.Shift.AFTER, ordinal = 1)
-    )
-    private void demonica$checkAfterCutoutMippedTerrain(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-terrain-cutout-mipped");
-        IrisGlDebug.recordWorldPassStage("terrain-cutout-mipped-to-cutout");
     }
 
     @Redirect(
@@ -484,109 +286,6 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         var config = renderer.getRenderPassConfiguration();
         return config.getMaterialForRenderType(BlockRenderLayer.CUTOUT_MIPPED).pass
             == config.getMaterialForRenderType(BlockRenderLayer.CUTOUT).pass;
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I", shift = At.Shift.AFTER, ordinal = 2)
-    )
-    private void demonica$checkAfterCutoutTerrain(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-terrain-cutout");
-        IrisGlDebug.recordWorldPassStage("terrain-cutout-to-entities-0");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderEntities(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/renderer/culling/ICamera;F)V", shift = At.Shift.AFTER, ordinal = 0)
-    )
-    private void demonica$checkAfterEntitiesPass0(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.check("render-world-pass:" + pass + ":after-entities-0");
-        IrisGlDebug.recordWorldPassStage("entities-0-to-selection-box");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;drawSelectionBox(Lnet/minecraft/entity/player/EntityPlayer;Lnet/minecraft/util/math/RayTraceResult;IF)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterSelectionBox(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-selection-box");
-        IrisGlDebug.recordWorldPassStage("selection-box-to-block-damage");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;drawBlockDamageTexture(Lnet/minecraft/client/renderer/Tessellator;Lnet/minecraft/client/renderer/BufferBuilder;Lnet/minecraft/entity/Entity;F)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterBlockDamage(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-block-damage");
-        IrisGlDebug.recordWorldPassStage("block-damage-to-lit-particles");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/ParticleManager;renderLitParticles(Lnet/minecraft/entity/Entity;F)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterLitParticles(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-lit-particles");
-        IrisGlDebug.recordWorldPassStage("lit-particles-to-particles");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/ParticleManager;renderParticles(Lnet/minecraft/entity/Entity;F)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterParticles(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-particles");
-        IrisGlDebug.recordWorldPassStage("particles-to-weather");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;renderRainSnow(F)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterWeather(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-weather");
-        IrisGlDebug.recordWorldPassStage("weather-to-terrain-translucent");
-    }
-
-    // GTCEu's GregTechTransformer rewrites renderWorldPass via ASM and replaces the 4th
-    // renderBlockLayer call (TRANSLUCENT) with BloomEffectUtil.renderBloomBlockLayer, so this
-    // ordinal no longer exists under GregTech. Debug-stage marker only; tolerate its absence.
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I", shift = At.Shift.AFTER, ordinal = 3),
-        require = 0
-    )
-    private void demonica$checkAfterTranslucentTerrain(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-terrain-translucent");
-        IrisGlDebug.recordWorldPassStage("terrain-translucent-to-entities-1");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderEntities(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/renderer/culling/ICamera;F)V", shift = At.Shift.AFTER, ordinal = 1)
-    )
-    private void demonica$checkAfterEntitiesPass1(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.check("render-world-pass:" + pass + ":after-entities-1");
-        IrisGlDebug.recordWorldPassStage("entities-1-to-render-last");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraftforge/client/ForgeHooksClient;dispatchRenderLast(Lnet/minecraft/client/renderer/RenderGlobal;F)V", shift = At.Shift.AFTER, remap = false)
-    )
-    private void demonica$checkAfterRenderLast(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-render-last");
-        IrisGlDebug.recordWorldPassStage("render-last-to-hand");
-    }
-
-    @Inject(
-        method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;renderHand(FI)V", shift = At.Shift.AFTER)
-    )
-    private void demonica$checkAfterHand(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDebug.check("render-world-pass:" + pass + ":after-hand");
-        IrisGlDebug.recordWorldPassStage("hand-to-return");
     }
 
     @Inject(
@@ -643,7 +342,9 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         } finally {
             pipeline.setPhase(WorldRenderingPhase.NONE);
         }
-        IrisGlDebug.markStage("render-world-pass:" + pass + ":after-clouds");
+        if (IrisGlDebug.active()) {
+            IrisGlDebug.markStage("render-world-pass:" + pass + ":after-clouds");
+        }
         IrisGlDebug.recordWorldPassStage("clouds-to-finalize");
     }
 

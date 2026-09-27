@@ -145,7 +145,7 @@ dev run audits and logs "All N anchors ... hold".
 | [S6m](patches/S6m.md) | `seam.CeleritasWorldRendererMixin` | `CeleritasWorldRenderer.createChunkRenderMatrices` | HEAD-cancel: eye-anchored model-view for the draw S8 moved to the eye | CORE_TERRAIN, with S8 | not proposed |
 | [S6s](patches/S6s.md) | `seam.CeleritasWorldRendererShadowMixin` | `CeleritasWorldRenderer.createChunkRenderMatrices` | HEAD-cancel in the shadow pass: Iris's shadow projection and model-view | SHADOW | not proposed |
 | [S7](patches/S7.md) | `internal.SimpleWorldRendererAccessMixin` | `SimpleWorldRenderer.currentViewport`, `createChunkRenderMatrices` | Duck (`SimpleWorldRendererAccess`) for `CeleritasWorldRendererCompat`, the shadow pass's terrain adapter | SHADOW | not proposed |
-| [S8](patches/S8.md) | `seam.RenderGlobalTerrainMixin` | upstream's `RenderGlobal.renderBlockLayer(BlockRenderLayer, double, int, Entity)` overwrite | HEAD/RETURN: Iris terrain phases and translucent prelude; vanilla's one-argument overload for the translucent layer (Distant Horizons' anchor); `@ModifyArg` of the camera Y to the eye; a debug-only `@WrapOperation` of the draw (`GlStateDiffProbe`, perf-debug timing) | CORE_TERRAIN, with S6m | not proposed |
+| [S8](patches/S8.md) | `seam.RenderGlobalTerrainMixin` | upstream's `RenderGlobal.renderBlockLayer(BlockRenderLayer, double, int, Entity)` overwrite | HEAD/RETURN: Iris terrain phases and translucent prelude; vanilla's one-argument overload for the translucent layer (Distant Horizons' anchor); `@ModifyArg` of the camera Y to the eye; a debug-only `@WrapOperation` of the draw (the diagnostics jar's GL state probe, perf-debug timing) | CORE_TERRAIN, with S6m | not proposed |
 | [S9](patches/S9.md) | `seam.CeleritasWorldRendererMixin` | `CeleritasWorldRenderer.renderBlockEntities(TileEntityRenderContext)` | HEAD/RETURN: Iris's block-entity phase (and perf-debug timing) | CORE_TERRAIN | not proposed |
 | [S10](patches/S10.md) | `seam.ChunkBuilderMeshingTaskMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): its `canRenderInLayer` and vanilla `renderBlock` calls | In a build for the shader passes: `@WrapOperation`s that render a block the pack moves only in the pack's layer, and attach each vanilla-path block's context (`ShaderBlockContexts`) to the quads it draws | MESHING | not proposed |
 | [S11](patches/S11.md) | `seam.VintageChunkBuildContextMixin` | `VintageChunkBuildContext.convertVanillaDataToCeleritasData`, `copyBlockData` | `@WrapOperation`s: the layer's quad contexts go to `copyBlockData`, which prepares the extended vertex encoder with each quad's context; translucent fluid quads go to the pack's water pass | MESHING | not proposed |
@@ -207,6 +207,10 @@ case-insensitive name order, so both pinned file names reach the class path
 before Demonica's; the mods-folder search serves jars named to sort after it. The
 one error in the logs is upstream's: `mixins.celeritas.json` names no refmap,
 which CleanMix reports as "Invalid REFMAP JSON" with Celeritas alone too.
+
+Since 0.4.0 (2026-09-27) the harness is part of the diagnostics jar,
+`Demonica-diagnostics-<version>.jar`, not of the mod jar: a production smoke test
+puts both jars of the same build in the instance's `mods/`.
 
 Checkpoint 9 (run/client/scripts/cp9.txt and cp9b.txt, with `-PwithCompatMods`),
 2026-09-24: with Distant Horizons, iChunUtil, LittleTiles, NeverEnoughAnimation,

@@ -24,7 +24,7 @@
     "features.iris.LayerSpiderEyesIrisMixin",
     "features.iris.LocaleIrisMixin",
     "features.iris.MixinGameSettingsClouds",
-    "features.iris.MinecraftGlDebugMixin",
+    "features.iris.MinecraftGlErrorCheckMixin",
     "features.iris.ParticleItemPickupIrisMixin",
     "features.iris.ParticleManagerCullingMixin",
     "features.iris.ParticleManagerIrisMixin",

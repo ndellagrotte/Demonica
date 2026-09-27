@@ -47,7 +47,9 @@ public class RenderManagerIrisMixin {
             return;
         }
 
-        Render<Entity> render = ((RenderManager) (Object) this).getEntityRenderObject(entity);
+        // Only the regression log reads the renderer.
+        Render<Entity> render = ShaderRegressionDebug.isEnabled()
+            ? ((RenderManager) (Object) this).getEntityRenderObject(entity) : null;
         int previousEntity = CapturedRenderingState.INSTANCE.getCurrentRenderedEntity();
         WorldRenderingPhase previousPhase = GbufferPrograms.getCurrentPhase();
         GbufferPrograms.EntityPhase entityPhase = null;
@@ -81,7 +83,9 @@ public class RenderManagerIrisMixin {
             return;
         }
 
-        Render<Entity> render = ((RenderManager) (Object) this).getEntityRenderObject(entity);
+        // Only the regression log reads the renderer.
+        Render<Entity> render = ShaderRegressionDebug.isEnabled()
+            ? ((RenderManager) (Object) this).getEntityRenderObject(entity) : null;
         int previousEntity = CapturedRenderingState.INSTANCE.getCurrentRenderedEntity();
         WorldRenderingPhase previousPhase = GbufferPrograms.getCurrentPhase();
         GbufferPrograms.EntityPhase entityPhase = null;

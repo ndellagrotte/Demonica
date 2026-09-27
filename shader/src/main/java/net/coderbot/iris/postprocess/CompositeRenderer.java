@@ -357,7 +357,9 @@ public class CompositeRenderer {
             String previousSamplePhase = IrisGlDebug.replaceFramebufferSamplePhase("composite-pass");
 			FullScreenQuadRenderer.INSTANCE.renderQuad();
             IrisGlDebug.check("composite:render-quad");
-            IrisGlDebug.logCurrentFramebufferSamples("composite:" + renderPass.sourceName, renderPass.drawBuffers.length);
+            if (IrisGlDebug.active()) {
+                IrisGlDebug.logCurrentFramebufferSamples("composite:" + renderPass.sourceName, renderPass.drawBuffers.length);
+            }
             IrisGlDebug.restoreFramebufferSamplePhase(previousSamplePhase);
 			restoreBlendOverrides(renderPass);
 		}

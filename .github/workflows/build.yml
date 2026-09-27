@@ -36,13 +36,15 @@ jobs:
       - name: Check the S8TNLib pin
         run: ./gradlew verifyS8tnlibPin
 
-      # Compiles and tests, then checks the mod jar (verifyDistributedJar), that no S8TNLib jar is
-      # on the dev client's class path (verifyRunClasspath) and the patches' anchors in production
-      # names (verifyProductionAnchors).
+      # Compiles and tests, then checks the mod jar (verifyDistributedJar), the diagnostics jar
+      # (verifyDiagnosticsJar, verifyDiagnosticsRemap), that no S8TNLib jar is on the dev client's
+      # class path (verifyRunClasspath) and the patches' anchors in production names
+      # (verifyProductionAnchors).
       - name: Build
         run: ./gradlew build
 
-      # The mod jar and sources jar of every successful build. A release tag's run supplies the jars
+      # The mod jar, the diagnostics jar (Demonica-diagnostics-<version>.jar) and the sources jar of
+      # every successful build. A release tag's run supplies the jars
       # attached to the GitHub release, and a local build of the same commit is compared against them.
       - name: Upload the jars
         uses: actions/upload-artifact@v7
@@ -56,4 +58,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-reports
-          path: build/reports/tests
+          path: |
+            build/reports/tests
+            diagnostics/build/reports/tests

@@ -1,8 +1,7 @@
 package com.demonica.mixin.core.startup;
 
 import com.demonica.debug.DemonicaStartupDebugConfig;
-import net.coderbot.iris.debug.flight.GlFlightRecording;
-import net.coderbot.iris.debug.flight.GlFlightGpuCommandRecorder;
+import net.coderbot.iris.debug.Diagnostics;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.hooks.GLSMHooks;
 import com.gtnewhorizons.angelica.glsm.hooks.GLSMInitConfig;
@@ -31,6 +30,9 @@ public class MixinOpenGlHelper {
     private static void demonica$initializeGLStateManager(CallbackInfo ci) {
         final Minecraft mc = Minecraft.getMinecraft();
 
+        // The diagnostics jar, if installed, before anything it instruments runs.
+        Diagnostics.load();
+
         // The LWJGL service reads the calling thread's GL capabilities when it is created, so it is created here, on
         // the render thread. Otherwise its first user creates it: with a shader pack enabled at startup, that is a
         // chunk builder thread writing Iris's vertex format, which has no GL context.
@@ -43,7 +45,7 @@ public class MixinOpenGlHelper {
             .framebufferSupported(OpenGlHelper.framebufferSupported)
             .fboEnabled(mc.gameSettings.fboEnable)
             .streamingUploadStrategy(demonica$streamingUploadStrategy())
-            .gpuCommandRecorder(GlFlightRecording.isEnabled() ? GlFlightGpuCommandRecorder.INSTANCE : null)
+            .gpuCommandRecorder(Diagnostics.gpuCommandRecorder())
             .directDrawer(TessellatorStreamingDrawer::drawDirect)
             .streamingDrawerDestroy(() -> {
                 TessellatorStreamingDrawer.destroy();

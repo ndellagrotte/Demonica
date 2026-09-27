@@ -97,6 +97,27 @@ class DemonicaOptionPagesTest {
         }
     }
 
+    @Test
+    void theDebugPageListsTheDiagnosticsSwitchesOnlyWithTheDiagnosticsJar() {
+        Set<String> diagnosticsOnly = Set.of("gl_debug", "pbr_debug", "cloud_control_debug", "gpu_perf_debug");
+
+        Set<String> without = optionPaths(DemonicaOptionPages.debug(false));
+        Set<String> with = optionPaths(DemonicaOptionPages.debug(true));
+
+        assertTrue(without.stream().noneMatch(diagnosticsOnly::contains), without.toString());
+        assertTrue(without.containsAll(Set.of("production_diagnostics", "lwjgl_debug", "perf_debug",
+            "frame_gl_error_check", "post_render_gl_error_check")), without.toString());
+        assertTrue(with.containsAll(diagnosticsOnly), with.toString());
+        assertEquals(without.size() + diagnosticsOnly.size(), with.size());
+    }
+
+    private static Set<String> optionPaths(OptionPage page) {
+        return page.getOptions().stream()
+            .map(option -> String.valueOf(option.getId()))
+            .map(id -> id.substring(id.lastIndexOf(':') + 1))
+            .collect(Collectors.toCollection(TreeSet::new));
+    }
+
     /** Every name, tooltip and value label of Demonica's options has an English, Russian and Chinese translation. */
     @Test
     void everyTranslationKeyIsInDemonicasLangFiles() throws IOException {
@@ -109,7 +130,7 @@ class DemonicaOptionPagesTest {
         OptionPageConstructionEvent advanced = new OptionPageConstructionEvent(StandardOptions.Pages.ADVANCED, TextComponent.literal("advanced"));
         DemonicaOptionPages.onPage(advanced);
         advanced.getAdditionalGroups().forEach(g -> options.addAll(g.getOptions()));
-        OptionPage debug = DemonicaOptionPages.debug();
+        OptionPage debug = DemonicaOptionPages.debug(true);
         options.addAll(debug.getOptions());
 
         Set<String> keys = new TreeSet<>(keys(debug.getName()));

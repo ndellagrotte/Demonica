@@ -21,11 +21,11 @@ import java.util.List;
 import java.util.Map;
 
 public class RenderTargets {
-	// When enabled, a failed framebuffer creation is retried once with fresh bindings (actinium.fbRetry)
+	// When enabled, a failed framebuffer creation is retried once with fresh bindings (demonica.fbRetry)
 	private static final boolean FB_RETRY = Boolean.parseBoolean(System.getProperty("demonica.fbRetry", "true"));
 
 	// Advisory mode: a framebuffer that fails the driver's completeness check is used anyway.
-	// Forced by -Dactinium.advisoryFboStatus=true|false; otherwise follows the GUI option
+	// Forced by -Ddemonica.advisoryFboStatus=true|false; otherwise follows the GUI option
 	// "Ignore Framebuffer Errors" (debug.ignoreFramebufferErrors). Intended for Android GL
 	// translation layers (e.g. MobileGlues) where the verdict can be a false negative.
 	private static boolean loggedAdvisoryBypass;
@@ -350,7 +350,7 @@ public class RenderTargets {
 		if (isAdvisoryFboStatus()) {
 			if (!loggedAdvisoryBypass) {
 				loggedAdvisoryBypass = true;
-				Iris.logger.info("Advisory FBO status mode active (actinium.advisoryFboStatus override or 'Ignore Framebuffer Errors' option); incomplete framebuffers will be used anyway");
+				Iris.logger.info("Advisory FBO status mode active (demonica.advisoryFboStatus override or 'Ignore Framebuffer Errors' option); incomplete framebuffers will be used anyway");
 			}
 			Iris.logger.warn("Framebuffer reported incomplete but will be used anyway (advisory mode)");
 			return framebuffer;
@@ -444,7 +444,7 @@ public class RenderTargets {
 		return cachedHeight;
 	}
 
-	// -Dactinium.advisoryFboStatus=true|false forces advisory mode; otherwise the GUI option decides.
+	// -Ddemonica.advisoryFboStatus=true|false forces advisory mode; otherwise the GUI option decides.
 	private static boolean isAdvisoryFboStatus() {
 		final String override = System.getProperty("demonica.advisoryFboStatus");
 		if (override != null) {

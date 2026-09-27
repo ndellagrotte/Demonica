@@ -18,6 +18,8 @@ public final class AngelicaRedirector {
         exclusions.add("com.gtnewhorizons.angelica.loading.");
         exclusions.add("com.gtnewhorizons.angelica.glsm.loading.");
         exclusions.add("com.gtnewhorizons.angelica.transform");
+        // The diagnostics jar's GLSM classes, which were GLSM's own (and so excluded) before they moved there.
+        exclusions.add("com.demonica.diagnostics.glsm.");
         allExclusions = exclusions.toArray(new String[0]);
     }
 

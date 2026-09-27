@@ -16,6 +16,14 @@ public final class RenderDebugHooksHolder {
         return hooks.shouldCaptureGlState();
     }
 
+    public static @Nullable Object captureGlState() {
+        return hooks.captureGlState();
+    }
+
+    public static void compareGlState(String label, @Nullable Object before) {
+        hooks.compareGlState(label, before);
+    }
+
     public static void checkDrawError(String stage, String source, int drawMode, int vertexFlags, int stride, int vertexCount, String format, int vao, int vbo) {
         hooks.checkDrawError(stage, source, drawMode, vertexFlags, stride, vertexCount, format, vao, vbo);
     }

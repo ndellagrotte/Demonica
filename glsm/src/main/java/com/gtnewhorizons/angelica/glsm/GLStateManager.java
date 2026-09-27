@@ -12,7 +12,6 @@ import com.gtnewhorizons.angelica.glsm.backend.GLDebugMessageListener;
 import com.gtnewhorizons.angelica.glsm.backend.RenderBackend;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMDebug;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
-import com.gtnewhorizons.angelica.glsm.debug.GpuCheckpointTracker;
 import com.gtnewhorizons.angelica.glsm.ffp.ShaderManager;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredAlphaHandler;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredBlendHandler;
@@ -149,7 +148,7 @@ public class GLStateManager {
         if (WARN_ONCE.add(key)) LOGGER.warn(fmt, args);
     }
     private static final boolean DEBUG_DRAW_LOGS = Boolean.getBoolean("demonica.glsm.verboseDrawLogs");
-    /** Escape hatch: -Dactinium.glsmFullClientArrayUpload=true restores whole-allocation uploads per draw. */
+    /** Escape hatch: -Ddemonica.glsmFullClientArrayUpload=true restores whole-allocation uploads per draw. */
     private static final boolean FULL_CLIENT_ARRAY_UPLOAD = Boolean.getBoolean("demonica.glsmFullClientArrayUpload");
 
     // Thread Checking - must be early in static init order so isMainThread() works for state initialization
@@ -516,7 +515,7 @@ public class GLStateManager {
         }
         final GpuCommandRecorder recorder = config.getGpuCommandRecorder();
         if (recorder != null) {
-            GpuCheckpointTracker.checkpoint(recorder, type.code());
+            recorder.insertCheckpoint(type.code());
         }
     }
 

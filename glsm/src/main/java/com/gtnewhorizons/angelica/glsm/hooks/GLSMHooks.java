@@ -26,7 +26,7 @@ public final class GLSMHooks {
     public static PerFrameUniformBlock perFrameUniformBlock;
     public static PerFrameUniformBlock perPassUniformBlock;
 
-    /** Escape hatch: -Dactinium.glsmHooksAlwaysActive=true forces the consumer gate on. */
+    /** Escape hatch: -Ddemonica.glsmHooksAlwaysActive=true forces the consumer gate on. */
     private static final boolean ALWAYS_ACTIVE = Boolean.getBoolean("demonica.glsmHooksAlwaysActive");
 
     /**

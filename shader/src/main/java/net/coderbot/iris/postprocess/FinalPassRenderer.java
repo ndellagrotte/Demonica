@@ -317,7 +317,9 @@ public class FinalPassRenderer {
             String previousSamplePhase = IrisGlDebug.replaceFramebufferSamplePhase("final-pass");
 			FullScreenQuadRenderer.INSTANCE.renderQuad();
             IrisGlDebug.check("final:render-quad");
-            IrisGlDebug.logCurrentFramebufferSamples("final:" + finalPass.sourceName, 1);
+            if (IrisGlDebug.active()) {
+                IrisGlDebug.logCurrentFramebufferSamples("final:" + finalPass.sourceName, 1);
+            }
             if (this.pipeline != null) {
                 IrisGlDebug.logCloudTerrainChainPixels("FINAL", finalPass.sourceName, this.renderTargets, this.pipeline.getDHCompat().getDepthTex(), this.pipeline.getDHCompat().getDepthTexNoTranslucent());
             }

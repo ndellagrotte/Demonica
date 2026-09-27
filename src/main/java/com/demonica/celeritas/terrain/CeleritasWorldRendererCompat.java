@@ -62,7 +62,10 @@ public final class CeleritasWorldRendererCompat implements WorldRendererCompat {
         INSTANCE.framePlayerViewport = null;
     }
 
-    /** The sections with geometry the last shadow pass drew from, or -1 if none has drawn terrain yet. */
+    /**
+     * The sections with geometry the last shadow pass drew from, or -1 if none has drawn terrain yet. The dev harness's
+     * {@code stats} step reports it (diagnostics jar).
+     */
     public static int shadowSections() {
         return INSTANCE.shadowSections;
     }

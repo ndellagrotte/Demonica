@@ -5,7 +5,6 @@ import com.demonica.compat.kirino.KirinoCompat;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.debug.DemonicaDiagnostics;
-import com.demonica.dev.DevHarness;
 import com.demonica.gui.DemonicaOptionPages;
 import com.demonica.loading.ActiniumConflictException;
 import com.demonica.loading.Environment;
@@ -20,6 +19,7 @@ import com.gtnewhorizons.angelica.iris.IrisGLSMBridge;
 import com.mojang.realmsclient.gui.ChatFormatting;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.celeritas.WorldRendererCompatBridge;
+import net.coderbot.iris.debug.Diagnostics;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
 import net.coderbot.iris.rendertarget.IRenderTargetExt;
@@ -33,6 +33,7 @@ import net.minecraftforge.fml.common.ModContainer;
 import net.minecraftforge.fml.common.event.FMLConstructionEvent;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import org.apache.logging.log4j.LogManager;
 
 import java.io.IOException;
 
@@ -95,11 +96,15 @@ public class Demonica {
             Iris.INSTANCE.fmlInitEvent();
             MinecraftForge.EVENT_BUS.register(Iris.INSTANCE);
         }
-        DevHarness.install();
+        String devScript = System.getProperty("demonica.dev.script");
+        if (devScript != null && !devScript.isBlank() && !Diagnostics.present()) {
+            LogManager.getLogger("Demonica").warn("demonica.dev.script is set, but the dev harness is part of the "
+                + "diagnostics jar, which is not installed: add Demonica-diagnostics-{}.jar", DemonicaRuntime.version());
+        }
         DemonicaDiagnostics.logInitialization(DemonicaRuntime.version());
     }
 
-    /** Demonica's settings. GLSM's debug switches read this reflectively (GLSMDebug). */
+    /** Demonica's settings. The diagnostics jar's GLSM draw logs read this reflectively (GlsmDrawLog). */
     public static DemonicaOptions options() {
         return DemonicaRuntime.options();
     }

@@ -33,23 +33,6 @@ public final class DemonicaStartupDebugConfig {
         return LWJGL_DEBUG;
     }
 
-    public static boolean enableRedirectorDebug() {
-        return getBooleanOverride("demonica.redirectorDebug", SNAPSHOT.redirectorDebug);
-    }
-
-    public static boolean enableRedirectorLogSpam() {
-        return getBooleanOverride("angelica.redirectorLogspam", SNAPSHOT.redirectorLogSpam);
-    }
-
-    public static boolean enableClassDump() {
-        return getBooleanOverride("angelica.dumpClass", SNAPSHOT.classDump);
-    }
-
-    private static boolean getBooleanOverride(String property, boolean fallback) {
-        String override = System.getProperty(property);
-        return override != null ? Boolean.parseBoolean(override) : fallback;
-    }
-
     static boolean resolveLwjglDebug(String override, boolean configured) {
         return override != null ? Boolean.parseBoolean(override) : configured;
     }
@@ -71,12 +54,7 @@ public final class DemonicaStartupDebugConfig {
                 return Snapshot.DEFAULT;
             }
 
-            return new Snapshot(
-                getBoolean(debug, "enable_redirector_debug"),
-                getBoolean(debug, "enable_redirector_log_spam"),
-                getBoolean(debug, "enable_redirector_class_dump"),
-                getBoolean(debug, "enable_lwjgl_debug")
-            );
+            return new Snapshot(getBoolean(debug, "enable_lwjgl_debug"));
         } catch (IOException | RuntimeException e) {
             LOGGER.warn("Failed to read startup debug options from {}", path, e);
             return Snapshot.DEFAULT;
@@ -88,7 +66,7 @@ public final class DemonicaStartupDebugConfig {
         return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean() && element.getAsBoolean();
     }
 
-    private record Snapshot(boolean redirectorDebug, boolean redirectorLogSpam, boolean classDump, boolean enableLwjglDebug) {
-        private static final Snapshot DEFAULT = new Snapshot(false, false, false, false);
+    private record Snapshot(boolean enableLwjglDebug) {
+        private static final Snapshot DEFAULT = new Snapshot(false);
     }
 }

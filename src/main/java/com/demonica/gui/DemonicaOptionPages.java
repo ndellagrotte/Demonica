@@ -5,6 +5,7 @@ import com.demonica.config.DemonicaRuntimeOptions;
 import com.demonica.gui.options.DemonicaOptionsStorage;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
+import net.coderbot.iris.debug.Diagnostics;
 import net.irisshaders.iris.compat.sodium.IrisConfigEntryPoint;
 import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
 import org.taumc.celeritas.api.OptionGUIConstructionEvent;
@@ -21,6 +22,7 @@ import org.taumc.celeritas.api.options.structure.OptionImpl;
 import org.taumc.celeritas.api.options.structure.OptionPage;
 import org.taumc.celeritas.api.options.structure.StandardOptions;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -94,25 +96,36 @@ public final class DemonicaOptionPages {
         OptionPage iris = new IrisConfigEntryPoint().createPage();
         addIfAbsent(pages, iris.getId(), () -> iris);
         if (DemonicaRuntime.options().enableDebugTab) {
-            addIfAbsent(pages, DEBUG_PAGE, DemonicaOptionPages::debug);
+            addIfAbsent(pages, DEBUG_PAGE, () -> debug(Diagnostics.present()));
         }
     }
 
-    static OptionPage debug() {
-        return new OptionPage(DEBUG_PAGE, TextComponent.translatable("sodium.options.pages.debug"), List.of(group(DEBUG_GROUP,
-            debugTickBox("production_diagnostics", OptionImpact.LOW,
-                o -> o.debug.enableProductionDiagnostics, (o, v) -> o.debug.enableProductionDiagnostics = v),
-            debugTickBox("gl_debug", OptionImpact.HIGH, o -> o.debug.enableGlDebug, (o, v) -> o.debug.enableGlDebug = v),
-            debugTickBox("lwjgl_debug", OptionImpact.HIGH, o -> o.debug.enableLwjglDebug, (o, v) -> o.debug.enableLwjglDebug = v,
-                OptionFlag.REQUIRES_GAME_RESTART),
-            debugTickBox("pbr_debug", OptionImpact.HIGH, o -> o.debug.enablePbrDebug, (o, v) -> o.debug.enablePbrDebug = v),
-            debugTickBox("cloud_control_debug", OptionImpact.MEDIUM,
-                o -> o.debug.enableCloudControlDebug, (o, v) -> o.debug.enableCloudControlDebug = v),
-            debugTickBox("perf_debug", OptionImpact.MEDIUM, o -> o.debug.enablePerfDebug, (o, v) -> {
-                o.debug.enablePerfDebug = v;
-                GLSMPerfDebugHooks.setConfiguredEnabled(DemonicaRuntimeOptions.resolvePerfDebugEnabled(v));
-            }),
-            debugTickBox("gpu_perf_debug", OptionImpact.HIGH, o -> o.debug.enableGpuPerfDebug, (o, v) -> o.debug.enableGpuPerfDebug = v),
+    /**
+     * The Debug page. The GL debug, PBR, cloud-control and GPU timing switches act only through the diagnostics jar, so
+     * they are listed only with it ({@code diagnostics}); their settings are kept either way.
+     */
+    static OptionPage debug(boolean diagnostics) {
+        List<Option<?>> options = new ArrayList<>();
+        options.add(debugTickBox("production_diagnostics", OptionImpact.LOW,
+            o -> o.debug.enableProductionDiagnostics, (o, v) -> o.debug.enableProductionDiagnostics = v));
+        if (diagnostics) {
+            options.add(debugTickBox("gl_debug", OptionImpact.HIGH, o -> o.debug.enableGlDebug, (o, v) -> o.debug.enableGlDebug = v));
+        }
+        options.add(debugTickBox("lwjgl_debug", OptionImpact.HIGH, o -> o.debug.enableLwjglDebug, (o, v) -> o.debug.enableLwjglDebug = v,
+            OptionFlag.REQUIRES_GAME_RESTART));
+        if (diagnostics) {
+            options.add(debugTickBox("pbr_debug", OptionImpact.HIGH, o -> o.debug.enablePbrDebug, (o, v) -> o.debug.enablePbrDebug = v));
+            options.add(debugTickBox("cloud_control_debug", OptionImpact.MEDIUM,
+                o -> o.debug.enableCloudControlDebug, (o, v) -> o.debug.enableCloudControlDebug = v));
+        }
+        options.add(debugTickBox("perf_debug", OptionImpact.MEDIUM, o -> o.debug.enablePerfDebug, (o, v) -> {
+            o.debug.enablePerfDebug = v;
+            GLSMPerfDebugHooks.setConfiguredEnabled(DemonicaRuntimeOptions.resolvePerfDebugEnabled(v));
+        }));
+        if (diagnostics) {
+            options.add(debugTickBox("gpu_perf_debug", OptionImpact.HIGH, o -> o.debug.enableGpuPerfDebug, (o, v) -> o.debug.enableGpuPerfDebug = v));
+        }
+        options.addAll(List.of(
             debugTickBox("frame_gl_error_check", OptionImpact.MEDIUM,
                 o -> o.debug.enableFrameGlErrorCheck, (o, v) -> o.debug.enableFrameGlErrorCheck = v),
             debugTickBox("post_render_gl_error_check", OptionImpact.MEDIUM,
@@ -122,7 +135,9 @@ public final class DemonicaOptionPages {
             debugTickBox("redirector_log_spam", OptionImpact.HIGH,
                 o -> o.debug.enableRedirectorLogSpam, (o, v) -> o.debug.enableRedirectorLogSpam = v, OptionFlag.REQUIRES_GAME_RESTART),
             debugTickBox("redirector_class_dump", OptionImpact.HIGH,
-                o -> o.debug.enableRedirectorClassDump, (o, v) -> o.debug.enableRedirectorClassDump = v, OptionFlag.REQUIRES_GAME_RESTART))));
+                o -> o.debug.enableRedirectorClassDump, (o, v) -> o.debug.enableRedirectorClassDump = v, OptionFlag.REQUIRES_GAME_RESTART)));
+        return new OptionPage(DEBUG_PAGE, TextComponent.translatable("sodium.options.pages.debug"),
+            List.of(group(DEBUG_GROUP, options.toArray(new Option<?>[0]))));
     }
 
     private static Option<Boolean> fastBlockRenderer() {

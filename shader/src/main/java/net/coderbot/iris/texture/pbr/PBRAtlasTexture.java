@@ -1,11 +1,9 @@
 package net.coderbot.iris.texture.pbr;
 
-import net.coderbot.iris.debug.IrisDebugOptions;
 import com.gtnewhorizons.angelica.compat.mojang.AutoClosableAbstractTexture;
 import net.coderbot.iris.debug.PBRDebug;
 import lombok.Getter;
 import net.coderbot.iris.Iris;
-import net.coderbot.iris.texture.util.TextureExporter;
 import net.coderbot.iris.texture.util.TextureManipulationUtil;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
@@ -90,9 +88,6 @@ public class PBRAtlasTexture extends AutoClosableAbstractTexture {
 		}
 
 		PBRDebug.atlasUploaded(this, atlasWidth, atlasHeight, mipLevel, sprites.size(), animatedSprites.size());
-		if (IrisDebugOptions.pbrDebugEnabled()) {
-			TextureExporter.exportTextures("pbr_debug/atlas", id.getNamespace() + "_" + id.getPath().replaceAll("/", "_"), glId, mipLevel, atlasWidth, atlasHeight);
-		}
 	}
 
 	public boolean tryUpload(int atlasWidth, int atlasHeight, int mipLevel, float anisotropicFiltering) {

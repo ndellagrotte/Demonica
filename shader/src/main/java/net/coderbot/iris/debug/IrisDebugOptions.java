@@ -5,9 +5,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Debug/regression switches consumed by the shader pipeline.
+ * Switches the shader pipeline reads from Demonica: whether Iris and its Celeritas integration run, pack-facing
+ * options, and why shaders are unavailable. The diagnostics' own switches are read by the diagnostics jar.
  *
- * <p>Read live from a bridge registered by the host mod (Actinium), so
+ * <p>Read live from a bridge registered by the host mod (Demonica), so
  * in-game config changes take effect without a restart and the shader module
  * does not depend on the host's runtime.
  */
@@ -15,13 +16,6 @@ public final class IrisDebugOptions {
 
     /** Bridge implemented by the host mod; reads its own config live. */
     public interface Bridge {
-        boolean pbrDebugEnabled();
-        boolean enableActiniumGlDebug();
-        boolean enableCloudControlDebug();
-        boolean enableFrameGlErrorCheck();
-        boolean enablePostRenderGlErrorCheck();
-        boolean enableActiniumPerfDebug();
-        boolean enableActiniumGpuPerfDebug();
         boolean ignoreFramebufferErrors();
         boolean enableIris();
         boolean enableCeleritas();
@@ -45,41 +39,6 @@ public final class IrisDebugOptions {
 
     public static void setBridge(Bridge newBridge) {
         bridge = newBridge;
-    }
-
-    public static boolean pbrDebugEnabled() {
-        Bridge b = bridge;
-        return b != null && b.pbrDebugEnabled();
-    }
-
-    public static boolean enableActiniumGlDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableActiniumGlDebug();
-    }
-
-    public static boolean enableCloudControlDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableCloudControlDebug();
-    }
-
-    public static boolean enableFrameGlErrorCheck() {
-        Bridge b = bridge;
-        return b != null && b.enableFrameGlErrorCheck();
-    }
-
-    public static boolean enablePostRenderGlErrorCheck() {
-        Bridge b = bridge;
-        return b != null && b.enablePostRenderGlErrorCheck();
-    }
-
-    public static boolean enableActiniumPerfDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableActiniumPerfDebug();
-    }
-
-    public static boolean enableActiniumGpuPerfDebug() {
-        Bridge b = bridge;
-        return b != null && b.enableActiniumGpuPerfDebug();
     }
 
     public static boolean ignoreFramebufferErrors() {

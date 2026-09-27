@@ -1,11 +1,22 @@
 package com.demonica.celeritas.api.debug;
 
+import org.jetbrains.annotations.Nullable;
+
 public interface RenderDebugHooks {
     RenderDebugHooks NOOP = new RenderDebugHooks() {
     };
 
     default boolean shouldCaptureGlState() {
         return false;
+    }
+
+    /** A snapshot of the driver's GL state, for {@link #compareGlState}; null when nothing will compare it. */
+    default @Nullable Object captureGlState() {
+        return null;
+    }
+
+    /** Logs what changed in the GL state since {@code before}, a {@link #captureGlState} snapshot. */
+    default void compareGlState(String label, @Nullable Object before) {
     }
 
     default void checkDrawError(String stage, String source, int drawMode, int vertexFlags, int stride, int vertexCount, String format, int vao, int vbo) {

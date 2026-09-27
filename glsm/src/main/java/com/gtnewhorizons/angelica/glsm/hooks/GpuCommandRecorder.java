@@ -31,4 +31,13 @@ public interface GpuCommandRecorder {
      * @param commandCode command or pass-boundary code associated with the fence
      */
     void checkpoint(GpuCheckpointType type, long checkpointId, int commandCode);
+
+    /**
+     * Polls prior GPU fences without waiting and inserts a completion checkpoint for a submitted command, reporting
+     * both through {@link #checkpoint}. The diagnostics jar's flight recorder implements it with its checkpoint tracker.
+     *
+     * @param commandCode command or pass-boundary code associated with the checkpoint
+     */
+    default void insertCheckpoint(int commandCode) {
+    }
 }
