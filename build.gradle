@@ -481,6 +481,19 @@ dependencies {
         modRuntimeOnly 'curse.maven:botania-ceu-1179448:8706250'
         modRuntimeOnly 'curse.maven:obscure-tooltips-715660:8522661'
     }
+    // -PwithHudCache=stellarcore|gnetum: the dev client also loads one of the two HUD-caching mods whose caches
+    // StellarCoreHudCachingCompatTransformer and GnetumHudCachingCompatTransformer bridge to GLSM. One at a time, and
+    // not in -PwithCompatMods: both re-render the HUD into a cache, which would change every script's HUD shots.
+    def hudCache = project.findProperty('withHudCache')
+    if (hudCache == 'stellarcore') {
+        modRuntimeOnly 'curse.maven:stellarcore-1064321:8406201'
+        // JourneyMap's minimap is where StellarCore's cache showed the scene through the map (Actinium's notes).
+        modRuntimeOnly 'curse.maven:journeymap-32274:5172461'
+    } else if (hudCache == 'gnetum') {
+        modRuntimeOnly 'maven.modrinth:gnetum:1.4.3'
+    } else if (hudCache != null) {
+        throw new GradleException("-PwithHudCache takes stellarcore or gnetum, not '${hudCache}'")
+    }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
