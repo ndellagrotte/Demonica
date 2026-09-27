@@ -777,7 +777,9 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/^com\/demonica\/diagnostics\//, ~/^com\/demonica\/dev\//, ~/^mixins\.demonica\.diagnostics/,
                 ~/^net\/coderbot\/iris\/celeritas\/debug\//, ~/^net\/coderbot\/iris\/debug\/flight\//,
                 ~/\/GlStateDiffProbe/, ~/\/GpuCheckpointTracker/,
-                ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/
+                ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/,
+                // Angelica's GLStateManagerService layer, which nothing loaded.
+                ~/^com\/mitchej123\/glsm\//, ~/^META-INF\/services\/com\.mitchej123\.glsm\./
             ]
             names.each { name ->
                 if (forbidden.any { name =~ it }) {
@@ -800,7 +802,6 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'net/coderbot/iris/debug/DiagnosticsProvider.class',
                 'net/coderbot/iris/debug/IrisGlDebug.class',
                 'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend',
-                'META-INF/services/com.mitchej123.glsm.GLStateManagerService',
                 'mixins.demonica.core.json',
                 'mixins.demonica.iris.json',
                 'mixins.demonica.celeritas.json',
