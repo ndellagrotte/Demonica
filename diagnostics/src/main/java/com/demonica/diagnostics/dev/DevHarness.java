@@ -23,11 +23,20 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.embeddedt.embeddium.impl.gui.CeleritasVideoOptionsController;
+import org.embeddedt.embeddium.impl.gui.frame.AbstractFrame;
+import org.embeddedt.embeddium.impl.gui.framework.Interactable;
+import org.embeddedt.embeddium.impl.gui.framework.InteractableContainer;
+import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
+import org.embeddedt.embeddium.impl.gui.widgets.FlatButtonWidget;
 import org.embeddedt.embeddium.impl.render.ShaderModBridge;
+import org.embeddedt.embeddium.impl.util.Dim2i;
 import org.taumc.celeritas.impl.gui.CeleritasVideoOptionsScreen;
+import org.taumc.celeritas.impl.gui.VintageInteractionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +48,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 
@@ -62,8 +72,8 @@ import java.util.function.BiFunction;
  *   <li>{@code third <0|1|2>}: set the camera mode</li>
  *   <li>{@code glide <dx> <dz> <ticks>}: move the player by {@code dx, dz} blocks every tick (fast flight)</li>
  *   <li>{@code screen options|video|modconfig|shaderpacks|inventory|close}: open vanilla's Options screen, open Video
- *   Settings (Celeritas's screen), open Demonica's Config
- *   screen from the mod list, open the screen that Celeritas's "Shader Packs" tab opens (through the same
+ *   Settings (Celeritas's screen), open Demonica's Config screen from the mod list, click the "Shader Packs" tab of the
+ *   open Video Settings as a click does (from any other screen, open the screen that tab opens, through the same
  *   {@code ShaderModBridge} call), open the player's inventory (the creative one in creative mode), or close the current
  *   screen</li>
  *   <li>{@code expect-screen <class>}: fail unless the open screen's class has this simple name</li>
@@ -82,6 +92,8 @@ import java.util.function.BiFunction;
 public final class DevHarness {
     public static final String SCRIPT_PROPERTY = "demonica.dev.script";
     private static final Logger LOGGER = LogManager.getLogger("DemonicaDevHarness");
+    // The title Celeritas gives its "Shader Packs" tab.
+    private static final String SHADER_PACKS_TAB = "options.iris.shaderPackSelection";
     private static final Map<String, BiFunction<DevHarness, String[], Boolean>> EXTRA_STEPS = new ConcurrentHashMap<>();
 
     private static boolean installed;
@@ -274,11 +286,15 @@ public final class DevHarness {
                     case "video" -> mc.displayGuiScreen(new CeleritasVideoOptionsScreen(mc.currentScreen));
                     case "modconfig" -> mc.displayGuiScreen(new DemonicaGuiFactory().createConfigGui(mc.currentScreen));
                     case "shaderpacks" -> {
-                        Object screen = ShaderModBridge.openShaderScreen(mc.currentScreen);
-                        if (!(screen instanceof GuiScreen guiScreen)) {
-                            throw new IllegalStateException("Celeritas's shader pack tab opened no screen: " + screen);
+                        if (mc.currentScreen instanceof CeleritasVideoOptionsScreen videoSettings) {
+                            clickShaderPacksTab(mc, videoSettings);
+                        } else {
+                            Object screen = ShaderModBridge.openShaderScreen(mc.currentScreen);
+                            if (!(screen instanceof GuiScreen guiScreen)) {
+                                throw new IllegalStateException("Celeritas's shader pack tab opened no screen: " + screen);
+                            }
+                            mc.displayGuiScreen(guiScreen);
                         }
-                        mc.displayGuiScreen(guiScreen);
                     }
                     case "inventory" -> mc.displayGuiScreen(mc.playerController.isInCreativeMode()
                         ? new GuiContainerCreative(mc.player) : new GuiInventory(mc.player));
@@ -359,6 +375,53 @@ public final class DevHarness {
             access.demonica$actionPerformed(button);
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot press button " + buttonId + " of " + screen, e);
+        }
+    }
+
+    // Celeritas's Video Settings hands a click to its root frame, which passes it down to the widget under the cursor,
+    // so a click on the root frame at the tab runs the tab's own action. The fields read here are Celeritas's own
+    // names, which neither the dev remap nor production changes.
+    private static void clickShaderPacksTab(Minecraft mc, CeleritasVideoOptionsScreen screen) {
+        CeleritasVideoOptionsController controller =
+            (CeleritasVideoOptionsController) readField(CeleritasVideoOptionsScreen.class, "controller", screen);
+        AbstractFrame root = controller.getFrame();
+        if (root == null) {
+            throw new IllegalStateException("Video Settings has no frame");
+        }
+        FlatButtonWidget tab = findTab(root, SHADER_PACKS_TAB).orElseThrow(() -> new IllegalStateException(
+            "Video Settings has no Shader Packs tab: Celeritas did not find Iris's API"));
+        Dim2i dim = (Dim2i) readField(FlatButtonWidget.class, "dim", tab);
+        int x = dim.getCenterX();
+        int y = dim.getCenterY();
+        LOGGER.info("Dev click: Celeritas's Shader Packs tab at ({}, {})", x, y);
+        if (!root.mouseClicked(VintageInteractionContext.INSTANCE, x, y, 0)) {
+            throw new IllegalStateException("A click at (" + x + ", " + y + ") reached no widget: is the Shader Packs "
+                + "tab scrolled out of view?");
+        }
+        if (mc.currentScreen == screen) {
+            throw new IllegalStateException("The Shader Packs tab opened no screen; see the log for ShaderModBridge's error");
+        }
+    }
+
+    private static Optional<FlatButtonWidget> findTab(Interactable widget, String titleKey) {
+        if (widget instanceof FlatButtonWidget button) {
+            return button.getLabel() instanceof TextComponent.Translatable title && title.keys().contains(titleKey)
+                ? Optional.of(button) : Optional.empty();
+        }
+        if (widget instanceof InteractableContainer container) {
+            return container.interactableChildren().map(child -> findTab(child, titleKey))
+                .flatMap(Optional::stream).findFirst();
+        }
+        return Optional.empty();
+    }
+
+    private static Object readField(Class<?> owner, String name, Object instance) {
+        try {
+            Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            return field.get(instance);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Cannot read Celeritas's " + owner.getSimpleName() + "." + name, e);
         }
     }
 
