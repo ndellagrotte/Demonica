@@ -24,8 +24,9 @@ import java.util.stream.Stream;
 
 /**
  * verifyDiagnosticsRemap: finds every field or method instruction in the diagnostics classes whose owner is a root
- * project class but whose member is not declared by a root class and is reached through a Minecraft class. The
- * diagnostics jar's remap does not see the root classes, so such a reference would keep its MCP name.
+ * project class but whose member is not declared by a root class and is reached through a Minecraft class, and every
+ * diagnostics class that extends or implements a root class with a Minecraft supertype. The diagnostics jar's remap
+ * does not see the root classes, so such a reference would keep its MCP name.
  *
  * <p>Arguments: the root project's classes directory, then the diagnostics classes directories.
  */
@@ -36,15 +37,11 @@ public final class InheritedMemberCheck {
     }
 
     public static void main(String[] args) throws IOException {
-        InheritedMemberCheck check = new InheritedMemberCheck();
-        check.readRoot(Path.of(args[0]));
-        List<String> problems = new ArrayList<>();
+        List<Path> diagnosticsDirectories = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
-            Path directory = Path.of(args[i]);
-            if (Files.isDirectory(directory)) {
-                check.scan(directory, problems);
-            }
+            diagnosticsDirectories.add(Path.of(args[i]));
         }
+        List<String> problems = find(Path.of(args[0]), diagnosticsDirectories);
         if (!problems.isEmpty()) {
             System.err.println("The diagnostics reach Minecraft members through root-project classes; the remap would "
                 + "leave these in MCP names. Call them through a Minecraft-typed reference:");
@@ -52,6 +49,19 @@ public final class InheritedMemberCheck {
             System.exit(1);
         }
         System.out.println("No diagnostics class reaches a Minecraft member through a root-project class");
+    }
+
+    /** The references in the diagnostics classes that the remap would leave in MCP names. */
+    static List<String> find(Path rootClassesDirectory, List<Path> diagnosticsDirectories) throws IOException {
+        InheritedMemberCheck check = new InheritedMemberCheck();
+        check.readRoot(rootClassesDirectory);
+        List<String> problems = new ArrayList<>();
+        for (Path directory : diagnosticsDirectories) {
+            if (Files.isDirectory(directory)) {
+                check.scan(directory, problems);
+            }
+        }
+        return problems;
     }
 
     private void readRoot(Path directory) throws IOException {
@@ -64,6 +74,16 @@ public final class InheritedMemberCheck {
     private void scan(Path directory, List<String> problems) throws IOException {
         for (Path file : classFiles(directory)) {
             ClassNode node = read(file);
+            // A class that extends or implements a root class inherits through it: the remap cannot follow.
+            List<String> supertypes = new ArrayList<>(node.interfaces);
+            if (node.superName != null) {
+                supertypes.add(node.superName);
+            }
+            for (String supertype : supertypes) {
+                if (rootClasses.containsKey(supertype) && reachesMinecraft(supertype)) {
+                    problems.add(node.name + " extends " + supertype + ", which reaches a Minecraft class");
+                }
+            }
             for (MethodNode method : node.methods) {
                 for (AbstractInsnNode instruction : method.instructions) {
                     String owner;
@@ -116,6 +136,11 @@ public final class InheritedMemberCheck {
             pending.addAll(node.interfaces);
         }
         return reachesMinecraft;
+    }
+
+    /** Whether a Minecraft class is among a root class's supertypes. */
+    private boolean reachesMinecraft(String type) {
+        return inheritedFromMinecraft(type, "", "", true);
     }
 
     private static boolean declares(ClassNode node, String name, String descriptor, boolean isField) {
