@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;

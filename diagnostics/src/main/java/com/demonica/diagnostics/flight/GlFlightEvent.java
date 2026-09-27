@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Represents one fully committed breadcrumb recovered from a flight recording.

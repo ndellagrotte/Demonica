@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 import java.io.EOFException;
 import java.io.IOException;

@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Identifies the persistent streaming source synchronized at the end of a rendered frame.

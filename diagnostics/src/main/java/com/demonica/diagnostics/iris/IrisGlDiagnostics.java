@@ -1,7 +1,7 @@
 package com.demonica.diagnostics.iris;
 
 import com.demonica.config.DemonicaRuntimeOptions;
-import net.coderbot.iris.debug.flight.GlFlightRecording;
+import com.demonica.diagnostics.flight.GlFlightRecording;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandType;
 import net.coderbot.iris.Iris;

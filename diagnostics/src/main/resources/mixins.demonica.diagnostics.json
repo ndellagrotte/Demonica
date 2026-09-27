@@ -12,6 +12,7 @@
     "FramebufferDiagnosticsMixin",
     "GuiScreenAccessor",
     "MinecraftDiagnosticsMixin",
+    "MinecraftFlightRecorderMixin",
     "MinecraftGlErrorMarkMixin",
     "TextureManagerDebugLabelsMixin"
   ],

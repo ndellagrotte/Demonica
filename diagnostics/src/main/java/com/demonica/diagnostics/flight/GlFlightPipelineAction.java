@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Identifies pipeline lifecycle operations stored in the first numeric event argument.

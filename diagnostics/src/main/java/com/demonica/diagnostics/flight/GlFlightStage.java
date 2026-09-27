@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Names stable rendering stages that remain meaningful when Java and game logs are unavailable.

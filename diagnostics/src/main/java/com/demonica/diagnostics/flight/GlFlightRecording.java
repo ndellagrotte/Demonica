@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCheckpointType;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandPhase;

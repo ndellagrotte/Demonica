@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 final class GlFlightFormat {
     static final long MAGIC = 0x31474F4C46544341L;

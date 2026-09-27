@@ -28,6 +28,7 @@ public class EarlyRedirectorTransformer implements IClassTransformer {
         excl.add("com.gtnewhorizons.angelica.loading.");
         excl.add("com.gtnewhorizons.angelica.glsm.loading.");
         excl.add("com.gtnewhorizons.angelica.transform");
+        excl.add("com.demonica.diagnostics.glsm.");
         exclusions = excl.toArray(new String[0]);
     }
 

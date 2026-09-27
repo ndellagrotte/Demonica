@@ -12,7 +12,6 @@ import com.gtnewhorizons.angelica.glsm.backend.GLDebugMessageListener;
 import com.gtnewhorizons.angelica.glsm.backend.RenderBackend;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMDebug;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
-import com.gtnewhorizons.angelica.glsm.debug.GpuCheckpointTracker;
 import com.gtnewhorizons.angelica.glsm.ffp.ShaderManager;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredAlphaHandler;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredBlendHandler;
@@ -516,7 +515,7 @@ public class GLStateManager {
         }
         final GpuCommandRecorder recorder = config.getGpuCommandRecorder();
         if (recorder != null) {
-            GpuCheckpointTracker.checkpoint(recorder, type.code());
+            recorder.insertCheckpoint(type.code());
         }
     }
 

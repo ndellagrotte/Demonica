@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Identifies whether a breadcrumb starts, finishes, or samples an operation.

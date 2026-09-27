@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Selects whether semantic rendering breadcrumbs are retained before a native crash.

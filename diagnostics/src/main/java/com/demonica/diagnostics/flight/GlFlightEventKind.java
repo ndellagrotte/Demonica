@@ -1,4 +1,4 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
 /**
  * Classifies a breadcrumb so offline analysis can filter the timeline without parsing text.

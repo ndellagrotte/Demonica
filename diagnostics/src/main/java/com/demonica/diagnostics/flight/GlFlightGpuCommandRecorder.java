@@ -1,5 +1,6 @@
-package net.coderbot.iris.debug.flight;
+package com.demonica.diagnostics.flight;
 
+import com.demonica.diagnostics.glsm.GpuCheckpointTracker;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCheckpointType;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandPhase;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandRecorder;
@@ -27,5 +28,10 @@ public enum GlFlightGpuCommandRecorder implements GpuCommandRecorder {
     @Override
     public void checkpoint(GpuCheckpointType type, long checkpointId, int commandCode) {
         GlFlightRecording.gpuCheckpoint(type, checkpointId, commandCode);
+    }
+
+    @Override
+    public void insertCheckpoint(int commandCode) {
+        GpuCheckpointTracker.checkpoint(this, commandCode);
     }
 }

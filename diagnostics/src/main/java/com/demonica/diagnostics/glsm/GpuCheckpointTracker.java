@@ -1,4 +1,4 @@
-package com.gtnewhorizons.angelica.glsm.debug;
+package com.demonica.diagnostics.glsm;
 
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCheckpointType;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandRecorder;

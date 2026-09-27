@@ -2,8 +2,6 @@ package com.demonica.mixin.core.startup;
 
 import com.demonica.debug.DemonicaStartupDebugConfig;
 import net.coderbot.iris.debug.Diagnostics;
-import net.coderbot.iris.debug.flight.GlFlightRecording;
-import net.coderbot.iris.debug.flight.GlFlightGpuCommandRecorder;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.hooks.GLSMHooks;
 import com.gtnewhorizons.angelica.glsm.hooks.GLSMInitConfig;
@@ -47,7 +45,7 @@ public class MixinOpenGlHelper {
             .framebufferSupported(OpenGlHelper.framebufferSupported)
             .fboEnabled(mc.gameSettings.fboEnable)
             .streamingUploadStrategy(demonica$streamingUploadStrategy())
-            .gpuCommandRecorder(GlFlightRecording.isEnabled() ? GlFlightGpuCommandRecorder.INSTANCE : null)
+            .gpuCommandRecorder(Diagnostics.gpuCommandRecorder())
             .directDrawer(TessellatorStreamingDrawer::drawDirect)
             .streamingDrawerDestroy(() -> {
                 TessellatorStreamingDrawer.destroy();

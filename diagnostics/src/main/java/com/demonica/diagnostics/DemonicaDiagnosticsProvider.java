@@ -1,10 +1,14 @@
 package com.demonica.diagnostics;
 
 import com.demonica.celeritas.api.debug.RenderDebugHooksHolder;
+import com.demonica.diagnostics.flight.GlFlightGpuCommandRecorder;
+import com.demonica.diagnostics.flight.GlFlightHooks;
+import com.demonica.diagnostics.flight.GlFlightRecording;
 import com.demonica.diagnostics.iris.IrisGlDebugHooks;
 import com.demonica.diagnostics.iris.IrisRenderDebugHooks;
 import com.gtnewhorizons.angelica.glsm.hooks.GpuCommandRecorder;
 import net.coderbot.iris.debug.DiagnosticsProvider;
+import net.coderbot.iris.debug.GlFlight;
 import net.coderbot.iris.debug.IrisGlDebug;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,13 +22,14 @@ public final class DemonicaDiagnosticsProvider implements DiagnosticsProvider {
             return false;
         }
         IrisGlDebug.install(IrisGlDebugHooks.INSTANCE);
+        GlFlight.install(GlFlightHooks.INSTANCE);
         RenderDebugHooksHolder.setHooks(IrisRenderDebugHooks.INSTANCE);
         return true;
     }
 
     @Override
     public @Nullable GpuCommandRecorder gpuCommandRecorder() {
-        return null;
+        return GlFlightRecording.isEnabled() ? GlFlightGpuCommandRecorder.INSTANCE : null;
     }
 
     @Override
