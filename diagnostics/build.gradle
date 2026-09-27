@@ -31,14 +31,6 @@ repositories {
     maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
 }
 
-processResources {
-    def resourceProperties = [version: project.version.toString()]
-    inputs.properties(resourceProperties)
-    filesMatching('mcmod.info') {
-        expand(resourceProperties)
-    }
-}
-
 test {
     useJUnitPlatform()
     // Log4j writes logs/ into the working directory.

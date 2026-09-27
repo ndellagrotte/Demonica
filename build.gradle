@@ -203,6 +203,15 @@ repositories {
 
 def diagnosticsProject = project(':diagnostics')
 
+// The diagnostics' classes and resources in one directory, for the dev client. Cleanroom pairs every dev class directory
+// with one resource directory, the last it finds; a second resources/main would take the place of Demonica's own, and
+// with it Demonica's mcmod.info and assets. It takes a directory for classes by its name, as for the embedded classes.
+def diagnosticsDevDir = layout.buildDirectory.dir('diagnostics-classes/main')
+def syncDiagnosticsDev = tasks.register('syncDiagnosticsDev', Sync) {
+    from diagnosticsProject.sourceSets.main.output
+    into diagnosticsDevDir
+}
+
 // The companion jar in MCP names; remapDiagnosticsJar makes the distributed one. It is kept out of build/libs, which
 // holds only what is distributed.
 def diagnosticsJar = tasks.register('diagnosticsJar', Jar) {
@@ -215,6 +224,10 @@ def diagnosticsJar = tasks.register('diagnosticsJar', Jar) {
     inputs.property('version', project.version.toString())
 
     from diagnosticsProject.sourceSets.main.output
+    // Only in the jar: on the dev client's extrapath, a second mcmod.info would hide Demonica's own.
+    from(diagnosticsProject.file('src/jar/mcmod.info')) {
+        expand(version: project.version.toString())
+    }
     // The license texts and notices, as in the mod jar (THIRD_PARTY_NOTICES.md, "In the jars").
     from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 
@@ -279,7 +292,7 @@ unimined.minecraft {
             // without the companion jar.
             def withDiagnostics = project.findProperty('withoutDiagnostics') == null
             if (withDiagnostics) {
-                extraPaths.addAll(diagnosticsProject.sourceSets.main.output.files.collect { it.absolutePath })
+                extraPaths.add(diagnosticsDevDir.get().asFile.absolutePath)
             }
             jvmArgs = jvmArgs.findAll { !it.toString().startsWith(extraPathArgument) }
             jvmArgs += "${extraPathArgument}${extraPaths.join(File.pathSeparator)}"
@@ -349,7 +362,7 @@ unimined.minecraft {
 
 tasks.named('preRunClient').configure {
     dependsOn tasks.named('classes')
-    dependsOn diagnosticsProject.tasks.named('classes')
+    dependsOn syncDiagnosticsDev
 }
 
 tasks.named('assemble').configure {
@@ -722,10 +735,11 @@ def verifyRunClasspath = tasks.register('verifyRunClasspath') {
 
     def runClient = tasks.named('runClient', JavaExec).get()
     def diagnosticsOutputs = diagnosticsProject.sourceSets.main.output
+    def diagnosticsDev = diagnosticsDevDir
 
     doLast {
         def isS8tnlibJar = { String path -> new File(path).name ==~ /s8tnlib-.*\.jar/ }
-        def diagnosticsPaths = diagnosticsOutputs.files*.path as Set
+        def diagnosticsPaths = (diagnosticsOutputs.files*.path + diagnosticsDev.get().asFile.path) as Set
         def problems = runClient.classpath.files*.path.findAll { isS8tnlibJar(it) || diagnosticsPaths.contains(it) }
         if (!problems.isEmpty()) {
             throw new GradleException("runClient must load S8TNLib and the diagnostics only through " +
