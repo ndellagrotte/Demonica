@@ -109,8 +109,11 @@ class GlslCorpusParseSurveyTest {
         Files.writeString(out, String.join("\n", report) + "\n", StandardCharsets.UTF_8);
     }
 
-    /** The text ShaderTransformer hands TauMC's parser, with its {@code #version} line set to the effective version. */
-    private static String prepare(String source, PatchShaderType stage, Patch patch, Map<String, String> p,
+    /**
+     * The text ShaderTransformer hands TauMC's parser, with its {@code #version} line set to the effective version.
+     * Package-private, as is {@link #restoreHoisting}: {@link ShaderAstCorpusDifferential} prepares its inputs with them.
+     */
+    static String prepare(String source, PatchShaderType stage, Patch patch, Map<String, String> p,
                                   Method requiredVersion) throws Exception {
         final Matcher version = VERSION.matcher(source);
         if (!version.find()) {
@@ -144,7 +147,7 @@ class GlslCorpusParseSurveyTest {
         return VERSION.matcher(input).replaceFirst("#version " + versionInt + (versionInt >= 150 ? " core" : ""));
     }
 
-    private static void restoreHoisting(Map<String, String> p) {
+    static void restoreHoisting(Map<String, String> p) {
         RenderSystem.initializeGlslCapabilityForTesting(Integer.parseInt(p.getOrDefault("glsl.maxVersion", "460")),
             Boolean.parseBoolean(p.get("glsl.ssbo")), Boolean.parseBoolean(p.get("glsl.imageLoadStore")));
         ShaderTransformer.resetVersionHoistingForTesting();

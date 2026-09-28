@@ -73,6 +73,29 @@ class GlslTokensTest {
     }
 
     @Test
+    void squareMatrixTypesHaveOneName() {
+        // glsl-transformer parses mat2x2 and mat2 into one type and prints mat2.
+        assertEquals(GlslTokens.of("uniform mat2x2 r; dmat4x4 d = dmat4x4(1.0);"), GlslTokens.of("uniform mat2 r; dmat4 d = dmat4(1.0);"));
+        assertNotEquals(tokens("mat2x3"), tokens("mat2"));
+        assertEquals(List.of("mat2x2_value", "mat3", "mat4x2"), tokens("mat2x2_value mat3x3 mat4x2"));
+    }
+
+    @Test
+    void nestedGroupingsAreOnePair() {
+        // glsl-transformer's AST keeps one grouping for ((x)).
+        assertEquals(GlslTokens.of("y = s * ((s - 2.0 * p));"), GlslTokens.of("y = s * (s - 2.0 * p);"));
+        assertEquals(GlslTokens.of("y = (((a)));"), GlslTokens.of("y = (a);"));
+        assertEquals(GlslTokens.of("return ((a));"), GlslTokens.of("return (a);"));
+        // The inner pair of a call's (((x))) is a grouping and absorbs the rest; the call's own pair stays.
+        assertEquals(GlslTokens.of("f(((x)));"), GlslTokens.of("f((x));"));
+        assertNotEquals(GlslTokens.of("f((a, b));"), GlslTokens.of("f(a, b);"));
+        assertNotEquals(GlslTokens.of("if ((a)) b();"), GlslTokens.of("if (a) b();"));
+        assertNotEquals(GlslTokens.of("m[0]((a));"), GlslTokens.of("m[0](a);"));
+        // Adjacent groupings are not nested.
+        assertEquals(List.of("(", "a", ")", "*", "(", "b", ")"), tokens("(a) * (b)"));
+    }
+
+    @Test
     void integerUnsignedAndDoubleLiteralsStayDistinct() {
         assertNotEquals(tokens("1"), tokens("1.0"));
         assertNotEquals(tokens("1u"), tokens("1"));

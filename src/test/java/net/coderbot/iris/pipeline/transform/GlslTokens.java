@@ -24,6 +24,12 @@ import java.util.regex.Pattern;
  *   ({@code hf}) literal keeps its suffix, lower-cased. An integer literal becomes its decimal value, with {@code u}
  *   if it is unsigned ({@code 0x10}, {@code 020} and {@code 16} are one token; {@code 16u} is another). Integers and
  *   floats stay distinct: {@code 1} is not {@code 1.0}.</li>
+ *   <li>A square matrix type is canonical: {@code mat2x2} is {@code mat2} (and {@code dmat3x3} is {@code dmat3}), because
+ *   glsl-transformer parses both spellings into one type and prints the short one.</li>
+ *   <li>Directly nested grouping parentheses are one pair: {@code ((a + b))} is {@code (a + b)}, because
+ *   glsl-transformer's AST keeps one grouping for any number. The parentheses of a call, a constructor or a control
+ *   statement are not groupings ({@code f((a, b))} keeps both pairs; the inner pair of {@code f(((x)))} absorbs the
+ *   rest).</li>
  * </ul>
  *
  * <p>{@link #text()} writes the tokens one space apart with a line break after {@code ;}, <code>{</code> and
@@ -38,6 +44,7 @@ public final class GlslTokens {
             + "|(?<op><<=|>>=|\\+\\+|--|<<|>>|<=|>=|==|!=|&&|\\|\\||\\^\\^|[-+*/%&|^]=)"
             + "|(?<other>\\S)");
     private static final Set<String> LINE_ENDS = Set.of(";", "{", "}");
+    private static final Pattern SQUARE_MATRIX = Pattern.compile("^(d?mat)([234])x\\2$");
 
     private final List<String> tokens;
     private String text;
@@ -60,7 +67,62 @@ public final class GlslTokens {
                 lex(line, tokens);
             }
         }
-        return new GlslTokens(tokens);
+        return new GlslTokens(collapseNestedGroupings(tokens));
+    }
+
+    // Keywords after which a parenthesis opens a grouping, not a call or a statement's condition.
+    private static final Set<String> GROUPING_KEYWORDS = Set.of("return", "else", "case");
+
+    /** Removes the inner pair of every {@code ( ( ... ) )} whose outer pair is a grouping. */
+    private static List<String> collapseNestedGroupings(List<String> tokens) {
+        final int size = tokens.size();
+        final int[] match = new int[size];
+        final java.util.ArrayDeque<Integer> open = new java.util.ArrayDeque<>();
+        for (int i = 0; i < size; i++) {
+            match[i] = -1;
+            if (tokens.get(i).equals("(")) {
+                open.push(i);
+            } else if (tokens.get(i).equals(")") && !open.isEmpty()) {
+                final int opening = open.pop();
+                match[opening] = i;
+                match[i] = opening;
+            }
+        }
+        final boolean[] removed = new boolean[size];
+        boolean any = false;
+        for (int i = 0; i + 1 < size; i++) {
+            final int close = match[i];
+            if (!tokens.get(i).equals("(") || close < 0 || !tokens.get(i + 1).equals("(") || match[i + 1] != close - 1
+                || !opensGrouping(tokens, i)) {
+                continue;
+            }
+            removed[i + 1] = true;
+            removed[close - 1] = true;
+            any = true;
+        }
+        if (!any) {
+            return tokens;
+        }
+        final List<String> kept = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            if (!removed[i]) {
+                kept.add(tokens.get(i));
+            }
+        }
+        return kept;
+    }
+
+    private static boolean opensGrouping(List<String> tokens, int index) {
+        if (index == 0) {
+            return true;
+        }
+        final String previous = tokens.get(index - 1);
+        if (previous.equals(")") || previous.equals("]")) {
+            return false;
+        }
+        final char first = previous.charAt(0);
+        final boolean word = Character.isLetter(first) || first == '_';
+        return !word || GROUPING_KEYWORDS.contains(previous);
     }
 
     /** The tokens, in order. */
@@ -257,6 +319,8 @@ public final class GlslTokens {
                 out.add(canonicalFloat(matcher.group()));
             } else if (matcher.group("int") != null) {
                 out.add(canonicalInt(matcher.group()));
+            } else if (matcher.group("id") != null) {
+                out.add(SQUARE_MATRIX.matcher(matcher.group()).replaceFirst("$1$2"));
             } else {
                 out.add(matcher.group());
             }
