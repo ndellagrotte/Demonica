@@ -52,7 +52,6 @@ public class ShaderPackScreen extends GuiScreen implements HudHideable {
     private static final String SELECT_TITLE = I18n.format("pack.iris.select.title");
     private static final String CONFIGURE_TITLE = I18n.format("pack.iris.configure.title");
     private static final int COMMENT_PANEL_WIDTH = 314;
-    private static final int NOTICE_HEIGHT = 10;
 
     private final GuiScreen parent;
     private final String title;
@@ -81,8 +80,6 @@ public class ShaderPackScreen extends GuiScreen implements HudHideable {
 
     private boolean guiHidden = false;
     private boolean dirty = false;
-    // What shader packs lack in this game (IrisDebugOptions.shaderNotices), drawn under the title; the lists start below.
-    private final List<String> notices = IrisDebugOptions.shaderNotices();
     private float guiButtonHoverTimer = 0.0f;
 
     /**
@@ -163,10 +160,6 @@ public class ShaderPackScreen extends GuiScreen implements HudHideable {
                 }
             }
 
-            for (int i = 0; i < this.notices.size(); i++) {
-                drawCenteredString(this.fontRenderer, this.notices.get(i), (int) (this.width * 0.5), 32 + i * NOTICE_HEIGHT, 0xFFFF55);
-            }
-
             // Draw the comment panel
             if (this.isDisplayingComment()) {
                 // Determine panel height and position
@@ -214,13 +207,12 @@ public class ShaderPackScreen extends GuiScreen implements HudHideable {
         final int topCenter = this.width / 2 - 76;
         final boolean inWorld = this.mc.world != null;
 
-        final int listTop = 32 + this.notices.size() * NOTICE_HEIGHT;
-        this.shaderPackList = new ShaderPackSelectionList(this, this.mc, this.width, this.height, listTop, this.height - 58, 0, this.width);
+        this.shaderPackList = new ShaderPackSelectionList(this, this.mc, this.width, this.height, 32, this.height - 58, 0, this.width);
 
         if (Iris.getCurrentPack().isPresent() && this.navigation != null) {
             final ShaderPack currentPack = Iris.getCurrentPack().get();
 
-            this.shaderOptionList = new ShaderPackOptionList(this, this.navigation, currentPack, this.mc, this.width, this.height, listTop, this.height - 58, 0, this.width);
+            this.shaderOptionList = new ShaderPackOptionList(this, this.navigation, currentPack, this.mc, this.width, this.height, 32, this.height - 58, 0, this.width);
             this.navigation.setActiveOptionList(this.shaderOptionList);
 
             this.shaderOptionList.rebuild();

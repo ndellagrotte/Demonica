@@ -25,7 +25,7 @@ import java.util.List;
  * register see the quads of every block Celeritas's fast block renderer meshes: each face that will be drawn, and
  * the unassigned quads. An empty result drops the face.
  */
-@Patch(value = "S20", group = PatchGroup.DEGRADE, uses = {BlockQuadTransformerHolder.class, BlockQuadTransformer.class})
+@Patch(value = "S20", group = PatchGroup.DEGRADE)
 @Mixin(value = VintageBlockRenderer.class, remap = false, priority = 1100)
 public abstract class VintageBlockRendererQuadsMixin {
     @WrapOperation(method = "renderBlock", at = @At(value = "INVOKE",

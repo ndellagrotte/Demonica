@@ -75,47 +75,51 @@ def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', 
 sourceSets.main.output.dir(mergedEmbeddedLibraryClassesDir, builtBy: mergeEmbeddedLibraryClasses)
 
 /*
- * META-INF/demonica/celeritas-anchors: the Celeritas build the jar is made for and every anchor of the quarantine's
- * patches, extracted from the compiled mixins. QuarantineGuard reads it at startup, and checks the anchors when the
- * installed Celeritas is not the pinned build (docs/celeritas/LEDGER.md, "The guard").
+ * META-INF/demonica/celeritas-pin: the Celeritas build this Demonica was made for. QuarantineGuard compares the
+ * installed jar's SHA-256 with it at startup (docs/celeritas/LEDGER.md, "The guard"). dev_sha256 is the hash of
+ * Unimined's remap of the pin, which the compile classpath, the tests and the dev client all use; the guard trusts it
+ * only in a deobfuscated environment, and the jar task drops it.
  */
-def generatedAnchorsDir = layout.buildDirectory.dir('generated/celeritas-anchors')
-def generateCeleritasAnchors = tasks.register('generateCeleritasAnchors', JavaExec) {
-    description = 'Extracts the anchors of the Celeritas patches from the compiled quarantine mixins.'
-    def compiledClasses = tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory }
-    def quarantineConfig = file('src/main/resources/mixins.demonica.celeritas.json')
-    // The jar the build compiles against (Unimined's MCP remap of the pin): its upstream mixins name the same members.
-    def celeritasJar = configurations.compileClasspath.filter {
-        it.name.startsWith('celeritas-forge-mc12.2-') && !it.name.endsWith('-sources.jar')
-    }
-    def outputFile = generatedAnchorsDir.map { it.file('META-INF/demonica/celeritas-anchors') }
+def generatedPinDir = layout.buildDirectory.dir('generated/celeritas-pin')
+def generateCeleritasPin = tasks.register('generateCeleritasPin') {
+    description = 'Writes the Celeritas pin QuarantineGuard checks the installed jar against.'
+    def isCeleritasJar = { File file -> file.name.startsWith('celeritas-forge-mc12.2-') && !file.name.endsWith('-sources.jar') }
+    def compileJar = configurations.compileClasspath.filter(isCeleritasJar)
+    def runtimeJar = configurations.runtimeClasspath.filter(isCeleritasJar)
+    def outputFile = generatedPinDir.map { it.file('META-INF/demonica/celeritas-pin') }
     def pins = project.property('celeritas_sha256').toString()
     def upstreamCommit = project.property('celeritas_sha').toString()
     def celeritasVersion = project.property('celeritas_version').toString()
 
-    dependsOn mergeEmbeddedLibraryClasses
-    inputs.files(compiledClasses, mergedEmbeddedLibraryClassesDir).withPropertyName('classes')
-    inputs.file(quarantineConfig).withPropertyName('config')
-    inputs.files(celeritasJar).withPropertyName('celeritasJar')
+    inputs.files(compileJar).withPropertyName('compileJar')
+    inputs.files(runtimeJar).withPropertyName('runtimeJar')
     inputs.property('pins', pins)
     inputs.property('upstreamCommit', upstreamCommit)
     inputs.property('celeritasVersion', celeritasVersion)
-    outputs.dir(generatedAnchorsDir)
+    outputs.dir(generatedPinDir)
 
-    classpath = files(compiledClasses) + configurations.compileClasspath
-    mainClass = 'com.demonica.celeritas.guard.AnchorExtractor'
-    javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-    doFirst {
-        delete(generatedAnchorsDir)
-        args = [outputFile.get().asFile.absolutePath, quarantineConfig.absolutePath, celeritasJar.singleFile.absolutePath,
-                upstreamCommit, celeritasVersion, pins,
-                compiledClasses.get().asFile.absolutePath, mergedEmbeddedLibraryClassesDir.get().asFile.absolutePath]
+    doLast {
+        def sha256 = { File jar -> java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString() }
+        def devSha256 = sha256(compileJar.singleFile)
+        def runtimeSha256 = sha256(runtimeJar.singleFile)
+        if (devSha256 != runtimeSha256) {
+            throw new GradleException("The Celeritas jar the build compiles against (${compileJar.singleFile}, SHA-256 " +
+                "${devSha256}) is not the one the dev client runs (${runtimeJar.singleFile}, SHA-256 ${runtimeSha256}).")
+        }
+        def file = outputFile.get().asFile
+        delete(generatedPinDir)
+        file.parentFile.mkdirs()
+        file.text = """\
+            |# The Celeritas build this Demonica was made for (docs/celeritas/PIN.md). Written by generateCeleritasPin.
+            |celeritas_sha=${upstreamCommit}
+            |celeritas_version=${celeritasVersion}
+            |celeritas_sha256=${pins.split(',')*.trim().join(',')}
+            |dev_sha256=${devSha256}
+            |""".stripMargin()
     }
 }
 
-sourceSets.main.output.dir(generatedAnchorsDir, builtBy: generateCeleritasAnchors)
+sourceSets.main.output.dir(generatedPinDir, builtBy: generateCeleritasPin)
 
 subprojects {
     apply plugin: 'java-library'
@@ -313,8 +317,8 @@ unimined.minecraft {
             if (project.findProperty('mixinExport') != null) {
                 systemProperty 'mixin.debug.export', 'true'
             }
-            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.perfDebug=true. A
-            // value may hold commas (demonica.guard.drill=SHADOW,MESHING): only a comma before the next key= separates.
+            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.celeritas.pinsOnly=true. A
+            // value may hold a comma-separated list: only a comma before the next key= separates.
             def devProps = project.findProperty('devProps')
             if (devProps != null) {
                 devProps.toString().split(/,(?=[\w.-]+=)/).each { entry ->
@@ -558,7 +562,7 @@ processResources {
 
 tasks.named('classes').configure {
     dependsOn mergeEmbeddedLibraryClasses
-    dependsOn generateCeleritasAnchors
+    dependsOn generateCeleritasPin
 }
 
 tasks.named('sourcesJar').configure {
@@ -598,6 +602,11 @@ jar {
         }
     }
 
+    // The workspace remap's hash is for dev runs only: a distributed jar trusts exactly the pins (QuarantineGuard).
+    filesMatching('META-INF/demonica/celeritas-pin') {
+        filter { String line -> line.startsWith('dev_sha256=') ? null : line }
+    }
+
     finalizedBy tasks.named('remapJar')
 }
 
@@ -614,7 +623,7 @@ test {
     dependsOn prepareTestRunDirectory
     systemProperty 'demonica.projectRoot', rootProject.projectDir.absolutePath
     // Read from the project directory rather than the classpath: the patch ledger and its drafts (QuarantineLedgerTest)
-    // and the pins (AnchorInventoryTest). Declared, so that editing them re-runs the tests instead of reusing a result.
+    // and the pins (QuarantineGuardTest). Declared, so that editing them re-runs the tests instead of reusing a result.
     inputs.files('docs/celeritas/LEDGER.md', 'gradle.properties')
         .withPropertyName('projectFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('docs/celeritas/patches').withPropertyName('patchDrafts').withPathSensitivity(PathSensitivity.RELATIVE)
@@ -672,33 +681,6 @@ def verifyCeleritasPin = registerPinCheck('verifyCeleritasPin', 'Celeritas', cel
 def verifyS8tnlibPin = registerPinCheck('verifyS8tnlibPin', 'S8TNLib',
     "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}", 's8tnlib_sha256', 'docs/FORK.md',
     s8tnlibDir != null ? "-Ps8tnlibDir=${s8tnlibDir}" : null)
-
-/**
- * The distributed jar's patch anchors, checked as QuarantineGuard checks them in a real install: through the jar's
- * refmap, against the SRG-named pinned jar. On the pin the guard skips the check, so this is where its production
- * naming is proven (docs/celeritas/LEDGER.md, "The guard").
- */
-def verifyProductionAnchors = tasks.register('verifyProductionAnchors', JavaExec) {
-    group = 'verification'
-    description = 'Checks the distributed jar\'s Celeritas patch anchors against the pinned jar in production names.'
-    dependsOn tasks.named('remapJar'), tasks.named('testClasses')
-
-    def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
-    def pinnedJar = configurations.detachedConfiguration(dependencies.create(celeritasCoordinate)).tap {
-        transitive = false
-    }
-    inputs.file(remappedJar)
-    inputs.files(pinnedJar)
-
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.demonica.celeritas.guard.ProductionAnchorCheck'
-    javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-    doFirst {
-        args = [pinnedJar.singleFile.absolutePath, remappedJar.get().asFile.absolutePath]
-    }
-}
 
 def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
     group = 'verification'
@@ -774,7 +756,13 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
 
     def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
     def containedJars = provider { configurations.contain.collect { it.name } }
+    def celeritasPin = [
+        celeritas_sha: project.property('celeritas_sha').toString().trim(),
+        celeritas_version: project.property('celeritas_version').toString().trim(),
+        celeritas_sha256: (project.property('celeritas_sha256').toString().split(',')*.trim()*.toLowerCase() as Set)
+    ]
     inputs.file(remappedJar)
+    inputs.property('celeritasPin', celeritasPin.toString())
 
     doLast {
         def jarFile = remappedJar.get().asFile
@@ -826,8 +814,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica.conditions.properties',
                 'mixins.demonica.distanthorizons.json',
                 'mixins.demonica-refmap.json',
-                // The pin and the patches' anchors, which QuarantineGuard checks at startup.
-                'META-INF/demonica/celeritas-anchors',
+                // The Celeritas pin, which QuarantineGuard checks the installed jar against at startup.
+                'META-INF/demonica/celeritas-pin',
                 // Loaded by path at runtime (Celeritas's ShaderLoader): the shaders of Iris's CenterDepthSampler.
                 'assets/angelica/shaders/centerDepth.vsh'
             ] + containedJars.get()
@@ -858,6 +846,26 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
             if (mod.modid != 'demonica' || !(mod.dependencies as List).containsAll(requiredMods)
                     || !(mod.requiredMods as List).containsAll(requiredMods)) {
                 problems << "mcmod.info must declare modid demonica and require ${requiredMods.join(' and ')}: ${mod}"
+            }
+
+            // Exactly the pins of gradle.properties, and nothing else: no dev_sha256, which only a dev run may trust.
+            def pinEntry = jar.getEntry('META-INF/demonica/celeritas-pin')
+            if (pinEntry != null) {
+                def pin = new Properties()
+                jar.getInputStream(pinEntry).withReader('UTF-8') { pin.load(it) }
+                def unexpected = pin.stringPropertyNames() - celeritasPin.keySet()
+                if (!unexpected.isEmpty()) {
+                    problems << "META-INF/demonica/celeritas-pin has keys it must not have: ${unexpected}"
+                }
+                def pinnedSha256 = (pin.getProperty('celeritas_sha256') ?: '').split(',')*.trim()*.toLowerCase().findAll { it } as Set
+                if (pinnedSha256 != celeritasPin.celeritas_sha256) {
+                    problems << "META-INF/demonica/celeritas-pin pins ${pinnedSha256}, gradle.properties ${celeritasPin.celeritas_sha256}"
+                }
+                ['celeritas_sha', 'celeritas_version'].each { key ->
+                    if (pin.getProperty(key)?.trim() != celeritasPin[key]) {
+                        problems << "META-INF/demonica/celeritas-pin has ${key} ${pin.getProperty(key)}, gradle.properties ${celeritasPin[key]}"
+                    }
+                }
             }
         }
         if (!problems.isEmpty()) {
@@ -980,5 +988,4 @@ tasks.named('check').configure {
     dependsOn verifyModuleBoundaries
     dependsOn verifyRunClasspath
     dependsOn verifyDistributedJar
-    dependsOn verifyProductionAnchors
 }

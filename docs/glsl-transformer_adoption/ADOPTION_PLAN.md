@@ -488,6 +488,8 @@ ls build/reports/transform-replay | head; wc -l src/test/resources/transform-rep
 ./gradlew runClient -PdevScript=@scripts/cp4.txt -PdevProps=demonica.glsmPerfDebug=true > run/s8-cp4.out 2>&1; grep -E 'Dev shader pack|Dev stats|Shader compilation failed|Failed to compile' run/s8-cp4.out; grep -o 'transformMs=[0-9.]*' run/s8-cp4.out | cut -d= -f2 | paste -sd+ | python3 -c 'import sys; print(eval(sys.stdin.read()))'
 ./gradlew runClient -PdevScript=@scripts/guard-core.txt -PdevProps=demonica.guard.drill=CORE > run/s8-guard.out 2>&1; grep -E 'anchors|drill|Dev shader pack' run/s8-guard.out | head
 ```
+*Superseded (2026-09-27, `feat/version-gate`): the guard's drills are gone; the
+rejection path is now `-PdevProps=demonica.celeritas.pinsOnly=true`.*
 
 **Budget.** ~130K.
 

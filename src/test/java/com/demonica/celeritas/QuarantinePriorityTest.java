@@ -1,7 +1,6 @@
 package com.demonica.celeritas;
 
-import com.demonica.celeritas.guard.AnchorExtractor;
-import com.demonica.celeritas.guard.QuarantineAnchors;
+import com.demonica.celeritas.guard.QuarantineMixins;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Type;
@@ -19,9 +18,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -35,18 +37,18 @@ class QuarantinePriorityTest {
     private static final String REDIRECT = "Lorg/spongepowered/asm/mixin/injection/Redirect;";
 
     @Test
-    void everyQuarantineMixinOutranksUpstreamOnItsTargets() throws IOException {
+    void everyQuarantineMixinOutranksUpstreamOnItsTargets() {
         Map<String, Integer> upstream = new HashMap<>();
-        for (UpstreamMixinInventory.MixinClass mixin : UpstreamMixinInventory.read(CeleritasJar.get())) {
+        for (UpstreamMixins.MixinClass mixin : UpstreamMixins.read(CeleritasJar.get())) {
             mixin.targets().forEach(target -> upstream.merge(target, mixin.priority(), Math::max));
         }
         List<String> outranked = new ArrayList<>();
-        for (String name : QuarantineAnchors.mixins()) {
+        for (String name : QuarantineMixins.names()) {
             AnnotationNode mixin = annotation(read(name).invisibleAnnotations, MIXIN);
-            int priority = value(mixin, "priority") instanceof Integer declared ? declared : UpstreamMixinInventory.DEFAULT_PRIORITY;
+            int priority = value(mixin, "priority") instanceof Integer declared ? declared : UpstreamMixins.DEFAULT_PRIORITY;
             for (String target : targets(mixin)) {
                 // Where upstream has no mixin, another mod's mixin at the default priority may still have merged the method.
-                int upstreamPriority = upstream.getOrDefault(target, UpstreamMixinInventory.DEFAULT_PRIORITY);
+                int upstreamPriority = upstream.getOrDefault(target, UpstreamMixins.DEFAULT_PRIORITY);
                 if (priority <= upstreamPriority) {
                     outranked.add(name + " -> " + target + ": priority " + priority + ", upstream " + upstreamPriority);
                 }
@@ -58,7 +60,7 @@ class QuarantinePriorityTest {
     @Test
     void theQuarantineNeitherOverwritesNorRedirects() {
         List<String> found = new ArrayList<>();
-        for (String name : QuarantineAnchors.mixins()) {
+        for (String name : QuarantineMixins.names()) {
             for (MethodNode method : read(name).methods) {
                 for (String forbidden : List.of(OVERWRITE, REDIRECT)) {
                     if (annotation(method.invisibleAnnotations, forbidden) != null || annotation(method.visibleAnnotations, forbidden) != null) {
@@ -74,6 +76,13 @@ class QuarantinePriorityTest {
     /** Across every Demonica mixin config, not only the quarantine: a duplicate {@code @Overwrite} is silently skipped. */
     @Test
     void noDemonicaMixinOverwritesWhatUpstreamOverwrites() throws IOException {
+        Set<String> upstreamOverwrites = new HashSet<>();
+        for (UpstreamMixins.MixinClass mixin : UpstreamMixins.read(CeleritasJar.get())) {
+            for (String target : mixin.targets()) {
+                mixin.overwrites().forEach(overwrite -> upstreamOverwrites.add(target + "#" + overwrite));
+            }
+        }
+        assertFalse(upstreamOverwrites.isEmpty(), "found no @Overwrite in upstream's mixins");
         List<String> duplicates = new ArrayList<>();
         for (String name : allDemonicaMixins()) {
             ClassNode mixin = read(name);
@@ -86,7 +95,7 @@ class QuarantinePriorityTest {
                     continue;
                 }
                 for (String target : targets(annotation)) {
-                    if (AnchorInventoryTest.UPSTREAM_OVERWRITES.contains(target + "#" + method.name + method.desc)) {
+                    if (upstreamOverwrites.contains(target + "#" + method.name + method.desc)) {
                         duplicates.add(name + " overwrites " + target + "." + method.name + method.desc);
                     }
                 }
@@ -95,13 +104,35 @@ class QuarantinePriorityTest {
         assertTrue(duplicates.isEmpty(), "members upstream already overwrites:\n  " + String.join("\n  ", duplicates));
     }
 
+    /**
+     * What no injector can notice: S2 lives on ShaderChunkRenderer, so an override of begin or end in forge122's renderer
+     * would bypass it; S3 adds isInShadowPass to forge122's manager, so upstream adding its own would make it a duplicate.
+     */
+    @Test
+    void forge122DoesNotOverrideTheSeamHooks() {
+        String pass = "Lorg/embeddedt/embeddium/impl/render/chunk/terrain/TerrainRenderPass;";
+        String manager = "org/taumc/celeritas/impl/render/terrain/VintageRenderSectionManager";
+        List<String> overrides = new ArrayList<>();
+        for (MethodNode method : CeleritasJar.get().node(manager + "$ChunkRenderer").methods) {
+            if ((method.name.equals("begin") || method.name.equals("end")) && method.desc.equals("(" + pass + ")V")) {
+                overrides.add(manager + "$ChunkRenderer." + method.name + " (bypasses S2)");
+            }
+        }
+        for (MethodNode method : CeleritasJar.get().node(manager).methods) {
+            if (method.name.equals("isInShadowPass") && method.desc.equals("()Z")) {
+                overrides.add(manager + ".isInShadowPass (duplicates S3)");
+            }
+        }
+        assertTrue(overrides.isEmpty(), "forge122 now overrides:\n  " + String.join("\n  ", overrides));
+    }
+
     private static List<String> allDemonicaMixins() throws IOException {
         Path resources = Path.of(System.getProperty("demonica.projectRoot", "."), "src/main/resources");
         List<String> mixins = new ArrayList<>();
         try (DirectoryStream<Path> configs = Files.newDirectoryStream(resources, "mixins.demonica.*.json")) {
             for (Path config : configs) {
                 try (Reader reader = Files.newBufferedReader(config, StandardCharsets.UTF_8)) {
-                    mixins.addAll(AnchorExtractor.configMixins(reader));
+                    mixins.addAll(QuarantineMixins.configMixins(reader));
                 }
             }
         }

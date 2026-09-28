@@ -1,5 +1,7 @@
 package com.demonica;
 
+import com.demonica.celeritas.guard.InjectionAuditDevCheck;
+import com.demonica.celeritas.guard.QuarantineGuard;
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
 import com.demonica.compat.kirino.KirinoCompat;
 import com.demonica.config.DemonicaOptions;
@@ -89,6 +91,10 @@ public class Demonica {
     public void onInit(FMLInitializationEvent event) {
         if (!MixinEarly.ACTIVE) {
             return;
+        }
+        if (QuarantineGuard.isDevelopment()) {
+            // A quarantine injector that found no target stops a dev client (docs/celeritas/PIN.md, "Moving the pin").
+            InjectionAuditDevCheck.register();
         }
         KirinoCompat.install();
         if (Iris.enabled) {

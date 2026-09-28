@@ -40,6 +40,7 @@ The ten findings, by leverage:
    startup and degrades in four levels. That is 2,000 lines of guard, 1,000
    lines of tests, a build step, a snapshot of upstream's mixin inventory and a
    five-step manual pin procedure. A plain version gate would do what Iris does.
+   *Done on `feat/version-gate` (0.5.0-SNAPSHOT): see 3.1.*
 3. **GLSM, the redirector and the core-profile display are the largest block and
    the least related to shaders.** They exist so that 1.12.2 runs on an OpenGL
    core profile with fixed-function emulation. Most mod compatibility code is
@@ -249,6 +250,50 @@ Snow! Real Magic! and ArchitectureCraft are compatibility between those mods and
 Celeritas's mesher. They would be needed by any Celeritas user with those mods,
 shader pack or not. They belong upstream, and the ledger's C1 draft already says
 so.
+
+**Status (2026-09-27, `feat/version-gate`).** The guard is a version gate
+(recommendation B). The build writes `META-INF/demonica/celeritas-pin` (the
+upstream commit, the version and the pinned SHA-256s); `QuarantineGuard` hashes
+the installed Celeritas jar, and on a pinned hash every patch applies. On
+anything else, shaders are off with the reason on the shader pack screen, and
+only BASE (S15) applies, so terrain keeps its fog. Deleted: `AnchorExtractor`,
+`AnchorAudit`, the anchor file format, `Anchor`, `MemberRef`, `ClassIndex`, the
+four levels, the drills and `-Ddemonica.guard.audit`, the refmap reader,
+`PatchGroup.Gate`, `@Patch`'s `context`/`uses`/`usesPackages`, the shader pack
+screen's notice rows, `AnchorInventoryTest`, `UpstreamMixinInventory` and its
+snapshot, `GuardDrillTest`, `ProductionAnchorCheck`, and the
+`generateCeleritasAnchors` and `verifyProductionAnchors` tasks. Kept: the
+injection audit, now fatal in a dev run (`InjectionAuditDevCheck` throws on the
+game thread, so the client stops with a crash report naming the injector), and
+`QuarantineLedgerTest` and `QuarantinePriorityTest`, which read `@Patch` and
+upstream's mixins straight from the class files. Moving the pin is now: build,
+one dev run that loads a world, the Prism smoke test (`docs/celeritas/PIN.md`).
+The guard package went from 2,025 to 773 lines; main sources lost 1,296 lines
+net, tests 662. The original claims needed four corrections:
+- The "2,000 lines of guard" counted the injection audit's 293 lines, which
+  stay (with a 39-line dev check).
+- By then the audit covered 253 anchors on 19 mixins, not 316 on 21 (RSO's
+  removal took O1 and its anchors).
+- The workspace's Celeritas is Unimined's remap and can never match a pin, so
+  a dev run needs a hash of its own: the build records it as `dev_sha256`, the
+  guard trusts it only in a deobfuscated environment, the `jar` task drops it,
+  and `verifyDistributedJar` fails if it is there.
+  `-Ddemonica.celeritas.pinsOnly=true` shows the rejection in a dev client.
+- The config's `required: false` already kept a moved anchor from crashing the
+  game; what the gate adds is that a foreign build never runs a partial set of
+  patches. Two things the anchor tests checked are not injector misses and
+  stay as a test: an override of S2's `begin`/`end` in forge122's renderer,
+  and an upstream `isInShadowPass` duplicating S3.
+
+Verified: `./gradlew build` (568 tests, 0 failures, 1 skipped). Dev client:
+accepted by `dev_sha256`, all 19 mixins at n of n, the pack list through the
+Shader Packs tab, BSL with terrain shadows; with `pinsOnly`, the mismatch
+error, 18 mixins left out, only S15 applied (7 of 7), fog right, and
+`ShadersUnavailableScreen` with the reason; with S16's target renamed, the client
+crashed a second after `DefaultChunkRenderer` loaded, the crash report naming
+the injector. Prism `prod-smoke-test` with the 0.5.0-SNAPSHOT jars: the release
+asset (`4dd4b35d`) is the pin, all 19 at n of n, BSL with shadows; a copy of it
+with one added zip entry is rejected in the same way as in dev.
 
 ### 3.2 GLSM, the redirector and the core profile
 
@@ -640,6 +685,7 @@ coupling. If the maintainer values the partial-degrade behaviour, keep it only
 for BASE (S15) whose failure mode, solid-fog terrain, is the one that hurts
 without a shader pack. Dependency: none; this is a subtraction. It also makes A
 less urgent, since a moved anchor costs a bump instead of a debugging session.
+*Done on `feat/version-gate`; see 3.1's Status.*
 
 **C. Drop Reese's Sodium Options.** *Done on `feat/drop-rso`; see 3.4's
 Status.* 10,620 lines, O1, the OPTIONS group, five
@@ -746,9 +792,9 @@ retires a CurseMaven pin and its build-time download.
 - **CI**: cache Unimined's workspace with `gradle/actions/setup-gradle`'s
   cache paths, add a `concurrency` group, attach release jars from the tag
   build instead of by hand, and add Dependabot for Actions and Gradle plugins.
-  Add a weekly job that resolves the newest Celeritas auto-build and runs
-  `AnchorInventoryTest` in report mode (or, after B, the version gate's
-  self-test), so upstream drift is a notification rather than a surprise.
+  Add a weekly job that resolves the newest Celeritas auto-build and runs the
+  dev client's injection audit against it (fatal on any miss since B), so
+  upstream drift is a notification rather than a surprise.
 
 The rest is already modern: Gradle 9.7, JDK 25 with `--release 21`, JUnit 6,
 Actions v5 to v7, a Java 21 language level, and a clean multi-project layout
@@ -816,7 +862,7 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 |---|---|---|---|
 | 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible. C done (with O1); G done, as a companion jar; F and Jabel done, with the HUD-cache transformers registered |
 | 2. Upstream conversations | A (provider interface to Celeritas), C1 and the mesher compat to Celeritas, the DH mod-id issue, the Lumenized and Scannable reports, the shared-engine question to Actinium, the GLSM artifact question to Angelica | 0 now; 3,000 to 6,000 when merged | Start these early; they run in parallel with everything else |
-| 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Do before the next pin move |
+| 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Done: a SHA-256 gate that keeps only S15 on a foreign Celeritas; the injection audit stays and is fatal in dev (see 3.1) |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |
 | 5. Core profile optional | E, then measurement | 0 immediately; 10,000 to 15,000 cold | Feeds 4.4 |
 | 6. S8TNLib | H | 7,000 in the library; the CI double build | Done: a separate required mod from S8TNLib's GitHub releases, pinned by SHA-256; `bytebuf` gone (5,699 lines); the `cel/` copies and `PostProcessingBridge` remain |

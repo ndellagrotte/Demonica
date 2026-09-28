@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Each quarantine mixin's {@link Patch} (the ids and the group the guard turns off) matches docs/celeritas/LEDGER.md,
+ * Each quarantine mixin's {@link Patch} (its ledger ids and group) matches docs/celeritas/LEDGER.md,
  * and every patch has its upstream draft in docs/celeritas/patches.
  */
 class QuarantineLedgerTest {
@@ -35,10 +35,10 @@ class QuarantineLedgerTest {
     void everyPatchMatchesItsLedgerRow() throws IOException {
         Map<String, PatchGroup> groups = new LinkedHashMap<>();
         Map<String, Set<String>> ids = new LinkedHashMap<>();
-        for (Anchor anchor : QuarantineAnchors.generated().anchors()) {
-            groups.putIfAbsent(anchor.mixin(), anchor.group());
-            ids.putIfAbsent(anchor.mixin(), Set.of(anchor.patches().split(",")));
-        }
+        QuarantineMixins.declarations().forEach((mixin, declaration) -> {
+            groups.put(mixin, declaration.group());
+            ids.put(mixin, Set.copyOf(declaration.ids()));
+        });
         List<Row> rows = patchRows();
         assertFalse(rows.isEmpty(), "found no patch rows in LEDGER.md");
 
@@ -66,8 +66,8 @@ class QuarantineLedgerTest {
     @Test
     void theGroupsTableMatchesThePatches() throws IOException {
         Map<PatchGroup, Set<String>> declared = new LinkedHashMap<>();
-        for (Anchor anchor : QuarantineAnchors.generated().anchors()) {
-            declared.computeIfAbsent(anchor.group(), k -> new TreeSet<>()).addAll(List.of(anchor.patches().split(",")));
+        for (PatchDeclaration declaration : QuarantineMixins.declarations().values()) {
+            declared.computeIfAbsent(declaration.group(), k -> new TreeSet<>()).addAll(declaration.ids());
         }
         Map<PatchGroup, Set<String>> ledger = new LinkedHashMap<>();
         Pattern row = Pattern.compile("^\\| (BASE|CORE_TERRAIN|SHADOW|MESHING|DEGRADE|COMPAT) \\| ([^|]+) \\|");
@@ -90,8 +90,8 @@ class QuarantineLedgerTest {
     void everyPatchHasAnUpstreamDraft() {
         Path patches = docs().resolve("patches");
         List<String> missing = new ArrayList<>();
-        for (Anchor anchor : QuarantineAnchors.generated().anchors()) {
-            for (String id : anchor.patches().split(",")) {
+        for (PatchDeclaration declaration : QuarantineMixins.declarations().values()) {
+            for (String id : declaration.ids()) {
                 if (!Files.isRegularFile(patches.resolve(id + ".md")) && !missing.contains(id)) {
                     missing.add(id);
                 }

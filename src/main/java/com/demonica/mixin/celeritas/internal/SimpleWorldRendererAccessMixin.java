@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.Shadow;
  * from the world renderer beyond its public methods: setting the viewport that visibility checks and draws use, and
  * the matrices of a terrain draw.
  */
-@Patch(value = "S7", group = PatchGroup.SHADOW, uses = CeleritasWorldRendererCompat.class)
+@Patch(value = "S7", group = PatchGroup.SHADOW)
 @Mixin(value = SimpleWorldRenderer.class, remap = false, priority = 1100)
 public abstract class SimpleWorldRendererAccessMixin implements SimpleWorldRendererAccess {
     @Shadow

@@ -13,14 +13,12 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
  * second render list and search that Iris's shadow map is drawn from. forge122's section manager calls the deprecated
  * constructor, which passes {@code hasShadowPass = false} on to the full one; this sets that argument. The handler is
  * static because it runs before {@code this(...)} has initialised the object.
+ *
+ * <p>Relies on, though no injector names it: {@code VintageRenderSectionManager}'s deprecated constructor
+ * {@code (RenderPassConfiguration, WorldClient, int, CommandList, int, int)} still delegates to the
+ * {@code RenderSectionManager} constructor patched here. A pin move must check that call by hand.
  */
-@Patch(value = "S1", group = PatchGroup.SHADOW, context = {
-    // forge122's section manager is built through the deprecated constructor, whose delegate call this patches.
-    "Lorg/taumc/celeritas/impl/render/terrain/VintageRenderSectionManager;<init>(Lorg/embeddedt/embeddium/impl/render/chunk/RenderPassConfiguration;"
-        + "Lnet/minecraft/client/multiplayer/WorldClient;ILorg/embeddedt/embeddium/impl/gl/device/CommandList;II)V calls "
-        + "Lorg/embeddedt/embeddium/impl/render/chunk/RenderSectionManager;<init>(Lorg/embeddedt/embeddium/impl/render/chunk/RenderPassConfiguration;"
-        + "Ljava/util/function/Supplier;Ljava/util/function/BiFunction;ILorg/embeddedt/embeddium/impl/gl/device/CommandList;III)V"
-})
+@Patch(value = "S1", group = PatchGroup.SHADOW)
 @Mixin(value = RenderSectionManager.class, remap = false, priority = 1100)
 public abstract class RenderSectionManagerMixin {
     @ModifyArg(

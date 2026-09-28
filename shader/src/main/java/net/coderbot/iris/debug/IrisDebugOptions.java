@@ -2,8 +2,6 @@ package net.coderbot.iris.debug;
 
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 /**
  * Switches the shader pipeline reads from Demonica: whether Iris and its Celeritas integration run, pack-facing
  * options, and why shaders are unavailable. The diagnostics' own switches are read by the diagnostics jar.
@@ -27,9 +25,6 @@ public final class IrisDebugOptions {
 
         /** Why shader packs cannot be used in this game, when the host turned the pipeline off; null otherwise. */
         @Nullable String shadersUnavailableReason();
-
-        /** What shader packs lack in this game, one short sentence each; empty if nothing. */
-        List<String> shaderNotices();
     }
 
     private static volatile Bridge bridge;
@@ -87,10 +82,5 @@ public final class IrisDebugOptions {
     public static @Nullable String shadersUnavailableReason() {
         Bridge b = bridge;
         return b != null ? b.shadersUnavailableReason() : null;
-    }
-
-    public static List<String> shaderNotices() {
-        Bridge b = bridge;
-        return b != null ? b.shaderNotices() : List.of();
     }
 }
