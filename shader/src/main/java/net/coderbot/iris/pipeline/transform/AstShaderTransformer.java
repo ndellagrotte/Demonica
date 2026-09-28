@@ -3,10 +3,15 @@ package net.coderbot.iris.pipeline.transform;
 import com.google.common.base.Stopwatch;
 import com.gtnewhorizons.angelica.glsm.CompatShaderTransformer;
 import com.gtnewhorizons.angelica.glsm.GlslTransformUtils;
+import io.github.douira.glsl_transformer.util.Type;
 import net.coderbot.iris.Iris;
+import net.coderbot.iris.celeritas.vertices.ExtendedChunkVertexType;
 import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
+import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
+import net.coderbot.iris.pipeline.transform.transformer.AttributeTransformer;
+import net.coderbot.iris.pipeline.transform.transformer.CeleritasTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CompositeDepthTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.ComputeTransformer;
@@ -25,7 +30,7 @@ import java.util.regex.Pattern;
  * ({@link TransformPatcher#engine()}). It takes over from {@link ShaderTransformer} one patch kind at a time
  * (docs/glsl-transformer_adoption/ADOPTION_PLAN.md); a kind that is not ported yet throws
  * {@code UnsupportedOperationException("glsl-transformer engine: <kind> not ported yet")}, a message the corpus replay
- * relies on. Ported: COMPOSITE and COMPUTE (Step 5).
+ * relies on. Ported: COMPOSITE and COMPUTE (Step 5), ATTRIBUTES and CELERITAS_TERRAIN (Step 6).
  *
  * <p>The sequence is the TauMC engine's, stage by stage: find {@code #version}; hoist the version for the features the
  * source uses ({@link VersionNegotiation}; the scan includes the Celeritas header for CELERITAS_TERRAIN vertex shaders
@@ -34,8 +39,8 @@ import java.util.regex.Pattern;
  * {@code renameReservedWords}, {@code fixupQualifiers}, the COMPOSITE fragment cloud patches, the fragment cloud-time
  * patch); parse with {@link ShaderAst} with the lexer at the effective version; read the {@code #extension} lines;
  * transform ({@link #doTransform}). Then across stages {@link CompatibilityTransformer#transformGrouped}, and each stage
- * printed under {@code #version N core}, the extension lines and (CELERITAS_TERRAIN vertex, Step 6) the Celeritas
- * header, and {@code restoreReservedWords}. The compute path runs only {@code replaceTexture} and
+ * printed under {@code #version N core}, the extension lines and (CELERITAS_TERRAIN vertex) the Celeritas header, a
+ * text block that is not parsed, and {@code restoreReservedWords}, which runs over the header too. The compute path runs only {@code replaceTexture} and
  * {@code renameReservedWords} before the parse, and has no grouped step.</p>
  *
  * <p>Threads: {@code TransformPatcher} calls this from several {@code Shader-Transform-*} threads at once. No lock is
@@ -56,7 +61,8 @@ public class AstShaderTransformer {
     private static final Pattern versionPattern = VersionNegotiation.VERSION_PATTERN;
 
     /** The patch kinds this engine transforms; the others throw {@link #notPorted}. */
-    private static final Set<Patch> PORTED = EnumSet.of(Patch.COMPOSITE, Patch.COMPUTE);
+    private static final Set<Patch> PORTED = EnumSet.of(Patch.COMPOSITE, Patch.COMPUTE, Patch.ATTRIBUTES,
+        Patch.CELERITAS_TERRAIN);
 
     static void clearSessionState() {
     }
@@ -245,7 +251,7 @@ public class AstShaderTransformer {
             String header = prepatched.get(shaderType);
 
             // For Celeritas terrain vertex shaders, inject chunk_vertex.glsl header: text between the extension lines
-            // and the body. CELERITAS_TERRAIN is ported in Step 6; the hook is here so the header stays text.
+            // and the body, never parsed (its #ifdef blocks stay as they are); restoreReservedWords runs over it.
             if (patchType == Patch.CELERITAS_TERRAIN && shaderType == PatchShaderType.VERTEX) {
                 header += ShaderTransformer.computeCeleritasHeader();
             }
@@ -261,8 +267,19 @@ public class AstShaderTransformer {
 
     private static void doTransform(ShaderAst ast, Patch patchType, Parameters parameters, int versionInt) {
         switch (patchType) {
+            case CELERITAS_TERRAIN:
+                CeleritasTransformer.transform(ast, parameters, versionInt);
+                // Handle mc_midTexCoord for Celeritas
+                patchMultiTexCoord3(ast, parameters);
+                replaceMidTexCoord(ast, ExtendedChunkVertexType.MID_TEX_SCALE);
+                replaceMCEntity(ast, parameters);
+                applyIntelHd4000Workaround(ast);
+                break;
             case COMPOSITE:
                 CompositeDepthTransformer.transform(ast, parameters, versionInt);
+                break;
+            case ATTRIBUTES:
+                AttributeTransformer.transform(ast, (AttributeParameters) parameters, versionInt);
                 break;
             case COMPUTE:
                 ComputeTransformer.transform(ast, parameters, versionInt);
@@ -277,6 +294,106 @@ public class AstShaderTransformer {
     /** The TauMC engine's {@code applyIntelHd4000Workaround}: {@code ftransform()} calls go through Iris's own function. */
     public static void applyIntelHd4000Workaround(ShaderAst ast) {
         ast.renameFunctionCall("ftransform", "iris_ftransform");
+    }
+
+    /**
+     * The TauMC engine's {@code patchMultiTexCoord3}: a vertex shader that declares {@code gl_MultiTexCoord3} and not
+     * {@code mc_midTexCoord} reads the mid-texture coordinate through {@code mc_midTexCoord}. The injected declaration
+     * says {@code attribute}, as the TauMC engine's did; {@link #replaceMidTexCoord} removes one of the two
+     * declarations right after.
+     */
+    public static void patchMultiTexCoord3(ShaderAst ast, Parameters parameters) {
+        if (parameters.type == ShaderType.VERTEX && ast.hasVariable("gl_MultiTexCoord3") && !ast.hasVariable("mc_midTexCoord")) {
+            ast.rename("gl_MultiTexCoord3", "mc_midTexCoord");
+            ast.injectVariable("attribute vec4 mc_midTexCoord;");
+        }
+    }
+
+    /**
+     * The TauMC engine's {@code replaceMidTexCoord}: the pack's {@code mc_midTexCoord}, whatever its declared type, is
+     * read from Celeritas's {@code vec2} attribute through {@code iris_MidTex}, scaled by {@code textureScale}. The
+     * type switch is TauMC's with glsl-transformer's {@link Type} for its lexer tokens: {@code float}
+     * {@link Type#FLOAT32}, {@code vec2}..{@code vec4} {@link Type#F32VEC2}..{@link Type#F32VEC4}; no declaration
+     * (TauMC's 0) and {@code bool} {@link Type#BOOL} return after the replacement; any other type falls through to
+     * the {@code in vec2} declaration without an {@code iris_MidTex}, as in TauMC.
+     */
+    public static void replaceMidTexCoord(ShaderAst ast, float textureScale) {
+        final ShaderAst.DeclaredType type = ast.findType("mc_midTexCoord");
+        if (type != null) {
+            ast.removeVariable("mc_midTexCoord");
+        }
+        ast.replaceExpression("mc_midTexCoord", "iris_MidTex");
+        if (type == null || type.is(Type.BOOL)) {
+            return;
+        }
+        if (type.is(Type.FLOAT32)) {
+            ast.injectFunction("float iris_MidTex = (mc_midTexCoord.x * " + textureScale + ").x;"); //TODO go back to variable if order is fixed
+        } else if (type.is(Type.F32VEC2)) {
+            ast.injectFunction("vec2 iris_MidTex = (mc_midTexCoord.xy * " + textureScale + ").xy;");
+        } else if (type.is(Type.F32VEC3)) {
+            ast.injectFunction("vec3 iris_MidTex = vec3(mc_midTexCoord.xy * " + textureScale + ", 0.0);");
+        } else if (type.is(Type.F32VEC4)) {
+            ast.injectFunction("vec4 iris_MidTex = vec4(mc_midTexCoord.xy * " + textureScale + ", 0.0, 1.0);");
+        }
+
+        ast.injectVariable("in vec2 mc_midTexCoord;"); //TODO why is this inserted oddly?
+    }
+
+    /**
+     * The TauMC engine's {@code replaceMCEntity}: replaces a shader-declared {@code mc_Entity} (vec2/ivec2/float/int
+     * and so on) with upstream-compatible unpacking from a single uint attribute, packed as
+     * {@code ((blockId + 1) << 1) | (renderType & 1)}. The type switch is TauMC's with glsl-transformer's
+     * {@link Type}: {@link Type#FLOAT32}, {@link Type#F32VEC2}..{@link Type#F32VEC4}, {@link Type#UINT32},
+     * {@link Type#INT32}, {@link Type#I32VEC2}..{@link Type#I32VEC4}; no declaration and {@link Type#BOOL} return
+     * after the replacement; any other type throws. The exception names the type's keyword, where TauMC's named its
+     * lexer token number.
+     */
+    public static void replaceMCEntity(ShaderAst ast, Parameters parameters) {
+        if (parameters.type != ShaderType.VERTEX) return;
+
+        final ShaderAst.DeclaredType type = ast.findType("mc_Entity");
+        if (type != null) {
+            ast.removeVariable("mc_Entity");
+        }
+        ast.replaceExpression("mc_Entity", "iris_Entity");
+        if (type == null || type.is(Type.BOOL)) {
+            return;
+        } else if (type.is(Type.FLOAT32)) {
+            ast.injectFunction("float iris_Entity = float(int(mc_Entity >> 1u) - 1);");
+        } else if (type.is(Type.F32VEC2)) {
+            ast.injectFunction("vec2 iris_Entity = vec2(int(mc_Entity >> 1u) - 1, mc_Entity & 1u);");
+        } else if (type.is(Type.F32VEC3)) {
+            ast.injectFunction("vec3 iris_Entity = vec3(int(mc_Entity >> 1u) - 1, mc_Entity & 1u, 0.0);");
+        } else if (type.is(Type.F32VEC4)) {
+            ast.injectFunction("vec4 iris_Entity = vec4(int(mc_Entity >> 1u) - 1, mc_Entity & 1u, 0.0, 1.0);");
+        } else if (type.is(Type.UINT32)) {
+            ast.injectFunction("uint iris_Entity = uint(int(mc_Entity >> 1u) - 1);");
+        } else if (type.is(Type.INT32)) {
+            ast.injectFunction("int iris_Entity = int(mc_Entity >> 1u) - 1;");
+        } else if (type.is(Type.I32VEC2)) {
+            ast.injectFunction("ivec2 iris_Entity = ivec2(int(mc_Entity >> 1u) - 1, mc_Entity & 1u);");
+        } else if (type.is(Type.I32VEC3)) {
+            ast.injectFunction("ivec3 iris_Entity = ivec3(int(mc_Entity >> 1u) - 1, mc_Entity & 1u, 0);");
+        } else if (type.is(Type.I32VEC4)) {
+            ast.injectFunction("ivec4 iris_Entity = ivec4(int(mc_Entity >> 1u) - 1, mc_Entity & 1u, 0, 1);");
+        } else {
+            throw new IllegalStateException("Got an invalid format mc_Entity (type " + type.keyword() + ").");
+        }
+        ast.injectVariable("in uint mc_Entity;");
+    }
+
+    /** The TauMC engine's {@code addIfNotExists}: declares {@code code} unless a variable {@code name} exists. */
+    public static void addIfNotExists(ShaderAst ast, String name, String code) {
+        if (!ast.hasVariable(name)) {
+            ast.injectVariable(code);
+        }
+    }
+
+    /** The TauMC engine's {@code addIfNotExistsType}: declares {@code type name;} unless a variable {@code name} exists. */
+    public static void addIfNotExistsType(ShaderAst ast, String name, String type) {
+        if (!ast.hasVariable(name)) {
+            ast.injectVariable(type + " " + name + ";");
+        }
     }
 
     private static UnsupportedOperationException notPorted(Patch patch) {

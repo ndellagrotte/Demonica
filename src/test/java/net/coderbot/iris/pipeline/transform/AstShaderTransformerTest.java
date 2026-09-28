@@ -2,8 +2,11 @@ package net.coderbot.iris.pipeline.transform;
 
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import net.coderbot.iris.gbuffer_overrides.matching.InputAvailability;
+import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
+import net.coderbot.iris.pipeline.transform.parameter.CeleritasTerrainParameters;
 import net.coderbot.iris.pipeline.transform.parameter.ComputeParameters;
+import net.coderbot.iris.pipeline.transform.parameter.DHParameters;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 import net.coderbot.iris.pipeline.transform.parameter.TextureStageParameters;
 import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,9 +29,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The glsl-transformer engine's orchestrator (Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md) against the
- * TauMC engine, on the shapes the corpus replay does not cover: the case TauMC could not transform, the header's
+ * TauMC engine, on the shapes the corpus replay does not cover: the cases TauMC could not transform, the header's
  * extension lines and the ones after the leading directives, the matrix spellings {@code transformGrouped} compares, and the named behaviour differences. Outputs
- * are compared as {@link GlslTokens}.
+ * are compared as {@link GlslTokens}. Step 6 adds ATTRIBUTES and CELERITAS_TERRAIN: every declared type of
+ * {@code mc_Entity} and {@code mc_midTexCoord} (the corpora have only {@code vec3}/{@code vec4} and
+ * {@code vec2}/{@code vec4}), the geometry stage, and every input-availability combination.
  */
 class AstShaderTransformerTest {
 
@@ -96,6 +102,150 @@ class AstShaderTransformerTest {
         assertFalse(GlslTokens.contains(outVertex, "iris_ftransform"), outVertex);
         // Both stages are programs glsl-transformer can read back.
         output.values().forEach(ShaderAst::parse);
+    }
+
+    private static Map<PatchShaderType, String> terrain(boolean douira, String vertex, String geometry, String fragment) {
+        final CeleritasTerrainParameters parameters = new CeleritasTerrainParameters(Patch.CELERITAS_TERRAIN);
+        return douira ? AstShaderTransformer.transform(vertex, geometry, null, null, fragment, parameters)
+            : ShaderTransformer.transform(vertex, geometry, null, null, fragment, parameters);
+    }
+
+    /** How many lines of {@code glsl}'s {@link GlslTokens#text()} are the statement {@code line}. */
+    private static long lines(String glsl, String line) {
+        final String wanted = GlslTokens.of(line).text().strip();
+        return GlslTokens.of(glsl).text().lines().filter(wanted::equals).count();
+    }
+
+    private static final String TERRAIN_FRAGMENT = "#version 330 core\nin vec2 texcoord;\nuniform sampler2D gtexture;\n"
+        + "void main() { gl_FragData[0] = texture(gtexture, texcoord); }\n";
+
+    /**
+     * The mini-corpus case {@code celeritas-terrain-multitexcoord3}, accepted in the replay as "old engine threw": a
+     * Celeritas terrain vertex shader that declares {@code gl_MultiTexCoord3} and not {@code mc_midTexCoord}, the one
+     * production shape of TauMC's stale by-text {@code replaceExpression} cache (S3 remark 3). {@code patchMultiTexCoord3}
+     * renames the declaration and injects {@code attribute vec4 mc_midTexCoord;}, which TauMC makes its variable anchor;
+     * {@code replaceMidTexCoord}'s {@code removeVariable} removes that injected declaration, and the next
+     * {@code injectVariable} throws. Before that, TauMC's {@code replaceExpression} had missed the renamed references.
+     * The new engine replaces them and transforms the case; its output still declares {@code mc_midTexCoord} twice, from
+     * the transformer logic both engines share (report S06, Open questions).
+     */
+    @Test
+    void theMultiTexCoord3Case() throws IOException {
+        final String vertex = resource("/transform-corpus/celeritas-terrain-multitexcoord3/in.vertex.glsl");
+        final String fragment = resource("/transform-corpus/celeritas-terrain-multitexcoord3/in.fragment.glsl");
+
+        final IndexOutOfBoundsException thrown = assertThrows(IndexOutOfBoundsException.class,
+            () -> terrain(false, vertex, null, fragment));
+        assertEquals("Index: -1, Size: 30", thrown.getMessage());
+
+        // TauMC's verbs, in the engine's order, up to the throw: the renamed references are missed.
+        // The engine's pre-passes for a vertex shader at the effective version 330.
+        final String prepared = com.gtnewhorizons.angelica.glsm.CompatShaderTransformer.fixupQualifiers(
+            com.gtnewhorizons.angelica.glsm.GlslTransformUtils.renameReservedWords(
+                com.gtnewhorizons.angelica.glsm.GlslTransformUtils.replaceTexture(vertex), 330), false);
+        final org.taumc.glsl.Transformer t = new org.taumc.glsl.Transformer(org.taumc.glsl.ShaderParser.parseShader(prepared).full());
+        final CeleritasTerrainParameters parameters = new CeleritasTerrainParameters(Patch.CELERITAS_TERRAIN);
+        parameters.type = ShaderType.VERTEX;
+        CeleritasTransformer.transform(t, parameters, 330);
+        ShaderTransformer.patchMultiTexCoord3(t, parameters);
+        t.removeVariable("mc_midTexCoord");
+        t.replaceExpression("mc_midTexCoord", "iris_MidTex");
+        final StringBuilder taumcTree = new StringBuilder();
+        t.mutateTree(tree -> taumcTree.append(com.gtnewhorizons.angelica.glsm.GlslTransformUtils.getFormattedShader(tree, "")));
+        assertTrue(GlslTokens.contains(taumcTree.toString(), "midcoord = ( iris_TextureMatrix * mc_midTexCoord ) . xy ;"), taumcTree::toString);
+        assertTrue(GlslTokens.contains(taumcTree.toString(), "position . xz += ( mc_midTexCoord . xy - texcoord ) * 0.05 ;"), taumcTree::toString);
+
+        final String outVertex = terrain(true, vertex, null, fragment).get(PatchShaderType.VERTEX);
+        assertTrue(GlslTokens.contains(outVertex, "midcoord = ( iris_TextureMatrix * iris_MidTex ) . xy ;"), outVertex);
+        assertTrue(GlslTokens.contains(outVertex, "position . xz += ( iris_MidTex . xy - texcoord ) * 0.05 ;"), outVertex);
+        assertTrue(GlslTokens.contains(outVertex, "vec4 iris_MidTex = vec4 ( mc_midTexCoord . xy * 3.0517578E-5 , 0.0 , 1.0 ) ;"), outVertex);
+        assertFalse(GlslTokens.contains(outVertex, "gl_MultiTexCoord3"), outVertex);
+        // The shared logic's defect: the renamed declaration stays next to the injected one.
+        assertEquals(1, lines(outVertex, "in vec2 mc_midTexCoord ;"), outVertex);
+        assertEquals(1, lines(outVertex, "in vec4 mc_midTexCoord ;"), outVertex);
+    }
+
+    /**
+     * {@code replaceMCEntity}: every declared type of {@code mc_Entity}, and none; the new engine's {@code Type} switch
+     * against TauMC's lexer-token switch. A type outside the switch throws in both.
+     */
+    @Test
+    void mcEntityTypes() {
+        for (String type : List.of("float", "vec2", "vec3", "vec4", "int", "ivec2", "ivec3", "ivec4", "uint", "bool")) {
+            final String vertex = "#version 330 core\nin " + type + " mc_Entity;\nout vec2 texcoord;\n"
+                + "void main() { " + type + " e = mc_Entity; texcoord = gl_MultiTexCoord0.xy; gl_Position = ftransform(); }\n";
+            assertSameProgram(terrain(false, vertex, null, TERRAIN_FRAGMENT), terrain(true, vertex, null, TERRAIN_FRAGMENT));
+            if (!type.equals("bool")) {
+                assertTrue(GlslTokens.contains(terrain(true, vertex, null, TERRAIN_FRAGMENT).get(PatchShaderType.VERTEX),
+                    type + " iris_Entity ="), type);
+            }
+        }
+        final String undeclared = "#version 330 core\nout vec2 texcoord;\n"
+            + "void main() { texcoord = vec2(mc_Entity.x); gl_Position = ftransform(); }\n";
+        assertSameProgram(terrain(false, undeclared, null, TERRAIN_FRAGMENT), terrain(true, undeclared, null, TERRAIN_FRAGMENT));
+        final String matrix = "#version 330 core\nin mat2 mc_Entity;\nvoid main() { gl_Position = ftransform(); }\n";
+        assertThrows(IllegalStateException.class, () -> terrain(false, matrix, null, TERRAIN_FRAGMENT));
+        final IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> terrain(true, matrix, null, TERRAIN_FRAGMENT));
+        assertEquals("Got an invalid format mc_Entity (type mat2).", thrown.getMessage());
+    }
+
+    /**
+     * {@code replaceMidTexCoord}: every declared type of {@code mc_midTexCoord}, and none. {@code int} falls through
+     * TauMC's switch to the {@code in vec2} declaration without an {@code iris_MidTex}, here as there.
+     */
+    @Test
+    void mcMidTexCoordTypes() {
+        for (String type : List.of("float", "vec2", "vec3", "vec4", "bool", "int")) {
+            final String vertex = "#version 330 core\nin " + type + " mc_midTexCoord;\nout vec2 texcoord;\n"
+                + "void main() { " + type + " m = mc_midTexCoord; texcoord = gl_MultiTexCoord0.xy; gl_Position = ftransform(); }\n";
+            assertSameProgram(terrain(false, vertex, null, TERRAIN_FRAGMENT), terrain(true, vertex, null, TERRAIN_FRAGMENT));
+        }
+        final String undeclared = "#version 330 core\nout vec2 texcoord;\n"
+            + "void main() { texcoord = mc_midTexCoord.xy; gl_Position = ftransform(); }\n";
+        assertSameProgram(terrain(false, undeclared, null, TERRAIN_FRAGMENT), terrain(true, undeclared, null, TERRAIN_FRAGMENT));
+    }
+
+    /**
+     * CELERITAS_TERRAIN and ATTRIBUTES with a geometry stage, which no recorded corpus has: Celeritas's geometry branch
+     * replaces the pack's reprojection ({@code toClipSpace3(...)}) with the clip-space position, and the vertex stage
+     * projects a displaced {@code worldpos}.
+     */
+    @Test
+    void geometryStages() {
+        final String vertex = "#version 330 core\nuniform mat4 gbufferModelView;\nout vec4 vertexPos;\n"
+            + "void main() { vec3 worldpos = gl_Vertex.xyz; vertexPos = vec4(worldpos, 0.0); gl_Position = vec4(worldpos, 0.0); }\n";
+        final String geometry = "#version 330 core\nlayout(triangles) in;\nlayout(triangle_strip, max_vertices = 3) out;\n"
+            + "uniform mat4 gbufferModelView;\nin vec4 vertexPos[];\nvec4 toClipSpace3(vec3 p) { return vec4(p, 1.0); }\n"
+            + "void main() { for (int i = 0; i < 3; i++) { vec4 vertex = gl_in[i].gl_Position; "
+            + "gl_Position = toClipSpace3(mat3(gbufferModelView) * vec3(vertex) + gbufferModelView[3].xyz); EmitVertex(); } EndPrimitive(); }\n";
+        final String fragment = "#version 330 core\nvoid main() { gl_FragData[0] = vec4(1.0); }\n";
+        final Map<PatchShaderType, String> old = terrain(false, vertex, geometry, fragment);
+        final Map<PatchShaderType, String> now = terrain(true, vertex, geometry, fragment);
+        assertSameProgram(old, now);
+        assertTrue(GlslTokens.contains(now.get(PatchShaderType.GEOMETRY), "gl_Position = vertex ;"), now.get(PatchShaderType.GEOMETRY));
+        assertTrue(GlslTokens.contains(now.get(PatchShaderType.VERTEX),
+            "gl_Position = iris_ProjectionMatrix * gbufferModelView * vec4 ( worldpos , 1.0 ) ;"), now.get(PatchShaderType.VERTEX));
+
+        final AttributeParameters oldAttributes = new AttributeParameters(Patch.ATTRIBUTES, true, new InputAvailability(true, true, true));
+        final AttributeParameters newAttributes = new AttributeParameters(Patch.ATTRIBUTES, true, new InputAvailability(true, true, true));
+        assertSameProgram(ShaderTransformer.transform(vertex, geometry, null, null, fragment, oldAttributes),
+            AstShaderTransformer.transform(vertex, geometry, null, null, fragment, newAttributes));
+    }
+
+    /** ATTRIBUTES under every input-availability combination (the corpora have five of the eight). */
+    @Test
+    void attributeInputAvailability() {
+        final String vertex = "#version 120\nattribute vec4 mc_Entity;\nvarying vec2 texcoord;\nvarying vec2 lmcoord;\nvarying vec4 glcolor;\n"
+            + "void main() { texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy; lmcoord = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;"
+            + " vec2 lm2 = gl_MultiTexCoord2.xy; glcolor = gl_Color; gl_Position = ftransform() + vec4(lm2, gl_Normal.xy) * 0.0;"
+            + " if (entityId == 1) glcolor = entityColor; }\n";
+        final String fragment = "#version 120\nvarying vec2 texcoord;\nvarying vec4 glcolor;\nuniform sampler2D texture;\n"
+            + "void main() { gl_FragColor = texture2D(texture, texcoord) * glcolor; }\n";
+        for (int flags = 0; flags < 8; flags++) {
+            final InputAvailability inputs = new InputAvailability((flags & 1) != 0, (flags & 2) != 0, (flags & 4) != 0);
+            assertSameProgram(ShaderTransformer.transform(vertex, null, null, null, fragment, new AttributeParameters(Patch.ATTRIBUTES, false, inputs)),
+                AstShaderTransformer.transform(vertex, null, null, null, fragment, new AttributeParameters(Patch.ATTRIBUTES, false, inputs)));
+        }
     }
 
     /**
@@ -189,11 +339,11 @@ class AstShaderTransformerTest {
     /** A kind that is not ported throws with the phrase the corpus replay classifies as unsupported. */
     @Test
     void unportedKindsThrow() {
-        final AttributeParameters attributes = new AttributeParameters(Patch.ATTRIBUTES, false, new InputAvailability(true, true, true));
+        final DHParameters dh = new DHParameters(Patch.DH_TERRAIN, null);
         final UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
-            () -> AstShaderTransformer.transform("#version 330 core\nvoid main() {}\n", null, null, null, null, attributes));
-        assertEquals("glsl-transformer engine: ATTRIBUTES not ported yet", thrown.getMessage());
-        assertNull(attributes.type);
+            () -> AstShaderTransformer.transform("#version 330 core\nvoid main() {}\n", null, null, null, null, dh));
+        assertEquals("glsl-transformer engine: DH_TERRAIN not ported yet", thrown.getMessage());
+        assertNull(dh.type);
     }
 
     /** COMPUTE: the shorter pre-pass list, the same header and the parameter type reset after a failure. */

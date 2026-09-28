@@ -4,8 +4,7 @@ import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
 
 /**
  * Declares the entity uniforms a pack reads without declaring them. Ported from the TauMC engine's class of the same
- * name (Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md); its caller, the ATTRIBUTES transformer, comes in
- * Step 6.
+ * name (Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md); called by {@link AttributeTransformer} (Step 6).
  */
 public final class EntityPatcher {
 	private EntityPatcher() {

@@ -5,15 +5,20 @@
 #
 # <case glob> matches the case's path under the corpus directory (for example bsl/00012-COMPOSITE-1a2b3c4d) or its
 # directory name alone; '*' matches within one path segment, '**' across segments, '?' one character. <stage> is
-# vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases), error (a case recorded
-# with outcome=error, TauMC threw, whose replay succeeds or throws something else; the replay's output is written to
-# build/reports/transform-replay/<case>.error.diff) or '*' (any of them); any other stage fails the test. Every entry
-# needs a reason a reader can check; an entry without one fails the test.
+# vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases), error-succeeded or
+# error-threw (a case recorded with outcome=error, TauMC threw, whose replay succeeds, or throws something else; the
+# replay's output is written to build/reports/transform-replay/<case>.error.diff; an entry accepts only the outcome it
+# names, so a replay that starts to throw is not accepted by an entry written for one that succeeded) or '*' (any
+# output stage, not the two error outcomes); any other stage fails the test. Every entry needs a reason a reader can
+# check; an entry without one fails the test. An entry whose reason starts with "S7 pending" is verified by the
+# replayer: the stage's difference must be the TauMC engine's adaptive-shadow-bounds rewrite and nothing else (the
+# TauMC engine rerun with the PCF helpers hidden from that rewrite must give the replay's output), or the stage fails.
 #
 # Step 2 (2026-09-28): empty. The TauMC engine replays its own recordings identically.
 
-# Step 5 (2026-09-28): COMPOSITE and COMPUTE on the glsl-transformer engine. The 36 COMPOSITE pack cases and the five
-# COMPOSITE/COMPUTE mini-corpus cases that TauMC transformed replay identically; no COMPOSITE or COMPUTE input has an
+# Step 5 (2026-09-28): COMPOSITE and COMPUTE on the glsl-transformer engine. The 36 COMPOSITE pack cases and the six
+# COMPOSITE/COMPUTE mini-corpus cases that TauMC transformed replay identically (five at Step 5,
+# composite-extension-placement added by its verification follow-up); no COMPOSITE or COMPUTE input has an
 # adaptive-shadow-bounds PCF helper, so nothing here is "S7 pending".
 
 # TauMC threw java.lang.IndexOutOfBoundsException: Index: -1, Size: 23 from Transformer.injectVariable in
@@ -21,4 +26,79 @@
 # iris_ftransform, which was TauMC's variable anchor. ShaderAst fixes a removed anchor again (S3/S4 deviation) and the
 # new engine declares and initializes the missing out (out vec3 viewDir; viewDir = vec3(0.0f);), valid GLSL, checked
 # by AstShaderTransformerTest.theGroupedCaseTauMCCouldNotTransform.
-transform-grouped-330-undeclared | error | old engine threw (removed injection anchor); the new engine transforms it, checked by AstShaderTransformerTest
+transform-grouped-330-undeclared | error-succeeded | old engine threw (removed injection anchor); the new engine transforms it, checked by AstShaderTransformerTest
+
+# Step 6 (2026-09-28): ATTRIBUTES and CELERITAS_TERRAIN on the glsl-transformer engine.
+#
+# TauMC threw java.lang.IndexOutOfBoundsException: Index: -1, Size: 30 from Transformer.injectVariable in
+# replaceMidTexCoord: the vertex shader declares gl_MultiTexCoord3 and not mc_midTexCoord, so patchMultiTexCoord3
+# renames it and injects 'attribute vec4 mc_midTexCoord;', which becomes TauMC's variable anchor (TauMC moves the anchor
+# to each declaration it injects); replaceMidTexCoord's removeVariable removes that injected declaration (the last in
+# TauMC's cache order), and its next injectVariable finds no anchor. Before that, TauMC's replaceExpression had missed
+# the renamed references (its by-text cache still knew them as gl_MultiTexCoord3; S3 remark 3). The new engine applies
+# the verbs as documented (the references become iris_MidTex; a removed anchor is fixed again) and transforms the case;
+# its output still declares mc_midTexCoord twice (in vec2 injected, in vec4 renamed), which the transformer logic both
+# engines share produces (report S06, Open questions). Checked by AstShaderTransformerTest.theMultiTexCoord3Case.
+celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it, checked by AstShaderTransformerTest
+
+# S7 pending: the fragment stages the TauMC engine's AdaptiveShadowBoundsTransformer rewrites (a bounds guard in the PCF
+# helper texture2DShadow2x2 or SampleFilteredShadow and, instrumented, the stats counters and their SSBO), which the new
+# engine leaves alone until Step 7 ports it (transformer/CommonTransformer's TODO(S7)). One entry per case, fragment
+# only. The replayer verifies each (reason prefix "S7 pending"): the TauMC engine rerun with the helpers hidden from the
+# rewrite must give the replay's output. Pack corpora: the 51 BSL cases whose helper TauMC rewrote (49 ATTRIBUTES, 2
+# CELERITAS_TERRAIN; all recorded instrumented); the other 103 inputs with a helper (Complementary, I Like Vanilla)
+# replay identically, their helpers are not a shape the transformer rewrites. Mini-corpus: shadow-bounds and
+# shadow-bounds-instrumented. Step 7 removes these entries.
+bsl/00020-ATTRIBUTES-825c8f36 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00021-ATTRIBUTES-b555a40c | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00022-ATTRIBUTES-ac688cec | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00023-ATTRIBUTES-e47ea55d | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00024-ATTRIBUTES-d5908726 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00025-ATTRIBUTES-c824935b | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00027-ATTRIBUTES-a5689664 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00040-ATTRIBUTES-33c92701 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00045-ATTRIBUTES-37425c65 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00046-ATTRIBUTES-5e4c91ed | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00048-ATTRIBUTES-d9a02a94 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00050-ATTRIBUTES-25250269 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00051-ATTRIBUTES-a05933b6 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00054-ATTRIBUTES-435f1c84 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00055-ATTRIBUTES-9094383f | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00056-ATTRIBUTES-02ea3dfd | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00057-ATTRIBUTES-192ff13f | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00058-ATTRIBUTES-64cae373 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00059-ATTRIBUTES-3ce5ff52 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00060-ATTRIBUTES-ad201a49 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00061-ATTRIBUTES-d4ca272c | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00065-ATTRIBUTES-3979445b | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00066-ATTRIBUTES-f760f3ba | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00067-ATTRIBUTES-12e306d1 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00069-ATTRIBUTES-5e15f053 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00074-ATTRIBUTES-e99c8567 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00075-ATTRIBUTES-d1df048a | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00078-ATTRIBUTES-569cda43 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00081-ATTRIBUTES-e164e238 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00082-ATTRIBUTES-56b2aa1d | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00083-ATTRIBUTES-e92b81fd | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00084-ATTRIBUTES-cfabc3f5 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00085-ATTRIBUTES-be5f9bb7 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00086-ATTRIBUTES-721ebd62 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00087-ATTRIBUTES-ba9ec048 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00088-ATTRIBUTES-df2c90be | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00089-ATTRIBUTES-0b5dd412 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00090-ATTRIBUTES-1d64b3a9 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00095-ATTRIBUTES-62941cc4 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00096-ATTRIBUTES-8daa4e02 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00097-ATTRIBUTES-81c5921e | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00098-ATTRIBUTES-2dbcd6e3 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00100-ATTRIBUTES-8b099274 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00101-ATTRIBUTES-50d89e97 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00102-CELERITAS_TERRAIN-4a7ab12b | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00103-CELERITAS_TERRAIN-2eb1d79a | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00104-ATTRIBUTES-187a2893 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00106-ATTRIBUTES-d86555e0 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00108-ATTRIBUTES-128020e7 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00109-ATTRIBUTES-fd7a5851 | fragment | S7 pending (adaptive shadow bounds, Step 7)
+bsl/00110-ATTRIBUTES-b58e73db | fragment | S7 pending (adaptive shadow bounds, Step 7)
+shadow-bounds | fragment | S7 pending (adaptive shadow bounds, Step 7)
+shadow-bounds-instrumented | fragment | S7 pending (adaptive shadow bounds, Step 7)

@@ -256,7 +256,10 @@ public final class ShaderAst {
      * {@code BufferedTokenStream}, so whitespace and comments included) and stopped at the first token outside a
      * directive. Its block is therefore the lines from the start of the source that begin with {@code #} in column 0,
      * up to the first line that does not: a blank line, an indented line, a comment or code. A backslash before the
-     * line break continues a line, as in a {@code #define}. Probed against the pinned TauMC jar
+     * line break continues a line, as in a {@code #define}. A line ends at {@code \r\n}, {@code \n} or a lone
+     * {@code \r} (Step 6; before, only {@code \n} ended one, so a CR-only source was one line). Both lexers end a
+     * directive only at {@code \n}, so glsl-transformer does not parse a source whose directives end in a lone
+     * {@code \r} anyway; the count is then never used. Probed against the pinned TauMC jar
      * ({@code ShaderAstParityTest.extensionHeaderLines}); the recorded corpora have every {@code #extension} (111) in
      * this block.
      *
@@ -269,19 +272,21 @@ public final class ShaderAst {
         int count = 0;
         int start = 0;
         while (start < length && source.charAt(start) == '#') {
+            // The line ends at "\r\n", "\n" or a lone "\r"; a backslash right before the line end continues it.
             int end = start;
             while (true) {
-                final int newline = source.indexOf('\n', end);
-                if (newline < 0) {
+                int lineEnd = end;
+                while (lineEnd < length && source.charAt(lineEnd) != '\n' && source.charAt(lineEnd) != '\r') {
+                    lineEnd++;
+                }
+                if (lineEnd >= length) {
                     end = length;
                     break;
                 }
-                int last = newline - 1;
-                if (last > end && source.charAt(last) == '\r') {
-                    last--;
-                }
-                end = newline + 1;
-                if (last <= start || source.charAt(last) != '\\') {
+                final boolean continued = lineEnd > start && source.charAt(lineEnd - 1) == '\\';
+                end = source.charAt(lineEnd) == '\r' && lineEnd + 1 < length && source.charAt(lineEnd + 1) == '\n'
+                    ? lineEnd + 2 : lineEnd + 1;
+                if (!continued) {
                     break;
                 }
             }
