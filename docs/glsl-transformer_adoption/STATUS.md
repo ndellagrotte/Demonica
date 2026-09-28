@@ -6,7 +6,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 
 | Step | Status | Commit | Date | Report |
 |---|---|---|---|---|
-| S1 build wiring, license, spike | done | `4104a798`, `f7232573`; report and this page in the commit after | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
+| S1 build wiring, license, spike | done | `4104a798`, `f7232573`, `114feb14` (report); verification fix in the commit after `114feb14` | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
 | S2 corpus recorder, replayer, baselines | not started | | | |
 | S3 `ShaderAst` core verbs | not started | | | |
 | S4 `ShaderAst` structural verbs | not started | | | |
@@ -23,7 +23,11 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 
 - Engine switch: system property `demonica.glsl.engine` (`taumc`, the default, or `douira`), read once by
   `TransformPatcher.engine()` and logged at first use as
-  `[TransformPatcher] GLSL transform engine: <id> (demonica.glsl.engine)`. The new engine is
+  `[TransformPatcher] GLSL transform engine: <id> (demonica.glsl.engine)`. An unknown value logs a WARN,
+  `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using taumc`, and falls back
+  to `taumc`. The engine is fixed per JVM, and the transform cache key does not include it. The new engine is
   `shader/.../pipeline/transform/AstShaderTransformer.java`.
 - glsl-transformer sources: `run/lib-src/glsl-transformer/` (gitignored; Step 1 unpacked them). Read by class.
 - Reference parser configuration: `src/test/java/net/coderbot/iris/pipeline/transform/GlslTransformerSpikeTest.java`.
+- `Iris.logger` (`IrisLogging`) has no `warn(String, Object...)`: `Iris.logger.warn("... {}", x)` logs
+  `[Ljava.lang.Object;@...`. Concatenate warnings, or use `info`/`error`/`debug`, which have the overload.

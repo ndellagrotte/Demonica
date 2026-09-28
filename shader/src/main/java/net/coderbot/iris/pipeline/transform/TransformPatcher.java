@@ -55,8 +55,10 @@ public class TransformPatcher {
                 }
             }
             if (resolved == null) {
-                Iris.logger.warn("[TransformPatcher] Unknown GLSL transform engine '{}' in {}; using {}",
-                    value, ENGINE_PROPERTY, Engine.TAUMC.id);
+                // Concatenated: IrisLogging has no warn(String, Object...), so '{}' arguments would bind to
+                // warn(Object...) and log the array's identity instead of the message.
+                Iris.logger.warn("[TransformPatcher] Unknown GLSL transform engine '" + value + "' in "
+                    + ENGINE_PROPERTY + "; using " + Engine.TAUMC.id);
                 resolved = Engine.TAUMC;
             }
             Iris.logger.info("[TransformPatcher] GLSL transform engine: {} ({})", resolved.id, ENGINE_PROPERTY);

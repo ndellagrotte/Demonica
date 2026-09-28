@@ -10,7 +10,7 @@ the reasoning, not legal advice.
 | Decision | Choice |
 |---|---|
 | License | Demonica's own code is relicensed to AGPL-3.0. Code ported from Angelica and Iris stays LGPL-3.0; code ported from Actinium, and the GTNHLib port in S8TNLib, stay GPL-3.0. Section 13 of GPL-3.0 and section 13 of AGPL-3.0 permit the combination. |
-| Strategy | Adapter first. One class, `ShaderAst`, re-implements the nineteen verbs Demonica calls on TauMC's `Transformer` on top of glsl-transformer's AST, and is proven equal to TauMC verb by verb while both libraries are on the classpath. The transformer classes then port mechanically. |
+| Strategy | Adapter first. One class, `ShaderAst`, re-implements the nineteen verbs Demonica calls on TauMC's `Transformer` on top of glsl-transformer's AST, and is proven equal to TauMC verb by verb while both libraries are on the classpath. The transformer classes then port mechanically. Upstream Iris idioms may be used next to the verbs wherever a file is being brought closer to Iris. |
 | Scope | Full removal. The Iris pipeline and GLSM's `CompatShaderTransformer` both move to glsl-transformer; TauMC's library and its ANTLR parser leave the jar at the end. The unreachable SPIR-V/GLES path was deleted on `dev` at `df08c785` and is not ported. |
 
 ## Why glsl-transformer

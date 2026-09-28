@@ -95,10 +95,11 @@ are complete on their own.
 `glsl-transformer-3.0.0-pre3.jar`. Its repository,
 https://github.com/IrisShaders/glsl-transformer (tag `v3.0.0-pre3`, retrieved
 2026-09-28), states no copyright line: its `LICENSE` is the unmodified AGPL-3.0
-text, the same file as Demonica's `LICENSE`, and its Java sources carry no
-headers. Its README names the author: "`glsl-transformer` is developed and
-maintained by [douira](https://github.com/douira)." The README's license
-section, quoted from the same tag:
+text, the same file as Demonica's `LICENSE`, and douira's own Java sources
+carry no headers (the bundled Commons Collections subset carries the ASF
+Apache-2.0 header). Its README names the author: "`glsl-transformer` is
+developed and maintained by [douira](https://github.com/douira)." The
+README's license section, quoted from the same tag:
 
 ```text
 `glsl-transformer` is licensed under the [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).

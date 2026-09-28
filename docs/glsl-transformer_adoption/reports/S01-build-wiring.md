@@ -13,7 +13,8 @@ on 2026-09-28.
 |---|---|
 | `4104a798` | glsl-transformer: S1 relicense to AGPL-3.0 and contain glsl-transformer 3.0.0-pre3 |
 | `f7232573` | glsl-transformer: S1 engine switch, stub engine and parser spike |
-| (this report's commit) | glsl-transformer: S1 report and status |
+| `114feb14` | glsl-transformer: S1 report and status |
+| (the commit after `114feb14`) | glsl-transformer: S1 fix the unknown-engine warning and the notice's header claim ([Verification follow-up](#verification-follow-up)) |
 
 ## What changed
 
@@ -59,7 +60,9 @@ the outputs `run/s1-*.out`; screenshots `run/client/screenshots/s1-{taumc,douira
 ### The engine switch
 
 - Property `demonica.glsl.engine`, values `taumc` (default) and `douira`, trimmed and lower-cased. An unknown value logs
-  `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using taumc` (WARN).
+  `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using taumc` (WARN), with
+  `<value>` trimmed and lower-cased. (Until the verification follow-up the code passed `{}` arguments to
+  `IrisLogging.warn(Object...)` and logged `[Ljava.lang.Object;@...` instead; see that section.)
 - `public static TransformPatcher.Engine engine()`; `public enum Engine { TAUMC("taumc"), DOUIRA("douira") }` with a
   public `id`. It is resolved in a holder class, so it happens once per JVM, thread-safely, on first access.
 - Logged once at first use, at INFO, on whichever thread transforms first:
@@ -247,9 +250,11 @@ No corpus or replay exists yet (Step 2), so there are no replay cases. What the 
 1. Commit trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, not "Claude Fable 5.1": the orchestrator's
    rule (the trailer names the model that did the work).
 2. The glsl-transformer notice has no copyright line, because the repository has none: at the tag `v3.0.0-pre3` and on
-   `main` (`9d26f0f6`), `README.md` has no copyright line, `LICENSE` is the unmodified AGPL-3.0 text, and no Java
-   source in the sources jar has a header. The only "Copyright" in the sources is `GLSLParser.g4`'s
-   "Copyright 2018 The GraphicsFuzz Project Authors" (Apache-2.0). The notice therefore quotes the README's authorship
+   `main` (`9d26f0f6`), `README.md` has no copyright line, `LICENSE` is the unmodified AGPL-3.0 text, and none of
+   douira's own Java sources has a header. (Corrected in the verification follow-up: the sources jar's 257 `.java`
+   files are douira's 233 under `io/` with no header, 21 under `org/apache/commons/collections4/` that carry the ASF
+   Apache-2.0 header, and 3 ANTLR-generated files with only a "Generated from" line.) The only "Copyright" in the
+   sources is `GLSLParser.g4`'s "Copyright 2018 The GraphicsFuzz Project Authors" (Apache-2.0). The notice therefore quotes the README's authorship
    sentence (README line 11, raw URL `https://raw.githubusercontent.com/IrisShaders/glsl-transformer/v3.0.0-pre3/README.md`):
    "`glsl-transformer` is developed and maintained by [douira](https://github.com/douira)." and says that no
    copyright line exists. The quoted license paragraph is README lines 15-24 at the same tag, checked byte-for-byte.
@@ -285,6 +290,11 @@ No corpus or replay exists yet (Step 2), so there are no replay cases. What the 
    Apache-2.0 section 4(a) asks a redistributor to give recipients a copy of the license. `jcpp-1.4.14.jar` (Apache-2.0)
    and `antlr4-runtime-4.13.2.jar` (BSD-3-Clause) already ship without their texts, so this is an existing gap that the
    new library widens. Should the jars carry `LICENSE-APACHE-2.0.txt` (a fifth file in the five lists)? Not done here.
+   Added by the verification follow-up: the 21 Commons Collections sources' ASF headers point to "the NOTICE file
+   distributed with this work", and Apache-2.0 section 4(d) asks a redistributor to keep a NOTICE file's attributions.
+   Neither glsl-transformer's jars (the sources jar has only `org/apache/commons/collections4/LICENSE.txt`) nor
+   Demonica's notices reproduce Commons Collections' NOTICE. If the Apache-2.0 text is added, add that attribution to
+   the glsl-transformer notice too (fetched from Commons Collections, not written from memory).
 2. Is the README's authorship sentence enough attribution for glsl-transformer, or should douira be asked for a
    preferred copyright line?
 3. In this camera, BSL's water (left of the frame) renders grey-white on both `dev` and the branch, where
@@ -292,6 +302,19 @@ No corpus or replay exists yet (Step 2), so there are no replay cases. What the 
    sky reflection at this angle, or come from the terrain-shadow work or the compatibility-profile default; not
    investigated.
 4. The README now says "releases up to 0.4.0 were GPL-3.0". Confirm the wording when 0.5.0 is cut.
+5. (Verification follow-up.) `DECISION.md` and `THIRD_PARTY_NOTICES.md` put "Demonica's changes to ported files" under
+   AGPL-3.0, as the brief prescribed. Under GPL-3.0 section 5(c) a modified GPL-3.0 file is licensed as a whole under
+   GPL-3.0, so the maintainer may prefer "also offered under AGPL-3.0" for those changes, or limiting the relicensing
+   to new files. Neither document claims that a ported file changes license. Left for the maintainer.
+6. (Verification follow-up.) `IrisLogging` has `warn(String)`, `warn(String, Throwable)` and `warn(Object...)` but no
+   `warn(String, Object...)`, so every `Iris.logger.warn("...{}...", args)` call binds to `warn(Object...)` and logs
+   `[Ljava.lang.Object;@...`. A one-line grep for `Iris.logger.warn("...{}` outside tests finds 23 such calls
+   (`NbtConditionalIdMap:207`, `Iris:727`, `RenderTargets:347/375`, `ShaderProperties:326/883`, `TagEntry:42/43`,
+   `ShaderPack:149/179/429/438/710`, `PropertiesTokenizer:92/190/194/198/202/279/280`,
+   `PropertiesPreprocessor:47/55/80`; the verifier counted 19 by its own search). Adding
+   `warn(String, Object...)` to `IrisLogging` would fix all of them (Java prefers it to `warn(Object...)`, and
+   `warn(String, Throwable)` still wins for a lone Throwable), but it predates this step and reaches beyond it, so S1
+   fixed only its own call. A separate change on `dev`?
 
 ## Notes for the next step
 
@@ -326,3 +349,95 @@ No corpus or replay exists yet (Step 2), so there are no replay cases. What the 
   runs, teleport absolutely; seed 1234567 with `world s1` spawned at `-164.5, 100.83, 218.5` twice and at
   `-167.5, 99.83, 221.5` once (spawn fuzz). One Gradle daemon (6 GB) was already running when this step started and
   served every invocation.
+- (Verification follow-up.) `TransformPatcher.CacheKey` does not include the engine. That is correct while the engine
+  is fixed per JVM; if a later step lets it vary inside one JVM, the key must include it.
+- (Verification follow-up.) `Iris.logger` is an `IrisLogging`, whose `warn` has no `(String, Object...)` overload:
+  `Iris.logger.warn("... {}", x)` logs `[Ljava.lang.Object;@...`. Concatenate warnings, or use `info`, `error` or
+  `debug`, which have the overload.
+
+## Verification follow-up
+
+An independent verification of `114feb14` found one blocking issue and made ten remarks. This section lists each and
+what was done (2026-09-28).
+
+### Blocking: the unknown-engine warning logged `[Ljava.lang.Object;@...`
+
+**Confirmed and fixed.** `TransformPatcher.EngineHolder.resolveEngine` called
+`Iris.logger.warn("[TransformPatcher] Unknown GLSL transform engine '{}' in {}; using {}", value, ENGINE_PROPERTY, Engine.TAUMC.id)`.
+`IrisLogging` has only `warn(String)`, `warn(String, Throwable)` and `warn(Object...)`, so the call bound to
+`warn(Object...)`, which hands the array to log4j's `warn(Object)`. The report's "Engine switch" line described a
+message the code never emitted. The fix is the minimal local one: the warning is now one concatenated string, with a
+comment that says why. `IrisLogging` is unchanged (see Open questions 6). The fallback to `taumc` was already right.
+
+The verifier's repro, before the fix (its `run/verify-s1-bogus.out` and the test XML):
+`[Test worker/WARN]: [Ljava.lang.Object;@2787de58`, then `GLSL transform engine: taumc (demonica.glsl.engine)`.
+
+After the fix. The init script (in the session's scratchpad, not committed) is the verifier's:
+`allprojects { tasks.withType(Test).configureEach { t -> def v = t.project.findProperty('verifyEngine'); if (v != null) t.systemProperty 'demonica.glsl.engine', v.toString() } }`.
+```
+$ ./gradlew --init-script <it> -PverifyEngine=Bogus :test --tests 'net.coderbot.iris.pipeline.transform.TransformPatcherTest' --rerun > run/s1-fix-bogus.out 2>&1
+BUILD SUCCESSFUL in 4s
+$ grep ... build/test-results/test/TEST-net.coderbot.iris.pipeline.transform.TransformPatcherTest.xml
+tests="3" skipped="0" failures="0" errors="0" timestamp="2026-09-28T17:56:34.608Z"
+[13:56:34] [Test worker/WARN]: [TransformPatcher] Unknown GLSL transform engine 'bogus' in demonica.glsl.engine; using taumc
+[13:56:34] [Test worker/INFO]: [TransformPatcher] GLSL transform engine: taumc (demonica.glsl.engine)
+```
+The value is shown trimmed and lower-cased (`Bogus` became `bogus`); the report's "Engine switch" line now says so.
+
+Checks re-run on the fixed tree:
+- Transform tests (`run/s1-fix-tests.out`):
+  `./gradlew :test --tests '*GlslTransformerSpikeTest' --tests 'net.coderbot.iris.pipeline.transform.*' --rerun`,
+  `BUILD SUCCESSFUL in 2s`; the seven classes ran at 17:56:44 UTC with the same counts as before (9, 3, 1, 6, 3, 5, 3):
+  30 tests, 0 failures, 0 errors, 0 skipped.
+- Full build (`run/s1-fix-build.out`, the step's second `check` run): `./gradlew build`, `BUILD SUCCESSFUL in 9s`;
+  `:test` executed (not from cache): 124 classes, 549 tests, 1 skipped, 0 failures, 0 errors (17:57:10 to 17:57:12
+  UTC). `verifyCeleritasPin`, `verifyDiagnosticsJar`, `verifyDiagnosticsRemap`, `verifyDistributedJar`,
+  `verifyModuleBoundaries`, `verifyRunClasspath` and `verifyS8tnlibPin` ran.
+- Dev run with an unknown value (`run/s1-fix-bogus-dev.out`, not in the brief): `./gradlew runClient
+  -PdevScript=@scripts/s1.txt -PdevProps=demonica.glsl.engine=Bogus`, `BUILD SUCCESSFUL in 28s`:
+  ```
+  [Shader-Transform-0/WARN] [Demonica]: [TransformPatcher] Unknown GLSL transform engine 'bogus' in demonica.glsl.engine; using taumc
+  [Shader-Transform-0/INFO] [Demonica]: [TransformPatcher] GLSL transform engine: taumc (demonica.glsl.engine)
+  [DemonicaDevHarness]: Dev shader pack: BSL_v10.1.8.zip (loaded: true)
+  [DemonicaDevHarness]: Dev stats: 120 fps; terrain C: 166/3600 D: 8 A: 4; shadow sections 224
+  [DemonicaDevHarness]: Dev step: exit
+  ```
+  24 steps, 19 "n of n injectors found their targets" lines, the `[DemonicaQuarantine]` gate line, no
+  `Shader compilation failed`, no `[Ljava.lang.Object;@`; the only `Exception` lines are the six "Mixin config does not
+  reside in a jar file" and the narrator's "No null terminator found". Frames renamed to
+  `run/client/screenshots/s1-bogus-{0-nopack,1-bsl}.png`; the save `run/client/saves/s1` was deleted afterwards. Same
+  measure as the Measurements table:
+
+  | Comparison | Mean abs | Pixels | Max |
+  |---|---|---|---|
+  | unknown-value BSL vs `s1-taumc-1-bsl.png` | 0.56 | 0.11 % | 129 |
+  | unknown-value no-pack vs `s1-taumc-0-nopack.png` | 0.01 | 0.01 % | 94 |
+  | unknown-value BSL vs its no-pack | 33.82 | 97.00 % | 209 |
+
+  The fallback renders BSL, and this fresh frame agrees with the restored `s1-taumc-*` frames (see remark 8).
+- Jars (`run/s1-fix-verify.out`): after the notice edit below (its final text, reflowed),
+  `./gradlew verifyDistributedJar verifyDiagnosticsJar sourcesJar` gave `BUILD SUCCESSFUL in 10s` (`jar`, `remapJar`,
+  `diagnosticsJar`, `sourcesJar` and both verify tasks executed). The mod, diagnostics and sources jars each carry
+  `LICENSE` 34,523 B, `LICENSE-GPL-3.0.txt` 35,149 B, `LICENSE-LGPL-3.0.txt` 7,931 B and `THIRD_PARTY_NOTICES.md`
+  13,143 B (was 13,059 B), and the three notices hash the same as the working-tree file. The mod jar is now
+  3,644,508 B (3,644,337 B at `f7232573`), still 1,442 entries; its nested jars and `ContainedDeps` are unchanged. (An
+  earlier `sourcesJar`-only run, `run/s1-fix-sourcesjar.out`, preceded the reflow.)
+
+### Remarks
+
+| # | Remark | Resolution |
+|---|---|---|
+| 1 | The notice ("its Java sources carry no headers") and Deviation 2 ("no Java source in the sources jar has a header") are wrong: the Commons Collections sources carry ASF headers. | **Fixed.** Counted in `run/lib-src/glsl-transformer/`: 257 `.java` files; douira's 233 under `io/` have no `Copyright`, `Licensed under` or `SPDX` line; all 21 under `org/apache/commons/collections4/` carry "Licensed to the Apache Software Foundation (ASF) ..."; 3 ANTLR-generated files (`gen/`, `.antlr/`) have only a "Generated from ..." line. The notice now says "douira's own Java sources carry no headers (the bundled Commons Collections subset carries the ASF Apache-2.0 header)"; Deviation 2 is corrected in place. The central claim stands: no copyright line exists for douira's code. |
+| 2 | The ASF headers point to a NOTICE file that neither the library's jars nor Demonica's notices reproduce (Apache-2.0 section 4(d)). | **Not done; added to Open questions 1**, with the fifth-file question it belongs to. |
+| 3 | The `IrisLogging` defect predates the step and affects about twenty other calls; `warn(String, Object...)` would fix all of them. | **Not done; Open questions 6**, with the call list. S1 took the minimal local fix, as the verifier suggested. |
+| 4 | "Demonica's changes to ported files" under AGPL-3.0 may read better as "also offered under AGPL-3.0" (GPL-3.0 section 5(c)). | **Not changed; Open questions 5.** The wording is the brief's, and a license statement is the maintainer's call. |
+| 5 | DECISION.md's Strategy row leaves out "Upstream Iris idioms may be used next to the verbs wherever a file is being brought closer to Iris." | **Fixed.** The sentence is added to the row, verbatim from the plan's header table. |
+| 6 | `CacheKey` does not include the engine; correct while the engine is fixed per JVM. | **Recorded** in Notes for the next step. No code change. |
+| 7 | The full suite in `./gradlew build` came from Gradle's cache; a fresh `--rerun` gave the same result. | **Agreed.** The follow-up build above executed `:test` (549 tests, 1 skipped, 0 failures). |
+| 8 | The `s1-taumc-*.png` frames are re-encodings of an rgb24 decode; their provenance rests on the report. | **Agreed**, and the unknown-value dev run adds a freshly written taumc-engine frame from the same script: 0.11 % of pixels differ from `s1-taumc-1-bsl.png` (0.01 % for the no-pack pair). |
+| 9 | Spike (c) raises `ParseCancellationException`, not `ParsingException`; later steps must catch both. | **Already covered** by Measurements and Notes for the next step. No change. |
+| 10 | Scratch output of the verification: `run/verify-s1-*.out`, init script in the verifier's scratchpad; no tracked file changed. | **Noted.** This follow-up's own output is `run/s1-fix-{bogus,tests,build,bogus-dev,verify,sourcesjar}.out`; the frames are `run/client/screenshots/s1-bogus-*.png`. |
+
+Files changed by the follow-up: `shader/src/main/java/net/coderbot/iris/pipeline/transform/TransformPatcher.java`,
+`THIRD_PARTY_NOTICES.md`, `docs/glsl-transformer_adoption/DECISION.md`, this report and `STATUS.md`. Status stays
+**done**: every item under "Done when" still holds on the fixed tree.
