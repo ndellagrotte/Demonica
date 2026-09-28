@@ -8,7 +8,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 |---|---|---|---|---|
 | S1 build wiring, license, spike | done | `4104a798`, `f7232573`, `114feb14` (report); verification fix `86e62ef7` | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
 | S2 corpus recorder, replayer, baselines | done | `ebb9d89b`, `c211a5f6`, `6eeea2da` (report) | 2026-09-28 | [S02-corpus.md](reports/S02-corpus.md) |
-| S3 `ShaderAst` core verbs | done | `3e1f5fa9`, `80fda189`, and the report commit | 2026-09-28 | [S03-shaderast-core.md](reports/S03-shaderast-core.md) |
+| S3 `ShaderAst` core verbs | done | `3e1f5fa9`, `80fda189`, `2ab0db35` (report); verification fix `3f9f926f` | 2026-09-28 | [S03-shaderast-core.md](reports/S03-shaderast-core.md) |
 | S4 `ShaderAst` structural verbs | not started | | | |
 | S5 orchestrator, COMPOSITE and COMPUTE | not started | | | |
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | not started | | | |
@@ -48,6 +48,10 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   `ShaderAst` holds `ShaderAst.BUILD_LOCK` around every build, and code that builds nodes through `t`/`tree`/`root`
   itself must hold it too. Parity with TauMC: `ShaderAstParityTest`, and with `-PglslCorpusDir` its corpus mode
   (`grep shader-ast-parity`).
+- glsl-transformer's `Matcher`/`AutoHintedMatcher` accept a candidate that is a prefix of the pattern (`f(a)` for
+  `f(a, b)`) and ignore argument-list boundaries (`f(g(a), b)` for `f(g(a, b))`). `ShaderAst.replaceExpression` compares
+  exact structures instead; do not use `Matcher` for pattern replacement without the same care (S3 verification
+  follow-up).
 - `GlslTokens` also treats `mat2x2` as `mat2` and `((x))` as `(x)` (S3): glsl-transformer prints both that way.
 - Baselines (S2): frames in `run/baseline-screenshots/corpus-*.png`; `transformMs` log sums bsl 4,734.4 ms,
   complementary 13,151.2 ms, vanilla 5,703.3 ms (`run/corpus-<pack>.out`, `-Ddemonica.glsmPerfDebug=true`, recorder on,

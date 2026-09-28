@@ -19,7 +19,9 @@ Step 3 of [the adoption plan](../ADOPTION_PLAN.md). Branch `feat/glsl-transforme
 |---|---|
 | `3e1f5fa9` | glsl-transformer: S3 ShaderAst core verbs, parity test and corpus differential |
 | `80fda189` | glsl-transformer: S3 query parity over every identifier of every fixture |
-| the commit that adds this report | glsl-transformer: S3 report and status (also a javadoc-only fix: `ShaderAst.findType`'s javadoc now starts "TauMC `findType`:" like the other verbs') |
+| `2ab0db35` | glsl-transformer: S3 report and status (also a javadoc-only fix: `ShaderAst.findType`'s javadoc now starts "TauMC `findType`:" like the other verbs') |
+| `3f9f926f` | glsl-transformer: S3 fix replaceExpression matching by exact tree equality (the [verification follow-up](#verification-follow-up)) |
+| the commit that records `3f9f926f` here and in `STATUS.md` | glsl-transformer: S3 fix status |
 
 ## What changed
 
@@ -311,7 +313,8 @@ No replay of an engine runs in this step (the new engine is not ported until Ste
 ## Verification follow-up
 
 An independent verification (outputs `run/s3v-*.out`) found one blocking issue and made eight remarks. Fixed on
-2026-09-28 on `feat/glsl-transformer`; commits below. Status stays **done**.
+2026-09-28 on `feat/glsl-transformer` in `3f9f926f` (code, tests, this section); the next commit records it in
+`STATUS.md`. Status stays **done**.
 
 ### Blocking: `replaceExpression` call patterns matched calls whose argument list is a prefix
 
