@@ -97,9 +97,16 @@ how Demonica got here. They are not a rule for new changes.
 
 Actinium's root project is GPL-3.0, so porting it makes the Demonica jar a
 GPL-3.0 combined work. On 2026-09-24 the maintainer settled on GPL-3.0 for
-Demonica as a whole ([`LICENSE`](../LICENSE)). Angelica's LGPL-3.0 license file
+Demonica as a whole (the text is now
+[`LICENSE-GPL-3.0.txt`](../LICENSE-GPL-3.0.txt)). On 2026-09-28, before
+glsl-transformer (AGPL-3.0) entered the jar, Demonica's own code was relicensed
+to AGPL-3.0 ([`LICENSE`](../LICENSE),
+[decision record](glsl-transformer_adoption/DECISION.md)); the ported code keeps
+GPL-3.0 or LGPL-3.0, and section 13 of GPL-3.0 and of AGPL-3.0 lets the parts
+combine. Angelica's LGPL-3.0 license file
 stays as [`LICENSE-LGPL-3.0.txt`](../LICENSE-LGPL-3.0.txt): LGPL-3.0 is GPL-3.0
 plus additional permissions, which section 7 of GPL-3.0 lets a redistributor
-remove, and file headers still govern their files. The mod jar carries both
-texts and [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md), whose Notices
-section reproduces the MIT and BSD notices.
+remove, and file headers still govern their files. The mod jar carries all
+three texts and [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md), whose Notices
+section reproduces glsl-transformer's license statement and the MIT and BSD
+notices.

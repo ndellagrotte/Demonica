@@ -120,12 +120,16 @@ which prints it as JSON.
 
 ## License
 
-Demonica is distributed under GPL-3.0 ([`LICENSE`](LICENSE)). Angelica's and
-Iris's code is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
-Angelica's license file), which may be conveyed under GPL-3.0; the code ported
-from Actinium is GPL-3.0. S8TNLib, installed separately, is GPL-3.0 too. The
-MIT- and BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
-has the details, and the mod jar and the diagnostics jar carry all three files.
+Demonica is distributed under AGPL-3.0 ([`LICENSE`](LICENSE)); releases up to
+0.4.0 were GPL-3.0. Code ported from other projects keeps its license:
+Angelica's and Iris's is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
+Angelica's license file), and Actinium's is GPL-3.0
+([`LICENSE-GPL-3.0.txt`](LICENSE-GPL-3.0.txt)); section 13 of GPL-3.0 and of
+AGPL-3.0 lets the two be combined in one work. The contained glsl-transformer
+library is AGPL-3.0. S8TNLib, installed separately, is GPL-3.0. The MIT- and
+BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+has the details, and the mod jar and the diagnostics jar carry all four files.
+The reasons are in [the decision record](docs/glsl-transformer_adoption/DECISION.md).
 
 ## Credits
 
@@ -136,6 +140,7 @@ has the details, and the mod jar and the diagnostics jar carry all three files.
 - embeddedt for Celeritas; JellySquid and the CaffeineMC team for Sodium
 - The GTNewHorizons team for GTNHLib; embeddedt and Ferri_Arnus for
   [glsl-transformation-lib](https://github.com/TauMC/glsl-transformation-lib)
+- douira for [glsl-transformer](https://github.com/IrisShaders/glsl-transformer)
 - The original ShadersMod authors: karyonix, sonic ether, id_miner and daxnitro
 - [Mesa](https://gitlab.freedesktop.org/mesa/mesa), for the display-list ID
   allocator port and the fixed-function shader generation it inspired

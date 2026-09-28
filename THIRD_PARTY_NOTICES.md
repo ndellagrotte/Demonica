@@ -5,15 +5,22 @@ where it lives in this repository, its terms, and whether it ships in the mod
 jar. Where a source file carries its own copyright or license header, that
 header governs the file. This is an inventory, not legal advice.
 
-**Demonica is GPL-3.0.** Angelica's code is LGPL-3.0 (its license file is
-[`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt)), and the code ported from
-Actinium's root project is GPL-3.0, so the jar that combines them is GPL-3.0 as
-a whole. On 2026-09-24 the maintainer settled on GPL-3.0 for Demonica
-([`LICENSE`](LICENSE)). That holds under either reading of the LGPL parts:
-LGPL-3.0 is GPL-3.0 plus additional permissions, which section 7 of GPL-3.0
-lets a redistributor remove. File headers still govern their files, and the
-LGPL-3.0 text stays in the repository and in the jar
-([`docs/FORK.md`](docs/FORK.md#license)).
+**Demonica is AGPL-3.0.** On 2026-09-25 the maintainer decided to relicense
+Demonica's own code, the files written for Demonica and Demonica's changes to
+ported files, under AGPL-3.0 ([`LICENSE`](LICENSE)), before glsl-transformer,
+an AGPL-3.0 library, entered the jar; the change was made on 2026-09-28
+([decision record](docs/glsl-transformer_adoption/DECISION.md)). Releases up to
+0.4.0 were GPL-3.0. Ported code keeps its license: Angelica's and Iris's code is
+LGPL-3.0 (its license file is [`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt)),
+and the code ported from Actinium's root project is GPL-3.0
+([`LICENSE-GPL-3.0.txt`](LICENSE-GPL-3.0.txt)). The parts combine in one jar
+because section 13 of GPL-3.0 and section 13 of AGPL-3.0 each permit combining
+a work under one with a work under the other: each part stays under its own
+license, and AGPL-3.0's network-interaction requirement applies to the
+combination. The LGPL parts join as GPL-3.0 code: LGPL-3.0 is GPL-3.0 plus
+additional permissions, which section 7 of GPL-3.0 lets a redistributor remove.
+File headers still govern their files, and all three license texts stay in the
+repository and in the jars ([`docs/FORK.md`](docs/FORK.md#license)).
 
 ## Source
 
@@ -46,6 +53,7 @@ Packaged unmodified as nested jars in the mod jar, and listed in its manifest's
 | Artifact | License |
 |---|---|
 | `org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH` | not stated in its POM or jar; Angelica's credits list it as LGPL-3.0 (https://github.com/TauMC/glsl-transformation-lib) |
+| `io.github.douira:glsl-transformer:3.0.0-pre3` | AGPL-3.0 (https://github.com/IrisShaders/glsl-transformer). The jar carries no license file; the AGPL-3.0 text ships as `LICENSE`. It contains a subset of Apache Commons Collections 4 (`org.apache.commons.collections4`, Apache-2.0), and its parser is generated from a grammar that extends GraphicsFuzz's (Apache-2.0); see [Notices](#glsl-transformer-agpl-30) |
 | `org.antlr:antlr4-runtime:4.13.2` | BSD-3-Clause |
 | `org.anarres:jcpp:1.4.14` | Apache-2.0 |
 
@@ -68,15 +76,55 @@ See `build.gradle` for the exact coordinates.
 
 ## In the jars
 
-The mod jar, the diagnostics jar and the sources jar carry three files from the repository root:
-`LICENSE` (the GPL-3.0 text), `LICENSE-LGPL-3.0.txt` (Angelica's license file:
-the ShadersMod notice, then the LGPL-3.0 text) and this page, whose
-[Notices](#notices) reproduce the MIT and BSD notices that binary copies must
-carry: Mesa's and LWJGL's. `verifyDistributedJar` and `verifyDiagnosticsJar`
-fail the build if any of the three files is missing from their jar. This page's links do not
-resolve inside the jar; the notices below are complete on their own.
+The mod jar, the diagnostics jar and the sources jar carry four files from the repository root:
+`LICENSE` (the AGPL-3.0 text: Demonica's license and glsl-transformer's),
+`LICENSE-GPL-3.0.txt` (the GPL-3.0 text, for the code ported from Actinium),
+`LICENSE-LGPL-3.0.txt` (Angelica's license file: the ShadersMod notice, then
+the LGPL-3.0 text) and this page, whose [Notices](#notices) reproduce
+glsl-transformer's license statement and the MIT and BSD notices that binary
+copies must carry: Mesa's and LWJGL's. `verifyDistributedJar` and
+`verifyDiagnosticsJar` fail the build if any of the four files is missing from
+their jar. This page's links do not resolve inside the jar; the notices below
+are complete on their own.
 
 ## Notices
+
+### glsl-transformer (AGPL-3.0)
+
+`io.github.douira:glsl-transformer:3.0.0-pre3`, nested in the mod jar as
+`glsl-transformer-3.0.0-pre3.jar`. Its repository,
+https://github.com/IrisShaders/glsl-transformer (tag `v3.0.0-pre3`, retrieved
+2026-09-28), states no copyright line: its `LICENSE` is the unmodified AGPL-3.0
+text, the same file as Demonica's `LICENSE`, and its Java sources carry no
+headers. Its README names the author: "`glsl-transformer` is developed and
+maintained by [douira](https://github.com/douira)." The README's license
+section, quoted from the same tag:
+
+```text
+`glsl-transformer` is licensed under the [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).
+
+Software that uses this library must itself be licensed as AGPLv3. However, there are two special cases:
+
+- Certain projects can receive a specific additional noncommercial permission that allows them to use this software without significantly reducing the requirements of the AGPLv3 for other unintended purposes.
+- You can obtain a commercial license, which is entirely separate from the publicly granted AGPLv3 license. This license includes warranty and support.
+
+Please contact the author (douira) in these cases.
+
+In addition to the terms of the AGPLv3, contributors to this project must agree to license their work in such a way that these additional licenses may be granted.
+```
+
+Demonica uses it under the AGPL-3.0, with no additional permission. Two parts
+of the library come from elsewhere, as its README and sources say:
+
+- Its parser grammar, `GLSLParser.g4`, "extends the graphicsfuzz grammar" and
+  keeps its header: "Copyright 2018 The GraphicsFuzz Project Authors",
+  licensed under the Apache License, Version 2.0.
+- "This project includes parts of Apache Commons Collections in its respective
+  package. Not all source files have been included since only those related to
+  `Trie` are needed. Apache Commons Collections is licensed under the
+  [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)." Those
+  classes are in the jar under `org/apache/commons/collections4/`; their
+  license file is only in the library's sources jar.
 
 ### Mesa (MIT)
 
