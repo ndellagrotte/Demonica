@@ -18,6 +18,7 @@ import io.github.douira.glsl_transformer.ast.node.expression.unary.MemberAccessE
 import io.github.douira.glsl_transformer.ast.node.external_declaration.DeclarationExternalDeclaration;
 import io.github.douira.glsl_transformer.ast.node.statement.terminal.DeclarationStatement;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.NamedLayoutQualifierPart;
+import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.FunctionPrototype;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.TypeReference;
 import io.github.douira.glsl_transformer.ast.node.type.struct.StructDeclarator;
@@ -68,7 +69,17 @@ import java.util.stream.Stream;
  * call and the same call with one more argument, which occurs nowhere, a product or sum of two names),
  * {@code prependMain} and {@code appendMain}, a sequence of
  * {@code injectVariable} and {@code injectFunction}, {@code removeVariable} (a sole global, a shared declarator, a sole
- * local) and {@code renameArray} (arrays indexed only by literals, and one indexed otherwise, which both must reject).</p>
+ * local) and {@code renameArray} (arrays indexed only by literals, and one indexed otherwise, which both must reject).
+ * Step 4 added {@code renameAndWrapShadow} (CommonTransformer's two and CompatShaderTransformer's six renames),
+ * {@code removeUnusedFunctions}, {@code removeConstAssignment} (alone and in transformEach's order),
+ * {@code initialize} (the first names of each of {@code findQualifiers(IN)} and {@code findQualifiers(OUT)}),
+ * {@code replaceFunctionDefinition} (a statement inserted into the first function other than {@code main}), two
+ * sequences that depend on TauMC's cache order (a qualified declaration injected as a function before the first
+ * {@code injectVariable}; a uniform injected under a local's name, then {@code removeVariable} and {@code findType}
+ * of that name), the queries {@code findQualifiers} (six storage types, with TauMC's key order), {@code hasAssignment},
+ * {@code functions()} and {@code isDeclaredGlobal}, and a grouped pass: for every Iris case with two or more of the
+ * vertex, geometry and fragment stages, TauMC's {@code CompatibilityTransformer.transformGrouped} against
+ * {@link ShaderAstParityTest#transformGrouped} on the prepared stages.</p>
  *
  * <p>Outputs are compared as {@link GlslTokens}; a verb whose baseline already differs is counted as such, not
  * judged. Diffs go to {@code build/reports/shader-ast-parity/}. Known, deliberate deviations are classified by
@@ -142,7 +153,8 @@ final class ShaderAstCorpusDifferential {
     static Summary run(Path corpus, Path reports) throws Exception {
         final long start = System.nanoTime();
         final Summary summary = new Summary();
-        final List<Input> inputs = collectInputs(corpus, summary);
+        final List<Group> groups = new ArrayList<>();
+        final List<Input> inputs = collectInputs(corpus, summary, groups);
         clear(reports);
         Files.createDirectories(reports);
         final Map<String, AtomicInteger> kept = new ConcurrentHashMap<>();
@@ -153,6 +165,12 @@ final class ShaderAstCorpusDifferential {
             for (Input input : inputs) {
                 futures.add(pool.submit(() -> {
                     runInput(input, summary, reports, kept);
+                    return null;
+                }));
+            }
+            for (Group group : groups) {
+                futures.add(pool.submit(() -> {
+                    runGroup(group, summary, reports, kept);
                     return null;
                 }));
             }
@@ -171,7 +189,15 @@ final class ShaderAstCorpusDifferential {
     // ---------------------------------------------------------------------------------------------------------------
     // Inputs
 
-    private static List<Input> collectInputs(Path corpus, Summary summary) throws Exception {
+    /** The prepared vertex, geometry and fragment stages of one Iris case, for transformGrouped. */
+    record Group(String label, Map<PatchShaderType, String> stages) {
+    }
+
+    private static final Set<PatchShaderType> GROUPED_STAGES = Set.of(PatchShaderType.VERTEX, PatchShaderType.GEOMETRY,
+        PatchShaderType.FRAGMENT);
+
+    private static List<Input> collectInputs(Path corpus, Summary summary, List<Group> groups) throws Exception {
+        final Map<String, Group> groupsByText = new LinkedHashMap<>();
         final List<Path> cases;
         try (Stream<Path> files = Files.walk(corpus)) {
             cases = files.filter(p -> p.getFileName().toString().equals(TransformCorpus.CASE_FILE))
@@ -196,6 +222,7 @@ final class ShaderAstCorpusDifferential {
             }
             GlslCorpusParseSurveyTest.restoreHoisting(p);
             final Patch patch = Patch.valueOf(p.get("patch"));
+            final Map<PatchShaderType, String> grouped = new EnumMap<>(PatchShaderType.class);
             for (PatchShaderType stage : PatchShaderType.VALUES) {
                 final String stageName = stage.name().toLowerCase(Locale.ROOT);
                 final Path input = caseDir.resolve("in." + stageName + ".glsl");
@@ -206,9 +233,16 @@ final class ShaderAstCorpusDifferential {
                 final String prepared = GlslCorpusParseSurveyTest.prepare(Files.readString(input, StandardCharsets.UTF_8),
                     stage, patch, p, requiredVersion);
                 byText.putIfAbsent(prepared, name + " " + stageName);
+                if (GROUPED_STAGES.contains(stage)) {
+                    grouped.put(stage, prepared);
+                }
+            }
+            if (grouped.size() > 1) {
+                groupsByText.putIfAbsent(grouped.toString(), new Group(name, grouped));
             }
         }
         summary.distinctInputs = byText.size();
+        groups.addAll(groupsByText.values());
         final List<Input> inputs = new ArrayList<>();
         byText.forEach((text, label) -> inputs.add(new Input(label, text)));
         return inputs;
@@ -275,6 +309,75 @@ final class ShaderAstCorpusDifferential {
             }
             record(input, application.verb(), application.arguments(), result, summary, reports, kept);
         }
+    }
+
+    /**
+     * TauMC's {@code CompatibilityTransformer.transformGrouped} and {@link ShaderAstParityTest#transformGrouped} on one
+     * case's prepared stages; identical when every stage prints the same.
+     */
+    private static void runGroup(Group group, Summary summary, Path reports, Map<String, AtomicInteger> kept) {
+        final String verb = "transformGrouped";
+        final Input input = new Input(group.label() + " " + group.stages().keySet(), "");
+        final Map<PatchShaderType, String> taumc = new EnumMap<>(PatchShaderType.class);
+        final Map<PatchShaderType, String> adapter = new EnumMap<>(PatchShaderType.class);
+        Throwable taumcError = null;
+        Throwable adapterError = null;
+        for (Map.Entry<PatchShaderType, String> stage : group.stages().entrySet()) {
+            try {
+                final String unchangedTauMC = ShaderAstParityTest.viaTauMC(stage.getValue(), t -> { });
+                if (!GlslTokens.diff(unchangedTauMC, ShaderAstParityTest.viaShaderAst(stage.getValue(), a -> { })).isEmpty()) {
+                    summary.count(verb, Outcome.BASELINE_DIFFERS);
+                    return;
+                }
+            } catch (RuntimeException e) {
+                synchronized (summary) {
+                    summary.parseFailures.add(input.label() + " " + stage.getKey() + ": " + e);
+                }
+                return;
+            }
+        }
+        try {
+            final Map<PatchShaderType, Transformer> trees = new EnumMap<>(PatchShaderType.class);
+            group.stages().forEach((stage, text) -> trees.put(stage, new Transformer(org.taumc.glsl.ShaderParser.parseShader(text).full())));
+            CompatibilityTransformer.transformGrouped(trees, null);
+            trees.forEach((stage, transformer) -> {
+                final StringBuilder printed = new StringBuilder();
+                transformer.mutateTree(tree -> printed.append(com.gtnewhorizons.angelica.glsm.GlslTransformUtils.getFormattedShader(tree, "")));
+                taumc.put(stage, printed.toString());
+            });
+        } catch (Throwable e) {
+            taumcError = e;
+        }
+        try {
+            final Map<PatchShaderType, ShaderAst> trees = new EnumMap<>(PatchShaderType.class);
+            group.stages().forEach((stage, text) -> trees.put(stage, ShaderAst.parse(text)));
+            ShaderAstParityTest.transformGrouped(trees);
+            trees.forEach((stage, ast) -> adapter.put(stage, ast.printBody()));
+        } catch (Throwable e) {
+            adapterError = e;
+        }
+        final Result result;
+        if (taumcError != null || adapterError != null) {
+            final Outcome outcome = taumcError != null && adapterError != null
+                ? (taumcError.getClass() == adapterError.getClass() ? Outcome.BOTH_THREW : Outcome.DIFFERENT)
+                : taumcError != null ? Outcome.ONLY_TAUMC_THREW : Outcome.ONLY_ADAPTER_THREW;
+            result = new Result(outcome, "TauMC: " + taumcError + "\nShaderAst: " + (adapterError == null ? null : stackHead(adapterError)));
+        } else {
+            final StringBuilder diffs = new StringBuilder();
+            boolean changed = false;
+            for (PatchShaderType stage : group.stages().keySet()) {
+                final String diff = GlslTokens.diff(taumc.get(stage), adapter.get(stage));
+                if (!diff.isEmpty()) {
+                    diffs.append(stage).append(":\n").append(diff).append('\n');
+                }
+                changed |= !GlslTokens.of(taumc.get(stage)).equals(GlslTokens.of(ShaderAstParityTest.viaTauMC(group.stages().get(stage), t -> { })));
+            }
+            if (changed) {
+                summary.effective(verb);
+            }
+            result = diffs.isEmpty() ? new Result(Outcome.IDENTICAL, "") : new Result(Outcome.DIFFERENT, diffs.toString());
+        }
+        record(input, verb, "", result, summary, reports, kept);
     }
 
     /** The outcome; {@code taumc} is TauMC's printed program when it did not throw. */
@@ -407,6 +510,29 @@ final class ShaderAstCorpusDifferential {
         for (String name : typed) {
             query(summary, "findType", name, ShaderAstParityTest.taumcTypeKeyword(transformer.findType(name)),
                 ShaderAstParityTest.adapterTypeKeyword(probe.findType(name)), differences);
+        }
+
+        // Step 4.
+        for (Map.Entry<StorageQualifier.StorageType, Integer> type : ShaderAstParityTest.STORAGE_TOKENS.entrySet()) {
+            query(summary, "findQualifiers", type.getKey().name(), ShaderAstParityTest.taumcQualifiers(transformer, type.getValue()),
+                ShaderAstParityTest.adapterQualifiers(probe, type.getKey()), differences);
+        }
+        for (String name : queried) {
+            query(summary, "hasAssignment", name, transformer.hasAssigment(name), probe.hasAssignment(name), differences);
+            query(summary, "isDeclaredGlobal", name, ShaderAstParityTest.taumcDeclaredGlobal(transformer, name),
+                probe.isDeclaredGlobal(name), differences);
+        }
+        query(summary, "functions", "", ShaderAstParityTest.taumcFunctions(transformer), ShaderAstParityTest.adapterFunctions(probe),
+            differences);
+        // TauMC's cache order after an injection: a uniform under a local's name is scanned after the local.
+        final String local = first(names, Kind.LOCAL, Set.of());
+        if (local != null) {
+            final Transformer injected = new Transformer(org.taumc.glsl.ShaderParser.parseShader(input.text()).full());
+            injected.injectVariable("uniform float " + local + ";");
+            final ShaderAst injectedAst = ShaderAst.parse(input.text());
+            injectedAst.injectVariable("uniform float " + local + ";");
+            query(summary, "findType(afterInjectVariable)", local, ShaderAstParityTest.taumcTypeKeyword(injected.findType(local)),
+                ShaderAstParityTest.adapterTypeKeyword(injectedAst.findType(local)), differences);
         }
         for (String difference : differences) {
             final String verb = difference.substring(0, difference.indexOf(' '));
@@ -577,6 +703,46 @@ final class ShaderAstCorpusDifferential {
         final Map<String, String> removals = removalCandidates(probe);
         removals.forEach((shape, name) -> applications.add(Application.of("removeVariable", shape + " " + name,
             t -> t.removeVariable(name), a -> a.removeVariable(name))));
+
+        // Step 4: the structural verbs.
+        final String[] common = {"shadow2D", "texture", "shadow2DLod", "textureLod"};
+        final String[] compat = {"shadow2D", "texture", "shadow2DLod", "textureLod", "shadow1D", "texture",
+            "shadow1DProj", "textureProj", "shadow2DProj", "textureProj", "shadow1DLod", "textureLod"};
+        applications.add(Application.of("renameAndWrapShadow(Common)", String.join(",", common),
+            t -> ShaderAstParityTest.wrapShadowsTauMC(t, common), a -> ShaderAstParityTest.wrapShadows(a, common)));
+        applications.add(Application.of("renameAndWrapShadow(Compat)", String.join(",", compat),
+            t -> ShaderAstParityTest.wrapShadowsTauMC(t, compat), a -> ShaderAstParityTest.wrapShadows(a, compat)));
+        applications.add(Application.of("removeUnusedFunctions", "", Transformer::removeUnusedFunctions, ShaderAst::removeUnusedFunctions));
+        applications.add(Application.of("removeConstAssignment", "", Transformer::removeConstAssignment, ShaderAst::removeConstAssignment));
+        applications.add(Application.of("removeUnusedFunctions+removeConstAssignment", "",
+            t -> { t.removeUnusedFunctions(); t.removeConstAssignment(); }, a -> { a.removeUnusedFunctions(); a.removeConstAssignment(); }));
+        for (StorageQualifier.StorageType type : List.of(StorageQualifier.StorageType.IN, StorageQualifier.StorageType.OUT)) {
+            final List<String> qualified = new TreeSet<>(probe.findQualifiers(type).keySet()).stream().limit(3).toList();
+            if (!qualified.isEmpty()) {
+                final int token = ShaderAstParityTest.STORAGE_TOKENS.get(type);
+                applications.add(Application.of("initialize(" + type + ")", qualified.toString(),
+                    t -> { final var declarations = t.findQualifiers(token); qualified.forEach(n -> t.initialize(declarations.get(n), n)); },
+                    a -> { final var declarations = a.findQualifiers(type); qualified.forEach(n -> a.initialize(declarations.get(n), n)); }));
+            }
+        }
+        probe.functions().stream().filter(f -> !f.name().equals("main")).findFirst().ifPresent(function -> {
+            final String name = function.name();
+            applications.add(Application.of("replaceFunctionDefinition", name,
+                t -> ShaderAstParityTest.replaceFunctionTauMC(t, name, 0, ShaderAstParityTest.afterFirstBrace("iris_parityCalls += 1;")),
+                a -> ShaderAstParityTest.replaceFunction(a, name, 0, ShaderAstParityTest.afterFirstBrace("iris_parityCalls += 1;"))));
+        });
+        // TauMC's cache order: a qualified declaration injected as a function before the first injectVariable.
+        applications.add(Application.of("injectFunction(qualified)+injectVariable", "",
+            t -> { t.injectFunction("uniform float iris_parityQ;"); t.injectVariable("uniform float iris_parityR;"); t.injectVariable("vec4 iris_parityS;"); },
+            a -> { a.injectFunction("uniform float iris_parityQ;"); a.injectVariable("uniform float iris_parityR;"); a.injectVariable("vec4 iris_parityS;"); }));
+        // TauMC's cache order: a uniform injected under a sole local's name is the last sole declarator TauMC scans, so
+        // TauMC removes the uniform again and the program comes out unchanged (S3's document order removed the local).
+        final String local = removalCandidates(probe).get("sole-local");
+        if (local != null) {
+            applications.add(Application.of("injectVariable+removeVariable(localName)", local,
+                t -> { t.injectVariable("uniform float " + local + ";"); t.removeVariable(local); },
+                a -> { a.injectVariable("uniform float " + local + ";"); a.removeVariable(local); }));
+        }
 
         // renameArray: arrays indexed only by int literals, and one that is not.
         final Map<String, Boolean> arrays = arrays(probe);

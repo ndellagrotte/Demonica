@@ -7,24 +7,32 @@ import io.github.douira.glsl_transformer.ast.node.Version;
 import io.github.douira.glsl_transformer.ast.node.VersionStatement;
 import io.github.douira.glsl_transformer.ast.node.abstract_node.ASTNode;
 import io.github.douira.glsl_transformer.ast.node.declaration.DeclarationMember;
+import io.github.douira.glsl_transformer.ast.node.declaration.FunctionDeclaration;
+import io.github.douira.glsl_transformer.ast.node.declaration.FunctionParameter;
 import io.github.douira.glsl_transformer.ast.node.declaration.TypeAndInitDeclaration;
 import io.github.douira.glsl_transformer.ast.node.expression.Expression;
 import io.github.douira.glsl_transformer.ast.node.expression.LiteralExpression;
 import io.github.douira.glsl_transformer.ast.node.expression.ReferenceExpression;
 import io.github.douira.glsl_transformer.ast.node.expression.binary.ArrayAccessExpression;
+import io.github.douira.glsl_transformer.ast.node.expression.binary.BinaryExpression;
 import io.github.douira.glsl_transformer.ast.node.expression.unary.FunctionCallExpression;
 import io.github.douira.glsl_transformer.ast.node.expression.unary.MemberAccessExpression;
+import io.github.douira.glsl_transformer.ast.node.external_declaration.DeclarationExternalDeclaration;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.ExtensionDirective;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.ExternalDeclaration;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.FunctionDefinition;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.LayoutDefaults;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.PragmaDirective;
+import io.github.douira.glsl_transformer.ast.node.statement.CompoundStatement;
 import io.github.douira.glsl_transformer.ast.node.statement.loop.ForLoopStatement;
+import io.github.douira.glsl_transformer.ast.node.statement.terminal.DeclarationStatement;
+import io.github.douira.glsl_transformer.ast.node.type.FullySpecifiedType;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.TypeQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.BuiltinFixedTypeSpecifier;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.BuiltinNumericTypeSpecifier;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.FunctionPrototype;
+import io.github.douira.glsl_transformer.ast.node.type.specifier.TypeReference;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.TypeSpecifier;
 import io.github.douira.glsl_transformer.ast.print.ASTPrinter;
 import io.github.douira.glsl_transformer.ast.print.PrintType;
@@ -44,6 +52,9 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,6 +76,23 @@ import java.util.regex.Pattern;
  * where {@code Transformer} implements each verb over parse-tree rule contexts. Where TauMC's grammar and
  * glsl-transformer's AST name the same construct differently, each verb's javadoc says which AST nodes stand for
  * which rule. Deliberate deviations (TauMC throwing, or emitting broken GLSL) are named in the verb's javadoc.</p>
+ *
+ * <p>The nineteen verbs: {@link #injectVariable}, {@link #injectFunction}, {@link #rename(String, String)},
+ * {@link #rename(Map)}, {@link #replaceExpression}, {@link #prependMain}, {@link #appendMain},
+ * {@link #removeVariable}, {@link #findType}, {@link #containsCall}, {@link #hasVariable},
+ * {@link #renameFunctionCall(String, String)}, {@link #renameFunctionCall(Map)}, {@link #renameArray} (Step 3), and
+ * {@link #renameAndWrapShadow}, {@link #removeUnusedFunctions}, {@link #removeConstAssignment},
+ * {@link #findQualifiers}, {@link #hasAssignment}, {@link #initialize} and {@link #replaceFunctionDefinition(String,
+ * String)} (Step 4; TauMC's three-argument {@code replaceExpression} over function definitions). The queries
+ * {@link #functions()}, {@link #source(FunctionDefinition)}, {@link #text(ASTNode)} and {@link #isDeclaredGlobal}
+ * have no TauMC counterpart; they replace the parse-tree walks {@code AdaptiveShadowBoundsTransformer} and
+ * {@code CompatibilityTransformer} do through {@code mutateTree}.</p>
+ *
+ * <p>Order. Where a TauMC verb takes "the first" or "the last" of something, it took it from its rule-context cache:
+ * the parsed program in document order, followed by every subtree a verb added since (an injection, a prepended or
+ * appended statement, a replacement), in the order they were added. This class records what its verbs add and
+ * rebuilds that order where a verb depends on it (the injection anchors, {@link #findType}, {@link #removeVariable},
+ * {@link #findQualifiers}, {@link #removeConstAssignment}).</p>
  *
  * <p>Life cycle: {@link #parse(String, int)}, then the verbs, then {@link #print(String)}. An instance is not
  * thread-safe; every call to {@code parse} builds its own parser (see {@link #newParser}). Different instances may be
@@ -94,6 +122,7 @@ public final class ShaderAst {
 
     private static final Pattern VERSION_DIRECTIVE = Pattern.compile("#version\\s+(\\d+)");
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     /** The parser; also the argument every glsl-transformer call that parses a snippet needs. */
     public final ASTParser t;
@@ -107,6 +136,17 @@ public final class ShaderAst {
     // TauMC's Transformer.variable and Transformer.function: where the next injectVariable and injectFunction insert.
     private ExternalDeclaration variableAnchor;
     private ExternalDeclaration functionAnchor;
+
+    // Every subtree a verb added, with the sequence number of its addition (see inTauMCOrder).
+    private final Map<ASTNode, Integer> additions = new IdentityHashMap<>();
+    private int additionCount;
+
+    private static final Set<Expression.ExpressionType> ASSIGNMENTS = EnumSet.of(Expression.ExpressionType.ASSIGNMENT,
+        Expression.ExpressionType.MULTIPLICATION_ASSIGNMENT, Expression.ExpressionType.DIVISION_ASSIGNMENT,
+        Expression.ExpressionType.MODULO_ASSIGNMENT, Expression.ExpressionType.ADDITION_ASSIGNMENT,
+        Expression.ExpressionType.SUBTRACTION_ASSIGNMENT, Expression.ExpressionType.LEFT_SHIFT_ASSIGNMENT,
+        Expression.ExpressionType.RIGHT_SHIFT_ASSIGNMENT, Expression.ExpressionType.BITWISE_AND_ASSIGNMENT,
+        Expression.ExpressionType.BITWISE_XOR_ASSIGNMENT, Expression.ExpressionType.BITWISE_OR_ASSIGNMENT);
 
     private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives) {
         this.t = t;
@@ -235,14 +275,22 @@ public final class ShaderAst {
 
     /**
      * TauMC {@code injectVariable}: parses {@code code} as one external declaration and inserts it before the
-     * variable anchor. The anchor starts as the first external declaration that is a function definition or holds a
-     * storage qualifier ({@code const}, {@code in}, {@code out}, {@code uniform}, {@code attribute}, {@code varying},
-     * {@code buffer}, ...; layout, precision, interpolation and invariant qualifiers do not count). An injected
-     * declaration that holds a storage qualifier becomes the new anchor, so qualified injections appear in reverse
-     * order, and an injected function definition becomes both anchors. With no anchor (no qualified declaration and
-     * no function) nothing is inserted, as in TauMC.
+     * variable anchor. An injected declaration that holds a storage qualifier ({@code const}, {@code in},
+     * {@code out}, {@code uniform}, {@code attribute}, {@code varying}, {@code buffer}, ...; layout, precision,
+     * interpolation and invariant qualifiers do not count) becomes the new anchor, so qualified injections appear in
+     * reverse order, and an injected function definition (here or through {@link #injectFunction}) becomes both
+     * anchors.
      *
-     * <p>Deviation: if the anchor has been removed from the tree, it is recomputed; TauMC throws
+     * <p>The first {@code injectVariable} fixes the anchor as TauMC did: take the first storage qualifier anywhere in
+     * the program (a global, a parameter, a local {@code const}, the {@code in} of {@code layout(...) in;}) in TauMC's
+     * cache order (the class javadoc: the parsed program first, then what verbs added, so a declaration that
+     * {@link #injectFunction} inserted counts only after all of the program's own); if the external declaration it
+     * sits in comes before the first function definition (same order), that declaration is the anchor, otherwise the
+     * first function is. In a program whose qualified declarations all come first, that is the first qualified
+     * declaration; in one whose first qualifier sits inside or after the first function, it is that function. With no
+     * qualifier and no function nothing is inserted, as in TauMC.</p>
+     *
+     * <p>Deviation: if the anchor has been removed from the tree, it is fixed again the same way; TauMC throws
      * {@code IndexOutOfBoundsException}.</p>
      */
     public void injectVariable(String code) {
@@ -252,7 +300,7 @@ public final class ShaderAst {
                 code);
             return;
         }
-        final ExternalDeclaration insert = locked(() -> t.parseExternalDeclaration(root, code));
+        final ExternalDeclaration insert = added(locked(() -> t.parseExternalDeclaration(root, code)));
         tree.getChildren().add(tree.getChildren().indexOf(anchor), insert);
         updateAnchors(insert, false);
     }
@@ -264,27 +312,36 @@ public final class ShaderAst {
      * function definition becomes both anchors, so injected functions appear in reverse order and later
      * {@link #injectVariable} calls insert before the last injected function.
      *
+     * <p>The first function definition is taken in TauMC's cache order (the class javadoc), which differs from the
+     * document's only after {@link #replaceFunctionDefinition} replaced the first function before any injection.</p>
+     *
      * <p>Deviation: with no function definition in the program the declaration is appended at the end, where TauMC
      * throws {@code IndexOutOfBoundsException}; a removed anchor is recomputed.</p>
      */
     public void injectFunction(String code) {
         final ExternalDeclaration anchor = functionAnchor();
-        final ExternalDeclaration insert = locked(() -> t.parseExternalDeclaration(root, code));
+        final ExternalDeclaration insert = added(locked(() -> t.parseExternalDeclaration(root, code)));
         final int index = anchor == null ? tree.getChildren().size() : tree.getChildren().indexOf(anchor);
         tree.getChildren().add(index, insert);
         updateAnchors(insert, true);
     }
 
+    // TauMC's Transformer.injectVariable when its anchor is unset (see injectVariable's javadoc).
     private ExternalDeclaration variableAnchor() {
         if (variableAnchor != null && variableAnchor.getParent() == tree) {
             return variableAnchor;
         }
-        variableAnchor = null;
-        for (ExternalDeclaration declaration : tree.getChildren()) {
-            if (declaration instanceof FunctionDefinition || declaration instanceof LayoutDefaults
-                || holdsStorageQualifier(declaration)) {
-                variableAnchor = declaration;
-                break;
+        final ExternalDeclaration function = firstFunction();
+        variableAnchor = function;
+        // A LayoutDefaults (layout(local_size_x = 8) in;) holds TauMC's storage qualifier implicitly: glsl-transformer
+        // keeps its in/out/uniform as a LayoutMode, not as a StorageQualifier node.
+        final List<Found<ASTNode>> qualifiers = inTauMCOrder(ASTNode.class,
+            node -> node instanceof StorageQualifier || node instanceof LayoutDefaults);
+        if (!qualifiers.isEmpty()) {
+            final ExternalDeclaration owner = qualifiers.get(0).top();
+            if (owner != null && (function == null
+                || tree.getChildren().indexOf(owner) < tree.getChildren().indexOf(function))) {
+                variableAnchor = owner;
             }
         }
         return variableAnchor;
@@ -294,14 +351,14 @@ public final class ShaderAst {
         if (functionAnchor != null && functionAnchor.getParent() == tree) {
             return functionAnchor;
         }
-        functionAnchor = null;
-        for (ExternalDeclaration declaration : tree.getChildren()) {
-            if (declaration instanceof FunctionDefinition) {
-                functionAnchor = declaration;
-                break;
-            }
-        }
+        functionAnchor = firstFunction();
         return functionAnchor;
+    }
+
+    // The first function definition in TauMC's cache order.
+    private FunctionDefinition firstFunction() {
+        final List<Found<FunctionDefinition>> functions = inTauMCOrder(FunctionDefinition.class, definition -> true);
+        return functions.isEmpty() ? null : functions.get(0).node();
     }
 
     // TauMC's InjectorPoint, walked over the inserted node.
@@ -350,6 +407,67 @@ public final class ShaderAst {
             }
             current = parent;
         }
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // TauMC's cache order
+
+    /** Records {@code node} as a subtree a verb added: TauMC's scanNode appended it to its rule-context cache. */
+    private <N extends ASTNode> N added(N node) {
+        additions.put(node, ++additionCount);
+        return node;
+    }
+
+    /** A node found by {@link #inTauMCOrder}, with the external declaration it sits in. */
+    private record Found<N extends ASTNode>(N node, ExternalDeclaration top) {
+    }
+
+    /**
+     * The nodes of {@code type} that pass {@code filter}, in TauMC's cache order: the program as parsed in document
+     * order, then each subtree a verb added, in the order added (a subtree added inside an earlier addition, such as a
+     * replacement inside a prepended statement, counts as the later addition). The walk goes down from {@link #tree},
+     * so it also reaches the parentless {@code TypeQualifier} of a {@code VariableDeclaration}.
+     */
+    private <N extends ASTNode> List<Found<N>> inTauMCOrder(Class<N> type, Predicate<? super N> filter) {
+        final List<Found<N>> found = new ArrayList<>();
+        final List<Integer> epochs = new ArrayList<>();
+        new ASTVoidVisitor() {
+            private int epoch;
+            private ExternalDeclaration top;
+
+            @Override
+            public Void visit(ASTNode node) {
+                final int outer = epoch;
+                final Integer addition = additions.get(node);
+                if (addition != null) {
+                    epoch = addition;
+                }
+                if (node instanceof ExternalDeclaration declaration && node.getParent() == tree) {
+                    top = declaration;
+                }
+                if (type.isInstance(node) && filter.test(type.cast(node))) {
+                    found.add(new Found<>(type.cast(node), top));
+                    epochs.add(epoch);
+                }
+                node.accept(this);
+                epoch = outer;
+                return null;
+            }
+        }.visit(tree);
+        if (additionCount == 0 || found.size() < 2) {
+            return found;
+        }
+        // Document order is already the order within each addition; a stable sort by addition gives TauMC's order.
+        final List<Integer> indices = new ArrayList<>(found.size());
+        for (int i = 0; i < found.size(); i++) {
+            indices.add(i);
+        }
+        indices.sort(Comparator.comparingInt(epochs::get));
+        final List<Found<N>> ordered = new ArrayList<>(found.size());
+        for (int index : indices) {
+            ordered.add(found.get(index));
+        }
+        return ordered;
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -455,7 +573,13 @@ public final class ShaderAst {
             }
             final int value = (int) literal.getInteger();
             found.add(value);
-            access.replaceByAndDelete(locked(() -> t.parseExpression(root, newName + value)));
+            final Expression replacement = locked(() -> t.parseExpression(root, newName + value));
+            // TauMC renamed the token in place, so the name keeps the cache position of the access it replaces.
+            final Integer addition = additions.remove(access);
+            if (addition != null) {
+                additions.put(replacement, addition);
+            }
+            access.replaceByAndDelete(replacement);
         }
     }
 
@@ -507,7 +631,7 @@ public final class ShaderAst {
             final boolean newIsIdentifier = IDENTIFIER.matcher(trimmed).matches();
             for (Identifier identifier : new ArrayList<>(root.identifierIndex.get(name))) {
                 if (identifier.getParent() instanceof ReferenceExpression target) {
-                    target.replaceByAndDelete(locked(() -> t.parseExpression(root, newCode)));
+                    target.replaceByAndDelete(added(locked(() -> t.parseExpression(root, newCode))));
                 } else if (newIsIdentifier && identifier.getParent() instanceof FunctionCallExpression) {
                     identifier.setName(trimmed);
                 }
@@ -540,7 +664,7 @@ public final class ShaderAst {
         for (Expression match : matches) {
             // A match inside an earlier replaced match is already gone with it.
             if (isAttached(match)) {
-                match.replaceByAndDelete(locked(() -> t.parseExpression(root, newCode)));
+                match.replaceByAndDelete(added(locked(() -> t.parseExpression(root, newCode))));
             }
         }
     }
@@ -602,7 +726,7 @@ public final class ShaderAst {
      */
     public void prependMain(String code) {
         for (FunctionDefinition main : mainDefinitions()) {
-            main.getBody().getStatements().add(0, locked(() -> t.parseStatement(root, code)));
+            main.getBody().getStatements().add(0, added(locked(() -> t.parseStatement(root, code))));
         }
     }
 
@@ -615,7 +739,7 @@ public final class ShaderAst {
      */
     public void appendMain(String code) {
         for (FunctionDefinition main : mainDefinitions()) {
-            main.getBody().getStatements().add(locked(() -> t.parseStatement(root, code)));
+            main.getBody().getStatements().add(added(locked(() -> t.parseStatement(root, code))));
         }
     }
 
@@ -635,28 +759,28 @@ public final class ShaderAst {
 
     /**
      * TauMC {@code removeVariable}: removes a variable declarator named {@code name}. The declarators (global and
-     * local, not parameters or struct members) are scanned in document order: the first one that shares its
+     * local, not parameters or struct members) are scanned in TauMC's cache order (the class javadoc: the parsed
+     * program in document order, then what verbs added, in the order added): the first one that shares its
      * declaration with other declarators ({@code float a, name;}) is removed alone and the scan stops; a declarator
      * that is alone in its declaration is remembered and the scan goes on, so the last such one is removed, together
-     * with its whole declaration (global or local statement). Nothing happens if no declarator has the name.
-     *
-     * <p>Document order is TauMC's order only until a verb adds a declaration. TauMC scanned its rule-context cache:
-     * the parsed program in document order, then every declaration a verb added (injected, or inside a replacement or
-     * a prepended or appended statement), in the order added. So after {@code injectVariable("uniform float w;")}
-     * in a program with a local {@code vec2 w}, TauMC removed the injected uniform (the last it scanned) and this
-     * removes the local (the last in the document).</p>
+     * with its whole declaration (global or local statement). Nothing happens if no declarator has the name. So after
+     * {@code injectVariable("uniform float w;")} in a program with a local {@code vec2 w}, the injected uniform is
+     * the last scanned and goes, as in TauMC, although the local comes later in the document.
      *
      * <p>Deviations: removing the first declarator of {@code float a = 1.0, b;} gives {@code float b;}; TauMC wrote the
      * next declarator's text into the first one's name and kept the first one's array size and initializer
      * ({@code float b = 1.0;}). A variable declared alone in a {@code for} initializer
      * ({@code for (int i = 0; i < n; i++)}) leaves the loop with an empty initializer ({@code for (; i < n; i++)});
      * TauMC dropped the declaration with its semicolon ({@code for (i < n; i++)}, not GLSL). Either way {@code i} is
-     * no longer declared.</p>
+     * no longer declared. A declaration that is the unbraced body of an {@code if}, {@code else} or loop
+     * ({@code if (c) float x = 1.0;}) is replaced by an empty statement ({@code if (c) ;}); TauMC removed it and
+     * left the {@code if} without a body, so the next statement became the body and the program's meaning
+     * changed.</p>
      */
     public void removeVariable(String name) {
         DeclarationMember target = null;
         boolean shared = false;
-        for (DeclarationMember member : declaratorsInDocumentOrder(name)) {
+        for (DeclarationMember member : declaratorsInTauMCOrder(name)) {
             target = member;
             if (((TypeAndInitDeclaration) member.getParent()).getMembers().size() > 1) {
                 shared = true;
@@ -671,28 +795,30 @@ public final class ShaderAst {
             return;
         }
         final ASTNode declaration = target.getParent();
-        if (declaration.getParent() instanceof ForLoopStatement) {
+        final ASTNode holder = declaration.getParent();
+        if (holder instanceof ForLoopStatement) {
             // A for initializer: the loop keeps an empty initializer.
             declaration.detachAndDelete();
+        } else if (holder instanceof DeclarationStatement statement && !(statement.getParent() instanceof CompoundStatement)) {
+            // The unbraced body of an if, else or loop: a field of its parent, which must not become null.
+            statement.replaceByAndDelete(locked(() -> t.parseStatement(root, ";")));
         } else {
             // The TypeAndInitDeclaration's DeclarationExternalDeclaration or DeclarationStatement.
-            declaration.getParent().detachAndDelete();
+            holder.detachAndDelete();
         }
     }
 
     /**
-     * TauMC {@code findType}: the type named by the first declaration (in document order) that declares a variable
-     * {@code name}, a global or local declarator, not a parameter or a struct member. TauMC returned the type
-     * keyword's lexer token, 0 when nothing matched; this returns a {@link DeclaredType}, or null when nothing
-     * matched. Like TauMC it skips a declaration whose type is a struct and looks further. An array declaration
-     * reports its element type.
-     *
-     * <p>The order differs from TauMC's after a verb has added a declaration of the name (see
-     * {@link #removeVariable}): after {@code injectVariable("uniform float w;")} in a program with a local
-     * {@code vec2 w}, TauMC reported {@code vec2} and this reports {@code float}.</p>
+     * TauMC {@code findType}: the type named by the first declaration, in TauMC's cache order (the class javadoc: the
+     * parsed program in document order, then what verbs added), that declares a variable {@code name}, a global or
+     * local declarator, not a parameter or a struct member. TauMC returned the type keyword's lexer token, 0 when
+     * nothing matched; this returns a {@link DeclaredType}, or null when nothing matched. Like TauMC it skips a
+     * declaration whose type is a struct and looks further. An array declaration reports its element type. After
+     * {@code injectVariable("uniform float w;")} in a program with a local {@code vec2 w}, this reports {@code vec2},
+     * as TauMC did: the injected uniform comes first in the document but last in the cache.
      */
     public DeclaredType findType(String name) {
-        for (DeclarationMember member : declaratorsInDocumentOrder(name)) {
+        for (DeclarationMember member : declaratorsInTauMCOrder(name)) {
             final TypeSpecifier specifier = ((TypeAndInitDeclaration) member.getParent()).getType().getTypeSpecifier();
             if (specifier instanceof BuiltinNumericTypeSpecifier numeric) {
                 return new DeclaredType.Numeric(numeric.type);
@@ -722,6 +848,12 @@ public final class ShaderAst {
      * TauMC {@code containsCall}: whether the name is used in an expression, as a reference, a call name or a member
      * selection. Despite the name, any use counts ({@code containsCall("gl_FragColor")} asks whether the shader
      * writes or reads {@code gl_FragColor}); declarations do not.
+     *
+     * <p>Deviations: the {@code length} of {@code arr.length()} is not an identifier in glsl-transformer (a
+     * {@code LengthAccessExpression}), so {@code containsCall("length")} is false for a program whose only
+     * {@code length} is that method, where TauMC, whose grammar made it a {@code variable_identifier}, said true (the
+     * same gap as in {@link #rename(Map)}); {@code texture2D} and {@code texture3D} are identifiers here and keywords
+     * in TauMC, so this finds their calls and TauMC never did. No Demonica caller asks about either name.</p>
      */
     public boolean containsCall(String name) {
         for (Identifier identifier : root.identifierIndex.get(name)) {
@@ -732,17 +864,22 @@ public final class ShaderAst {
         return false;
     }
 
-    private List<DeclarationMember> declaratorsInDocumentOrder(String name) {
+    private List<DeclarationMember> declaratorsInTauMCOrder(String name) {
         final List<DeclarationMember> members = new ArrayList<>();
         for (Identifier identifier : root.identifierIndex.get(name)) {
             if (identifier.getParent() instanceof DeclarationMember member && member.getParent() instanceof TypeAndInitDeclaration) {
                 members.add(member);
             }
         }
-        if (members.size() > 1) {
-            sortInDocumentOrder(members);
+        if (members.size() < 2) {
+            return members;
         }
-        return members;
+        final List<DeclarationMember> ordered = new ArrayList<>(members.size());
+        for (Found<DeclarationMember> found : inTauMCOrder(DeclarationMember.class,
+            member -> member.getParent() instanceof TypeAndInitDeclaration && member.getName().getName().equals(name))) {
+            ordered.add(found.node());
+        }
+        return ordered;
     }
 
     private <N extends ASTNode> void sortInDocumentOrder(List<N> nodes) {
@@ -761,6 +898,450 @@ public final class ShaderAst {
             }
         }.visit(tree);
         nodes.sort((a, b) -> Integer.compare(order.get(a), order.get(b)));
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Shadow sampling and functions
+
+    /**
+     * TauMC {@code renameAndWrapShadow}: wraps every call of {@code oldName} that has arguments in {@code vec4(...)},
+     * then {@link #renameFunctionCall(String, String) renames} {@code oldName} to {@code newName} wherever that verb
+     * does (calls, references, member selections, function prototypes). This turns the legacy {@code shadow2D}
+     * family, which returned a {@code vec4}, into {@code texture} and its relatives, which return a {@code float} for
+     * a shadow sampler, so that {@code shadow2D(s, p).r} becomes {@code vec4(texture(s, p)).r} and still compiles.
+     * A call in any position is wrapped: a whole initializer, an operand, the argument of another function or of a
+     * constructor. A call without arguments is left alone.
+     *
+     * <p>Only the outermost call of a nest of {@code oldName} calls is wrapped: in
+     * {@code shadow2D(s, vec3(shadow2D(t, p).r))} the inner call is renamed but not wrapped, as in TauMC, which
+     * replaced the outer call by a fresh parse of its text before it reached the inner one. The wrapper and the call
+     * inside it are a new parse here too (the call's printed text in {@code vec4(...)}), which counts as an addition
+     * for the verbs that follow (the class javadoc).</p>
+     */
+    public void renameAndWrapShadow(String oldName, String newName) {
+        final List<FunctionCallExpression> calls = new ArrayList<>();
+        for (Identifier identifier : root.identifierIndex.get(oldName)) {
+            if (identifier.getParent() instanceof FunctionCallExpression call && call.getFunctionName() == identifier
+                && !call.getParameters().isEmpty()) {
+                calls.add(call);
+            }
+        }
+        if (calls.size() > 1) {
+            // An outer call before the calls in its arguments.
+            sortInDocumentOrder(calls);
+        }
+        for (FunctionCallExpression call : calls) {
+            // A call inside an outer call that was wrapped went with it.
+            if (isAttached(call)) {
+                final String wrapped = "vec4(" + text(call) + ")";
+                call.replaceByAndDelete(added(locked(() -> t.parseExpression(root, wrapped))));
+            }
+        }
+        renameFunctionCall(oldName, newName);
+    }
+
+    /**
+     * TauMC {@code removeUnusedFunctions}: removes every function definition and function declaration (prototype) at
+     * file scope whose name is not used in any expression of the program, as {@link #containsCall} counts uses
+     * (calls, references, member selections), except {@code main}; then again, until nothing more goes, so a helper
+     * that only removed helpers called goes too. A name counts as used wherever it occurs, also as another function's
+     * local variable or inside the function's own body. All overloads of a name go or stay together.
+     *
+     * <p>Deviations: TauMC collected the prototype names inside function bodies too (local prototypes, legal in GLSL
+     * 1.10) but could not remove them, and looped forever when such a name was unused; here only file-scope
+     * declarations count and the loop ends when a pass removes nothing. {@code arr.length()} does not count as a use
+     * of a function named {@code length} (see {@link #containsCall}). Like TauMC this leaves an injection anchor that
+     * it removed behind; the next injection fixes a new one (see {@link #injectVariable}).</p>
+     */
+    public void removeUnusedFunctions() {
+        boolean removed = true;
+        while (removed) {
+            removed = false;
+            for (ExternalDeclaration declaration : new ArrayList<>(tree.getChildren())) {
+                final FunctionPrototype prototype = prototypeOf(declaration);
+                if (prototype == null) {
+                    continue;
+                }
+                final String name = prototype.getName().getName();
+                if (!name.equals("main") && !containsCall(name)) {
+                    declaration.detachAndDelete();
+                    removed = true;
+                }
+            }
+        }
+    }
+
+    private static FunctionPrototype prototypeOf(ExternalDeclaration declaration) {
+        if (declaration instanceof FunctionDefinition definition) {
+            return definition.getFunctionPrototype();
+        }
+        if (declaration instanceof DeclarationExternalDeclaration external
+            && external.getDeclaration() instanceof FunctionDeclaration functionDeclaration) {
+            return functionDeclaration.getFunctionPrototype();
+        }
+        return null;
+    }
+
+    /**
+     * TauMC {@code removeConstAssignment}: a {@code const} parameter is not a constant expression, so a {@code const}
+     * local initialized from one does not compile on strict drivers. For every function with parameters whose
+     * <em>first</em> qualifier is {@code const} ({@code const in float x}, not {@code in const float x}), this walks
+     * the program's expression identifiers once, in TauMC's cache order (the class javadoc): an identifier that names
+     * one of the function's const parameters, or a variable already found, inside a function of that name (every
+     * overload), and inside the type or the first declarator of a declaration ({@code float y = x * 2.0;}, not the
+     * {@code b} of {@code float a = 1.0, b = x;}) adds that declaration's first declarator to the found names, and if
+     * the declaration's first qualifier is {@code const}, the declaration loses its whole type qualifier
+     * ({@code const highp float y} becomes {@code float y}). So the removal follows chains forward through the
+     * function ({@code float w = x; const float z = w;} loses the {@code const} of {@code z}), whether the
+     * declarations in between were {@code const} or not.
+     *
+     * <p>Deviations, all where TauMC threw {@code NullPointerException}: an unnamed {@code const} parameter
+     * (a prototype's {@code const float}) and a declaration without declarators are skipped.</p>
+     */
+    public void removeConstAssignment() {
+        final Map<String, List<String>> functions = new LinkedHashMap<>();
+        for (Found<FunctionParameter> found : inTauMCOrder(FunctionParameter.class,
+            parameter -> startsWithConst(parameter.getType().getTypeQualifier()) && parameter.getName() != null
+                && parameter.getParent() instanceof FunctionPrototype)) {
+            final FunctionParameter parameter = found.node();
+            final String function = ((FunctionPrototype) parameter.getParent()).getName().getName();
+            functions.computeIfAbsent(function, f -> new ArrayList<>()).add(parameter.getName().getName());
+        }
+        if (functions.isEmpty()) {
+            return;
+        }
+        final List<Found<Identifier>> identifiers = inTauMCOrder(Identifier.class, ShaderAst::isExpressionIdentifier);
+        for (Map.Entry<String, List<String>> entry : functions.entrySet()) {
+            final List<String> names = entry.getValue();
+            for (Found<Identifier> found : identifiers) {
+                final Identifier identifier = found.node();
+                if (!names.contains(identifier.getName())) {
+                    continue;
+                }
+                final FunctionDefinition definition = identifier.getAncestor(FunctionDefinition.class);
+                if (definition == null || !definition.getFunctionPrototype().getName().getName().equals(entry.getKey())) {
+                    continue;
+                }
+                final TypeAndInitDeclaration declaration = singleDeclarationOf(identifier);
+                if (declaration == null) {
+                    continue;
+                }
+                names.add(declaration.getMembers().get(0).getName().getName());
+                final TypeQualifier qualifier = declaration.getType().getTypeQualifier();
+                if (startsWithConst(qualifier)) {
+                    qualifier.detachAndDelete();
+                }
+            }
+        }
+    }
+
+    private static boolean startsWithConst(TypeQualifier qualifier) {
+        return qualifier != null && !qualifier.getParts().isEmpty()
+            && qualifier.getParts().get(0) instanceof StorageQualifier storage
+            && storage.storageType == StorageQualifier.StorageType.CONST;
+    }
+
+    /**
+     * TauMC's {@code single_declaration} around {@code node}: the declaration whose type or first declarator holds it.
+     * TauMC's grammar puts the second and later declarators outside that rule, so a node in one of them has none.
+     */
+    private static TypeAndInitDeclaration singleDeclarationOf(ASTNode node) {
+        ASTNode child = node;
+        for (ASTNode parent = node.getParent(); parent != null; child = parent, parent = parent.getParent()) {
+            if (parent instanceof TypeAndInitDeclaration declaration) {
+                return !declaration.getMembers().isEmpty()
+                    && (child == declaration.getType() || child == declaration.getMembers().get(0)) ? declaration : null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * TauMC {@code replaceExpression(source, newSource, GLSLParser::function_definition)}, as
+     * {@code AdaptiveShadowBoundsTransformer} uses it: parses {@code newSource} as a function definition and puts it in
+     * place of every definition named {@code name} with the same parameter types (the overload that
+     * {@code newSource} redefines; TauMC matched the old definition's text instead, which names the same one). The
+     * replacement counts as an addition (the class javadoc) and keeps any injection anchor the old definition was.
+     *
+     * @return how many definitions were replaced (0 or 1 in a valid program)
+     * @throws IllegalArgumentException if {@code newSource} is not a function definition
+     */
+    public int replaceFunctionDefinition(String name, String newSource) {
+        final ExternalDeclaration probe = locked(() -> t.parseExternalDeclaration(patternRoot(), newSource));
+        if (!(probe instanceof FunctionDefinition probeDefinition)) {
+            throw new IllegalArgumentException("Not a function definition: " + newSource);
+        }
+        final List<String> signature = signature(probeDefinition.getFunctionPrototype());
+        final List<FunctionDefinition> targets = new ArrayList<>();
+        for (ExternalDeclaration declaration : tree.getChildren()) {
+            if (declaration instanceof FunctionDefinition definition
+                && definition.getFunctionPrototype().getName().getName().equals(name)
+                && signature(definition.getFunctionPrototype()).equals(signature)) {
+                targets.add(definition);
+            }
+        }
+        for (FunctionDefinition target : targets) {
+            replaceFunctionDefinition(target, newSource);
+        }
+        return targets.size();
+    }
+
+    /**
+     * Puts a parse of {@code newSource} in place of {@code definition}, as {@link #replaceFunctionDefinition(String,
+     * String)} does for each definition it selects.
+     *
+     * @throws IllegalArgumentException if {@code newSource} is not a function definition
+     */
+    public void replaceFunctionDefinition(FunctionDefinition definition, String newSource) {
+        final ExternalDeclaration parsed = locked(() -> t.parseExternalDeclaration(root, newSource));
+        if (!(parsed instanceof FunctionDefinition replacement)) {
+            parsed.unregisterSubtree();
+            throw new IllegalArgumentException("Not a function definition: " + newSource);
+        }
+        definition.replaceByAndDelete(added(replacement));
+        // TauMC's anchors were the external declaration around the definition, which the replacement kept.
+        if (variableAnchor == definition) {
+            variableAnchor = replacement;
+        }
+        if (functionAnchor == definition) {
+            functionAnchor = replacement;
+        }
+    }
+
+    // The parameter types that tell overloads apart: each type specifier with its array, then the declarator's array.
+    private static List<String> signature(FunctionPrototype prototype) {
+        final List<String> types = new ArrayList<>();
+        for (FunctionParameter parameter : prototype.getParameters()) {
+            types.add(text(parameter.getType().getTypeSpecifier())
+                + (parameter.getArraySpecifier() == null ? "" : text(parameter.getArraySpecifier())));
+        }
+        return types;
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Qualified declarations and assignments
+
+    /**
+     * TauMC {@code findQualifiers(int token)}: every variable declared with the storage qualifier {@code type}
+     * ({@code IN}, {@code OUT}, {@code UNIFORM}, {@code CONST}, ...) in a declaration with a type and declarators,
+     * global or local, by declarator name; for {@code out float mat, recolor;} both names. Parameters, interface
+     * blocks and qualifier-only declarations ({@code layout(...) in;}, {@code invariant gl_Position;}) are not
+     * included, as in TauMC. A name declared twice keeps the declaration TauMC's cache order (the class javadoc) sees
+     * last.
+     *
+     * <p>Order: TauMC returned a {@code HashMap}, and {@code CompatibilityTransformer.transformGrouped} injects the
+     * missing {@code out} declarations in its iteration order, so the injected order depends on it. The returned map
+     * iterates in exactly that order: it is filled like TauMC's map (same keys, inserted in TauMC's cache order) and
+     * then frozen. It is not modifiable.</p>
+     *
+     * <p>Deviation: a qualified declaration without declarators ({@code uniform struct S { float a; };}) is skipped;
+     * TauMC threw {@code NullPointerException}.</p>
+     */
+    public Map<String, QualifiedDeclaration> findQualifiers(StorageQualifier.StorageType type) {
+        final Map<String, QualifiedDeclaration> hashOrder = new HashMap<>();
+        for (Found<StorageQualifier> found : inTauMCOrder(StorageQualifier.class, qualifier -> qualifier.storageType == type)) {
+            final StorageQualifier qualifier = found.node();
+            if (qualifier.getParent() instanceof TypeQualifier typeQualifier
+                && typeQualifier.getParent() instanceof FullySpecifiedType fullType
+                && fullType.getParent() instanceof TypeAndInitDeclaration declaration) {
+                for (DeclarationMember member : declaration.getMembers()) {
+                    hashOrder.put(member.getName().getName(), QualifiedDeclaration.of(declaration, member));
+                }
+            }
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(hashOrder));
+    }
+
+    /**
+     * A variable declared with a storage qualifier, as {@link #findQualifiers} reports it. For
+     * {@code flat out float isMoon;}: name {@code isMoon}, typeText {@code flat out float}, typeName {@code float},
+     * arraySpecifierText null.
+     *
+     * @param name               the declarator's name
+     * @param typeText           the declaration's type with all its qualifiers, printed on one line
+     *                           ({@code layout(location = 0) out vec4}). TauMC's {@code ShaderPrinter} printed its
+     *                           {@code fully_specified_type} with the same tokens; its {@code getText()} is this without
+     *                           spaces ({@code flatoutfloat})
+     * @param typeName           the type without qualifiers or array: a keyword ({@code vec3}; a square matrix is
+     *                           {@code mat2}, never {@code mat2x2}, where TauMC kept the spelling), a struct name, or
+     *                           an inline struct's text without whitespace ({@code structLight{vec3p;}}). TauMC's
+     *                           {@code type_specifier_nonarray} first child's {@code getText()}
+     * @param arraySpecifierText the array specifier on the type ({@code [2]} for {@code out vec3[2] v;}), or null. TauMC's
+     *                           {@code type_specifier().array_specifier()}, which {@code transformGrouped} checks; an
+     *                           array on the declarator ({@code out vec3 v[2];}) is the {@code member}'s
+     * @param declaration        the declaration; every declarator of it has the same type fields
+     * @param member             this declarator
+     */
+    public record QualifiedDeclaration(String name, String typeText, String typeName, String arraySpecifierText,
+                                       TypeAndInitDeclaration declaration, DeclarationMember member) {
+        static QualifiedDeclaration of(TypeAndInitDeclaration declaration, DeclarationMember member) {
+            final TypeSpecifier specifier = declaration.getType().getTypeSpecifier();
+            return new QualifiedDeclaration(member.getName().getName(), text(declaration.getType()), nameOfType(specifier),
+                specifier.getArraySpecifier() == null ? null : text(specifier.getArraySpecifier()), declaration, member);
+        }
+    }
+
+    private static String nameOfType(TypeSpecifier specifier) {
+        if (specifier instanceof BuiltinNumericTypeSpecifier numeric) {
+            return numeric.type.getMostCompactName();
+        }
+        if (specifier instanceof BuiltinFixedTypeSpecifier fixed) {
+            return new DeclaredType.Fixed(fixed.type).keyword();
+        }
+        if (specifier instanceof TypeReference reference) {
+            return reference.getReference().getName();
+        }
+        // An inline struct: its text without whitespace, as TauMC's getText() gave it.
+        return compactText(specifier);
+    }
+
+    /**
+     * TauMC {@code hasAssigment} (spelled correctly here): whether the left side of any assignment ({@code =},
+     * {@code +=}, {@code *=}, ...) in the program starts with the text {@code name}. It is a text prefix, as in TauMC:
+     * {@code color.rgb = ...} and {@code color[0] = ...} count for {@code color}, and so does {@code colorOut = ...}.
+     * Increments ({@code color++}), initializers and {@code out} arguments do not count.
+     */
+    public boolean hasAssignment(String name) {
+        final boolean[] found = {false};
+        new ASTVoidVisitor() {
+            @Override
+            public void visitVoid(ASTNode node) {
+                if (!found[0] && node instanceof BinaryExpression binary && ASSIGNMENTS.contains(binary.getExpressionType())
+                    && compactText(binary.getLeft()).startsWith(name)) {
+                    found[0] = true;
+                }
+            }
+        }.visit(tree);
+        return found[0];
+    }
+
+    /**
+     * TauMC {@code initialize(declaration, name)}: prepends {@code name = <zero>;} to {@code main}, with the zero value
+     * of the declaration's type as TauMC wrote it: {@code false}, {@code 0}, {@code 0u}, {@code 0.0f}, or the vector or
+     * matrix constructor of one ({@code vec3(0.0f)}, {@code ivec2(0)}, {@code bvec4(false)}, {@code mat3(0.0f)}). A
+     * struct type initializes nothing, as in TauMC.
+     *
+     * <p>Deviations: {@code double} types get {@code 0.0lf} ({@code dvec2(0.0lf)}); TauMC wrote {@code 0.0d}, which
+     * its parser read as {@code 0.0} followed by an error, and for vectors a statement without a value
+     * ({@code v = ;}). Samplers and other opaque types initialize nothing; TauMC threw {@code NullPointerException}.
+     * Neither can be an {@code in} or {@code out} of a shader stage that {@code transformGrouped} pairs.</p>
+     */
+    public void initialize(QualifiedDeclaration declaration, String name) {
+        if (declaration.declaration().getType().getTypeSpecifier() instanceof BuiltinNumericTypeSpecifier numeric) {
+            final String zero = zeroValue(numeric.type);
+            if (zero != null) {
+                prependMain(name + " = " + zero + ";");
+            }
+        }
+    }
+
+    // TauMC's BuiltinFunction initializers, for the types its lexer knew (no 8-, 16- or explicit 64-bit integer types).
+    private static String zeroValue(Type type) {
+        if (type.getCompactName() == null) {
+            return null;
+        }
+        final String scalar = switch (type.getNumberType()) {
+            case BOOLEAN -> "false";
+            case SIGNED_INTEGER -> type.getBitDepth() == 32 ? "0" : null;
+            case UNSIGNED_INTEGER -> type.getBitDepth() == 32 ? "0u" : null;
+            case FLOATING_POINT -> type.getBitDepth() == 32 ? "0.0f" : type.getBitDepth() == 64 ? "0.0lf" : null;
+            default -> null;
+        };
+        if (scalar == null) {
+            return null;
+        }
+        return type.isScalar() ? scalar : type.getCompactName() + "(" + scalar + ")";
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Queries
+
+    /**
+     * Every function definition, in document order, with its name, return type and parameters: what
+     * {@code AdaptiveShadowBoundsTransformer} read from TauMC's parse tree. Declarations without a body are not
+     * included.
+     */
+    public List<FunctionInfo> functions() {
+        final List<FunctionInfo> functions = new ArrayList<>();
+        for (ExternalDeclaration declaration : tree.getChildren()) {
+            if (declaration instanceof FunctionDefinition definition) {
+                functions.add(FunctionInfo.of(definition));
+            }
+        }
+        return functions;
+    }
+
+    /**
+     * A function definition as {@link #functions()} reports it.
+     *
+     * @param name       the function's name
+     * @param returnType the return type with its qualifiers, printed on one line ({@code float}, {@code highp vec3});
+     *                   TauMC's {@code fully_specified_type().getText()} is this without spaces
+     * @param parameters the parameters in order
+     * @param node       the definition; {@link #source(FunctionDefinition)} prints it
+     */
+    public record FunctionInfo(String name, String returnType, List<Parameter> parameters, FunctionDefinition node) {
+        static FunctionInfo of(FunctionDefinition definition) {
+            final FunctionPrototype prototype = definition.getFunctionPrototype();
+            final List<Parameter> parameters = new ArrayList<>();
+            for (FunctionParameter parameter : prototype.getParameters()) {
+                parameters.add(new Parameter(text(parameter.getType().getTypeSpecifier()),
+                    parameter.getName() == null ? null : parameter.getName().getName(), parameter));
+            }
+            return new FunctionInfo(prototype.getName().getName(), text(prototype.getReturnType()), List.copyOf(parameters),
+                definition);
+        }
+
+        /**
+         * The body's tokens joined without whitespace, braces included, as TauMC's {@code getText()} of the body gave
+         * them for text searches ({@code shadowPos.x>}); literals are in glsl-transformer's form ({@code 1.0f}).
+         */
+        public String bodyText() {
+            return compactText(node.getBody());
+        }
+    }
+
+    /**
+     * A function parameter as {@link FunctionInfo} reports it.
+     *
+     * @param type the type without qualifiers, with an array on the type ({@code vec3}, {@code sampler2D},
+     *             {@code vec3[2]}); an array on the name ({@code float w[2]}) is not included, as in TauMC's
+     *             {@code parameter_declarator.type_specifier()}
+     * @param name the parameter's name, or null for an unnamed parameter
+     * @param node the parameter
+     */
+    public record Parameter(String type, String name, FunctionParameter node) {
+    }
+
+    /** The definition printed as {@link #print(String)} prints it, for building a replacement's source. */
+    public static String source(FunctionDefinition definition) {
+        return ASTPrinter.print(PrintType.INDENTED, definition);
+    }
+
+    /** Any node printed on one line, tokens separated by the printer's spacing ({@code layout(location = 0) out vec4}). */
+    public static String text(ASTNode node) {
+        return ASTPrinter.print(PrintType.COMPACT, node).trim();
+    }
+
+    // The text without whitespace, as TauMC's getText() joined a rule's tokens.
+    private static String compactText(ASTNode node) {
+        return WHITESPACE.matcher(text(node)).replaceAll("");
+    }
+
+    /**
+     * Whether a variable is declared at file scope under {@code name}: a declarator of a global declaration
+     * ({@code uniform float name;}, {@code const int name = 1;}, {@code float a, name;}). {@link #hasVariable} also
+     * counts locals and functions; interface blocks and their members count for neither.
+     */
+    public boolean isDeclaredGlobal(String name) {
+        for (Identifier identifier : root.identifierIndex.get(name)) {
+            if (identifier.getParent() instanceof DeclarationMember member
+                && member.getParent() instanceof TypeAndInitDeclaration declaration
+                && declaration.getParent() instanceof DeclarationExternalDeclaration) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------------------------------------------------
