@@ -22,7 +22,8 @@ leftovers, the class-loading check) are closed.
 | `09e53d27` | glsl-transformer: S6 ATTRIBUTES and CELERITAS_TERRAIN on glsl-transformer |
 | `78534be0` | glsl-transformer: S6 report (this page, and the `accepted.txt` comment correction) |
 | `0eb8356c` | glsl-transformer: S6 status |
-| the commit that records this table | glsl-transformer: S6 report commit table |
+| `0c9b9579` | glsl-transformer: S6 report commit table |
+| the commit that records this row | glsl-transformer: S6 report line count |
 
 ## What changed
 
@@ -30,7 +31,7 @@ Added:
 - `shader/.../pipeline/transform/transformer/AttributeTransformer.java` (80 lines) and `CeleritasTransformer.java`
   (102): the TauMC classes verb for verb on `ShaderAst`, with the same injected source strings and the same `HashMap`s
   (their iteration order decides the order of the replacements and renames).
-- `src/test/.../celeritas/vertices/TerrainVertexFormatScanParityTest.java` (195 lines, 23 tests): the new identifier
+- `src/test/.../celeritas/vertices/TerrainVertexFormatScanParityTest.java` (199 lines, 23 tests): the new identifier
   scan against the TauMC `GLSLLexer` scan it replaced (reproduced in the test as the oracle): 12 shapes with equal
   counts, 9 lexer-error shapes that keep the complete format, the two named differences, and a corpus mode
   (`-PglslCorpusDir`) over every recorded `out.taumc.vertex.glsl` and `out.douira.vertex.glsl`. Uses TauMC; Step 11
