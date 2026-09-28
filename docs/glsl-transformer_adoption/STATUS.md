@@ -11,7 +11,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S3 `ShaderAst` core verbs | done | `3e1f5fa9`, `80fda189`, `2ab0db35` (report); verification fix `3f9f926f` | 2026-09-28 | [S03-shaderast-core.md](reports/S03-shaderast-core.md) |
 | S4 `ShaderAst` structural verbs | done | `53bc8702`, `490fb1bd` (report) | 2026-09-28 | [S04-shaderast-structural.md](reports/S04-shaderast-structural.md) |
 | S5 orchestrator, COMPOSITE and COMPUTE | done | `8b7b3489`, `448264f5` (report); verification fix `c9b2eeb2` | 2026-09-28 | [S05-orchestrator-composite.md](reports/S05-orchestrator-composite.md) |
-| S6 ATTRIBUTES and CELERITAS_TERRAIN | not started | | | |
+| S6 ATTRIBUTES and CELERITAS_TERRAIN | done | `09e53d27`, `78534be0` (report) | 2026-09-28 | [S06-attributes-terrain.md](reports/S06-attributes-terrain.md) |
 | S7 DH and AdaptiveShadowBounds | not started | | | |
 | S8 flip the default, port the tests, full run (exit point A) | not started | | | |
 | S9 GLSM subtractions and utilities | not started | | | |
@@ -37,8 +37,12 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 - Transform corpus: recorded with `-Ddemonica.glsl.corpus=<dir>` (`glsm/.../debug/TransformCorpus`,
   `transform/corpus/TransformCorpusRecorder`); the pack corpora are local, `run/transform-corpus/{bsl,complementary,
   vanilla,compat}/` (424 cases), re-recorded with `scripts/glsl-corpus/capture.sh <name>`; the committed mini-corpus
-  is `src/test/resources/transform-corpus/` (17 cases; S5's verification follow-up added
-  `composite-extension-placement`). Replay:
+  is `src/test/resources/transform-corpus/` (18 cases; S5's verification follow-up added
+  `composite-extension-placement`, S6 `celeritas-terrain-multitexcoord3`, a recorded TauMC error).
+  `GLSL_ENGINE=douira scripts/glsl-corpus/capture.sh <name>` (S6) runs a pack on the new engine and records into
+  `run/transform-corpus-douira/<name>/` (log `run/corpus-<name>-douira.out`, frames
+  `run/engine-screenshots/douira/`) without touching the TauMC corpus; plain `capture.sh` deletes and re-records the
+  TauMC one. Replay:
   `./gradlew :test --tests '*TransformCorpusReplayTest' -PglslCorpusDir=<abs> -PglslReplayEngine=taumc|douira
   [-PglslReplayPatches=...,COMPAT]`, filtered with `grep -E 'replay|Tests run|FAILED|BUILD'`; tolerated differences in
   `src/test/resources/transform-replay/accepted.txt`. At S2, `taumc` replays all of it identically.
@@ -87,6 +91,17 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   A source that does not parse throws `ShaderAst.SyntaxException` (TauMC recovered).
 - Replay (S5): `-PglslReplayThreads=N` adds a concurrent pass (`replay: concurrent ... differing=0` must stay 0);
   `replay: transformMs` gives the engine time per kind. `accepted.txt` stages are checked (`vertex`, `geometry`,
-  `tess_control`, `tess_eval`, `fragment`, `compute`, `compat`, `error`, `*`); `error` accepts a case recorded as a
-  TauMC error whose replay differs (report `<case>.error.diff`). `-PglslEngine=taumc|douira` sets
-  `demonica.glsl.engine` in the test JVM.
+  `tess_control`, `tess_eval`, `fragment`, `compute`, `compat`, `error-succeeded`, `error-threw`, `*`; S6 split S5's
+  `error`): `error-succeeded` accepts a case recorded as a TauMC error whose replay transforms it, `error-threw` one
+  whose replay throws something else (report `<case>.error.diff`); `*` accepts output stages only. An entry whose
+  reason starts with `S7 pending` is verified by the replayer (S6): the TauMC engine rerun with the PCF helpers hidden
+  from its adaptive-shadow-bounds rewrite must give the replay's output (`replay: S7 pending stages verified ...`).
+  `-PglslEngine=taumc|douira` sets `demonica.glsl.engine` in the test JVM.
+- New engine (S6): also transforms ATTRIBUTES and CELERITAS_TERRAIN (`transformer/AttributeTransformer`,
+  `transformer/CeleritasTransformer`; `patchMultiTexCoord3`, `replaceMidTexCoord`, `replaceMCEntity` in
+  `AstShaderTransformer`); only DH_TERRAIN and DH_GENERIC throw "not ported yet". Replay: packs `cases=387
+  identical=336 accepted=51 failing=0` (the 51 are "S7 pending", BSL fragment stages), mini-corpus `cases=12
+  identical=8 accepted=4 failing=0`. BSL, Complementary and I Like Vanilla load and render on it
+  (`-Ddemonica.glsl.engine=douira`), frames within the TauMC noise floor (S6 report).
+- `TerrainVertexFormatRequirements` (S6) scans identifiers without ANTLR; `TerrainVertexFormatScanParityTest` keeps
+  TauMC's lexer as its oracle until Step 11.
