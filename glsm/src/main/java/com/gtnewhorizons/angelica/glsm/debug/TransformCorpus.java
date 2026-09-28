@@ -6,7 +6,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -206,6 +205,45 @@ public final class TransformCorpus {
     }
 
     /** Created on the first recorded case, so an unset property never touches the file system or starts a process. */
+    /**
+     * Runs {@code command} in {@code directory} and returns its trimmed output (standard out and error), or null when
+     * it cannot start, exits with a non-zero status or is still running after {@code timeoutSeconds} (it is then
+     * killed). The output goes to a temporary file, not a pipe: reading a pipe to its end blocks for as long as the
+     * process runs, so a wait after the read could never time out.
+     */
+    static String run(Path directory, long timeoutSeconds, String... command) {
+        Path out = null;
+        Process process = null;
+        try {
+            out = Files.createTempFile("demonica-corpus-cmd", ".out");
+            process = new ProcessBuilder(command)
+                .directory(directory.toFile())
+                .redirectErrorStream(true)
+                .redirectOutput(out.toFile())
+                .start();
+            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS) || process.exitValue() != 0) {
+                return null;
+            }
+            return Files.readString(out, StandardCharsets.UTF_8).trim();
+        } catch (IOException | RuntimeException e) {
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+            if (out != null) {
+                try {
+                    Files.deleteIfExists(out);
+                } catch (IOException ignored) {
+                    // a temporary file; nothing else to do
+                }
+            }
+        }
+    }
+
     private static final class Writer {
         static final Writer INSTANCE = new Writer();
 
@@ -320,29 +358,10 @@ public final class TransformCorpus {
 
         /** The command's trimmed output, or null when git is missing, fails or takes longer than ten seconds. */
         private static String git(String... args) {
-            try {
-                final List<String> command = new ArrayList<>();
-                command.add("git");
-                command.addAll(List.of(args));
-                final Process process = new ProcessBuilder(command)
-                    .directory(DIR.toFile())
-                    .redirectErrorStream(true)
-                    .start();
-                final String out;
-                try (InputStream in = process.getInputStream()) {
-                    out = new String(in.readAllBytes(), StandardCharsets.UTF_8).trim();
-                }
-                if (!process.waitFor(10, TimeUnit.SECONDS) || process.exitValue() != 0) {
-                    process.destroyForcibly();
-                    return null;
-                }
-                return out;
-            } catch (IOException | RuntimeException e) {
-                return null;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            }
+            final List<String> command = new ArrayList<>();
+            command.add("git");
+            command.addAll(List.of(args));
+            return run(DIR, 10, command.toArray(new String[0]));
         }
     }
 }

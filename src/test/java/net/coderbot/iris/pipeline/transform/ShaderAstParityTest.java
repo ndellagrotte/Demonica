@@ -1152,6 +1152,36 @@ class ShaderAstParityTest {
     // ---------------------------------------------------------------------------------------------------------------
     // Step 4: the structural verbs
 
+    /** A shadow2DLod call inside a shadow2D call, and one after it, in const initializers fed by a const parameter. */
+    static final String WRAP_ORDER_330 = """
+        #version 330 core
+        uniform sampler2DShadow s;
+        out vec4 o;
+        float f(const vec3 x) {
+            const float a = shadow2D(s, vec3(shadow2DLod(s, x, 0.0).r)).r;
+            const float b = shadow2DLod(s, vec3(a), 0.0).r;
+            return b;
+        }
+        void main() { o = vec4(f(vec3(0.5))); }
+        """;
+
+    /**
+     * Named deviation (S4 verification): TauMC rebuilt the wrapped call from its parse-tree text, whose tokens are joined
+     * without whitespace, so {@code p.z - -0.001} became {@code p.z--0.001}, a decrement: TauMC's re-parse fails and its
+     * error recovery leaves broken GLSL (the call not even renamed). ShaderAst prints the call from the AST.
+     */
+    @Test
+    void deviationWrappedShadowCallKeepsANegatedLiteral() {
+        final String source = "#version 330 core\nuniform sampler2DShadow s;\nin vec3 p;\nout vec4 o;\n"
+            + "void main() { o = vec4(shadow2D(s, vec3(p.xy, p.z - -0.001)).r); }\n";
+        final String taumc = viaTauMC(source, t -> t.renameAndWrapShadow("shadow2D", "texture"));
+        final String adapter = viaShaderAst(source, a -> a.renameAndWrapShadow("shadow2D", "texture"));
+        assertTrue(GlslTokens.contains(taumc, "p . z -- 0.001"), taumc);
+        assertTrue(GlslTokens.contains(adapter, "o = vec4 ( vec4 ( texture ( s , vec3 ( p . xy , p . z - - 0.001 ) ) ) . r ) ;"), adapter);
+        ShaderAst.parse("#version 330 core\n" + adapter);
+        assertThrows(ShaderAst.SyntaxException.class, () -> ShaderAst.parse("#version 330 core\n" + taumc));
+    }
+
     private static final String[] COMMON_SHADOW_RENAMES = {"shadow2D", "texture", "shadow2DLod", "textureLod"};
     private static final String[] COMPAT_SHADOW_RENAMES = {"shadow2D", "texture", "shadow2DLod", "textureLod", "shadow1D", "texture",
         "shadow1DProj", "textureProj", "shadow2DProj", "textureProj", "shadow1DLod", "textureLod"};
@@ -1188,6 +1218,12 @@ class ShaderAstParityTest {
                 t -> wrapShadowsTauMC(t, COMPAT_SHADOW_RENAMES), a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
             changingParity("a user function of the name: its calls are wrapped, its prototype renamed", userOverload,
                 t -> t.renameAndWrapShadow("shadow2DLod", "textureLod"), a -> a.renameAndWrapShadow("shadow2DLod", "textureLod")),
+            // Step 5 (S4 verification): the second rename wraps the program's own shadow2DLod call before the one inside
+            // the first rename's wrapper, as TauMC's cache order has it; removeConstAssignment then reaches x (in the
+            // later wrapper) after a, so b keeps its const. In document order both would lose it.
+            changingParity("a second rename's wrappers in TauMC's cache order, as removeConstAssignment sees them", WRAP_ORDER_330,
+                t -> { wrapShadowsTauMC(t, COMMON_SHADOW_RENAMES); t.removeConstAssignment(); },
+                a -> { wrapShadows(a, COMMON_SHADOW_RENAMES); a.removeConstAssignment(); }),
             changingParity("after an injection and a replacement (added nodes are wrapped too)", SHADOW_120,
                 t -> { t.injectFunction("float iris_s(vec3 q) { return shadow2D(shadowtex0, q).r; }"); t.replaceExpression("whole", "shadow2D(shadowtex1, shadowPos.xyz)"); wrapShadowsTauMC(t, COMPAT_SHADOW_RENAMES); },
                 a -> { a.injectFunction("float iris_s(vec3 q) { return shadow2D(shadowtex0, q).r; }"); a.replaceExpression("whole", "shadow2D(shadowtex1, shadowPos.xyz)"); wrapShadows(a, COMPAT_SHADOW_RENAMES); })
@@ -1243,7 +1279,7 @@ class ShaderAstParityTest {
             final GLSLParser.Type_specifierContext specifier = type.type_specifier();
             rows.add(entry.getKey() + " | " + GlslTokens.of(ShaderPrinter.getFormattedShader(type)).text()
                 + " | " + squareMatrix(type.getText())
-                + " | " + squareMatrix(specifier.type_specifier_nonarray().children.get(0).getText())
+                + " | " + specifier.type_specifier_nonarray().children.get(0).getText()
                 + " | " + (specifier.array_specifier() == null ? "-" : specifier.array_specifier().getText()));
         }
         return rows;
@@ -1263,7 +1299,8 @@ class ShaderAstParityTest {
         return rows;
     }
 
-    // TauMC keeps a square matrix's spelling; glsl-transformer names it by its short name.
+    // TauMC keeps a square matrix's spelling; glsl-transformer prints it by its short name (typeText; typeName keeps
+    // the spelling since Step 5).
     private static String squareMatrix(String text) {
         return text.replaceAll("(d?mat)([234])x\\2", "$1$2");
     }
@@ -1404,64 +1441,12 @@ class ShaderAstParityTest {
     }
 
     /**
-     * {@code CompatibilityTransformer.transformGrouped} (TauMC) written against {@link ShaderAst}, line for line: the
-     * verbs findQualifiers, containsCall, injectVariable, hasAssignment and initialize together, in TauMC's iteration
-     * order. Step 5 can lift it.
+     * The glsl-transformer engine's {@code transformGrouped}
+     * ({@link net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer#transformGrouped}), which
+     * Step 5 lifted from this class, where Step 4 wrote it against {@link ShaderAst} line for line from TauMC's.
      */
     static void transformGrouped(Map<PatchShaderType, ShaderAst> trees) {
-        net.coderbot.iris.gl.shader.ShaderType prevType = null;
-        for (net.coderbot.iris.gl.shader.ShaderType type : new net.coderbot.iris.gl.shader.ShaderType[]{
-            net.coderbot.iris.gl.shader.ShaderType.VERTEX, net.coderbot.iris.gl.shader.ShaderType.GEOMETRY,
-            net.coderbot.iris.gl.shader.ShaderType.FRAGMENT}) {
-            final PatchShaderType[] patchTypes = PatchShaderType.fromGlShaderType(type);
-            boolean hasAny = false;
-            for (PatchShaderType currentType : patchTypes) {
-                if (trees.get(currentType) != null) {
-                    hasAny = true;
-                }
-            }
-            if (!hasAny) {
-                continue;
-            }
-            if (prevType == null) {
-                prevType = type;
-                continue;
-            }
-            final ShaderAst prev = trees.get(PatchShaderType.fromGlShaderType(prevType)[0]);
-            final Map<String, ShaderAst.QualifiedDeclaration> outDec = prev.findQualifiers(StorageQualifier.StorageType.OUT);
-            for (PatchShaderType currentType : patchTypes) {
-                final ShaderAst current = trees.get(currentType);
-                if (current == null) {
-                    continue;
-                }
-                final Map<String, ShaderAst.QualifiedDeclaration> inDec = current.findQualifiers(StorageQualifier.StorageType.IN);
-                for (String in : inDec.keySet()) {
-                    if (in.startsWith("gl_")) {
-                        continue;
-                    }
-                    if (!outDec.containsKey(in)) {
-                        if (!current.containsCall(in)) {
-                            continue;
-                        }
-                        final String outDeclaration = inDec.get(in).typeText() + " " + in + ";";
-                        prev.injectVariable(outDeclaration.replaceFirst("\\bin\\b", "out"));
-                        if (!prev.hasAssignment(in)) {
-                            prev.initialize(inDec.get(in), in);
-                        }
-                    } else {
-                        if (outDec.get(in).arraySpecifierText() != null) {
-                            continue;
-                        }
-                        if (inDec.get(in).typeName().equals(outDec.get(in).typeName())) {
-                            if (!prev.hasAssignment(in)) {
-                                prev.initialize(inDec.get(in), in);
-                            }
-                        }
-                    }
-                }
-            }
-            prevType = type;
-        }
+        net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer.transformGrouped(trees, null);
     }
 
     /** Runs TauMC's transformGrouped and {@link #transformGrouped} on the same stages; the printed stages, or the throw. */
@@ -1504,6 +1489,14 @@ class ShaderAstParityTest {
             PatchShaderType.FRAGMENT, GROUPED_FRAGMENT_330));
         cases.put("120 varyings (no in or out: nothing to pair)", Map.of(PatchShaderType.VERTEX, varyings, PatchShaderType.FRAGMENT, varyingsFragment));
         cases.put("fixtures: 330 fragment after the 120 vertex", Map.of(PatchShaderType.VERTEX, VERTEX_120, PatchShaderType.FRAGMENT, FRAGMENT_330));
+        // S4 verification: TauMC compared the spelled types, so mat2x2 against mat2 (and mat3 against mat3x3) differ and
+        // the unassigned outs are not initialized; comparing glsl-transformer's Type would initialize both.
+        cases.put("square matrices spelled differently: nothing initialized", Map.of(
+            PatchShaderType.VERTEX, "#version 330 core\nin vec3 pos;\nout mat2x2 m;\nout mat3 k;\nvoid main() { gl_Position = vec4(pos, 1.0); }\n",
+            PatchShaderType.FRAGMENT, "#version 330 core\nin mat2 m;\nin mat3x3 k;\nout vec4 frag;\nvoid main() { frag = vec4(m[0], k[0].xy); }\n"));
+        cases.put("square matrices spelled alike: both initialized", Map.of(
+            PatchShaderType.VERTEX, "#version 330 core\nin vec3 pos;\nout mat2x2 m;\nout mat3 k;\nvoid main() { gl_Position = vec4(pos, 1.0); }\n",
+            PatchShaderType.FRAGMENT, "#version 330 core\nin mat2x2 m;\nin mat3 k;\nout vec4 frag;\nvoid main() { frag = vec4(m[0], k[0].xy); }\n"));
         final List<DynamicTest> tests = new ArrayList<>();
         cases.forEach((name, stages) -> tests.add(DynamicTest.dynamicTest(name, () -> {
             final Map<PatchShaderType, String[]> printed = groupedOnBoth(stages);
@@ -1511,10 +1504,11 @@ class ShaderAstParityTest {
                 final String diff = GlslTokens.diff(both[0], both[1]);
                 assertTrue(diff.isEmpty(), () -> stage + ": TauMC and ShaderAst differ (- TauMC, + ShaderAst):\n" + diff);
             });
-            // Every case but the one without ins and outs adds outputs to the vertex stage.
+            // Every case but the one without ins and outs and the differently spelled matrices changes the vertex stage.
             final boolean changed = !GlslTokens.of(printed.get(PatchShaderType.VERTEX)[0])
                 .equals(GlslTokens.of(viaTauMC(stages.get(PatchShaderType.VERTEX), t -> { })));
-            assertEquals(!name.startsWith("120 varyings"), changed, "TauMC changed the vertex stage");
+            assertEquals(!name.startsWith("120 varyings") && !name.contains("spelled differently"), changed,
+                "TauMC changed the vertex stage");
         })));
         return tests.stream();
     }

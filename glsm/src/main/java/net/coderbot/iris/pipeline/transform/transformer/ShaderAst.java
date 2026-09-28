@@ -51,15 +51,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -95,8 +98,8 @@ import java.util.regex.Pattern;
  * {@link #findQualifiers}, {@link #removeConstAssignment}).</p>
  *
  * <p>Life cycle: {@link #parse(String, int)}, then the verbs, then {@link #print(String)}. An instance is not
- * thread-safe; every call to {@code parse} builds its own parser (see {@link #newParser}). Different instances may be
- * used on different threads: every method that builds AST nodes holds {@link #BUILD_LOCK}.</p>
+ * thread-safe. Different instances may be used on different threads: they share one parser, and every method that
+ * parses or builds AST nodes holds {@link #BUILD_LOCK} while it does (see {@link #newParser} and {@link #build}).</p>
  *
  * <p>This class lives in the {@code glsm} project, not next to the Iris transformers in {@code shader}, because
  * GLSM's {@code CompatShaderTransformer} must use it too and {@code glsm} cannot see {@code shader}.</p>
@@ -113,10 +116,13 @@ public final class ShaderAst {
     /**
      * glsl-transformer 3.0.0-pre3 gives every AST node it constructs the root on top of a static, unsynchronized
      * stack ({@code Root.activeBuildRoots}), which each build pushes and pops. Two threads building nodes at once, even
-     * with separate parsers, can give nodes the other thread's root or corrupt the stack. Every method of this class
-     * that builds nodes (the parse, and each verb that parses a snippet) holds this lock while it does; code that uses
-     * {@link #t}, {@link #tree} or {@link #root} to build nodes itself (a {@code parseAndInjectNode}, a
-     * {@code new Identifier(...)}) must hold it too. Reentrant, so a caller may hold it around a whole transform.
+     * with separate parsers, can give nodes the other thread's root or corrupt the stack. The lock also guards the one
+     * parser every program shares ({@link #t}; see {@link #newParser}). Every method of this class that builds nodes
+     * (the parse, and each verb that parses a snippet) holds this lock while it does; code that uses {@link #t},
+     * {@link #tree} or {@link #root} to build nodes itself (a {@code parseAndInjectNode}, a
+     * {@code new Identifier(...)}) must run it through {@link #build}, which holds the lock and sets the lexer version.
+     * Reentrant. Step 5 measured holding it around a whole transform instead: slower under concurrency, no faster
+     * alone (docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md).
      */
     public static final ReentrantLock BUILD_LOCK = new ReentrantLock();
 
@@ -124,7 +130,10 @@ public final class ShaderAst {
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
-    /** The parser; also the argument every glsl-transformer call that parses a snippet needs. */
+    /**
+     * The parser, shared by every program: the argument every glsl-transformer call that parses a snippet needs. Use it
+     * only inside {@link #build}.
+     */
     public final ASTParser t;
     /** The program. {@link #print(String)} removes its version statement and extension directives. */
     public final TranslationUnit tree;
@@ -132,6 +141,11 @@ public final class ShaderAst {
     public final Root root;
 
     private final List<String> droppedDirectives;
+    // The lexer version of the parse; every snippet a verb parses is lexed at it too (see snippet).
+    private final Version lexerVersion;
+    // The spelling of each numeric type specifier of the parsed program whose spelling is not the type's compact name
+    // (mat2x2 for mat2): glsl-transformer keeps the Type only, TauMC compared the spelled text (typeName).
+    private final Map<BuiltinNumericTypeSpecifier, String> spelledTypes;
 
     // TauMC's Transformer.variable and Transformer.function: where the next injectVariable and injectFunction insert.
     private ExternalDeclaration variableAnchor;
@@ -148,11 +162,14 @@ public final class ShaderAst {
         Expression.ExpressionType.RIGHT_SHIFT_ASSIGNMENT, Expression.ExpressionType.BITWISE_AND_ASSIGNMENT,
         Expression.ExpressionType.BITWISE_XOR_ASSIGNMENT, Expression.ExpressionType.BITWISE_OR_ASSIGNMENT);
 
-    private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives) {
+    private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives, Version lexerVersion,
+                      Map<BuiltinNumericTypeSpecifier, String> spelledTypes) {
         this.t = t;
         this.tree = tree;
         this.root = root;
         this.droppedDirectives = droppedDirectives;
+        this.lexerVersion = lexerVersion;
+        this.spelledTypes = spelledTypes;
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -188,18 +205,26 @@ public final class ShaderAst {
 
     private static ShaderAst parse(String source, Version lexerVersion) {
         final DirectiveFilter filter = new DirectiveFilter();
-        final ASTParser parser = newParser(filter);
-        if (lexerVersion != null) {
-            parser.getLexer().version = lexerVersion;
-        }
         final Root root = ROOT_SUPPLIER.get();
+        final Version version = lexerVersion != null ? lexerVersion : DEFAULT_LEXER_VERSION;
         final TranslationUnit tree;
+        final List<String> dropped;
+        final List<TypeToken> typeTokens;
+        BUILD_LOCK.lock();
         try {
-            tree = locked(() -> parser.parseTranslationUnit(root, source));
+            PARSER.setTokenFilter(filter);
+            PARSER.getLexer().version = version;
+            tree = PARSER.parseTranslationUnit(root, source);
+            // Read under the lock: the filter stays on the shared parser, and the next parse (a snippet of another
+            // program on another thread) resets it.
+            dropped = new ArrayList<>(filter.dropped.values());
+            typeTokens = new ArrayList<>(filter.numericTypes.values());
         } catch (ParsingException | ParseCancellationException e) {
             throw SyntaxException.of(e);
+        } finally {
+            filter.recording = false;
+            BUILD_LOCK.unlock();
         }
-        final List<String> dropped = new ArrayList<>(filter.dropped.values());
         for (ExternalDeclaration declaration : new ArrayList<>(tree.getChildren())) {
             if (declaration instanceof PragmaDirective pragma) {
                 dropped.add(ASTPrinter.print(PrintType.COMPACT, pragma).trim());
@@ -210,19 +235,88 @@ public final class ShaderAst {
             LOGGER.warn("[ShaderAst] Dropped {} preprocessor directive(s) that the transform does not evaluate: {}",
                 dropped.size(), dropped);
         }
-        return new ShaderAst(parser, tree, root, List.copyOf(dropped));
+        return new ShaderAst(PARSER, tree, root, List.copyOf(dropped), version, spelledTypes(tree, typeTokens));
     }
 
     /**
-     * Builds the parser for one {@link #parse}. This is the only place a parser is constructed: Step 5 decides
-     * whether it stays one per call or becomes one shared instance under a lock.
+     * Pairs the numeric type keywords the lexer read with the {@link BuiltinNumericTypeSpecifier}s the parse built:
+     * the grammar builds exactly one specifier from each such token ({@code builtinTypeSpecifierParseable} occurs only
+     * in {@code typeSpecifier}), in document order. Keeps the spellings that are not the type's compact name. If the
+     * two sequences do not pair up, no spelling is kept and {@link QualifiedDeclaration#typeName()} falls back to
+     * compact names.
+     */
+    private static Map<BuiltinNumericTypeSpecifier, String> spelledTypes(TranslationUnit tree, Collection<TypeToken> tokens) {
+        final List<BuiltinNumericTypeSpecifier> specifiers = new ArrayList<>(tokens.size());
+        new ASTVoidVisitor() {
+            @Override
+            public void visitVoid(ASTNode node) {
+                if (node instanceof BuiltinNumericTypeSpecifier specifier) {
+                    specifiers.add(specifier);
+                }
+            }
+        }.visit(tree);
+        final Map<BuiltinNumericTypeSpecifier, String> spelled = new IdentityHashMap<>();
+        if (specifiers.size() != tokens.size()) {
+            LOGGER.debug("[ShaderAst] {} numeric type tokens, {} type specifiers; type spellings not kept", tokens.size(),
+                specifiers.size());
+            return spelled;
+        }
+        final Iterator<TypeToken> token = tokens.iterator();
+        for (BuiltinNumericTypeSpecifier specifier : specifiers) {
+            final TypeToken next = token.next();
+            if (next.type() != specifier.type) {
+                LOGGER.debug("[ShaderAst] type token {} paired with a {} specifier; type spellings not kept", next.text(),
+                    specifier.type);
+                return new IdentityHashMap<>();
+            }
+            if (!next.text().equals(specifier.type.getMostCompactName())) {
+                spelled.put(specifier, next.text());
+            }
+        }
+        return spelled;
+    }
+
+    /** A numeric type keyword as the lexer read it: its type and its spelling. */
+    record TypeToken(Type type, String text) {
+    }
+
+    // Every numeric type keyword's token type (mat2 and mat2x2 are one token type, F32MAT2X2).
+    private static final Map<Integer, Type> NUMERIC_TYPE_TOKENS = numericTypeTokens();
+
+    private static Map<Integer, Type> numericTypeTokens() {
+        final Map<Integer, Type> tokens = new HashMap<>();
+        for (Type type : Type.values()) {
+            if (type.getTokenType() != Token.INVALID_TYPE) {
+                tokens.put(type.getTokenType(), type);
+            }
+        }
+        return Map.copyOf(tokens);
+    }
+
+    /**
+     * The one parser of every program and every snippet, used only under {@link #BUILD_LOCK} (see {@link #newParser}).
+     * Each {@link #parse} sets its own filter and lexer version on it; {@link #build} sets the program's version again
+     * before a verb's snippet.
+     */
+    private static final ASTParser PARSER = newParser(new DirectiveFilter());
+
+    // The lexer's own default version, for a source without #version.
+    private static final Version DEFAULT_LEXER_VERSION = PARSER.getLexer().version;
+
+    /**
+     * Builds a parser; {@link #PARSER}, the one every program uses, is built here. Step 5 measured one parser per
+     * {@link #parse} against one shared parser under {@link #BUILD_LOCK} on the recorded COMPOSITE cases (the replay's
+     * concurrent pass and {@code TransformPatcherCacheTest}): the shared parser was faster alone and on eight threads,
+     * mostly because its AST cache (below) keeps the verbs' snippets across programs (report
+     * docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md).
      *
      * <p>Parsing cache: {@link ASTParser.ParsingCacheStrategy#NONE}. The two-tier cache that Iris uses returns a
      * cached parse tree for a translation unit it has seen, and then the channel filter sees no tokens, so a
      * dropped directive would go unlogged. {@code ALL_EXCLUDING_TRANSLATION_UNIT}, which would fit, recurses without
      * end in 3.0.0-pre3 ({@code TranslationUnitFilterCachingParser.parse} calls itself). Snippet ASTs (the verbs'
      * code strings) are still cached by the parser's own AST cache, which this setting does not affect; that cache
-     * lives as long as the parser, so with one parser per call it serves repeats within one transform only.</p>
+     * lives as long as the parser, so with the shared parser a snippet is parsed once and cloned into every later
+     * program that uses it.</p>
      */
     static ASTParser newParser(DirectiveFilter filter) {
         final ASTParser parser = new ASTParser();
@@ -232,9 +326,16 @@ public final class ShaderAst {
         return parser;
     }
 
-    private static <N> N locked(Supplier<N> build) {
+    /**
+     * Runs {@code build}, code that parses a snippet with {@link #t} or builds nodes into {@link #root} (an Iris idiom
+     * such as {@code tree.parseAndInjectNode(t, ...)} or {@code new Identifier(...)}), under {@link #BUILD_LOCK} and with
+     * the lexer at this program's version: {@link #t} is shared by every program, so another program may have been
+     * parsed at another version since. Every verb of this class that parses goes through here.
+     */
+    public <N> N build(Supplier<N> build) {
         BUILD_LOCK.lock();
         try {
+            t.getLexer().version = lexerVersion;
             return build.get();
         } finally {
             BUILD_LOCK.unlock();
@@ -244,6 +345,28 @@ public final class ShaderAst {
     /** The directives {@link #parse} dropped, as {@code line N: #define} (filtered) or the {@code #pragma} text. */
     public List<String> droppedDirectives() {
         return droppedDirectives;
+    }
+
+    /**
+     * The program's {@code #extension} directives in document order, one line each, as TauMC's token-spaced printer
+     * wrote them: {@code #extension GL_ARB_shader_texture_lod : enable}. {@link #print(String)} removes the directives
+     * from the tree, so the orchestrator reads them first and writes them into its header.
+     */
+    public List<String> extensionDirectives() {
+        final List<String> lines = new ArrayList<>();
+        for (ExternalDeclaration declaration : tree.getChildren()) {
+            if (declaration instanceof ExtensionDirective extension) {
+                String line = "#extension " + extension.getName();
+                if (extension.behavior != null) {
+                    // By token: the enum constant for 'require' is named DEBUG in 3.0.0-pre3.
+                    final String literal = GLSLLexer.VOCABULARY.getLiteralName(extension.behavior.tokenType);
+                    line += " : " + (literal != null ? literal.substring(1, literal.length() - 1)
+                        : GLSLLexer.VOCABULARY.getSymbolicName(extension.behavior.tokenType));
+                }
+                lines.add(line);
+            }
+        }
+        return lines;
     }
 
     /**
@@ -300,7 +423,7 @@ public final class ShaderAst {
                 code);
             return;
         }
-        final ExternalDeclaration insert = added(locked(() -> t.parseExternalDeclaration(root, code)));
+        final ExternalDeclaration insert = added(build(() -> t.parseExternalDeclaration(root, code)));
         tree.getChildren().add(tree.getChildren().indexOf(anchor), insert);
         updateAnchors(insert, false);
     }
@@ -320,7 +443,7 @@ public final class ShaderAst {
      */
     public void injectFunction(String code) {
         final ExternalDeclaration anchor = functionAnchor();
-        final ExternalDeclaration insert = added(locked(() -> t.parseExternalDeclaration(root, code)));
+        final ExternalDeclaration insert = added(build(() -> t.parseExternalDeclaration(root, code)));
         final int index = anchor == null ? tree.getChildren().size() : tree.getChildren().indexOf(anchor);
         tree.getChildren().add(index, insert);
         updateAnchors(insert, true);
@@ -573,7 +696,7 @@ public final class ShaderAst {
             }
             final int value = (int) literal.getInteger();
             found.add(value);
-            final Expression replacement = locked(() -> t.parseExpression(root, newName + value));
+            final Expression replacement = build(() -> t.parseExpression(root, newName + value));
             // TauMC renamed the token in place, so the name keeps the cache position of the access it replaces.
             final Integer addition = additions.remove(access);
             if (addition != null) {
@@ -624,14 +747,14 @@ public final class ShaderAst {
      * {@code replaceMidTexCoord} then replaces).</p>
      */
     public void replaceExpression(String oldCode, String newCode) {
-        final Expression pattern = locked(() -> t.parseExpression(patternRoot(), oldCode));
+        final Expression pattern = build(() -> t.parseExpression(patternRoot(), oldCode));
         if (pattern instanceof ReferenceExpression reference) {
             final String name = reference.getIdentifier().getName();
             final String trimmed = newCode.trim();
             final boolean newIsIdentifier = IDENTIFIER.matcher(trimmed).matches();
             for (Identifier identifier : new ArrayList<>(root.identifierIndex.get(name))) {
                 if (identifier.getParent() instanceof ReferenceExpression target) {
-                    target.replaceByAndDelete(added(locked(() -> t.parseExpression(root, newCode))));
+                    target.replaceByAndDelete(added(build(() -> t.parseExpression(root, newCode))));
                 } else if (newIsIdentifier && identifier.getParent() instanceof FunctionCallExpression) {
                     identifier.setName(trimmed);
                 }
@@ -664,7 +787,7 @@ public final class ShaderAst {
         for (Expression match : matches) {
             // A match inside an earlier replaced match is already gone with it.
             if (isAttached(match)) {
-                match.replaceByAndDelete(added(locked(() -> t.parseExpression(root, newCode))));
+                match.replaceByAndDelete(added(build(() -> t.parseExpression(root, newCode))));
             }
         }
     }
@@ -726,7 +849,7 @@ public final class ShaderAst {
      */
     public void prependMain(String code) {
         for (FunctionDefinition main : mainDefinitions()) {
-            main.getBody().getStatements().add(0, added(locked(() -> t.parseStatement(root, code))));
+            main.getBody().getStatements().add(0, added(build(() -> t.parseStatement(root, code))));
         }
     }
 
@@ -739,7 +862,7 @@ public final class ShaderAst {
      */
     public void appendMain(String code) {
         for (FunctionDefinition main : mainDefinitions()) {
-            main.getBody().getStatements().add(added(locked(() -> t.parseStatement(root, code))));
+            main.getBody().getStatements().add(added(build(() -> t.parseStatement(root, code))));
         }
     }
 
@@ -801,7 +924,7 @@ public final class ShaderAst {
             declaration.detachAndDelete();
         } else if (holder instanceof DeclarationStatement statement && !(statement.getParent() instanceof CompoundStatement)) {
             // The unbraced body of an if, else or loop: a field of its parent, which must not become null.
-            statement.replaceByAndDelete(locked(() -> t.parseStatement(root, ";")));
+            statement.replaceByAndDelete(build(() -> t.parseStatement(root, ";")));
         } else {
             // The TypeAndInitDeclaration's DeclarationExternalDeclaration or DeclarationStatement.
             holder.detachAndDelete();
@@ -882,24 +1005,6 @@ public final class ShaderAst {
         return ordered;
     }
 
-    private <N extends ASTNode> void sortInDocumentOrder(List<N> nodes) {
-        final Map<ASTNode, Integer> order = new IdentityHashMap<>();
-        for (N node : nodes) {
-            order.put(node, -1);
-        }
-        final int[] position = {0};
-        new ASTVoidVisitor() {
-            @Override
-            public void visitVoid(ASTNode node) {
-                if (order.containsKey(node)) {
-                    order.put(node, position[0]);
-                }
-                position[0]++;
-            }
-        }.visit(tree);
-        nodes.sort((a, b) -> Integer.compare(order.get(a), order.get(b)));
-    }
-
     // ------------------------------------------------------------------------------------------------------------
     // Shadow sampling and functions
 
@@ -916,7 +1021,15 @@ public final class ShaderAst {
      * {@code shadow2D(s, vec3(shadow2D(t, p).r))} the inner call is renamed but not wrapped, as in TauMC, which
      * replaced the outer call by a fresh parse of its text before it reached the inner one. The wrapper and the call
      * inside it are a new parse here too (the call's printed text in {@code vec4(...)}), which counts as an addition
-     * for the verbs that follow (the class javadoc).</p>
+     * for the verbs that follow (the class javadoc). The calls are wrapped, and so recorded as additions, in TauMC's
+     * cache order: the program's own calls in document order, then the calls inside earlier additions in the order
+     * those were added. {@link #removeConstAssignment} walks identifiers in that order, so it sees the difference when
+     * a second {@code renameAndWrapShadow} wraps a call that sits inside a first one's wrapper.</p>
+     *
+     * <p>Deviation: TauMC built the wrapper from the call's parse-tree text ({@code getText()}, the tokens joined
+     * without whitespace), so an argument {@code p.z - -0.001} became {@code p.z--0.001}, which lexes as a decrement
+     * and is not valid GLSL; here the call is printed from the AST and keeps {@code p.z - -0.001} (test
+     * {@code deviationWrappedShadowCallKeepsANegatedLiteral}).</p>
      */
     public void renameAndWrapShadow(String oldName, String newName) {
         final List<FunctionCallExpression> calls = new ArrayList<>();
@@ -927,14 +1040,20 @@ public final class ShaderAst {
             }
         }
         if (calls.size() > 1) {
-            // An outer call before the calls in its arguments.
-            sortInDocumentOrder(calls);
+            // TauMC's cache order: an outer call before the calls in its arguments, and the program's own calls
+            // before the calls inside what verbs added (an earlier renameAndWrapShadow's wrappers among them).
+            final Set<FunctionCallExpression> selected = Collections.newSetFromMap(new IdentityHashMap<>());
+            selected.addAll(calls);
+            calls.clear();
+            for (Found<FunctionCallExpression> found : inTauMCOrder(FunctionCallExpression.class, selected::contains)) {
+                calls.add(found.node());
+            }
         }
         for (FunctionCallExpression call : calls) {
             // A call inside an outer call that was wrapped went with it.
             if (isAttached(call)) {
                 final String wrapped = "vec4(" + text(call) + ")";
-                call.replaceByAndDelete(added(locked(() -> t.parseExpression(root, wrapped))));
+                call.replaceByAndDelete(added(build(() -> t.parseExpression(root, wrapped))));
             }
         }
         renameFunctionCall(oldName, newName);
@@ -1067,7 +1186,7 @@ public final class ShaderAst {
      * @throws IllegalArgumentException if {@code newSource} is not a function definition
      */
     public int replaceFunctionDefinition(String name, String newSource) {
-        final ExternalDeclaration probe = locked(() -> t.parseExternalDeclaration(patternRoot(), newSource));
+        final ExternalDeclaration probe = build(() -> t.parseExternalDeclaration(patternRoot(), newSource));
         if (!(probe instanceof FunctionDefinition probeDefinition)) {
             throw new IllegalArgumentException("Not a function definition: " + newSource);
         }
@@ -1093,7 +1212,7 @@ public final class ShaderAst {
      * @throws IllegalArgumentException if {@code newSource} is not a function definition
      */
     public void replaceFunctionDefinition(FunctionDefinition definition, String newSource) {
-        final ExternalDeclaration parsed = locked(() -> t.parseExternalDeclaration(root, newSource));
+        final ExternalDeclaration parsed = build(() -> t.parseExternalDeclaration(root, newSource));
         if (!(parsed instanceof FunctionDefinition replacement)) {
             parsed.unregisterSubtree();
             throw new IllegalArgumentException("Not a function definition: " + newSource);
@@ -1145,7 +1264,8 @@ public final class ShaderAst {
                 && typeQualifier.getParent() instanceof FullySpecifiedType fullType
                 && fullType.getParent() instanceof TypeAndInitDeclaration declaration) {
                 for (DeclarationMember member : declaration.getMembers()) {
-                    hashOrder.put(member.getName().getName(), QualifiedDeclaration.of(declaration, member));
+                    hashOrder.put(member.getName().getName(), QualifiedDeclaration.of(declaration, member,
+                        nameOfType(declaration.getType().getTypeSpecifier())));
                 }
             }
         }
@@ -1162,10 +1282,12 @@ public final class ShaderAst {
      *                           ({@code layout(location = 0) out vec4}). TauMC's {@code ShaderPrinter} printed its
      *                           {@code fully_specified_type} with the same tokens; its {@code getText()} is this without
      *                           spaces ({@code flatoutfloat})
-     * @param typeName           the type without qualifiers or array: a keyword ({@code vec3}; a square matrix is
-     *                           {@code mat2}, never {@code mat2x2}, where TauMC kept the spelling), a struct name, or
-     *                           an inline struct's text without whitespace ({@code structLight{vec3p;}}). TauMC's
-     *                           {@code type_specifier_nonarray} first child's {@code getText()}
+     * @param typeName           the type without qualifiers or array as the source spells it: a keyword
+     *                           ({@code vec3}; {@code mat2x2} and {@code mat2} stay apart, as in TauMC), a struct name,
+     *                           or an inline struct's text without whitespace ({@code structLight{vec3p;}}). TauMC's
+     *                           {@code type_specifier_nonarray} first child's {@code getText()}, which
+     *                           {@code transformGrouped} compares between stages. A declaration a verb added has the
+     *                           compact name ({@code mat2}): the spelling is kept for the parsed program only
      * @param arraySpecifierText the array specifier on the type ({@code [2]} for {@code out vec3[2] v;}), or null. TauMC's
      *                           {@code type_specifier().array_specifier()}, which {@code transformGrouped} checks; an
      *                           array on the declarator ({@code out vec3 v[2];}) is the {@code member}'s
@@ -1174,16 +1296,17 @@ public final class ShaderAst {
      */
     public record QualifiedDeclaration(String name, String typeText, String typeName, String arraySpecifierText,
                                        TypeAndInitDeclaration declaration, DeclarationMember member) {
-        static QualifiedDeclaration of(TypeAndInitDeclaration declaration, DeclarationMember member) {
+        static QualifiedDeclaration of(TypeAndInitDeclaration declaration, DeclarationMember member, String typeName) {
             final TypeSpecifier specifier = declaration.getType().getTypeSpecifier();
-            return new QualifiedDeclaration(member.getName().getName(), text(declaration.getType()), nameOfType(specifier),
+            return new QualifiedDeclaration(member.getName().getName(), text(declaration.getType()), typeName,
                 specifier.getArraySpecifier() == null ? null : text(specifier.getArraySpecifier()), declaration, member);
         }
     }
 
-    private static String nameOfType(TypeSpecifier specifier) {
+    private String nameOfType(TypeSpecifier specifier) {
         if (specifier instanceof BuiltinNumericTypeSpecifier numeric) {
-            return numeric.type.getMostCompactName();
+            final String spelled = spelledTypes.get(numeric);
+            return spelled != null ? spelled : numeric.type.getMostCompactName();
         }
         if (specifier instanceof BuiltinFixedTypeSpecifier fixed) {
             return new DeclaredType.Fixed(fixed.type).keyword();
@@ -1441,6 +1564,9 @@ public final class ShaderAst {
      */
     static final class DirectiveFilter extends ChannelFilter<JobParameters> {
         final Map<Integer, String> dropped = new LinkedHashMap<>();
+        // The program's numeric type keywords by offset, while the program itself is parsed (not the verbs' snippets).
+        final TreeMap<Integer, TypeToken> numericTypes = new TreeMap<>();
+        boolean recording = true;
 
         DirectiveFilter() {
             super(TokenChannel.PREPROCESSOR);
@@ -1449,6 +1575,12 @@ public final class ShaderAst {
         @Override
         public boolean isTokenAllowed(Token token) {
             if (super.isTokenAllowed(token)) {
+                if (recording) {
+                    final Type type = NUMERIC_TYPE_TOKENS.get(token.getType());
+                    if (type != null) {
+                        numericTypes.put(token.getStartIndex(), new TypeToken(type, token.getText()));
+                    }
+                }
                 return true;
             }
             final int type = token.getType();
@@ -1462,6 +1594,7 @@ public final class ShaderAst {
         public void resetState() {
             super.resetState();
             dropped.clear();
+            numericTypes.clear();
         }
     }
 }

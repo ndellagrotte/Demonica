@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -54,7 +56,9 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * {@code -PglslCorpusDir=<abs>} (searched recursively for {@code case.properties}), {@code -PglslReplayEngine=taumc|douira}
  * (default: the engine {@code demonica.glsl.engine} selects), {@code -PglslReplayPatches=COMPOSITE,COMPUTE,...}
  * (patch kinds to replay, {@code COMPAT} for GLSM's mod-shader cases; default all) and {@code -PglslReplayRecord=true}
- * (write {@code out.<engine>.<stage>.glsl} instead of comparing).</p>
+ * (write {@code out.<engine>.<stage>.glsl} instead of comparing) and {@code -PglslReplayThreads=N} (after the replay,
+ * transform every case the engine replayed successfully again, once more on this thread and then all at once on N
+ * threads, and require the concurrent outputs to equal the replayed ones; prints the timings).</p>
  *
  * <p>Each case restores what the output depends on besides the sources: the GLSL capability
  * ({@link RenderSystem#initializeGlslCapabilityForTesting(int, boolean, boolean)}), version hoisting
@@ -63,12 +67,20 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * directly, not through the cache. A stage that differs is written to {@code build/reports/transform-replay/} and
  * fails the test unless {@code src/test/resources/transform-replay/accepted.txt} tolerates it. A case the engine cannot
  * run (a patch kind not ported yet, a state the replayer cannot restore) is counted as unsupported.</p>
+ *
+ * <p>A case recorded with {@code outcome=error} (the TauMC engine threw) is identical when the replay throws the same
+ * {@code class: message}. When the replay succeeds or throws something else, the case's outcome differs: the report
+ * {@code <case>.error.diff} holds both, and {@code accepted.txt} can tolerate it with the stage {@code error}.</p>
+ *
+ * <p>The summary also gives the engine's time: the sum of the engine calls per patch kind ({@code replay: transformMs}),
+ * measured around the direct call, as {@code TransformPatcher}'s {@code transformMs} is around its call.</p>
  */
 class TransformCorpusReplayTest {
     static final String CORPUS_DIR_PROPERTY = "demonica.glsl.corpus.dir";
     static final String ENGINE_PROPERTY = "demonica.glsl.replay.engine";
     static final String PATCHES_PROPERTY = "demonica.glsl.replay.patches";
     static final String RECORD_PROPERTY = "demonica.glsl.replay.record";
+    static final String THREADS_PROPERTY = "demonica.glsl.replay.threads";
     static final String REFERENCE_ENGINE = "taumc";
     private static final String ACCEPTED_RESOURCE = "/transform-replay/accepted.txt";
 
@@ -77,6 +89,24 @@ class TransformCorpusReplayTest {
         AdaptiveShadowBoundsStats.activateForTesting(-1);
         ShaderTransformer.resetVersionHoistingForTesting();
         RenderSystem.initializeGlslCapabilityForTesting(460, false, false);
+    }
+
+    /** accepted.txt: every entry needs a reason and a known stage (S2 verification: stages were not checked). */
+    @Test
+    void acceptedEntriesNeedAReasonAndAKnownStage() throws IOException {
+        final List<AcceptedDiff> entries = parseAccepted("# comment\n\nbsl/000*-COMPOSITE-* | fragment | S7 pending\n"
+            + "transform-grouped-330-undeclared | error | old engine threw\n* | * | anything\n");
+        assertEquals(3, entries.size());
+        assertTrue(entries.get(0).matches("bsl/00012-COMPOSITE-1a2b3c4d", "fragment"));
+        assertFalse(entries.get(0).matches("bsl/00012-COMPOSITE-1a2b3c4d", "vertex"));
+        assertTrue(entries.get(1).matches("mini/transform-grouped-330-undeclared", "error"));
+        assertTrue(entries.get(2).matches("x/y", "error"));
+        assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | fragments | typo\n"));
+        assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | Fragment | wrong case\n"));
+        assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | fragment |  \n"));
+        assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | fragment\n"));
+        // The committed file parses.
+        readAccepted();
     }
 
     @Test
@@ -91,6 +121,8 @@ class TransformCorpusReplayTest {
         assertTrue(engine.equals("taumc") || engine.equals("douira"), "unknown replay engine: " + engine);
         final Set<String> patches = parsePatches(System.getProperty(PATCHES_PROPERTY, ""));
         final boolean record = Boolean.parseBoolean(System.getProperty(RECORD_PROPERTY, "false"));
+        final int threads = Integer.parseInt(System.getProperty(THREADS_PROPERTY, "0").trim().isEmpty() ? "0"
+            : System.getProperty(THREADS_PROPERTY, "0").trim());
         final List<AcceptedDiff> accepted = readAccepted();
 
         final Path reports = Paths.get(System.getProperty("demonica.projectRoot", "."), "build", "reports",
@@ -127,7 +159,16 @@ class TransformCorpusReplayTest {
         summary.perPatch.forEach((patch, counts) -> System.out.println("replay:   " + patch + " " + counts));
         summary.unsupportedReasons.forEach((reason, count) -> System.out.println("replay:   unsupported " + count + "x: " + reason));
         summary.failures.forEach(failure -> System.out.println("replay:   FAILING " + failure));
-        writeSummary(reports, line, summary);
+        final String timing = "replay: transformMs engine=" + engine + " " + summary.timingText();
+        System.out.println(timing);
+        summary.timing.add(timing);
+        try {
+            if (threads > 0 && !record) {
+                replayer.concurrently(threads, summary.timing);
+            }
+        } finally {
+            writeSummary(reports, line, summary);
+        }
 
         if (!record) {
             assertEquals(0, summary.failing, "replay failures (diffs under " + reports + "): " + summary.failures);
@@ -136,10 +177,23 @@ class TransformCorpusReplayTest {
 
     enum Outcome { IDENTICAL, ACCEPTED, FAILING, UNSUPPORTED, RECORDED }
 
-    record Result(Outcome outcome, boolean byteIdentical, String detail) {
+    record Result(Outcome outcome, boolean byteIdentical, String detail, long engineNanos) {
+        Result(Outcome outcome, boolean byteIdentical, String detail) {
+            this(outcome, byteIdentical, detail, -1);
+        }
+
         static Result unsupported(String reason) {
             return new Result(Outcome.UNSUPPORTED, false, reason);
         }
+
+        Result timed(long nanos) {
+            return new Result(outcome, byteIdentical, detail, nanos);
+        }
+    }
+
+    /** A case the engine transformed during the replay, for the concurrent pass: what it needs, and what it gave. */
+    record Job(String name, Patch patch, Map<String, String> properties, EnumMap<PatchShaderType, String> inputs,
+               Map<PatchShaderType, String> output) {
     }
 
     /** Replays one case at a time, restoring the global state each case needs. */
@@ -149,6 +203,7 @@ class TransformCorpusReplayTest {
         private final List<AcceptedDiff> accepted;
         private final Path reports;
         private String capabilityState;
+        private final List<Job> jobs = new ArrayList<>();
 
         Replayer(String engine, boolean record, List<AcceptedDiff> accepted, Path reports) {
             this.engine = engine;
@@ -195,6 +250,7 @@ class TransformCorpusReplayTest {
 
             final boolean recordedError = "error".equals(p.get("outcome"));
             Map<PatchShaderType, String> output;
+            final long start = System.nanoTime();
             try {
                 output = runEngine(patch, inputs, parameters);
             } catch (UnsupportedOperationException e) {
@@ -207,16 +263,21 @@ class TransformCorpusReplayTest {
             } finally {
                 AdaptiveShadowBoundsStats.activateForTesting(-1);
             }
-            if (recordedError) {
-                return new Result(Outcome.FAILING, false, name + ": recorded an error (" + p.get("error")
-                    + ") but the replay succeeded");
-            }
+            final long nanos = System.nanoTime() - start;
 
             final Map<String, String> actual = new LinkedHashMap<>();
             if (output != null) {
                 output.forEach((stage, text) -> actual.put(TransformCorpusRecorder.stageName(stage), text));
             }
-            return compare(name, caseDir, actual);
+            if (recordedError && !record) {
+                return outcomeDiffers(name, "recorded the error '" + p.get("error") + "', the replay succeeded", actual)
+                    .timed(nanos);
+            }
+            final Result result = compare(name, caseDir, actual).timed(nanos);
+            if (output != null && (result.outcome() == Outcome.IDENTICAL || result.outcome() == Outcome.ACCEPTED)) {
+                jobs.add(new Job(name, patch, p, inputs, output));
+            }
+            return result;
         }
 
         private Result replayCompat(String name, Path caseDir, Map<String, String> p) throws IOException {
@@ -239,18 +300,105 @@ class TransformCorpusReplayTest {
         }
 
         /** The engine threw {@code e}; the case recorded {@code recordedError} (null when it succeeded). */
-        private Result engineFailed(String name, String recordedError, RuntimeException e) {
+        private Result engineFailed(String name, String recordedError, RuntimeException e) throws IOException {
             final String error = e.getClass().getName() + ": " + e.getMessage();
             if (error.equals(recordedError)) {
                 return new Result(Outcome.IDENTICAL, true, name + ": failed as recorded");
             }
             if (recordedError != null) {
-                return new Result(Outcome.FAILING, false, name + ": recorded the error '" + recordedError
-                    + "', the replay threw '" + error + "'");
+                return outcomeDiffers(name, "recorded the error '" + recordedError + "', the replay threw '" + error + "'",
+                    Map.of());
             }
             final String frames = Arrays.stream(e.getStackTrace()).limit(4).map(String::valueOf)
                 .collect(Collectors.joining(" < "));
             return new Result(Outcome.FAILING, false, name + ": the engine threw " + e + " at " + frames);
+        }
+
+        /**
+         * The case recorded {@code outcome=error} and the replay did not throw the same: writes
+         * {@code <case>.error.diff} (the difference and the replay's output, if any) and looks for an
+         * {@code accepted.txt} entry with the stage {@code error}.
+         */
+        private Result outcomeDiffers(String name, String detail, Map<String, String> actual) throws IOException {
+            final StringBuilder report = new StringBuilder("# " + name + " error: " + detail + "\n");
+            actual.forEach((stage, text) -> report.append("# ").append(engine).append(' ').append(stage.isEmpty() ? "compat" : stage)
+                .append(" output:\n").append(text).append(text.endsWith("\n") ? "" : "\n"));
+            Files.createDirectories(reports);
+            Files.writeString(reports.resolve(name.replace('/', '_') + ".error.diff"), report, StandardCharsets.UTF_8);
+            final boolean tolerated = accepted.stream().anyMatch(a -> a.matches(name, "error"));
+            return new Result(tolerated ? Outcome.ACCEPTED : Outcome.FAILING, false, name + " [error]: " + detail);
+        }
+
+        /**
+         * Transforms every case the replay transformed successfully again: first once more on this thread (warm), then
+         * all at once on {@code threads} threads, grouped by the global state they need (capability, hoisting, the
+         * adaptive-shadow-bounds instrumentation), which is set once per group. Every concurrent output must equal the
+         * replayed one; a difference fails the test. The summary lines are printed and added to {@code summaryLines}.
+         */
+        void concurrently(int threads, List<String> summaryLines) {
+            final Map<String, List<Job>> groups = new LinkedHashMap<>();
+            for (Job job : jobs) {
+                final Map<String, String> p = job.properties();
+                final String key = p.getOrDefault("glsl.maxVersion", "460") + "|" + p.getOrDefault("glsl.ssbo", "false") + "|"
+                    + p.getOrDefault("glsl.imageLoadStore", "false") + "|" + p.getOrDefault("versionHoisting", "none") + "|"
+                    + p.getOrDefault("shadowBounds.instrumentation", "false") + "|" + p.getOrDefault("shadowBounds.binding", "-1");
+                groups.computeIfAbsent(key, k -> new ArrayList<>()).add(job);
+            }
+            long sequentialNanos = 0;
+            long concurrentWallNanos = 0;
+            final java.util.concurrent.atomic.AtomicLong concurrentCallNanos = new java.util.concurrent.atomic.AtomicLong();
+            final List<String> mismatches = java.util.Collections.synchronizedList(new ArrayList<>());
+            for (List<Job> group : groups.values()) {
+                final Map<String, String> p = group.getFirst().properties();
+                assertEquals(null, restoreCapability(p), "concurrent pass: capability");
+                final boolean instrumentation = Boolean.parseBoolean(p.getOrDefault("shadowBounds.instrumentation", "false"));
+                AdaptiveShadowBoundsStats.activateForTesting(instrumentation
+                    ? Integer.parseInt(p.getOrDefault("shadowBounds.binding", "-1")) : -1);
+                try {
+                    for (Job job : group) {
+                        final long start = System.nanoTime();
+                        runEngine(job.patch(), job.inputs(), parameters(job.patch(), job.properties()));
+                        sequentialNanos += System.nanoTime() - start;
+                    }
+                    final java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+                    try (java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads)) {
+                        final List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+                        for (Job job : group) {
+                            futures.add(pool.submit(() -> {
+                                go.await();
+                                final long start = System.nanoTime();
+                                final Map<PatchShaderType, String> output = runEngine(job.patch(), job.inputs(),
+                                    parameters(job.patch(), job.properties()));
+                                concurrentCallNanos.addAndGet(System.nanoTime() - start);
+                                if (!job.output().equals(output)) {
+                                    mismatches.add(job.name());
+                                }
+                                return null;
+                            }));
+                        }
+                        final long start = System.nanoTime();
+                        go.countDown();
+                        for (java.util.concurrent.Future<?> future : futures) {
+                            try {
+                                future.get(120, java.util.concurrent.TimeUnit.SECONDS);
+                            } catch (Exception e) {
+                                mismatches.add("thrown: " + e);
+                            }
+                        }
+                        concurrentWallNanos += System.nanoTime() - start;
+                    }
+                } finally {
+                    AdaptiveShadowBoundsStats.activateForTesting(-1);
+                }
+            }
+            final List<String> lines = new ArrayList<>();
+            lines.add(String.format(Locale.ROOT, "replay: concurrent engine=%s threads=%d cases=%d groups=%d sequentialMs=%.1f"
+                    + " concurrentWallMs=%.1f concurrentCallMs=%.1f differing=%d", engine, threads, jobs.size(), groups.size(),
+                sequentialNanos / 1e6, concurrentWallNanos / 1e6, concurrentCallNanos.get() / 1e6, mismatches.size()));
+            mismatches.forEach(m -> lines.add("replay:   CONCURRENT DIFFERS " + m));
+            summaryLines.addAll(lines);
+            lines.forEach(System.out::println);
+            assertTrue(mismatches.isEmpty(), "concurrent replay differs from the sequential one: " + mismatches);
         }
 
         /**
@@ -398,6 +546,13 @@ class TransformCorpusReplayTest {
         return stage.isEmpty() ? "out." + engine + ".glsl" : "out." + engine + "." + stage + ".glsl";
     }
 
+    /**
+     * The stages an accepted.txt entry may name: the Iris stages, {@code compat} (GLSM's cases), {@code error} (a case
+     * recorded as an error whose replay succeeded or threw something else) and {@code *} (any of them).
+     */
+    static final Set<String> ACCEPTED_STAGES = Set.of("vertex", "geometry", "tess_control", "tess_eval", "fragment",
+        "compute", "compat", "error", "*");
+
     /** One line of accepted.txt: {@code <case glob> | <stage> | <reason>}. */
     record AcceptedDiff(Pattern caseGlob, String stage, String reason) {
         boolean matches(String caseName, String stageName) {
@@ -408,23 +563,33 @@ class TransformCorpusReplayTest {
     }
 
     static List<AcceptedDiff> readAccepted() throws IOException {
-        final List<AcceptedDiff> entries = new ArrayList<>();
         try (InputStream in = TransformCorpusReplayTest.class.getResourceAsStream(ACCEPTED_RESOURCE)) {
             if (in == null) {
                 fail("missing test resource " + ACCEPTED_RESOURCE);
             }
-            final String[] lines = new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\\r?\\n");
-            for (int i = 0; i < lines.length; i++) {
-                final String line = lines[i].strip();
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue;
-                }
-                final String[] parts = line.split("\\|", 3);
-                if (parts.length < 3 || parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank()) {
-                    fail(ACCEPTED_RESOURCE + ":" + (i + 1) + ": expected '<case glob> | <stage> | <reason>', got: " + line);
-                }
-                entries.add(new AcceptedDiff(glob(parts[0].strip()), parts[1].strip(), parts[2].strip()));
+            return parseAccepted(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    /** The entries of an accepted.txt text; a malformed line (no reason, an unknown stage) fails the test. */
+    static List<AcceptedDiff> parseAccepted(String text) {
+        final List<AcceptedDiff> entries = new ArrayList<>();
+        final String[] lines = text.split("\\r?\\n");
+        for (int i = 0; i < lines.length; i++) {
+            final String line = lines[i].strip();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
             }
+            final String[] parts = line.split("\\|", 3);
+            if (parts.length < 3 || parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank()) {
+                fail(ACCEPTED_RESOURCE + ":" + (i + 1) + ": expected '<case glob> | <stage> | <reason>', got: " + line);
+            }
+            final String stage = parts[1].strip();
+            if (!ACCEPTED_STAGES.contains(stage)) {
+                fail(ACCEPTED_RESOURCE + ":" + (i + 1) + ": unknown stage '" + stage + "' (one of " + ACCEPTED_STAGES
+                    + "), in: " + line);
+            }
+            entries.add(new AcceptedDiff(glob(parts[0].strip()), stage, parts[2].strip()));
         }
         return entries;
     }
@@ -476,10 +641,22 @@ class TransformCorpusReplayTest {
         summary.unsupportedReasons.forEach((reason, count) -> out.append("unsupported ").append(count).append("x: ")
             .append(reason).append('\n'));
         summary.failures.forEach(failure -> out.append("FAILING ").append(failure).append('\n'));
+        summary.timing.forEach(timing -> out.append(timing).append('\n'));
         Files.writeString(reports.resolve("summary.txt"), out.toString(), StandardCharsets.UTF_8);
     }
 
     static final class Summary {
+        /** The engine time per patch kind: {@code total=<ms> COMPOSITE=<ms>/<calls> ...}. */
+        String timingText() {
+            long all = 0;
+            final StringBuilder text = new StringBuilder();
+            for (Map.Entry<String, long[]> entry : nanosPerPatch.entrySet()) {
+                all += entry.getValue()[0];
+                text.append(String.format(Locale.ROOT, " %s=%.1f/%d", entry.getKey(), entry.getValue()[0] / 1e6, entry.getValue()[1]));
+            }
+            return String.format(Locale.ROOT, "total=%.1f", all / 1e6) + text;
+        }
+
         int cases;
         int identical;
         int byteIdentical;
@@ -489,11 +666,18 @@ class TransformCorpusReplayTest {
         int recorded;
         int filtered;
         final Map<String, Map<Outcome, Integer>> perPatch = new TreeMap<>();
+        final Map<String, long[]> nanosPerPatch = new TreeMap<>();
+        final List<String> timing = new ArrayList<>();
         final Map<String, Integer> unsupportedReasons = new TreeMap<>();
         final List<String> failures = new ArrayList<>();
 
         void add(String patch, Result result) {
             cases++;
+            if (result.engineNanos() >= 0) {
+                final long[] total = nanosPerPatch.computeIfAbsent(patch, k -> new long[2]);
+                total[0] += result.engineNanos();
+                total[1]++;
+            }
             perPatch.computeIfAbsent(patch, k -> new EnumMap<>(Outcome.class)).merge(result.outcome(), 1, Integer::sum);
             switch (result.outcome()) {
                 case IDENTICAL -> {

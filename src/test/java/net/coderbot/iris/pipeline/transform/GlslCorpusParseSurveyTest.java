@@ -69,7 +69,7 @@ class GlslCorpusParseSurveyTest {
         }
         assertTrue(!cases.isEmpty(), "no " + TransformCorpus.CASE_FILE + " under " + corpus);
 
-        final Method requiredVersion = ShaderTransformer.class.getDeclaredMethod("getRequiredVersion", String.class, int.class);
+        final Method requiredVersion = VersionNegotiation.class.getDeclaredMethod("getRequiredVersion", String.class, int.class);
         requiredVersion.setAccessible(true);
 
         final Tally raw = new Tally();

@@ -5,7 +5,20 @@
 #
 # <case glob> matches the case's path under the corpus directory (for example bsl/00012-COMPOSITE-1a2b3c4d) or its
 # directory name alone; '*' matches within one path segment, '**' across segments, '?' one character. <stage> is
-# vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases) or '*'. Every entry
+# vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases), error (a case recorded
+# with outcome=error, TauMC threw, whose replay succeeds or throws something else; the replay's output is written to
+# build/reports/transform-replay/<case>.error.diff) or '*' (any of them); any other stage fails the test. Every entry
 # needs a reason a reader can check; an entry without one fails the test.
 #
 # Step 2 (2026-09-28): empty. The TauMC engine replays its own recordings identically.
+
+# Step 5 (2026-09-28): COMPOSITE and COMPUTE on the glsl-transformer engine. The 36 COMPOSITE pack cases and the five
+# COMPOSITE/COMPUTE mini-corpus cases that TauMC transformed replay identically; no COMPOSITE or COMPUTE input has an
+# adaptive-shadow-bounds PCF helper, so nothing here is "S7 pending".
+
+# TauMC threw java.lang.IndexOutOfBoundsException: Index: -1, Size: 23 from Transformer.injectVariable in
+# transformGrouped: the vertex shader has no ftransform() call, so removeUnusedFunctions removed the injected
+# iris_ftransform, which was TauMC's variable anchor. ShaderAst fixes a removed anchor again (S3/S4 deviation) and the
+# new engine declares and initializes the missing out (out vec3 viewDir; viewDir = vec3(0.0f);), valid GLSL, checked
+# by AstShaderTransformerTest.theGroupedCaseTauMCCouldNotTransform.
+transform-grouped-330-undeclared | error | old engine threw (removed injection anchor); the new engine transforms it, checked by AstShaderTransformerTest

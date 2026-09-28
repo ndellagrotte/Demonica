@@ -3,10 +3,7 @@ package net.coderbot.iris.pipeline.transform;
 import com.google.common.base.Stopwatch;
 import com.gtnewhorizons.angelica.glsm.CompatShaderTransformer;
 import com.gtnewhorizons.angelica.glsm.GlslTransformUtils;
-import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import net.coderbot.iris.celeritas.vertices.ExtendedChunkVertexType;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
@@ -22,12 +19,11 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ShaderTransformer {
-    private static final Pattern versionPattern = Pattern.compile("#version\\s+(\\d+)(?:\\s+(\\w+))?");
+    private static final Pattern versionPattern = VersionNegotiation.VERSION_PATTERN;
 
     // Track logged negotiations to avoid spam - cleared on shader pack reload
     private static final Set<String> loggedNegotiations = new HashSet<>();
@@ -37,131 +33,19 @@ public class ShaderTransformer {
     }
 
 
-    private record VersionRequirement(String keyword, int minVersion, BooleanSupplier supported) {}
-
-    // Sorted descending by minVersion for early exit in getRequiredVersion
-
-    private static final VersionRequirement[] VERSION_REQUIREMENTS = {
-        new VersionRequirement("std430", 430, RenderSystem::supportsSSBO),
-        new VersionRequirement("iimage", 420, RenderSystem::supportsImageLoadStore),
-        new VersionRequirement("uimage", 420, RenderSystem::supportsImageLoadStore),
-        new VersionRequirement("imageLoad", 420, RenderSystem::supportsImageLoadStore),
-        new VersionRequirement("imageStore", 420, RenderSystem::supportsImageLoadStore),
-
-        new VersionRequirement("uint", 130, () -> RenderSystem.getMaxGlslVersion() >= 130),
-        new VersionRequirement("uvec2", 130, () -> RenderSystem.getMaxGlslVersion() >= 130),
-        new VersionRequirement("uvec3", 130, () -> RenderSystem.getMaxGlslVersion() >= 130),
-        new VersionRequirement("uvec4", 130, () -> RenderSystem.getMaxGlslVersion() >= 130),
-        new VersionRequirement("flat", 130, () -> RenderSystem.getMaxGlslVersion() >= 130),
-    };
-
-
-    record NegotiationResult(int targetVersion, String profile, String error) {
-        static NegotiationResult error(String message) {
-            return new NegotiationResult(-1, "", message);
-        }
-
-        static NegotiationResult noop(int version, String profile) {
-            return new NegotiationResult(version, profile, null);
-        }
-
-        boolean isError() { return error != null; }
-    }
-
-    private static int getStageMinimumVersion(PatchShaderType stage) {
-        return switch (stage) {
-            case COMPUTE -> 330;
-            case TESS_CONTROL, TESS_EVAL -> 400;
-            case GEOMETRY -> 330;
-            default -> 330;
-        };
-    }
-
-    static NegotiationResult negotiateVersion(int effectiveVersion, PatchShaderType stage) {
-        final int maxGlsl = RenderSystem.getMaxGlslVersion();
-
-        if (effectiveVersion <= maxGlsl) {
-            return NegotiationResult.noop(effectiveVersion, effectiveVersion >= 150 ? "core" : "");
-        }
-
-        final int stageMin = getStageMinimumVersion(stage);
-        if (maxGlsl < stageMin) {
-            return NegotiationResult.error("Hardware GLSL " + maxGlsl + " below stage minimum " + stageMin + " for " + stage.name());
-        }
-
-        return NegotiationResult.error("Shader requires GLSL " + effectiveVersion + " but hardware max is " + maxGlsl);
-    }
-
-    private static Pattern hoistPattern;
-    private static Object2IntMap<String> keywordToVersion;
-    private static int maxSupportedHoistVersion;
-
+    /** {@link VersionNegotiation#init()}; kept here so that {@code Iris} and the tests that call it are unchanged. */
     public static void init() {
-        final StringBuilder patternBuilder = new StringBuilder();
-        final Object2IntOpenHashMap<String> versionMap = new Object2IntOpenHashMap<>();
-        int maxVersion = 0;
-
-        for (VersionRequirement req : VERSION_REQUIREMENTS) {
-            if (req.supported.getAsBoolean()) {
-                if (!patternBuilder.isEmpty()) patternBuilder.append('|');
-
-                patternBuilder.append("\\b").append(Pattern.quote(req.keyword)).append("\\b");
-                versionMap.put(req.keyword, req.minVersion);
-                maxVersion = Math.max(maxVersion, req.minVersion);
-            }
-        }
-
-        if (!patternBuilder.isEmpty()) {
-            hoistPattern = Pattern.compile(patternBuilder.toString());
-            keywordToVersion = versionMap;
-        }
-        maxSupportedHoistVersion = maxVersion;
-
-        Iris.logger.info("Shader version hoisting: {} feature(s) GLSL {}", versionMap.size(), maxVersion > 0 ? maxVersion : "N/A");
+        VersionNegotiation.init();
     }
 
-    /**
-     * The keywords that currently hoist a shader's version, in declaration order, or {@code none} before
-     * {@link #init()} (Iris's transform warm-up runs first) or when the hardware supports none of them. Recorded with
-     * each transform corpus case, because it changes the output.
-     */
+    /** {@link VersionNegotiation#versionHoistingState()}; the corpus recorder and replayer call it here. */
     public static String versionHoistingState() {
-        final Object2IntMap<String> keywords = keywordToVersion;
-        if (hoistPattern == null || keywords == null) {
-            return "none";
-        }
-        final StringBuilder state = new StringBuilder();
-        for (VersionRequirement req : VERSION_REQUIREMENTS) {
-            if (keywords.containsKey(req.keyword)) {
-                if (!state.isEmpty()) state.append(',');
-                state.append(req.keyword);
-            }
-        }
-        return state.toString();
+        return VersionNegotiation.versionHoistingState();
     }
 
     /** Returns version hoisting to its state before {@link #init()}, for replaying a case recorded then. */
     static void resetVersionHoistingForTesting() {
-        hoistPattern = null;
-        keywordToVersion = null;
-        maxSupportedHoistVersion = 0;
-    }
-
-    private static int getRequiredVersion(String shaderSource, int declaredVersion) {
-        if (hoistPattern == null || declaredVersion >= maxSupportedHoistVersion) {
-            return declaredVersion;
-        }
-
-        final Matcher m = hoistPattern.matcher(shaderSource);
-        int required = declaredVersion;
-        while (m.find()) {
-            final int ver = keywordToVersion.getInt(m.group());
-            if (ver > required) {
-                required = ver;
-                if (required >= maxSupportedHoistVersion) break;
-            }
-        }
-        return required;
+        VersionNegotiation.resetForTesting();
     }
 
     public static <P extends Parameters> Map<PatchShaderType, String> transform(String vertex, String geometry, String tessControl, String tessEval, String fragment, P parameters) {
@@ -210,7 +94,7 @@ public class ShaderTransformer {
         int versionInt = Integer.parseInt(versionString);
 
         // Check if shader uses features requiring a higher GLSL version
-        final int requiredVersion = getRequiredVersion(compute, versionInt);
+        final int requiredVersion = VersionNegotiation.getRequiredVersion(compute, versionInt);
         if (requiredVersion > versionInt) {
             Iris.logger.debug("Compute shader requires GLSL {} for detected features, hoisting from {}", requiredVersion, versionInt);
             versionInt = requiredVersion;
@@ -224,7 +108,7 @@ public class ShaderTransformer {
         }
 
         // Negotiate version downgrade if needed
-        final NegotiationResult negotiation = negotiateVersion(versionInt, PatchShaderType.COMPUTE);
+        final VersionNegotiation.NegotiationResult negotiation = VersionNegotiation.negotiateVersion(versionInt, PatchShaderType.COMPUTE);
         if (negotiation.isError()) {
             throw new RuntimeException("Compute shader version negotiation failed: " + negotiation.error());
         }
@@ -296,7 +180,7 @@ public class ShaderTransformer {
                 && AdaptiveShadowBoundsTransformer.mayInjectRuntimeStats(input)) {
                 scanSource += "\n" + AdaptiveShadowBoundsStats.shaderVersionMarker();
             }
-            final int requiredVersion = getRequiredVersion(scanSource, versionInt);
+            final int requiredVersion = VersionNegotiation.getRequiredVersion(scanSource, versionInt);
             if (requiredVersion > versionInt) {
                 Iris.logger.debug("Shader requires GLSL {} for detected features, hoisting from {}", requiredVersion, versionInt);
                 versionInt = requiredVersion;
@@ -304,14 +188,14 @@ public class ShaderTransformer {
             }
 
             // Ensure minimum version for this stage (330 for most, 400 for tessellation)
-            final int stageMin = getStageMinimumVersion(type);
+            final int stageMin = VersionNegotiation.getStageMinimumVersion(type);
             if (versionInt < stageMin) {
                 versionInt = stageMin;
                 versionString = String.valueOf(versionInt);
             }
 
             // Negotiate version if needed (error if hardware can't support)
-            final NegotiationResult negotiation = negotiateVersion(versionInt, type);
+            final VersionNegotiation.NegotiationResult negotiation = VersionNegotiation.negotiateVersion(versionInt, type);
             if (negotiation.isError()) {
                 throw new RuntimeException("Shader version negotiation failed for " + type.name() + ": " + negotiation.error());
             }
@@ -504,7 +388,8 @@ public class ShaderTransformer {
         }
     }
 
-    private static String computeCeleritasHeader() {
+    /** Celeritas's {@code chunk_vertex.glsl}, the text header of CELERITAS_TERRAIN vertex shaders; both engines use it. */
+    static String computeCeleritasHeader() {
         final ShaderConstants constants = ShaderConstants.builder()
             .add("VERT_POS_SCALE", "1.0")
             .add("VERT_POS_OFFSET", "0.0")

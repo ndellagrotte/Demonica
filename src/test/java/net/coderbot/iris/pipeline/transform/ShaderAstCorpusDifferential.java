@@ -203,7 +203,7 @@ final class ShaderAstCorpusDifferential {
             cases = files.filter(p -> p.getFileName().toString().equals(TransformCorpus.CASE_FILE))
                 .map(Path::getParent).sorted().collect(Collectors.toList());
         }
-        final Method requiredVersion = ShaderTransformer.class.getDeclaredMethod("getRequiredVersion", String.class, int.class);
+        final Method requiredVersion = VersionNegotiation.class.getDeclaredMethod("getRequiredVersion", String.class, int.class);
         requiredVersion.setAccessible(true);
         final Map<String, String> byText = new LinkedHashMap<>();
         for (Path caseDir : cases) {
