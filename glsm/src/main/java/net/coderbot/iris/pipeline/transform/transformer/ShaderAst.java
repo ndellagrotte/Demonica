@@ -614,11 +614,11 @@ public final class ShaderAst {
     }
 
     /**
-     * The type named by the first declaration (in document order) that declares a variable {@code name}: a global
-     * or local declarator, not a parameter or a struct member. TauMC {@code findType} returned the type keyword's
-     * lexer token, 0 when nothing matched; this returns a {@link DeclaredType}, or null when nothing matched. Like
-     * TauMC it skips a declaration whose type is a struct and looks further. An array declaration reports its
-     * element type.
+     * TauMC {@code findType}: the type named by the first declaration (in document order) that declares a variable
+     * {@code name}, a global or local declarator, not a parameter or a struct member. TauMC returned the type
+     * keyword's lexer token, 0 when nothing matched; this returns a {@link DeclaredType}, or null when nothing
+     * matched. Like TauMC it skips a declaration whose type is a struct and looks further. An array declaration
+     * reports its element type.
      */
     public DeclaredType findType(String name) {
         for (DeclarationMember member : declaratorsInDocumentOrder(name)) {
