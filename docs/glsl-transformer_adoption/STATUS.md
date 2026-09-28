@@ -7,7 +7,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | Step | Status | Commit | Date | Report |
 |---|---|---|---|---|
 | S1 build wiring, license, spike | done | `4104a798`, `f7232573`, `114feb14` (report); verification fix `86e62ef7` | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
-| S2 corpus recorder, replayer, baselines | not started | | | |
+| S2 corpus recorder, replayer, baselines | done | `ebb9d89b`, `c211a5f6`, and the report commit | 2026-09-28 | [S02-corpus.md](reports/S02-corpus.md) |
 | S3 `ShaderAst` core verbs | not started | | | |
 | S4 `ShaderAst` structural verbs | not started | | | |
 | S5 orchestrator, COMPOSITE and COMPUTE | not started | | | |
@@ -31,3 +31,16 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 - Reference parser configuration: `src/test/java/net/coderbot/iris/pipeline/transform/GlslTransformerSpikeTest.java`.
 - `Iris.logger` (`IrisLogging`) has no `warn(String, Object...)`: `Iris.logger.warn("... {}", x)` logs
   `[Ljava.lang.Object;@...`. Concatenate warnings, or use `info`/`error`/`debug`, which have the overload.
+- Comparing GLSL: `src/test/java/net/coderbot/iris/pipeline/transform/GlslTokens.java` (public; `of`, `tokens`,
+  `text`, `contains`, `count`, `diff`). Floats compare by value, so `0.0` equals glsl-transformer's `0.0f`. No test
+  compares raw transformed strings.
+- Transform corpus: recorded with `-Ddemonica.glsl.corpus=<dir>` (`glsm/.../debug/TransformCorpus`,
+  `transform/corpus/TransformCorpusRecorder`); the pack corpora are local, `run/transform-corpus/{bsl,complementary,
+  vanilla,compat}/` (424 cases), re-recorded with `scripts/glsl-corpus/capture.sh <name>`; the committed mini-corpus
+  is `src/test/resources/transform-corpus/` (16 cases). Replay:
+  `./gradlew :test --tests '*TransformCorpusReplayTest' -PglslCorpusDir=<abs> -PglslReplayEngine=taumc|douira
+  [-PglslReplayPatches=...,COMPAT]`, filtered with `grep -E 'replay|Tests run|FAILED|BUILD'`; tolerated differences in
+  `src/test/resources/transform-replay/accepted.txt`. At S2, `taumc` replays all of it identically.
+- Baselines (S2): frames in `run/baseline-screenshots/corpus-*.png`; `transformMs` log sums bsl 4,734.4 ms,
+  complementary 13,151.2 ms, vanilla 5,703.3 ms (`run/corpus-<pack>.out`, `-Ddemonica.glsmPerfDebug=true`, recorder on,
+  default `demonica.openglProfile`).
