@@ -22,6 +22,10 @@ import java.util.List;
  * <p>Cleanroom's lwjglxx shim reads its OpenGL version and profile from ForgeEarlyConfig but never sets
  * {@code GLFW_OPENGL_FORWARD_COMPAT}. GLFW requires that hint on macOS for OpenGL 3.2+ core contexts,
  * so without it a requested 3.3/4.1 context can fall back to a legacy 2.1 context.</p>
+ *
+ * <p>The hint is given only while Demonica requests a core context (the system property
+ * {@code demonica.gl.forwardCompat}, set by {@code CoreProfileContextAttributes}). GLFW rejects a forward-compatible
+ * 2.x request, and a compatibility request on macOS degrades to exactly that.</p>
  */
 public final class MacDisplayForwardCompatTransformer implements IClassTransformer {
     private static final List<String> TARGET_CLASSES = List.of(
@@ -30,6 +34,8 @@ public final class MacDisplayForwardCompatTransformer implements IClassTransform
     );
     private static final int GLFW_OPENGL_FORWARD_COMPAT = 139270;
     private static final int LWJGL_PLATFORM_MACOSX = 2;
+    // CoreProfileContextAttributes.FORWARD_COMPAT_PROPERTY; that class loads Forge classes, so it is not referenced.
+    private static final String FORWARD_COMPAT_PROPERTY = "demonica.gl.forwardCompat";
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
@@ -85,6 +91,16 @@ public final class MacDisplayForwardCompatTransformer implements IClassTransform
     private static InsnList forwardCompatibleHint(String glfwOwner) {
         LabelNode skip = new LabelNode();
         InsnList instructions = new InsnList();
+        // java.lang is visible from any class loader, so the check needs no Demonica class.
+        instructions.add(new LdcInsnNode(FORWARD_COMPAT_PROPERTY));
+        instructions.add(new MethodInsnNode(
+            Opcodes.INVOKESTATIC,
+            "java/lang/Boolean",
+            "getBoolean",
+            "(Ljava/lang/String;)Z",
+            false
+        ));
+        instructions.add(new JumpInsnNode(Opcodes.IFEQ, skip));
         instructions.add(new MethodInsnNode(
             Opcodes.INVOKESTATIC,
             "org/lwjgl/LWJGLUtil",

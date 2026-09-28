@@ -34,6 +34,7 @@ class DemonicaOptionsTest {
         assertTrue(options.enableDebugTab);
         assertFalse(options.performance.useFastBlockRenderer, "Actinium's fast renderer had gates Demonica has not ported");
         assertEquals(DemonicaOptions.StreamingUploadStrategy.BUFFER_DATA, options.advanced.streamingUploadStrategy);
+        assertEquals(OpenGlProfile.AUTO, options.advanced.openglProfile, "Actinium had no profile setting");
         assertTrue(options.debug.enableGlDebug, "renamed from enable_actinium_gl_debug");
         assertTrue(options.debug.enablePerfDebug, "renamed from enable_actinium_perf_debug");
         assertTrue(options.debug.enableRedirectorDebug);
@@ -58,20 +59,25 @@ class DemonicaOptionsTest {
         assertFalse(options.enableDebugTab);
         assertFalse(options.performance.useFastBlockRenderer);
         assertEquals(DemonicaOptions.StreamingUploadStrategy.MAP_BUFFER_RANGE, options.advanced.streamingUploadStrategy);
+        assertEquals(OpenGlProfile.AUTO, options.advanced.openglProfile);
         assertTrue(Files.exists(dir.resolve(DemonicaOptions.FILE_NAME)));
     }
 
     @Test
-    void savedChangesAreReadBack(@TempDir Path dir) {
+    void savedChangesAreReadBack(@TempDir Path dir) throws IOException {
         DemonicaOptions options = DemonicaOptions.load(dir);
         options.performance.useFastBlockRenderer = true;
         options.advanced.streamingUploadStrategy = DemonicaOptions.StreamingUploadStrategy.BUFFER_SUB_DATA;
+        options.advanced.openglProfile = OpenGlProfile.CORE;
         options.save();
 
         DemonicaOptions reloaded = DemonicaOptions.load(dir);
 
         assertTrue(reloaded.performance.useFastBlockRenderer);
         assertEquals(DemonicaOptions.StreamingUploadStrategy.BUFFER_SUB_DATA, reloaded.advanced.streamingUploadStrategy);
+        assertEquals(OpenGlProfile.CORE, reloaded.advanced.openglProfile);
+        // DemonicaStartupConfig reads this key from the raw JSON before the display exists.
+        assertTrue(Files.readString(dir.resolve(DemonicaOptions.FILE_NAME)).contains("\"opengl_profile\": \"CORE\""));
     }
 
     @Test

@@ -361,6 +361,95 @@ on desktop; `com.mitchej123.lwjgl` minus an unused `GL44`; the GLU ports;
 `FeedbackManager`, `QuadConverter` and `dsa/`. The mod's Java went from
 103,651 to 99,632 lines on this branch, counting 3.9's deletions.
 
+**Status (2026-09-28, `feat/compat-profile`).** The core profile is an
+option: `advanced.opengl_profile` (Video Settings → Advanced → OpenGL Profile,
+or `-Ddemonica.openglProfile`), with Auto, Compatibility and Core. Auto is
+Cleanroom's compatibility context on Windows and Linux and a core context on
+macOS, whose compatibility profile stops at OpenGL 2.1. The display mixin, now
+`MixinMinecraftDisplay`, has two modes. On the compatibility profile
+Cleanroom's own `createDisplay` runs untouched and creates the context that
+`forge_early.cfg` asks for (4.6 compatibility by default); Demonica only raises
+the file's debug flag for the LWJGL debug option beforehand and lowers it
+afterwards, and a TAIL check requires OpenGL 3.3 and records the profile that
+`GL_CONTEXT_PROFILE_MASK` reports (in the log and in the diagnostics line). On
+the core profile the old version ladder runs as before. `forge_early.cfg` is
+Cleanroom's own again: Demonica writes it only on the core path, to put back
+what LWJGLXX synced, and after a debug-context run. The macOS forward-compatible
+hint is gated on a system property that only the core path sets, since GLFW
+rejects it on the 2.1 request a compatibility context degrades to.
+
+E's premise was wrong in these places:
+- Nothing in GLSM goes cold on a compatibility context. The only profile
+  branch is in `RenderSystem` (`glsm/.../RenderSystem.java:141-152`), and it
+  enables `ShaderManager`, the FFP emulation, on every context; only the log
+  line differs ("GL 3.3 core profile detected" or "Enabling FFP shader
+  emulation for streaming tessellator rendering"). `Lwjgl3GLRenderBackend`
+  calls only `GL11C` to `GL46C` entry points, and `RenderBackend` has no
+  fixed-function methods. Immediate mode, display lists, the matrix stacks,
+  fog, lighting, alpha test, texgen and client arrays are emulated
+  unconditionally (`GLStateManager`, `DisplayListManager`,
+  `ImmediateModeRecorder`, `ffp/`), so they never reach the driver on either
+  profile.
+- The end-portal replacement renderer is not a core-profile fact.
+  `EndPortalRenderPolicy` picks it for every portal that has a world, on
+  either profile, and for every call while a shader pack is active, because
+  an Iris gbuffers program owns the draw and no texgen applies under it. The
+  legacy path it leaves to world-less calls runs through GLSM's FFP, which
+  does emulate eye-linear texgen (texture unit 0). 3.2's "which core profile
+  lacks" is true of the driver and irrelevant here.
+- The compat entries attributed to the core profile are GLSM or lwjglxx
+  facts. Old Research's client arrays are emulated by GLSM on both profiles.
+  VoxelMap gets no alpha bits from lwjglxx's window either way, and its
+  `EXT_framebuffer_object` path and `GL_GENERATE_MIPMAP` go through GLSM's
+  core-only backend. None of them changes.
+- So 4.4's "another 10,000 become cold code" and E's "all become dead on the
+  default path" were wrong: 0 lines became cold.
+
+What the compatibility default does change: the driver context is Cleanroom's
+own, the one every other Cleanroom mod runs on and the prerequisite for any
+Iris-style GL layer; a legacy GL call from a class the redirector does not
+rewrite executes instead of hitting a missing entry point; and Demonica no
+longer rewrites `forge_early.cfg` on every start. GLSM's
+`guardUnsupportedFFP` (`glPixelTransfer`, `glRasterPos` and the like) still
+throws, since GLSM does not pass those calls through. macOS is unchanged.
+
+What 4.4's measurement needs instead: a pass-through mode in GLSM (which is the
+Iris-style adapter itself), or a static inventory of the `GLStateManager`
+surface that `IrisGLSMBridge` and the Iris tree call. Neither is done here.
+
+Verified: `./gradlew build` (546 tests in the root project,
+`verifyDistributedJar`, `verifyModuleBoundaries`). Dev runs of
+`run/client/scripts/profile.txt` (terrain without a pack, a 3x3 end portal
+without a pack and under BSL, BSL with terrain shadows), on the default and
+with `-PdevProps=demonica.openglProfile=core`, on an NVIDIA driver that gives
+4.6.0 on both. The default run logs Cleanroom's `[LWJGLXX] Attempting to
+create OpenGL 4.6 context`, no `[LWJGLXX] TODO: Implement Display.create`,
+Demonica's `Created OpenGL compatibility profile context` and GLSM's
+"Enabling FFP shader emulation"; the core run logs the TODO line, GLSM's
+"GL 3.3 core profile detected" and `Created OpenGL core profile context`. Both
+show the 19 "n of n" injection lines and no GL errors. Frames, as the share of
+pixels differing by more than 16 of 255, with a second default run as the
+noise floor:
+
+| Frame | Default vs core | Default vs default |
+|---|---|---|
+| Terrain, no pack | 0.01% | 0.00% |
+| End portal, no pack | 0.69% | 0.78% |
+| End portal, BSL | 1.18% | 1.45% |
+| Terrain, BSL | 0.01% | 0.02% |
+
+The portal animates, and BSL's leaves and fire flicker; the differences are
+those, at the same level between two default runs. `OPENGL_COMPAT_PROFILE` is
+`true` in `run/client/config/forge_early.cfg` after both runs. With
+`demonica.lwjglDebug=true` on the default, GLSM logs "OpenGL debug callback
+installed on a debug context" and `OPENGL_DEBUG_CONTEXT=false` is back in the
+file afterwards. A default run with `-PwithCompatMods` reached the end of the
+script with the 19 lines and no GL errors. The Prism instance
+`prod-smoke-test` (Cleanroom 0.6.13, whose lwjglxx prints the same lines) ran
+the same script on this build's jars, on the default and with
+`-Ddemonica.openglProfile=core`: the same log lines, BSL with terrain shadows
+in both, and its `forge_early.cfg` unchanged.
+
 MC coupling: Angelica builds its `glsm` module Minecraft-agnostically with three
 stub classes; Demonica's GLSM imports Minecraft in 24 files. Angelica does not
 publish GLSM as a standalone artifact (only the whole mod, `Angelica` 2.2.19 on
@@ -706,7 +795,8 @@ Dependency: none for deletion; the extraction needs the same bridges the
 Iris tree already uses for GLSM.
 
 **E. Make the core profile optional, default to Cleanroom's compatibility
-context, and measure.** `MixinMinecraftCoreProfileDisplay` currently throws if
+context, and measure.** *Done on `feat/compat-profile`, with the premise
+corrected; see 3.2's second Status.* `MixinMinecraftCoreProfileDisplay` currently throws if
 no 3.3+ core context exists. Turn it into an option, off by default, with the
 compatibility context as the normal path (the spike already ran GLSM on it).
 Then measure what is still exercised: the FFP generator, the display-list
@@ -840,7 +930,7 @@ run on the profile the game already uses.
 
 | | Keep GLSM, shrink it (4.1 E and F) | Iris-style: mixins on vanilla `GlStateManager`, compatibility profile |
 |---|---|---|
-| What goes | SPIR-V, GLES, the LWJGL abstraction, the service layer, dead shims: about 6,000 lines. With the core profile optional, another 10,000 become cold code | GLSM, the redirector, both transformers, FFP, display-list recording, streaming, the end-portal renderer, the core-profile display, the GLU ports, the state-cache compat (CCL, XU2, HBM, Botania, CoFH, VoxelMap, HUD caches): roughly 30,000 to 35,000 lines and 12 to 15 compat entries |
+| What goes | SPIR-V, GLES, the LWJGL abstraction, the service layer, dead shims: about 6,000 lines. With the core profile optional, another 10,000 become cold code (wrong: none did; see 3.2's second Status) | GLSM, the redirector, both transformers, FFP, display-list recording, streaming, the end-portal renderer, the core-profile display, the GLU ports, the state-cache compat (CCL, XU2, HBM, Botania, CoFH, VoxelMap, HUD caches): roughly 30,000 to 35,000 lines and 12 to 15 compat entries |
 | What stays | The state model Iris's bridge relies on (blend, alpha, depth, fog, texture, program events), 1.12.2's raw-GL mods captured by the redirector | A new adapter from Iris's `StateUpdateNotifiers` and storage classes to mixins on `net.minecraft.client.renderer.GlStateManager` and `OpenGlHelper`; Angelica's `PassThroughGLStateManager` and the `GLStateManagerService` interface are a starting point for the shape |
 | Risk | Continues to own 38,000 lines that Angelica changes by 16,800 lines per five months | Mods that call `GL11` directly bypass the tracker, as they do under Iris on modern versions and did under OptiFine on 1.12.2: shader passes can see wrong blend or texture state until the next vanilla call. macOS loses shaders unless Cleanroom itself grows a core-profile mode |
 | Work | Weeks, incremental, no behaviour change on the default path | Months: a rewrite of the GL layer and a re-verification of every checkpoint in the ledger |
@@ -856,6 +946,9 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 `glsm` module is already built MC-agnostically with three stubs and has the
 `maven-publish` plugin applied, so the request is small).
 
+*E is done, but it did not produce this measurement: GLSM runs the same code
+on both profiles. See 3.2's second Status for what the measurement needs.*
+
 ## 5. Suggested sequencing
 
 | Phase | Items | Approximate lines removed from the jar | Notes |
@@ -864,7 +957,7 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 | 2. Upstream conversations | A (provider interface to Celeritas), C1 and the mesher compat to Celeritas, the DH mod-id issue, the Lumenized and Scannable reports, the shared-engine question to Actinium, the GLSM artifact question to Angelica | 0 now; 3,000 to 6,000 when merged | Start these early; they run in parallel with everything else |
 | 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Done: a SHA-256 gate that keeps only S15 on a foreign Celeritas; the injection audit stays and is fatal in dev (see 3.1) |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |
-| 5. Core profile optional | E, then measurement | 0 immediately; 10,000 to 15,000 cold | Feeds 4.4 |
+| 5. Core profile optional | E, then measurement | 0; nothing became cold (3.2) | Done: compatibility by default on Windows and Linux, core on macOS. Feeds 4.4, but the measurement needs a GLSM pass-through mode or a static inventory instead (3.2's second Status) |
 | 6. S8TNLib | H | 7,000 in the library; the CI double build | Done: a separate required mod from S8TNLib's GitHub releases, pinned by SHA-256; `bytebuf` gone (5,699 lines); the `cel/` copies and `PostProcessingBridge` remain |
 | 7. Toolchain | Unimined 1.4.2 trial, Lombok removal, formatter for `com.demonica`, CI jobs | 0 | Any time; Lombok removal touches 65 files, so after phase 1 to avoid conflicts |
 
@@ -876,6 +969,9 @@ compat. That is the shape "Iris for 1.12.2" implies.
 
 1. Is macOS a target? It is the only reason the core profile is mandatory
    today, and the answer decides most of 4.4.
+   *Answered in part: macOS keeps core automatically, Windows and Linux run
+   the compatibility context; whether macOS stays a target still decides
+   4.4.*
 2. Should the StellarCore and Gnetum transformers be registered (as in Actinium)
    or deleted? They cannot stay as they are.
    *Answered: registered.*

@@ -16,6 +16,12 @@ public final class CoreProfileContextAttributes {
     private static final Logger LOGGER = LogManager.getLogger("Demonica");
 
     /**
+     * Set while Demonica requests a core context. {@code MacDisplayForwardCompatTransformer} gives GLFW the
+     * forward-compatible hint only while it is {@code true}.
+     */
+    public static final String FORWARD_COMPAT_PROPERTY = "demonica.gl.forwardCompat";
+
+    /**
      * Prevents instantiation because context attribute construction is stateless.
      */
     private CoreProfileContextAttributes() {
@@ -58,6 +64,7 @@ public final class CoreProfileContextAttributes {
         ForgeEarlyConfig.OPENGL_VERSION_MINOR = minor;
         ForgeEarlyConfig.OPENGL_COMPAT_PROFILE = false;
         ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = lwjglDebug;
+        System.setProperty(FORWARD_COMPAT_PROPERTY, "true");
     }
 
     /**
@@ -78,10 +85,44 @@ public final class CoreProfileContextAttributes {
         ForgeEarlyConfig.OPENGL_VERSION_MINOR = originalMinor;
         ForgeEarlyConfig.OPENGL_COMPAT_PROFILE = true;
         ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = originalDebug;
+        System.clearProperty(FORWARD_COMPAT_PROPERTY);
     }
 
     /**
-     * Persists the restored compatibility profile back to {@code forge_early.cfg}.
+     * Asks Cleanroom's own context creation for a debug context when the LWJGL debug option is on.
+     *
+     * <p>With the compatibility profile Demonica leaves {@code createDisplay} to Cleanroom, which reads
+     * {@code OPENGL_DEBUG_CONTEXT} from {@code ForgeEarlyConfig}. Raising it for this one creation keeps the
+     * "LWJGL Debug Context" option working without Demonica owning the file.
+     *
+     * @param lwjglDebug whether the debug context was requested at startup
+     * @return whether the flag was raised here, from {@code false} to {@code true}
+     */
+    public static boolean raiseForgeEarlyDebugContext(boolean lwjglDebug) {
+        if (!lwjglDebug || ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT) {
+            return false;
+        }
+        ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = true;
+        return true;
+    }
+
+    /**
+     * Lowers the debug flag that {@link #raiseForgeEarlyDebugContext} raised, and writes it back to
+     * {@code forge_early.cfg}, which LWJGLXX synced with the raised flag while creating the context.
+     *
+     * @param raised what {@link #raiseForgeEarlyDebugContext} returned
+     */
+    public static void restoreForgeEarlyDebugContext(boolean raised) {
+        if (!raised) {
+            return;
+        }
+        ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = false;
+        persistForgeEarlyConfig();
+    }
+
+    /**
+     * Persists the restored fields back to {@code forge_early.cfg}. The core profile needs it for the reason below;
+     * the compatibility profile uses it only after {@link #raiseForgeEarlyDebugContext} raised the debug flag.
      *
      * <p>LWJGLXX calls {@code ConfigManager.sync(ForgeEarlyConfig.class)} while creating the
      * core-profile context, which writes the in-memory core-profile request (compatibility profile
@@ -92,13 +133,13 @@ public final class CoreProfileContextAttributes {
      * first {@code glAlphaFunc}. Sync again now that the fields are restored so the file always
      * matches the compatibility profile.</p>
      */
-    public static void persistForgeEarlyCompatProfile() {
+    public static void persistForgeEarlyConfig() {
         try {
             ConfigManager.sync(ForgeEarlyConfig.class);
         } catch (RuntimeException syncFailure) {
             // The in-memory state is already restored and this run is unaffected; only the file
-            // would keep the core-profile request and break the next launch without Demonica.
-            LOGGER.error("Failed to persist the restored compatibility profile to forge_early.cfg", syncFailure);
+            // would keep Demonica's request (a core profile would break the next launch without Demonica).
+            LOGGER.error("Failed to persist the restored OpenGL context settings to forge_early.cfg", syncFailure);
         }
     }
 

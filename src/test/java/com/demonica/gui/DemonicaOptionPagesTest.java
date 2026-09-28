@@ -74,7 +74,8 @@ class DemonicaOptionPagesTest {
 
         assertEquals(List.of("celeritas:cpu_render_ahead_limit", "demonica:streaming_upload_strategy"),
                 ids(group(advanced, StandardOptions.Group.CPU_SAVING).getOptions()));
-        assertEquals(List.of("celeritas:cpu_saving", "demonica:direct_memory", "demonica:framebuffer_errors"),
+        assertEquals(List.of("celeritas:cpu_saving", "demonica:direct_memory", "demonica:framebuffer_errors",
+                        "demonica:opengl_context"),
                 advanced.getGroups().stream().map(g -> g.getId().toString()).toList());
     }
 

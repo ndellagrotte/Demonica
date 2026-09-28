@@ -1,12 +1,14 @@
 package com.demonica.debug;
 
 import com.demonica.config.DemonicaRuntimeOptions;
+import com.demonica.config.OpenGlProfile;
 import com.demonica.mixins.MixinEarly;
 import com.demonica.runtime.DemonicaRuntime;
 import net.coderbot.iris.debug.Diagnostics;
 import net.minecraft.launchwrapper.Launch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.lwjgl.LWJGLUtil;
 
 public final class DemonicaDiagnostics {
     private static final Logger LOGGER = LogManager.getLogger("DemonicaDiagnostics");
@@ -61,6 +63,8 @@ public final class DemonicaDiagnostics {
             var options = DemonicaRuntime.options();
             return "advanced{streaming=" + options.advanced.streamingUploadStrategy
                 + ",directMemory=" + DemonicaRuntimeOptions.allowDirectMemoryAccess()
+                + ",openglProfile=" + describeOpenGlProfile()
+                + "} context{" + describeContext()
                 + "} debug{gl=" + options.debug.enableGlDebug
                 + ",perf=" + options.debug.enablePerfDebug
                 + ",gpuPerf=" + options.debug.enableGpuPerfDebug
@@ -75,6 +79,17 @@ public final class DemonicaDiagnostics {
         } catch (RuntimeException e) {
             return "unavailable:" + e.getClass().getSimpleName();
         }
+    }
+
+    /** The configured profile and what it resolved to, as the display mixin reads it. */
+    private static String describeOpenGlProfile() {
+        OpenGlProfile configured = DemonicaStartupConfig.openGlProfile();
+        return configured.id() + "->" + configured.forPlatform(LWJGLUtil.getPlatform() == LWJGLUtil.PLATFORM_MACOSX).id();
+    }
+
+    private static String describeContext() {
+        OpenGlContextReport report = OpenGlContextReport.current();
+        return report != null ? report.describe() : "unknown";
     }
 
     private static boolean isDeobfuscatedEnvironment() {

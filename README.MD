@@ -47,6 +47,10 @@ Download `Demonica-<version>.jar` from the
 from [S8TNLib's releases](https://github.com/ndellagrotte/S8TNLib/releases),
 0.3.0 or later. Without either mod, Forge lists what is missing.
 
+Demonica runs on Cleanroom's own OpenGL context. `advanced.opengl_profile`
+(Video Settings → Advanced → OpenGL Profile) selects a core context instead,
+which macOS gets automatically.
+
 ## Building
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
@@ -71,7 +75,7 @@ normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<ver
 | Property | Effect |
 |---|---|
 | `-PdevScript=@scripts/<name>.txt` | drive the client from a script in `run/client/scripts` (steps in `com.demonica.diagnostics.dev.DevHarness`, part of the diagnostics jar) |
-| `-PdevProps=key=value,...` | pass system properties, for example `demonica.celeritas.pinsOnly=true` to see what a Celeritas that is not the pin gets |
+| `-PdevProps=key=value,...` | pass system properties, for example `demonica.celeritas.pinsOnly=true` to see what a Celeritas that is not the pin gets, or `demonica.openglProfile=core` to start on a core context |
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for |
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
