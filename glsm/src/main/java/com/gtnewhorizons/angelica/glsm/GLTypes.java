@@ -5,12 +5,26 @@ import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
 
 /**
- * GL pixel/attrib type sizing and naming used by the GLES upload path and the display-list
- * recording diagnostics.
+ * GL pixel/attrib type sizing and naming used by display-list recording and its diagnostics,
+ * and the texture internal-format promotion every texture upload goes through.
  */
 public final class GLTypes {
 
     private GLTypes() {}
+
+    /**
+     * Alpha-sized internal formats become RGBA of the same size, because drivers disagree on
+     * how they size ALPHA formats.
+     */
+    public static int promoteAlphaFormat(int internalformat) {
+        return switch (internalformat) {
+            case GL11.GL_ALPHA4 -> GL11.GL_RGBA4;
+            case GL11.GL_ALPHA8 -> GL11.GL_RGBA8;
+            case GL11.GL_ALPHA12 -> GL11.GL_RGBA12;
+            case GL11.GL_ALPHA16 -> GL11.GL_RGBA16;
+            default -> internalformat;
+        };
+    }
 
     public static int sizeBytes(int glType) {
         return switch (glType) {

@@ -46,7 +46,6 @@ import static org.lwjgl.system.MemoryUtil.memGetInt;
  *
  * <p><b>Format-Based Batching:</b> Draws with same vertex format share a VBO via {@link DisplayListVBO}.
  * Consecutive same-transform draws merge.
- * Delta transforms handled via {@link TransformOptimizer}.
  */
 @UtilityClass
 public class DisplayListManager {

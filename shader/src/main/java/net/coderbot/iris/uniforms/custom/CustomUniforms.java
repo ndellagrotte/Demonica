@@ -1,6 +1,5 @@
 package net.coderbot.iris.uniforms.custom;
 
-import com.github.bsideup.jabel.Desugar;
 import com.google.common.collect.ImmutableMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -345,7 +344,6 @@ public class CustomUniforms implements FunctionContext {
 			return this.build(inputs.build());
 		}
 
-		@Desugar
 		private record Variable(Type type, String name, ExpressionElement expression, boolean uniform) {
 		}
 

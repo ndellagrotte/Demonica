@@ -46,13 +46,13 @@ public abstract class RenderBackend {
 
     public abstract int getMinGLSLVersion();
 
-    /** False on backends where EXT_texture_filter_anisotropic is unavailable (e.g. some GLES stacks). */
+    /** False on backends where EXT_texture_filter_anisotropic is unavailable. */
     public boolean isAnisotropicSupported() { return true; }
 
-    /** False on backends without geometry shader support (e.g. GLES). */
+    /** False on backends without geometry shader support. */
     public boolean supportsGeometryShaders() { return true; }
 
-    /** False on backends where framebuffer completeness checks are unreliable (e.g. some GLES stacks). */
+    /** False on backends where framebuffer completeness checks are unreliable. */
     public boolean framebufferCompletenessIsMeaningful() { return true; }
 
     public abstract void flush();

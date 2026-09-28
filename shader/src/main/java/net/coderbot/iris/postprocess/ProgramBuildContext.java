@@ -1,6 +1,5 @@
 package net.coderbot.iris.postprocess;
 
-import com.github.bsideup.jabel.Desugar;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import net.coderbot.iris.gl.image.GlImage;
 import net.coderbot.iris.gl.texture.TextureAccess;
@@ -15,7 +14,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Set;
 import java.util.function.Supplier;
 
-@Desugar
 public record ProgramBuildContext(
     @NotNull RenderTargets renderTargets,
     @NotNull TextureAccess noiseTexture,

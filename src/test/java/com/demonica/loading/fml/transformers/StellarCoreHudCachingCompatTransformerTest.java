@@ -2,6 +2,7 @@ package com.demonica.loading.fml.transformers;
 
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -63,6 +64,29 @@ class StellarCoreHudCachingCompatTransformerTest {
         ), events);
     }
 
+    /**
+     * StellarCore's release jar calls {@code GuiIngame} by its SRG name, which is what a normal
+     * install loads; the test classpath has the dev client's MCP-named copy. The same rewrite must
+     * happen for both.
+     */
+    @Test
+    void transformMatchesTheSrgNameOfRenderGameOverlay() throws IOException {
+        byte[] srgNamed = renameGameOverlayCalls(readHudCachingClass(), "func_175180_a");
+        byte[] transformed = new StellarCoreHudCachingCompatTransformer()
+            .transform(HUD_CACHING_CLASS, HUD_CACHING_CLASS, srgNamed);
+
+        assertNotSame(srgNamed, transformed, "target class must be rewritten");
+        assertEquals(List.of(
+            "renderGameOverlay",
+            "override=true",
+            "mirror=true",
+            "restoreHudBaseline",
+            "renderGameOverlay",
+            "override=false",
+            "mirror=false"
+        ), collectRenderCachedHudEvents(transformed));
+    }
+
     @Test
     void transformLeavesUnrelatedClassesUntouched() throws IOException {
         byte[] original = readHudCachingClass();
@@ -80,6 +104,30 @@ class StellarCoreHudCachingCompatTransformerTest {
                 "StellarCore must be on the test classpath to provide " + HUD_CACHING_RESOURCE);
             return stream.readAllBytes();
         }
+    }
+
+    private static byte[] renameGameOverlayCalls(byte[] classBytes, String name) {
+        ClassNode node = new ClassNode();
+        new ClassReader(classBytes).accept(node, 0);
+        int renamed = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call && isGameOverlayCall(call)) {
+                    call.name = name;
+                    renamed++;
+                }
+            }
+        }
+        assertTrue(renamed > 0, "HUDCaching must call GuiIngame.renderGameOverlay");
+        ClassWriter writer = new ClassWriter(0);
+        node.accept(writer);
+        return writer.toByteArray();
+    }
+
+    private static boolean isGameOverlayCall(MethodInsnNode call) {
+        return "net/minecraft/client/gui/GuiIngame".equals(call.owner)
+            && ("renderGameOverlay".equals(call.name) || "func_175180_a".equals(call.name))
+            && "(F)V".equals(call.desc);
     }
 
     private static List<String> collectRenderCachedHudEvents(byte[] classBytes) {
@@ -118,8 +166,7 @@ class StellarCoreHudCachingCompatTransformerTest {
                 events.add("restoreHudBaseline");
             } else if (instruction.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && instruction instanceof MethodInsnNode call
-                && "net/minecraft/client/gui/GuiIngame".equals(call.owner)
-                && "renderGameOverlay".equals(call.name)) {
+                && isGameOverlayCall(call)) {
                 events.add("renderGameOverlay");
             }
         }

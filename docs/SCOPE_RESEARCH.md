@@ -60,11 +60,15 @@ The ten findings, by leverage:
    Demonica's does not, so `GLSMConfig.hudCacheOverride` never becomes true and
    the VoxelMap and Revo UI branches that read it are dead. Either wire them in
    or delete them and their two test-only mod pins.
+   *Done on `feat/drop-dead-code` (0.5.0-SNAPSHOT): registered, and the
+   StellarCore one fixed for SRG names; see 3.9.*
 7. **About 3,000 lines are dead or vestigial**: 35 classes nothing references
    (1,626 lines, two of them reached only by tests), the `com.mitchej123.glsm`
    service layer whose loader nothing calls (about 1,000 lines) even though
    `verifyDistributedJar` requires its service file, and the two transformers
    above.
+   *Done on `feat/drop-dead-code` (0.5.0-SNAPSHOT), with SPIR-V, GLES, Jabel
+   and more dead classes than listed: see 3.2 and 3.9.*
 8. **7,200 lines of diagnostics ship in the mod jar**, including a 2,789-line GL
    debug facility, a 1,667-line GL flight recorder and a scripted dev harness
    that `Demonica.onInit` installs in production.
@@ -82,6 +86,7 @@ The ten findings, by leverage:
     support and the same DSL calls; Lombok in 65 files; a Jabel stub; mixin
     configs declared at Java 8; unfiltered repositories that let a Maven
     Central outage break Cleanroom resolution (seen in this sandbox).
+    *The Jabel stub went on `feat/drop-dead-code`; see 3.8.*
 
 ## 2. Where the project stands
 
@@ -284,6 +289,33 @@ Old Research's client-array tessellator, VoxelMap's FBO path, the macOS
 forward-compat transformer, and the 1,800-line end-portal replacement renderer
 (vanilla's end portal uses eye-linear texgen, which core profile lacks).
 
+**Status (2026-09-27, `feat/drop-dead-code`).** Deleted: the SPIR-V
+translator (`SpirvShaderTranslator`, `SpirvCompiler`, `GlslVulkanPreprocess`)
+with the `lwjgl-shaderc`/`lwjgl-spvc` dependencies; the GLES paths with
+`GLESCaps`, `GLESFormatRemap` and their tests; the `com.mitchej123.glsm`
+layer, `AngelicaGLStateManagerService` and the service file (1,114 lines),
+which `verifyDistributedJar` now forbids instead of requiring; and eight
+`compat/mojang` shims (502 lines). The table was wrong in four places:
+- `GLESFormatRemap` was not all GLES: its alpha-format promotion runs on
+  every texture upload. It moved to `GLTypes`.
+- The GLES code was not "~130 lines plus branches": with the branches it was
+  about 330 lines of main code, most of it in `GLStateManager` (pixel-type
+  remaps on 14 upload and readback paths, an FBO readback for
+  `glGetTexImage`) and `RenderSystem` (the detection, and gates on DSA and
+  buffer storage). Detection needs a `GL_VERSION` starting with
+  "OpenGL ES ", which a desktop context never reports, so every branch was
+  folded to its desktop side.
+- The unreferenced `compat/mojang` shims were eight, not five: `Drawable`,
+  and `ChunkOcclusionData`, `ChunkPos` and `Element`, which only other dead
+  shims used.
+- `TransformOptimizer` was not used: nothing constructed it. It went with
+  `MultMatrixCmd`, which only it created.
+
+Kept: `CompatShaderTransformer`'s handling of ES-style mod shaders, which runs
+on desktop; `com.mitchej123.lwjgl` minus an unused `GL44`; the GLU ports;
+`FeedbackManager`, `QuadConverter` and `dsa/`. The mod's Java went from
+103,651 to 99,632 lines on this branch, counting 3.9's deletions.
+
 MC coupling: Angelica builds its `glsm` module Minecraft-agnostically with three
 stub classes; Demonica's GLSM imports Minecraft in 24 files. Angelica does not
 publish GLSM as a standalone artifact (only the whole mod, `Angelica` 2.2.19 on
@@ -320,7 +352,8 @@ settings. The table above was wrong in four places, found while doing it:
   GL-state baseline, called from always-active Iris mixins
   (`EntityRendererIrisMixin`, `LayerArmorBaseIrisMixin`) and CoFH's compat, so
   the Obscure Tooltips and Revo UI entries are GUI-state and Iris correctness
-  fixes and stay (Revo UI's HUD-cache branch is dead, finding 6).
+  fixes and stay (Revo UI's HUD-cache branch was dead until finding 6 was
+  fixed).
 - The streaming row is mostly the core-profile draw path, not an option:
   `MixinTessellator`, both uploaders, `MixinVertexBuffer`,
   `VanillaBufferBuilderRenderer` and `VanillaVertexBufferRenderer` stay. So do
@@ -487,6 +520,8 @@ with `javap`. S8TNLib keeps 47 files, 4,750 lines. The `cel/` copies and
   updated for every JDK feature release.
 - **Jabel** `Desugar` stub and eight `@Desugar` annotations on records; the
   build targets 21, where records need no desugaring.
+  *Gone on `feat/drop-dead-code`. The annotation had source retention, so no
+  class file changed, and `verifyDistributedJar` forbids `com/github/bsideup/`.*
 - **Mixin configs** declare `compatibilityLevel: JAVA_8` while `MixinEarly`
   forces `JAVA_11` at runtime and the classes are Java 21.
 - **Repositories** `maven.cleanroommc.com`, CurseMaven, Modrinth and the GTNH
@@ -529,6 +564,49 @@ with `javap`. S8TNLib keeps 47 files, 4,750 lines. The `cel/` copies and
 - `third-party/actinium/THIRD_PARTY_NOTICES.md` inventories a renderer Demonica
   does not carry; `THIRD_PARTY_NOTICES.md` points at it, so it stays until that
   page is rewritten.
+
+**Status (2026-09-27, `feat/drop-dead-code`).** The first four items are done.
+- **Dead classes.** A fresh scan of dev `f03e5c76` resolved imports and ignored
+  comments, which the scan behind Appendix B did not. It confirmed all 33
+  Appendix B classes still present and found seven more:
+  - `TransformOptimizer`, `SpirvShaderTranslator`, `FileDialogUtil` and
+    stareval's `BinaryOperatorToken`, which only comments, javadoc or an
+    import named;
+  - `compat/mojang/Drawable` and `com.mitchej123.lwjgl.GL44`, whose names
+    only LWJGL's classes shared;
+  - and the StellarCore transformer.
+
+  Further passes found twelve classes that only dead ones used. All of them
+  went, except the transformers (below). Two Appendix B entries had already
+  gone: `RenderPipelines` with RSO, and `GlFlightRecordingDecoder` to the
+  diagnostics jar, where it is a documented command-line tool.
+  `HeaderEntry`'s commented-out upstream code still names `FileDialogUtil`.
+- **The HUD-cache transformers are registered** in `MixinEarly`, in Actinium's
+  order, so `GLSMConfig.hudCacheOverride` is live again. That revives eight
+  branches, not the VoxelMap and Revo UI ones alone: five in
+  `GLStateManager`'s blend and colour paths, two in VoxelMap's compat and one
+  in Revo UI's.
+  - The StellarCore transformer matched only `renderGameOverlay`. StellarCore's
+    release jar calls `func_175180_a`, so in a normal install it would have
+    mirrored the flag without restoring the HUD baseline, and logged nothing.
+    It now matches both names, WARNs when it mirrors without restoring, and
+    both transformers log an INFO line when they apply. In the Prism
+    `prod-smoke-test` instance (Cleanroom 0.6.13, the release StellarCore and
+    JourneyMap jars) the log shows the restore inserted, and the minimap is
+    right with and without BSL.
+  - `MixinConfigurationTest` fails for any transformer in
+    `loading.fml.transformers` that `MixinEarly` does not register.
+  - `-PwithHudCache=stellarcore|gnetum` loads the mods in a dev client.
+    StellarCore's `HudCaching` defaults to false in 1.6.0, so it has to be
+    turned on in `config/stellar_core.cfg`. With it on, the JourneyMap minimap
+    matches a caching-off run again, apart from mob icons and map tiles still
+    being drawn.
+  - Under Gnetum 1.4.3 the HUD matched a run without Gnetum both before and
+    after registration: the flicker Actinium recorded did not show in these
+    shots.
+  - The two mods keep their pins; only JourneyMap is test-only now.
+- **The service file** is gone with the service layer (3.2).
+- **`docs/opengl_32_core.xml`** is gone.
 
 ## 4. Recommendations
 
@@ -592,7 +670,9 @@ keep the option at all (its compatibility profile stops at OpenGL 2.1). This is
 the prerequisite for the bigger decision in 4.4; it is also the single change
 that removes the most compat entries at once.
 
-**F. Delete the dead and the vestigial.** The 35 unreferenced classes, the
+**F. Delete the dead and the vestigial.** *Done on `feat/drop-dead-code`, with
+the transformers registered rather than deleted; see 3.2's and 3.9's Status.*
+The 35 unreferenced classes, the
 `com.mitchej123.glsm` service layer and its service file (adjust
 `verifyDistributedJar`), the SPIR-V translator and its two compile
 dependencies, the GLES paths, the five unreferenced `compat/mojang` shims, the
@@ -645,7 +725,8 @@ retires a CurseMaven pin and its build-time download.
   inherited one, and at least move to the current `1.4.43-kappa`.
 - **Remove Lombok** with `delombok` and Java 21 records; delete the Jabel
   stub. This removes an annotation processor, the forked javac and a
-  per-JDK-release upgrade.
+  per-JDK-release upgrade. *The Jabel stub is gone (`feat/drop-dead-code`);
+  Lombok stays.*
 - **Set the mixin configs' `compatibilityLevel`** to the highest level
   CleanMix's Mixin 0.8.7 accepts for the classes (they are Java 21) and drop
   the runtime override in `MixinEarly`.
@@ -733,7 +814,7 @@ the answer is to keep GLSM and ask Angelica to publish it as an artifact (its
 
 | Phase | Items | Approximate lines removed from the jar | Notes |
 |---|---|---|---|
-| 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible. C done (with O1); G done, as a companion jar |
+| 1. Subtractions with no dependencies | F (dead code, service layer, SPIR-V, GLES), C (RSO), G (diagnostics out of the jar), repository filters, Jabel, mixin compat levels | 20,000 | One release; each item is its own commit and revertible. C done (with O1); G done, as a companion jar; F and Jabel done, with the HUD-cache transformers registered |
 | 2. Upstream conversations | A (provider interface to Celeritas), C1 and the mesher compat to Celeritas, the DH mod-id issue, the Lumenized and Scannable reports, the shared-engine question to Actinium, the GLSM artifact question to Angelica | 0 now; 3,000 to 6,000 when merged | Start these early; they run in parallel with everything else |
 | 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Do before the next pin move |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |
@@ -751,6 +832,7 @@ compat. That is the shape "Iris for 1.12.2" implies.
    today, and the answer decides most of 4.4.
 2. Should the StellarCore and Gnetum transformers be registered (as in Actinium)
    or deleted? They cannot stay as they are.
+   *Answered: registered.*
 3. Is a sibling mod for the performance features wanted, or is deletion fine?
    *Answered: deletion.*
 4. Will S8TNLib have a second host? If not, fold it back or submodule it.
@@ -858,12 +940,12 @@ will find more.
 | `mixins.demonica.voxelmap.json`, `VoxelMapCompat` | VoxelMap | 3 | GLSM cache, core profile, HUD cache |
 | `mixins.demonica.lumenized.json` (`MixinBloomEffectUtilStateGuard`), `BloomStateGuard` | GregTech CEu / Lumenized | 1 | GLSM state |
 | `mixins.demonica.lumenized.json` (`MixinBloomEffectUtilClear`, `MixinRenderUtilDepth`, `MixinShadersDepthTest`) | GregTech CEu / Lumenized | 3 | Bugs in the other mod |
-| `StellarCoreHudCachingCompatTransformer`, `GnetumHudCachingCompatTransformer` | StellarCore, Gnetum | 0 (transformers, not registered) | GLSM HUD cache |
+| `StellarCoreHudCachingCompatTransformer`, `GnetumHudCachingCompatTransformer` | StellarCore, Gnetum | 0 (transformers, registered since `feat/drop-dead-code`) | GLSM HUD cache |
 | `MacDisplayForwardCompatTransformer`, `CoreProfileContextAttributes` | macOS | 0 | Core profile |
 | `mixins.demonica.oldresearch.json`, `OldResearchTessellatorCompat` | Old Research | 1 | Core profile (client arrays) and streaming drawer |
 | `NeverEnoughAnimationsAlphaOverride` | NeverEnoughAnimations | 0 | Fast lit item path (removed) |
 | `NeoFontRenderCompat` | NeoFontRender | 0 | Batching font renderer (removed) |
 | `mixins.demonica.gibbed.json`, `DemonicaModelRenderer` | Gibbed | 1 | Model renderer batching (removed) |
-| `mixins.demonica.revoui.json`, `RevoScreenEffectsGradient` | Revo UI | 3 | GUI GL state boundary, HUD cache (dead branch) |
+| `mixins.demonica.revoui.json`, `RevoScreenEffectsGradient` | Revo UI | 3 | GUI GL state boundary, HUD cache |
 | `mixins.demonica.obscuretooltips.json` | Obscure Tooltips | 1 | GUI GL state boundary (Iris armor state in tooltips) |
 | `MixinReEntranceLockFix` | Techguns and other legacy coremods | 0 | Cleanroom Mixin bug |

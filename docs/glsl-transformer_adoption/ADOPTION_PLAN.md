@@ -497,6 +497,8 @@ ls build/reports/transform-replay | head; wc -l src/test/resources/transform-rep
 
 ### Step 9. GLSM subtractions and utilities
 
+*Do 1 is done on `feat/drop-dead-code`: the three SPIR-V files, the `lwjgl-shaderc`/`lwjgl-spvc` lines and the `CompatShaderTransformer` javadoc. `UniformType` and `ShaderType` stay (`PerFrameUniformBlock` and `ShaderTransformPostProcessor` import them). Do 2 to 4 remain.*
+
 **Goal.** The unreachable SPIR-V/GLES path and the unused post-transform hook are gone, `GlslTransformUtils` is regex-only, and the fixed-function generator test no longer uses TauMC as its oracle.
 
 **Preconditions.** Step 8 (exit point A). No desktop needed.

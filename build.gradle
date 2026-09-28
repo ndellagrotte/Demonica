@@ -447,8 +447,8 @@ dependencies {
     modCompileOnly 'curse.maven:revo-ui-1620532:8593682'
     // Component Model Hider 1.0 (Multiblocked's block-model hiding API, driven by Modular Machinery CE).
     modCompileOnly 'curse.maven:component-model-hider-940949:4885858'
-    // Not compiled against: the tests of StellarCoreHudCachingCompatTransformer and of GLSM's redirector run them over
-    // these mods' classes (StellarCore's HUD caching, JourneyMap's grid colours).
+    // Not compiled against: StellarCoreHudCachingCompatTransformer's test and GLSM's redirector tests run over these
+    // mods' classes (StellarCore's HUD caching, JourneyMap's grid colours). -PwithHudCache=stellarcore loads both.
     modCompileOnly 'curse.maven:stellarcore-1064321:8406201'
     modCompileOnly 'curse.maven:journeymap-32274:5172461'
 
@@ -480,6 +480,19 @@ dependencies {
         modRuntimeOnly 'curse.maven:baubles-227083:2518667'
         modRuntimeOnly 'curse.maven:botania-ceu-1179448:8706250'
         modRuntimeOnly 'curse.maven:obscure-tooltips-715660:8522661'
+    }
+    // -PwithHudCache=stellarcore|gnetum: the dev client also loads one of the two HUD-caching mods whose caches
+    // StellarCoreHudCachingCompatTransformer and GnetumHudCachingCompatTransformer bridge to GLSM. One at a time, and
+    // not in -PwithCompatMods: both re-render the HUD into a cache, which would change every script's HUD shots.
+    def hudCache = project.findProperty('withHudCache')
+    if (hudCache == 'stellarcore') {
+        modRuntimeOnly 'curse.maven:stellarcore-1064321:8406201'
+        // JourneyMap's minimap is where StellarCore's cache showed the scene through the map (Actinium's notes).
+        modRuntimeOnly 'curse.maven:journeymap-32274:5172461'
+    } else if (hudCache == 'gnetum') {
+        modRuntimeOnly 'maven.modrinth:gnetum:1.4.3'
+    } else if (hudCache != null) {
+        throw new GradleException("-PwithHudCache takes stellarcore or gnetum, not '${hudCache}'")
     }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
@@ -777,7 +790,11 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 ~/^com\/demonica\/diagnostics\//, ~/^com\/demonica\/dev\//, ~/^mixins\.demonica\.diagnostics/,
                 ~/^net\/coderbot\/iris\/celeritas\/debug\//, ~/^net\/coderbot\/iris\/debug\/flight\//,
                 ~/\/GlStateDiffProbe/, ~/\/GpuCheckpointTracker/,
-                ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/
+                ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider/,
+                // Angelica's GLStateManagerService layer, which nothing loaded.
+                ~/^com\/mitchej123\/glsm\//, ~/^META-INF\/services\/com\.mitchej123\.glsm\./,
+                // Jabel's @Desugar stub; the build targets Java 21, where records need no desugaring.
+                ~/^com\/github\/bsideup\//
             ]
             names.each { name ->
                 if (forbidden.any { name =~ it }) {
@@ -800,7 +817,6 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'net/coderbot/iris/debug/DiagnosticsProvider.class',
                 'net/coderbot/iris/debug/IrisGlDebug.class',
                 'META-INF/services/com.gtnewhorizons.angelica.glsm.backend.RenderBackend',
-                'META-INF/services/com.mitchej123.glsm.GLStateManagerService',
                 'mixins.demonica.core.json',
                 'mixins.demonica.iris.json',
                 'mixins.demonica.celeritas.json',

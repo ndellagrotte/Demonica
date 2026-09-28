@@ -87,6 +87,8 @@ public final class GnetumHudCachingCompatTransformer implements IClassTransforme
                     + "(untested Gnetum version?)",
                 EXPECTED_STORES, TARGET_CLASS, mirrored
             );
+        } else {
+            LOGGER.info("Gnetum HUD caching bridged: mirrored {} Gnetum.rendering stores", mirrored);
         }
 
         // No branches are added and the stack balance is unchanged, so the
