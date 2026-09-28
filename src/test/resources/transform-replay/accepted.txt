@@ -46,8 +46,10 @@ celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed i
 # engine leaves alone until Step 7 ports it (transformer/CommonTransformer's TODO(S7)). One entry per case, fragment
 # only. The replayer verifies each (reason prefix "S7 pending"): the TauMC engine rerun with the helpers hidden from the
 # rewrite must give the replay's output. Pack corpora: the 51 BSL cases whose helper TauMC rewrote (49 ATTRIBUTES, 2
-# CELERITAS_TERRAIN; all recorded instrumented); the other 103 inputs with a helper (Complementary, I Like Vanilla)
-# replay identically, their helpers are not a shape the transformer rewrites. Mini-corpus: shadow-bounds and
+# CELERITAS_TERRAIN; all recorded instrumented; the recording run logged 51 "[AdaptiveShadowBounds] ... injected=1").
+# The other 103 fragment inputs that name a helper replay identically: 51 BSL ones in which TauMC inspected no helper
+# definition (logged inspected=0) and Complementary's 52, whose helper TauMC inspected and left alone (logged
+# inspected=1 injected=0 unsupported=1); I Like Vanilla has none. Mini-corpus: shadow-bounds and
 # shadow-bounds-instrumented. Step 7 removes these entries.
 bsl/00020-ATTRIBUTES-825c8f36 | fragment | S7 pending (adaptive shadow bounds, Step 7)
 bsl/00021-ATTRIBUTES-b555a40c | fragment | S7 pending (adaptive shadow bounds, Step 7)
