@@ -104,6 +104,28 @@ class QuarantinePriorityTest {
         assertTrue(duplicates.isEmpty(), "members upstream already overwrites:\n  " + String.join("\n  ", duplicates));
     }
 
+    /**
+     * What no injector can notice: S2 lives on ShaderChunkRenderer, so an override of begin or end in forge122's renderer
+     * would bypass it; S3 adds isInShadowPass to forge122's manager, so upstream adding its own would make it a duplicate.
+     */
+    @Test
+    void forge122DoesNotOverrideTheSeamHooks() {
+        String pass = "Lorg/embeddedt/embeddium/impl/render/chunk/terrain/TerrainRenderPass;";
+        String manager = "org/taumc/celeritas/impl/render/terrain/VintageRenderSectionManager";
+        List<String> overrides = new ArrayList<>();
+        for (MethodNode method : CeleritasJar.get().node(manager + "$ChunkRenderer").methods) {
+            if ((method.name.equals("begin") || method.name.equals("end")) && method.desc.equals("(" + pass + ")V")) {
+                overrides.add(manager + "$ChunkRenderer." + method.name + " (bypasses S2)");
+            }
+        }
+        for (MethodNode method : CeleritasJar.get().node(manager).methods) {
+            if (method.name.equals("isInShadowPass") && method.desc.equals("()Z")) {
+                overrides.add(manager + ".isInShadowPass (duplicates S3)");
+            }
+        }
+        assertTrue(overrides.isEmpty(), "forge122 now overrides:\n  " + String.join("\n  ", overrides));
+    }
+
     private static List<String> allDemonicaMixins() throws IOException {
         Path resources = Path.of(System.getProperty("demonica.projectRoot", "."), "src/main/resources");
         List<String> mixins = new ArrayList<>();

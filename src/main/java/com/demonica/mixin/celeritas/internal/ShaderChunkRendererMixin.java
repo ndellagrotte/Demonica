@@ -24,8 +24,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * the pack has no program for, keep Celeritas's program.
  *
  * <p>Relies on, though no injector names it: {@code DefaultChunkRenderer.render} still calls {@code begin} and
- * {@code end} for every pass, and forge122's {@code VintageRenderSectionManager.ChunkRenderer} overrides neither. A
- * pin move must check both by hand.
+ * {@code end} for every pass, which a pin move must check by hand; and forge122's
+ * {@code VintageRenderSectionManager.ChunkRenderer} overrides neither (QuarantinePriorityTest).
  */
 @Patch(value = "S2", group = PatchGroup.CORE_TERRAIN)
 @Mixin(value = ShaderChunkRenderer.class, remap = false, priority = 1100)
