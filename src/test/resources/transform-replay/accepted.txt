@@ -1,0 +1,11 @@
+# Differences TransformCorpusReplayTest tolerates between the recorded TauMC output and a replay
+# (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5). One entry per line:
+#
+#   <case glob> | <stage> | <reason>
+#
+# <case glob> matches the case's path under the corpus directory (for example bsl/00012-COMPOSITE-1a2b3c4d) or its
+# directory name alone; '*' matches within one path segment, '**' across segments, '?' one character. <stage> is
+# vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases) or '*'. Every entry
+# needs a reason a reader can check; an entry without one fails the test.
+#
+# Step 2 (2026-09-28): empty. The TauMC engine replays its own recordings identically.

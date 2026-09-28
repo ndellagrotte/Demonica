@@ -72,7 +72,8 @@ class GlslTransformerSpikeTest {
         }
     }
 
-    private static EnumASTTransformer<JobParameters, PatchShaderType> newTransformer(DroppingPreprocessorFilter filter) {
+    // Package-private: GlslCorpusParseSurveyTest parses recorded inputs with exactly this configuration.
+    static EnumASTTransformer<JobParameters, PatchShaderType> newTransformer(DroppingPreprocessorFilter filter) {
         final EnumASTTransformer<JobParameters, PatchShaderType> transformer = new EnumASTTransformer<>(PatchShaderType.class) {
             {
                 setRootSupplier(RootSupplier.PREFIX_UNORDERED_ED_EXACT);

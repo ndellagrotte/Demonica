@@ -120,6 +120,33 @@ public class ShaderTransformer {
         Iris.logger.info("Shader version hoisting: {} feature(s) GLSL {}", versionMap.size(), maxVersion > 0 ? maxVersion : "N/A");
     }
 
+    /**
+     * The keywords that currently hoist a shader's version, in declaration order, or {@code none} before
+     * {@link #init()} (Iris's transform warm-up runs first) or when the hardware supports none of them. Recorded with
+     * each transform corpus case, because it changes the output.
+     */
+    public static String versionHoistingState() {
+        final Object2IntMap<String> keywords = keywordToVersion;
+        if (hoistPattern == null || keywords == null) {
+            return "none";
+        }
+        final StringBuilder state = new StringBuilder();
+        for (VersionRequirement req : VERSION_REQUIREMENTS) {
+            if (keywords.containsKey(req.keyword)) {
+                if (!state.isEmpty()) state.append(',');
+                state.append(req.keyword);
+            }
+        }
+        return state.toString();
+    }
+
+    /** Returns version hoisting to its state before {@link #init()}, for replaying a case recorded then. */
+    static void resetVersionHoistingForTesting() {
+        hoistPattern = null;
+        keywordToVersion = null;
+        maxSupportedHoistVersion = 0;
+    }
+
     private static int getRequiredVersion(String shaderSource, int declaredVersion) {
         if (hoistPattern == null || declaredVersion >= maxSupportedHoistVersion) {
             return declaredVersion;

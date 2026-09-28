@@ -2,6 +2,7 @@ package com.gtnewhorizons.angelica.glsm;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormatElement.Usage;
 import com.gtnewhorizons.angelica.glsm.backend.RenderBackend;
+import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.taumc.glsl.ShaderParser;
@@ -127,12 +128,19 @@ public class CompatShaderTransformer {
                 return cached;
             }
 
+            final long transformStart = TransformCorpus.isEnabled() ? System.nanoTime() : 0L;
+            boolean fallback = false;
             try {
                 result = transformInternal(source, isFragment);
                 cache.put(key, result);
             } catch (Exception e) {
                 LOGGER.warn("CompatShaderTransformer: AST transformation failed, falling back to version fixup only", e);
                 result = fixupVersion(source);
+                fallback = true;
+            }
+            if (TransformCorpus.isEnabled()) {
+                // This path has no engine switch before Step 10 of the glsl-transformer plan: it is always TauMC's.
+                TransformCorpus.recordCompat(source, isFragment, result, fallback, "taumc", System.nanoTime() - transformStart);
             }
         }
 

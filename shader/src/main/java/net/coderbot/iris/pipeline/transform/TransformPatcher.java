@@ -1,6 +1,7 @@
 package net.coderbot.iris.pipeline.transform;
 
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
+import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.gbuffer_overrides.matching.InputAvailability;
@@ -13,6 +14,7 @@ import net.coderbot.iris.pipeline.transform.parameter.DHParameters;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 import net.coderbot.iris.pipeline.transform.parameter.TextureStageParameters;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
+import net.coderbot.iris.pipeline.transform.corpus.TransformCorpusRecorder;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 
 import java.util.Collections;
@@ -176,16 +178,30 @@ public class TransformPatcher {
             }
         }
 
-        final long transformStart = logCacheEvents ? System.nanoTime() : 0L;
-        final Map<PatchShaderType, String> transformed = switch (engine()) {
-            case TAUMC -> ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
-            case DOUIRA -> AstShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
-        };
-        if (!useCache) {
-            return finishWithoutCache(transformed, CacheDomain.GRAPHICS, transformStart, logCacheEvents);
+        // Described before the call: the engine sets and clears parameters.type while it runs.
+        final TransformCorpus.Case corpusCase = TransformCorpusRecorder.isEnabled() ? beginCorpusCase(key, parameters) : null;
+        final long transformStart = logCacheEvents || corpusCase != null ? System.nanoTime() : 0L;
+        final Map<PatchShaderType, String> transformed;
+        try {
+            transformed = switch (engine()) {
+                case TAUMC -> ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
+                case DOUIRA -> AstShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
+            };
+        } catch (RuntimeException | Error e) {
+            if (corpusCase != null) {
+                TransformCorpusRecorder.finish(corpusCase, engine().id, null, e, System.nanoTime() - transformStart);
+            }
+            throw e;
         }
-
-        return cacheResult(key, transformed, CacheDomain.GRAPHICS, transformStart, logCacheEvents);
+        final long transformNanos = corpusCase != null ? System.nanoTime() - transformStart : 0L;
+        final Map<PatchShaderType, String> result = useCache
+            ? cacheResult(key, transformed, CacheDomain.GRAPHICS, transformStart, logCacheEvents)
+            : finishWithoutCache(transformed, CacheDomain.GRAPHICS, transformStart, logCacheEvents);
+        if (corpusCase != null) {
+            // After caching, so the file writes stay out of the transformMs the cache logs.
+            TransformCorpusRecorder.finish(corpusCase, engine().id, transformed, null, transformNanos);
+        }
+        return result;
     }
 
     static Map<PatchShaderType, String> transformCompute(String compute, Parameters parameters) {
@@ -202,16 +218,34 @@ public class TransformPatcher {
             }
         }
 
-        final long transformStart = logCacheEvents ? System.nanoTime() : 0L;
-        final Map<PatchShaderType, String> transformed = switch (engine()) {
-            case TAUMC -> ShaderTransformer.transformCompute(compute, parameters);
-            case DOUIRA -> AstShaderTransformer.transformCompute(compute, parameters);
-        };
-        if (!useCache) {
-            return finishWithoutCache(transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents);
+        final TransformCorpus.Case corpusCase = TransformCorpusRecorder.isEnabled() ? beginCorpusCase(key, parameters) : null;
+        final long transformStart = logCacheEvents || corpusCase != null ? System.nanoTime() : 0L;
+        final Map<PatchShaderType, String> transformed;
+        try {
+            transformed = switch (engine()) {
+                case TAUMC -> ShaderTransformer.transformCompute(compute, parameters);
+                case DOUIRA -> AstShaderTransformer.transformCompute(compute, parameters);
+            };
+        } catch (RuntimeException | Error e) {
+            if (corpusCase != null) {
+                TransformCorpusRecorder.finish(corpusCase, engine().id, null, e, System.nanoTime() - transformStart);
+            }
+            throw e;
         }
+        final long transformNanos = corpusCase != null ? System.nanoTime() - transformStart : 0L;
+        final Map<PatchShaderType, String> result = useCache
+            ? cacheResult(key, transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents)
+            : finishWithoutCache(transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents);
+        if (corpusCase != null) {
+            TransformCorpusRecorder.finish(corpusCase, engine().id, transformed, null, transformNanos);
+        }
+        return result;
+    }
 
-        return cacheResult(key, transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents);
+    /** The transform corpus's description of a cache miss (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5). */
+    private static TransformCorpus.Case beginCorpusCase(CacheKey key, Parameters parameters) {
+        return TransformCorpusRecorder.begin(parameters, key.vertex, key.geometry, key.tessControl, key.tessEval,
+            key.fragment, key.compute, key.adaptiveShadowBoundsInstrumentation, key.adaptiveShadowBoundsBinding);
     }
 
     private static Map<PatchShaderType, String> getCached(CacheKey key, CacheDomain domain, boolean logCacheEvents) {
