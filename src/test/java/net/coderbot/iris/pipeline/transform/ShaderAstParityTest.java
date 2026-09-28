@@ -367,6 +367,87 @@ class ShaderAstParityTest {
     }
 
     /**
+     * The {@code #extension} lines of TauMC's header, as the old engine computed them: its pre-parser's tree printed,
+     * the {@code #version} line removed; here only the extension lines, whitespace-normalized.
+     */
+    static List<String> taumcHeaderExtensions(String source) {
+        final String pre = GlslTransformUtils.getFormattedShader(ShaderParser.parseShader(source).pre(), "");
+        final List<String> lines = new ArrayList<>();
+        for (String line : pre.split("\n")) {
+            final String normalized = line.trim().replaceAll("\\s+", " ");
+            if (normalized.startsWith("#extension")) {
+                lines.add(normalized);
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * {@link ShaderAst#extensionDirectives()} against TauMC's header (S5 verification): TauMC's pre-parser read the
+     * lexer's tokens on every channel and stopped at the first one outside a directive, so its header kept only the
+     * {@code #extension} lines of the unbroken directive block at the start of the source. Each row gives the number
+     * of lines TauMC keeps, checked on the pinned jar, so the rows also document the rule.
+     */
+    @TestFactory
+    Stream<DynamicTest> extensionHeaderLines() {
+        final String a = "#extension GL_ARB_shader_texture_lod : enable\n";
+        final String b = "#extension GL_EXT_gpu_shader4 : require\n";
+        final String code = "uniform float u;\nvoid main() { }\n";
+        final Map<String, Object[]> rows = new LinkedHashMap<>();
+        rows.put("directly after #version", new Object[]{"#version 330 core\n" + a + code, 1});
+        rows.put("two leading, require kept", new Object[]{"#version 330 core\n" + a + b + code, 2});
+        rows.put("after a declaration (the verifier's repro)", new Object[]{"#version 330 core\nuniform sampler2D colortex0;\n" + b
+            + "layout(location = 0) out vec4 outColor;\nvoid main() { outColor = texture(colortex0, vec2(0.5)); }", 0});
+        rows.put("one leading, one after a declaration", new Object[]{"#version 330 core\n" + a + "uniform float u;\n" + b
+            + "void main() { }\n", 1});
+        rows.put("after an empty declaration", new Object[]{"#version 330 core\n;\n" + a + code, 0});
+        rows.put("after a function", new Object[]{"#version 330 core\nvoid f() { }\n" + a + "void main() { }\n", 0});
+        rows.put("after a default precision", new Object[]{"#version 330 core\nprecision highp float;\n" + a + code, 0});
+        rows.put("after a blank line", new Object[]{"#version 330 core\n\n" + a + code, 0});
+        rows.put("one leading, one after a blank line", new Object[]{"#version 330 core\n" + a + "\n" + b + code, 1});
+        rows.put("after a line comment", new Object[]{"#version 330 core\n// comment\n" + a + code, 0});
+        rows.put("after a block comment", new Object[]{"#version 330 core\n/* comment */\n" + a + code, 0});
+        rows.put("indented", new Object[]{"#version 330 core\n  " + a + code, 0});
+        rows.put("a blank line before #version", new Object[]{"\n#version 330 core\n" + a + code, 0});
+        rows.put("after a #define", new Object[]{"#version 330 core\n#define X 1\n" + a + code, 1});
+        rows.put("after a #define continued over two lines", new Object[]{"#version 330 core\n#define X \\\n  1\n" + a + code, 1});
+        rows.put("after a #pragma", new Object[]{"#version 330 core\n#pragma optimize(on)\n" + a + code, 1});
+        rows.put("'# extension'", new Object[]{"#version 330 core\n# extension GL_ARB_shader_texture_lod : enable\n" + code, 1});
+        rows.put("CRLF line ends", new Object[]{("#version 330 core\n" + a + b + code).replace("\n", "\r\n"), 2});
+        rows.put("CRLF and a continued #define", new Object[]{"#version 330 core\r\n#define X \\\r\n  1\r\n" + a.replace("\n", "\r\n")
+            + code.replace("\n", "\r\n"), 1});
+        rows.put("trailing blanks on the #version line", new Object[]{"#version 330 core  \n" + a + code, 1});
+        final List<DynamicTest> tests = new ArrayList<>();
+        rows.forEach((name, row) -> tests.add(DynamicTest.dynamicTest(name, () -> {
+            final String source = (String) row[0];
+            final List<String> taumc = taumcHeaderExtensions(source);
+            assertEquals(row[1], taumc.size(), () -> "TauMC's header: " + taumc);
+            final ShaderAst ast = ShaderAst.parse(source);
+            assertEquals(taumc, ast.extensionDirectives());
+            final long late = ast.droppedDirectives().stream().filter(d -> d.endsWith("(after the leading directives)")).count();
+            final long all = source.lines().filter(line -> line.trim().replace("# ", "#").startsWith("#extension")).count();
+            assertEquals(all - taumc.size(), late, () -> "dropped: " + ast.droppedDirectives());
+            final String printed = ast.print("#version 330 core");
+            assertFalse(printed.contains("#extension"), printed);
+        })));
+        return tests.stream();
+    }
+
+    /**
+     * Deviation, not modelled: a comment on a directive line. TauMC's directive lexer modes have no comment token, so
+     * its lexer's error recovery decides what follows; here it loses the next {@code #extension}, which
+     * {@link ShaderAst} keeps. Sources arrive preprocessed, and no recorded input has a comment on a directive line.
+     */
+    @Test
+    void deviationACommentOnADirectiveLine() {
+        final String source = "#version 330 core\n#extension GL_ARB_shader_texture_lod : enable /* c */\n"
+            + "#extension GL_EXT_gpu_shader4 : require\nuniform float u;\nvoid main() { }\n";
+        assertEquals(List.of("#extension GL_ARB_shader_texture_lod : enable"), taumcHeaderExtensions(source));
+        assertEquals(List.of("#extension GL_ARB_shader_texture_lod : enable", "#extension GL_EXT_gpu_shader4 : require"),
+            ShaderAst.parse(source).extensionDirectives());
+    }
+
+    /**
      * Why {@link ShaderAst} parses with {@code ParsingCacheStrategy.NONE} (its {@code newParser} javadoc): with Iris's
      * two-tier cache the filter sees no tokens when a translation unit is parsed a second time, and the strategy that
      * would exclude translation units recurses without end in 3.0.0-pre3. If this test fails after a library upgrade,

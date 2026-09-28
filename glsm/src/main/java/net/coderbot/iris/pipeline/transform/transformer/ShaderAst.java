@@ -141,6 +141,8 @@ public final class ShaderAst {
     public final Root root;
 
     private final List<String> droppedDirectives;
+    // How many of the program's #extension directives are in its leading directive block (see leadingExtensionCount).
+    private final int leadingExtensions;
     // The lexer version of the parse; every snippet a verb parses is lexed at it too (see snippet).
     private final Version lexerVersion;
     // The spelling of each numeric type specifier of the parsed program whose spelling is not the type's compact name
@@ -162,12 +164,13 @@ public final class ShaderAst {
         Expression.ExpressionType.RIGHT_SHIFT_ASSIGNMENT, Expression.ExpressionType.BITWISE_AND_ASSIGNMENT,
         Expression.ExpressionType.BITWISE_XOR_ASSIGNMENT, Expression.ExpressionType.BITWISE_OR_ASSIGNMENT);
 
-    private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives, Version lexerVersion,
-                      Map<BuiltinNumericTypeSpecifier, String> spelledTypes) {
+    private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives, int leadingExtensions,
+                      Version lexerVersion, Map<BuiltinNumericTypeSpecifier, String> spelledTypes) {
         this.t = t;
         this.tree = tree;
         this.root = root;
         this.droppedDirectives = droppedDirectives;
+        this.leadingExtensions = leadingExtensions;
         this.lexerVersion = lexerVersion;
         this.spelledTypes = spelledTypes;
     }
@@ -193,8 +196,10 @@ public final class ShaderAst {
      *
      * <p>Preprocessor directives other than {@code #version} and {@code #extension} are dropped and logged, as the
      * TauMC engine ignored them: the channel filter drops {@code #define}, {@code #if} and the like, and
-     * {@code #pragma}, which glsl-transformer parses, is removed from the tree. {@link #droppedDirectives()} lists
-     * them. {@code #version} and {@code #extension} stay in the tree until {@link #print(String)}.</p>
+     * {@code #pragma}, which glsl-transformer parses, is removed from the tree. An {@code #extension} after the leading
+     * directive block ({@link #extensionDirectives()}) is dropped too, as the TauMC engine dropped it.
+     * {@link #droppedDirectives()} lists them. {@code #version} and {@code #extension} stay in the tree until
+     * {@link #print(String)}.</p>
      *
      * @throws SyntaxException          if the source does not parse
      * @throws IllegalArgumentException if glsl-transformer has no {@link Version} for {@code version}
@@ -225,17 +230,67 @@ public final class ShaderAst {
             filter.recording = false;
             BUILD_LOCK.unlock();
         }
+        final int leadingExtensions = leadingExtensionCount(source);
+        int extensions = 0;
         for (ExternalDeclaration declaration : new ArrayList<>(tree.getChildren())) {
             if (declaration instanceof PragmaDirective pragma) {
                 dropped.add(ASTPrinter.print(PrintType.COMPACT, pragma).trim());
                 pragma.detachAndDelete();
+            } else if (declaration instanceof ExtensionDirective extension && ++extensions > leadingExtensions) {
+                // Left in the tree: print() removes every #extension, and extensionDirectives() skips this one.
+                dropped.add(extensionLine(extension) + " (after the leading directives)");
             }
         }
         if (!dropped.isEmpty()) {
-            LOGGER.warn("[ShaderAst] Dropped {} preprocessor directive(s) that the transform does not evaluate: {}",
-                dropped.size(), dropped);
+            LOGGER.warn("[ShaderAst] Dropped {} preprocessor directive(s): {}", dropped.size(), dropped);
         }
-        return new ShaderAst(PARSER, tree, root, List.copyOf(dropped), version, spelledTypes(tree, typeTokens));
+        return new ShaderAst(PARSER, tree, root, List.copyOf(dropped), Math.min(leadingExtensions, extensions), version,
+            spelledTypes(tree, typeTokens));
+    }
+
+    private static final Pattern EXTENSION_LINE = Pattern.compile("#[ \\t]*extension\\b");
+
+    /**
+     * How many {@code #extension} directives the leading directive block of {@code source} holds: the ones the TauMC
+     * engine's header kept. TauMC took its header from a pre-parser that read the lexer's tokens on every channel (a
+     * {@code BufferedTokenStream}, so whitespace and comments included) and stopped at the first token outside a
+     * directive. Its block is therefore the lines from the start of the source that begin with {@code #} in column 0,
+     * up to the first line that does not: a blank line, an indented line, a comment or code. A backslash before the
+     * line break continues a line, as in a {@code #define}. Probed against the pinned TauMC jar
+     * ({@code ShaderAstParityTest.extensionHeaderLines}); the recorded corpora have every {@code #extension} (111) in
+     * this block.
+     *
+     * <p>Not modelled, because preprocessed sources have neither: a comment on a directive line, which TauMC's
+     * directive lexer modes have no token for (its error recovery then sometimes loses the next directive, and this
+     * rule keeps it); and conditional directives, after which TauMC's lexer reads program text into the block.</p>
+     */
+    static int leadingExtensionCount(String source) {
+        final int length = source.length();
+        int count = 0;
+        int start = 0;
+        while (start < length && source.charAt(start) == '#') {
+            int end = start;
+            while (true) {
+                final int newline = source.indexOf('\n', end);
+                if (newline < 0) {
+                    end = length;
+                    break;
+                }
+                int last = newline - 1;
+                if (last > end && source.charAt(last) == '\r') {
+                    last--;
+                }
+                end = newline + 1;
+                if (last <= start || source.charAt(last) != '\\') {
+                    break;
+                }
+            }
+            if (EXTENSION_LINE.matcher(source).region(start, end).lookingAt()) {
+                count++;
+            }
+            start = end;
+        }
+        return count;
     }
 
     /**
@@ -316,7 +371,12 @@ public final class ShaderAst {
      * end in 3.0.0-pre3 ({@code TranslationUnitFilterCachingParser.parse} calls itself). Snippet ASTs (the verbs'
      * code strings) are still cached by the parser's own AST cache, which this setting does not affect; that cache
      * lives as long as the parser, so with the shared parser a snippet is parsed once and cloned into every later
-     * program that uses it.</p>
+     * program that uses it. That cache (glsl-transformer's {@code TypedTreeCache}, an LRU of 400 entries) is keyed on
+     * the snippet's text and grammar rule, not on the lexer version: a snippet first parsed for a program at one
+     * version is reused for programs at other versions; the version {@link #build} sets matters only on a cache miss.
+     * A snippet whose words are keywords at some versions and identifiers at others would therefore be read as the
+     * first program's version reads it; the risk is small, because the verbs' snippets are Iris's own code and
+     * {@code renameReservedWords} renames such words in pack code before the parse (S5 verification).</p>
      */
     static ASTParser newParser(DirectiveFilter filter) {
         final ASTParser parser = new ASTParser();
@@ -342,31 +402,48 @@ public final class ShaderAst {
         }
     }
 
-    /** The directives {@link #parse} dropped, as {@code line N: #define} (filtered) or the {@code #pragma} text. */
+    /**
+     * The directives {@link #parse} dropped, as {@code line N: #define} (filtered), the {@code #pragma} text, or an
+     * {@code #extension} line after the leading directives with the suffix {@code (after the leading directives)}.
+     */
     public List<String> droppedDirectives() {
         return droppedDirectives;
     }
 
     /**
-     * The program's {@code #extension} directives in document order, one line each, as TauMC's token-spaced printer
-     * wrote them: {@code #extension GL_ARB_shader_texture_lod : enable}. {@link #print(String)} removes the directives
-     * from the tree, so the orchestrator reads them first and writes them into its header.
+     * The {@code #extension} directives of the program's leading directive block, in document order, one line each, as
+     * TauMC's token-spaced printer wrote them: {@code #extension GL_ARB_shader_texture_lod : enable}. These are the
+     * extension lines the TauMC engine put in its header. The leading block is the run of directive lines at the very
+     * start of the source, up to the first blank line, comment, indented line or code ({@link #leadingExtensionCount}).
+     *
+     * <p>An {@code #extension} after that block is not returned: TauMC's pre-parser never read it and its parser
+     * ignores directives, so the TauMC engine dropped it, and so does this class ({@link #parse} lists it in
+     * {@link #droppedDirectives()} and logs it; {@link #print(String)} removes it from the body). glsl-transformer
+     * parses {@code #extension} anywhere at the top level, so without this rule such a line would move into the header,
+     * where a {@code require} of an extension the driver lacks fails a program TauMC's output compiled.</p>
+     *
+     * <p>{@link #print(String)} removes the directives from the tree, so the orchestrator reads them first and writes
+     * them into its header.</p>
      */
     public List<String> extensionDirectives() {
         final List<String> lines = new ArrayList<>();
         for (ExternalDeclaration declaration : tree.getChildren()) {
-            if (declaration instanceof ExtensionDirective extension) {
-                String line = "#extension " + extension.getName();
-                if (extension.behavior != null) {
-                    // By token: the enum constant for 'require' is named DEBUG in 3.0.0-pre3.
-                    final String literal = GLSLLexer.VOCABULARY.getLiteralName(extension.behavior.tokenType);
-                    line += " : " + (literal != null ? literal.substring(1, literal.length() - 1)
-                        : GLSLLexer.VOCABULARY.getSymbolicName(extension.behavior.tokenType));
-                }
-                lines.add(line);
+            if (declaration instanceof ExtensionDirective extension && lines.size() < leadingExtensions) {
+                lines.add(extensionLine(extension));
             }
         }
         return lines;
+    }
+
+    private static String extensionLine(ExtensionDirective extension) {
+        String line = "#extension " + extension.getName();
+        if (extension.behavior != null) {
+            // By token: the enum constant for 'require' is named DEBUG in 3.0.0-pre3.
+            final String literal = GLSLLexer.VOCABULARY.getLiteralName(extension.behavior.tokenType);
+            line += " : " + (literal != null ? literal.substring(1, literal.length() - 1)
+                : GLSLLexer.VOCABULARY.getSymbolicName(extension.behavior.tokenType));
+        }
+        return line;
     }
 
     /**

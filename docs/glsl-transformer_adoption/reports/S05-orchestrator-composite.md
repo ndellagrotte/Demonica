@@ -9,8 +9,8 @@ Step 5 of [the adoption plan](../ADOPTION_PLAN.md). Branch `feat/glsl-transforme
 
 | Done when | Evidence |
 |---|---|
-| Replay for COMPOSITE and COMPUTE has zero unexplained diffs on all corpora | Pack corpora: `cases=36 identical=36 ... accepted=0 failing=0 unsupported=0` (the brief's Verify command). Mini-corpus: `cases=6 identical=5 ... accepted=1 failing=0`; the accepted case is TauMC's recorded error, below. No other corpus exists (S2) |
-| The old-engine transform tests still green | `./gradlew :test --tests 'net.coderbot.iris.pipeline.transform.*'`: `BUILD SUCCESSFUL`, 12 classes, 429 tests, 0 failures, 3 skipped (the corpus-gated ones); and the TauMC engine still replays its own recordings byte for byte: 424/424 packs, 16/16 mini-corpus |
+| Replay for COMPOSITE and COMPUTE has zero unexplained diffs on all corpora | Pack corpora: `cases=36 identical=36 ... accepted=0 failing=0 unsupported=0` (the brief's Verify command). Mini-corpus: `cases=6 identical=5 ... accepted=1 failing=0`; the accepted case is TauMC's recorded error, below. No other corpus exists (S2). After the verification follow-up, with the new case `composite-extension-placement`: packs `cases=36 identical=36 ... failing=0`, mini-corpus `cases=7 identical=6 ... accepted=1 failing=0` |
+| The old-engine transform tests still green | `./gradlew :test --tests 'net.coderbot.iris.pipeline.transform.*'`: `BUILD SUCCESSFUL`, 12 classes, 429 tests, 0 failures, 3 skipped (the corpus-gated ones); and the TauMC engine still replays its own recordings byte for byte: 424/424 packs, 16/16 mini-corpus. After the verification follow-up: 451 tests, 0 failures, 3 skipped; mini-corpus 17/17 on TauMC |
 | `TransformPatcherCacheTest` green on both engines | default (`taumc`): 5 tests, 0 failures (inside the run above); `-PglslEngine=douira`: 5 tests, 0 failures, the test JVM logged `GLSL transform engine: douira` |
 | Report | this page |
 
@@ -92,14 +92,21 @@ effective version; the source's own `#version` line is dropped at print), the ex
 vertex shaders (the Step 6 hook; unreachable until that kind is ported). It logs
 `[Load #n] Transformed shader for <kind> in <time>` (and `... compute shader ...`) as the old engine does.
 
-**Extensions.** `ShaderAst.extensionDirectives()` reads the `ExtensionDirective` nodes of the parsed program, in
-document order, right after the parse, and formats them as TauMC's token printer did: `#extension NAME : behavior`
-(behavior by token, because 3.0.0-pre3 names the constant for `require` `DEBUG`). They are joined with `\n`. Not a
-regex over the input, as the brief suggests: a regex would also match directives inside comments (BSL's 336 inputs
-carry `#define` text in a block comment, S2), so it would need GLSL comment handling; the parser already has it. TauMC
-printed every directive of its pre-parser tree except `#version`, so a `#define` or `#pragma` still in the source came
-back in its header; the new engine drops those (logged by `ShaderAst`). Named in the class javadoc; test
-`differenceOtherDirectivesAreNotReemitted`. No recorded input has one (S2's survey).
+**Extensions.** *(Corrected in the verification follow-up; the first version of this paragraph said TauMC's header held
+every directive of the source, and the new engine took every `#extension` of the tree.)* `ShaderAst.extensionDirectives()`
+reads the `ExtensionDirective` nodes of the parsed program's leading directive block, in document order, right after
+the parse, and formats them as TauMC's token printer did: `#extension NAME : behavior` (behavior by token, because
+3.0.0-pre3 names the constant for `require` `DEBUG`). They are joined with `\n`. The leading block is TauMC's: its
+pre-parser read the lexer's tokens on every channel (a `BufferedTokenStream`) and stopped at the first token outside a
+directive, so its header held only the directive lines at the very start of the source, up to the first blank line,
+comment, indented line or code. `ShaderAst.leadingExtensionCount` finds that block in the source text and counts its
+`#extension` lines; `extensionDirectives()` returns that many of the tree's `ExtensionDirective` nodes, and any later
+one is dropped (listed in `droppedDirectives()`, logged, removed at print), as TauMC's engine dropped it. The nodes come
+from the parsed tree, not from a regex over the input, as the brief suggests: a regex would also match directives
+inside comments (BSL's 336 inputs carry `#define` text in a block comment, S2), so it would need GLSL comment handling;
+the parser already has it. TauMC printed every directive of that leading block except `#version`, so a `#define` or
+`#pragma` there came back in its header; the new engine drops those (logged by `ShaderAst`). Named in the class
+javadoc; test `differenceOtherDirectivesAreNotReemitted`. No recorded input has one (S2's survey).
 
 **Old-engine code the new engine still calls, and where it lives:**
 
@@ -251,6 +258,7 @@ per-call parser did not have the problem.
 | mini-corpus `composite-120`, `composite-330`, `transform-each`, `transform-grouped` (COMPOSITE), `compute` (COMPUTE) | all | identical (tokens) | none |
 | `transform-grouped-330-undeclared` (mini-corpus) | error | TauMC threw (removed injection anchor, see (a)); the new engine transforms it into valid GLSL | accepted: `transform-grouped-330-undeclared \| error \| old engine threw (removed injection anchor); the new engine transforms it, checked by AstShaderTransformerTest` |
 | `composite-120` (mini-corpus) | vertex, fragment | TauMC behaviour kept: `gl_TexCoord[0]` under `#version 330 core` (d) | none (identical); Open questions 3 |
+| `composite-extension-placement` (mini-corpus, added by the verification follow-up) | vertex, fragment | identical (tokens): only the leading `#extension` reaches the header, as in TauMC | none |
 | COMPOSITE and COMPUTE cases with a PCF helper | fragment | S7 pending | none needed: there are none; the adaptive-shadow-bounds `TODO(S7)` changes no COMPOSITE or COMPUTE output in any corpus |
 | ATTRIBUTES, CELERITAS_TERRAIN, DH, COMPAT | all | unsupported (not ported) | Steps 6, 7, 10 |
 
@@ -262,7 +270,8 @@ order in every case.
 1. Commit trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, not "Claude Fable 5.1" (the orchestrator's
    rule).
 2. The extension lines come from the parsed tree (`ShaderAst.extensionDirectives()`), not from a regex over the input
-   (reason under "Extensions"). The other directives TauMC re-emitted in its header are not re-emitted (named, tested).
+   (reason under "Extensions"); only those of the leading directive block, as TauMC (verification follow-up). The other
+   directives of that block, which TauMC re-emitted in its header, are not re-emitted (named, tested).
 3. The factory: three configurations were measured, not two, and the one kept is a shared instance behind the
    existing `BUILD_LOCK` held per build, not a lock around the whole transform (numbers above). There is no separate
    `ReentrantLock` in the orchestrator. `ShaderAst.build(Supplier)` is new public API for code that builds nodes itself.
@@ -285,9 +294,12 @@ order in every case.
 
 1. Syntax errors: the new engine throws where TauMC returned an error-recovered program (which the driver then
    rejected or, by luck, compiled). Iris throws too. No corpus input fails to parse (S2's survey: 774 of 774 prepared
-   Iris inputs parse). Keep throwing when Step 8 flips the default, or catch and fall back to the untransformed source?
-2. The header drops `#define`, `#pragma` and other directives TauMC re-emitted. Sources are preprocessed first
-   (`JcppProcessor`), so this should never matter; confirm it is acceptable.
+   Iris inputs parse). *(Verification follow-up: the throw is reachable from pack-shaped input: an identifier `patch`
+   in a 120 shader hoisted to 400 or later, which `renameReservedWords` does not rename; an `#extension` inside a
+   function body; an `#extension` before `#version`.)* Keep throwing when Step 8 flips the default, or catch and fall
+   back to the untransformed source?
+2. The header drops the `#define`, `#pragma` and other directives of the leading block that TauMC re-emitted. Sources
+   are preprocessed first (`JcppProcessor`), so this should never matter; confirm it is acceptable.
 3. `composite-120`: both engines leave `gl_TexCoord[0]` in a `#version 330 core` program, which a strict core compiler
    rejects (the output is recorded; it was not compiled). It predates the migration. Port Iris's `gl_TexCoord`
    handling after Step 8, or leave it?
@@ -296,6 +308,11 @@ order in every case.
    (which needs the lock) means driving `EnhancedParser` and `ASTBuilder` directly. Worth it after Step 8's real load
    times?
 5. S2's open question 3 stands: the mini-corpus replay runs only with `-PglslCorpusDir`, so `check` does not guard it.
+6. *(Verification follow-up.)* `#extension` placement: the new engine drops an `#extension` after the leading directive
+   block, as TauMC did. Hoisting such a line into the header instead would suit a pack whose include order puts one
+   after code (the GLSL specification, section 3.3, wants extension directives before any non-preprocessor token
+   unless the extension says otherwise), but it changes output, and a hoisted `require` of an extension the driver
+   lacks fails a program that compiled before. Revisit after Step 8's end-to-end runs, if a pack needs it?
 
 ## Notes for the next step
 
@@ -325,3 +342,223 @@ order in every case.
   `compositeVertexLegacyGlColorIsRewritten` fails its raw-string assertion (`color = iris_FrontColor ;`, TauMC's token
   spacing, against the indented print; formatting only, Step 8 ports it to `GlslTokens`), and
   `terrainVertexGlColorStaysOnCeleritasVertexColor` throws `UnsupportedOperationException` (CELERITAS_TERRAIN, Step 6).
+
+## Verification follow-up
+
+An independent verification (outputs `run/s5v-*.out`, probes in `run/s5v-probe-min/` and `run/s5v-probe-corpus/`)
+found one blocking issue and made seven remarks. Fixed on 2026-09-28 on `feat/glsl-transformer` in the commit
+"glsl-transformer: S5 fix #extension lines after the leading directives" (code, tests, a mini-corpus case, this
+section); the next commit records it in `STATUS.md`. Status stays **done**. Outputs of this follow-up:
+`run/s5f-*.out`.
+
+### Blocking: an `#extension` after code went into the header; TauMC dropped it
+
+**Confirmed, and wider than reported.** TauMC's `ShaderParser.parseShader` (`run/lib-src/taumc/ShaderParser.java`)
+gives its `GLSLPreParser` a `BufferedTokenStream`, which, unlike the main parser's `CommonTokenStream`, does not filter
+channels, and the pre-parser stops at the first token outside a directive. Whitespace and comments are tokens on hidden
+channels (`GLSLLexer.g4` lines 297-301), so the pre-parser stops at a blank line, a comment or an indented line as well
+as at code. Probed on the pinned jar with jshell (`ShaderParser.parseShader(source).pre()` printed with
+`GlslTransformUtils.getFormattedShader`, as `ShaderTransformer` builds its header), every source starting
+`#version 330 core`:
+
+| What follows `#version 330 core` | `#extension` lines in TauMC's header |
+|---|---|
+| an `#extension` directly; or two | 1; 2 |
+| a declaration, then an `#extension` (the verifier's `p9-midfile-extension`) | 0 |
+| an empty declaration `;`, a function, or `precision highp float;`, then an `#extension` | 0 |
+| a blank line, then an `#extension` | 0 |
+| a `// comment` or `/* comment */` line, then an `#extension` | 0 |
+| an indented `  #extension` | 0 |
+| `#define X 1`, `#pragma optimize(on)` or `#line 5`, then an `#extension` | 1 (and the `#define`, `#pragma` or `#line` too) |
+| a `#define` continued with a backslash on the next line, then an `#extension` | 1 |
+| `# extension` (a space after `#`) | 1 |
+| CRLF line ends; trailing blanks on the `#version` line | 1 |
+| (a blank line before `#version`) | 0, and no other directive |
+| `#extension A : enable /* c */`, then `#extension B` | 1 (A) |
+| `#version 330 core /* c */`, then an `#extension` | 1 |
+| `#version 330 core // c`, then an `#extension` | 0; lexer errors swallow the program text after it too |
+
+So the verifier's first proposed rule, "the extension directives before the first non-directive external
+declaration", is not TauMC's either: glsl-transformer's tree has no blank lines or comments in it. The last three rows
+are TauMC's lexer error recovery: its directive lexer modes have no comment token.
+
+**Fix: TauMC's behaviour, not a named deviation.** The step's goal is replay parity, and moving a `require` into the
+header can make a program that compiled with TauMC's output fail on a driver without the extension. A behaviour change,
+if wanted, is a decision for after Step 8 (Open questions 6). `ShaderAst.parse` counts the `#extension` lines of the
+leading block in the source text (`leadingExtensionCount`: from the start of the source, the lines that begin with `#`
+in column 0, up to the first line that does not; a backslash before the line break continues a line, as in a
+`#define`). `extensionDirectives()` returns that many of the tree's `ExtensionDirective` nodes, in document order (the
+block is a prefix of the document, so they are its first ones); every later one is listed in `droppedDirectives()` as
+`#extension NAME : behavior (after the leading directives)` and logged with the other dropped directives (the message
+is now `[ShaderAst] Dropped N preprocessor directive(s): [...]`; it said "that the transform does not evaluate", which
+does not fit an `#extension`). `print` removes every `#extension` from the body, as before, so a late one is gone from
+the output, as in TauMC's. The rule sits in `ShaderAst`, so every patch kind ported later gets it. Not modelled, because preprocessed sources have neither: a comment on a directive line (the
+last three rows; the rule keeps the next directive; named in the javadoc, test `deviationACommentOnADirectiveLine`), and
+conditional directives, after which TauMC's lexer reads program text into the block.
+
+**Corpus.** A scan of all 797 recorded inputs (`in.*.glsl` under `run/transform-corpus/` and the mini-corpus, Python,
+with the same leading-block rule): 111 inputs contain an `#extension`, one line each, and all 111 lines are in the
+leading block; in every one of those cases, TauMC's recorded output has as many extension lines as the rule predicts.
+So the fix changes no recorded output, and the corpus replay could not have caught the issue (the verifier found 0
+inputs of this shape).
+
+**Tests.**
+- `ShaderAstParityTest.extensionHeaderLines`: 20 rows (the table's shapes, without the comment-on-a-directive rows).
+  Each asserts the number of lines TauMC's header keeps, on the pinned jar (so the rows document the rule), that
+  `extensionDirectives()` equals TauMC's lines, that each later `#extension` is in `droppedDirectives()`, and that the
+  printed program has no `#extension`.
+- `ShaderAstParityTest.deviationACommentOnADirectiveLine`: TauMC keeps A only; `ShaderAst` keeps A and B.
+- `AstShaderTransformerTest.extensionsAfterTheLeadingDirectivesAreDropped`: the verifier's `p9` program through both
+  whole engines (same tokens; no `#extension` in the new engine's fragment output), and a fragment shader with one
+  `#extension` leading, one after a blank line and one after a comment (same tokens; only the leading one, directly
+  under `#version 330 core`).
+- Mini-corpus case `composite-extension-placement` (hand-written; recorded with `-PglslReplayEngine=taumc
+  -PglslReplayRecord=true` into a scratch copy, `run/s5f-record.out`, and the two `out.taumc.*` files copied in): the
+  vertex shader has an `#extension` after a blank line; the fragment shader one leading, one after a declaration
+  (`require`), one after a comment. TauMC's header keeps the fragment's first only. The replay now covers the shape.
+
+The tests and the case were run against the old rule, with `extensionDirectives()` returning every node again (the
+node count passed to the constructor, one edit; `run/s5f-unit-old-rule.out`, `run/s5f-mini-douira-old-rule.out`; the
+deviation test passes under both rules, which both keep B):
+```
+AstShaderTransformerTest > extensionsAfterTheLeadingDirectivesAreDropped() FAILED
+ShaderAstParityTest > extensionHeaderLines() > after a declaration (the verifier's repro) FAILED
+... (ten more rows: one leading and one after a declaration, after an empty declaration, after a function, after a
+default precision, after a blank line, one leading and one after a blank line, after a line comment, after a block
+comment, indented, a blank line before #version)
+408 tests completed, 12 failed, 1 skipped
+    replay:   FAILING composite-extension-placement [vertex, fragment]
+```
+with the diffs `+ #extension GL_EXT_gpu_shader4 : require` and `+ #extension GL_ARB_gpu_shader5 : enable` (fragment)
+and `+ #extension GL_ARB_explicit_attrib_location : enable` (vertex). The fixed file was restored and compared with
+`cmp`. The verifier's probe on the fixed engine (`run/s5f-probe-p9-douira.out`): `cases=1 identical=1 ... failing=0`
+(it was `FAILING probe/p9-midfile-extension [fragment]`, `run/s5v-probe-min-douira.out`).
+
+**Text corrected.** The `AstShaderTransformer` class javadoc; `ShaderAst`'s javadocs of `parse`,
+`extensionDirectives`, `droppedDirectives` and the new `leadingExtensionCount`; the javadoc of
+`differenceOtherDirectivesAreNotReemitted` (TauMC's header held the directives of the leading block, not every
+directive; the test's `#define` and `#pragma` are in that block, so it stands); and this report's "Extensions"
+paragraph, Deviation 2 and Open question 2 (corrected in place).
+
+**Two more `#extension` shapes where the engines differ**, found while probing (jshell against `glsm`'s classes), both
+covered by Deviation 8 and Open question 1 (the new engine throws where TauMC went on): an `#extension` inside a
+function body (TauMC's parser ignores directives, so it is dropped; glsl-transformer throws
+`SyntaxException: line 3:0 mismatched input '#'`), and an `#extension` before `#version` (TauMC's header keeps it;
+glsl-transformer throws `no viable alternative at input '#version'`). No recorded input has either: all 111 are in the
+leading block.
+
+### What changed
+
+- `glsm/.../transformer/ShaderAst.java`: `leadingExtensionCount` (new, package-private); `parse` counts the leading
+  block's `#extension` lines, lists the later ones in `droppedDirectives()` and logs them; `extensionDirectives()`
+  returns the leading ones only; `extensionLine` (extracted); the log message; javadocs of `parse`,
+  `extensionDirectives`, `droppedDirectives` and `newParser` (the snippet cache, remark 3).
+- `shader/.../transform/AstShaderTransformer.java`: the class javadoc.
+- `glsm/.../debug/TransformCorpus.java`: `Writer`'s javadoc back above `Writer` (remark 4).
+- `src/test/.../AstShaderTransformerTest.java`: `extensionsAfterTheLeadingDirectivesAreDropped`; two javadocs.
+- `src/test/.../ShaderAstParityTest.java`: `taumcHeaderExtensions`, `extensionHeaderLines` (20 rows),
+  `deviationACommentOnADirectiveLine`.
+- Added `src/test/resources/transform-corpus/composite-extension-placement/` (`case.properties`, two inputs, two
+  TauMC outputs).
+- This report (corrections in place, this section) and `STATUS.md`.
+
+### Remarks
+
+| # | Remark | Resolution |
+|---|---|---|
+| 1 | Only one failing-or-accepted diff exists (`transform-grouped-330-undeclared`), so three could not be opened | Nothing to change. After this follow-up's mini-corpus replay, `build/reports/transform-replay/` holds `summary.txt` and `transform-grouped-330-undeclared.error.diff`; after the pack replay, `summary.txt` only |
+| 2 | TauMC's removed-anchor `IndexOutOfBoundsException` also hits the verifier's probes `p1-geometry` (vertex, geometry and fragment at 330) and `p7-declarators`; the new engine transforms both validly | Not re-run here. Carried to the Notes: expect more `error`-stage entries of this class from Step 6 on, and accept each only after checking the new engine's output, as `AstShaderTransformerTest.theGroupedCaseTauMCCouldNotTransform` does |
+| 3 | The snippet AST cache is keyed on (text, rule), not on the lexer version | **Confirmed** in the sources: `ASTParser.parseNodeCachedUncloned` calls `buildCache.cachedGet(input, parseShape.ruleType, ...)`; `TypedTreeCache` is an `LRUCache` keyed on `CacheKey(String input, Class ruleType)`, default size 400. **Documented** in `ShaderAst.newParser`'s javadoc: a snippet first parsed for a program at one version is reused at others, and `build` sets the version only for a miss. The risk stays small: the verbs' snippets are Iris's own code, and `renameReservedWords` renames `sample` and `new` (and `sampler` from 400) in pack code first |
+| 4 | `TransformCorpus.Writer`'s javadoc sat orphaned above `run()`'s | **Fixed**: moved back above `Writer`, where it was at `10750ef6` |
+| 5 | `STATUS.md`'s S5 row names "the S5 report-and-status commit", not `448264f5` | **Fixed** in the status commit that follows this one, which also names this fix |
+| 6 | Gradle prints no "Tests run" lines, and a plain re-run of the same `:test` command can come FROM-CACHE | **Agreed.** Every Gradle test run of this follow-up used `--rerun`; the counts below are from `build/test-results/test/*.xml`, with their timestamps |
+| 7 | Probe `p6` (`sample`, `patch` in a 120 shader hoisted to 420): `renameReservedWords` does not rename `patch`, so the new engine throws `SyntaxException`; TauMC failed to parse too and emitted broken GLSL | **Confirmed by reading the table**: `GlslTransformUtils.VERSIONED_RESERVED_WORDS` has `sample` and `new` (every version) and `sampler` (400 on), no `patch`. Not re-probed. Added to Open question 1 as evidence that the throw is reachable from pack-shaped input |
+
+Open question 1 now names these three inputs (remark 7 and the two `#extension` shapes above), and Open question 6 is
+new; both are edited in place under "Open questions".
+
+### Commands run and their outcomes
+
+Every Gradle run one at a time, with `--rerun`; counts from `build/test-results/test/*.xml`.
+
+- The two affected classes (`run/s5f-unit.out`): `./gradlew :test --tests '*AstShaderTransformerTest' --tests
+  '*ShaderAstParityTest' --rerun`: `BUILD SUCCESSFUL in 4s`; AstShaderTransformerTest 8 tests, 0 failures;
+  ShaderAstParityTest 400 tests, 0 failures, 1 skipped (22:40:51 UTC). A first run failed one row I had added,
+  "at the end of the source" (`#version 330 core\n#extension ...` with no final newline):
+  `SyntaxException: line 2:45 missing NR_EOL at '<EOF>'`, glsl-transformer's grammar needing a line end after a
+  directive. Not related to the rule; the row was removed.
+- The brief's Verify 1, with the concurrent pass (`run/s5f-packs-douira.out`):
+  ```
+  replay: engine=douira corpus=/home/nick/IdeaProjects/Demonica/run/transform-corpus cases=36 identical=36 (byte-identical 0) accepted=0 failing=0 unsupported=0 recorded=0 filtered=388
+  replay:   COMPOSITE {IDENTICAL=36}
+  replay: transformMs engine=douira total=873.1 COMPOSITE=873.1/36
+  replay: concurrent engine=douira threads=8 cases=36 groups=2 sequentialMs=532.6 concurrentWallMs=211.8 concurrentCallMs=1544.1 differing=0
+  BUILD SUCCESSFUL in 4s
+  ```
+  `build/reports/transform-replay/` then held `summary.txt` only.
+- The mini-corpus on the new engine (`run/s5f-mini-douira-final.out`):
+  ```
+  replay: engine=douira corpus=/home/nick/IdeaProjects/Demonica/src/test/resources/transform-corpus cases=7 identical=6 (byte-identical 0) accepted=1 failing=0 unsupported=0 recorded=0 filtered=10
+  replay:   COMPOSITE {IDENTICAL=5, ACCEPTED=1}
+  replay:   COMPUTE {IDENTICAL=1}
+  replay: concurrent engine=douira threads=8 cases=6 groups=1 sequentialMs=14.8 concurrentWallMs=10.0 concurrentCallMs=52.4 differing=0
+  BUILD SUCCESSFUL in 2s
+  ```
+- The mini-corpus on TauMC, every kind (`run/s5f-mini-taumc.out`): `cases=17 identical=17 (byte-identical 17)
+  accepted=0 failing=0 unsupported=0`. The TauMC pack replay was not re-run for every kind: no TauMC-engine code
+  changed. Its COMPOSITE cases ran for the timing below (`run/s5f-packs-taumc-timing.out`: `cases=36 identical=36
+  (byte-identical 36)`).
+- `ShaderAst`'s corpus mode on the pack corpora (`run/s5f-corpus-parity-packs.out`): `inputs=811 distinct=221
+  parseFailures=0 skipped=0 unexplained=0 seconds=33`; ShaderAstParityTest 400 tests, 0 failures, 0 skipped.
+- The brief's Verify 2 (`run/s5f-verify2.out`): `BUILD SUCCESSFUL in 2s`; AdaptiveShadowBoundsTransformerTest 9,
+  AstShaderTransformerTest 8, CeleritasTransformerTest 3, CompatibilityTransformerCaveSkyholeTest 1,
+  CompatibilityTransformerTest 6, GlslCorpusParseSurveyTest 1 (skipped), GlslTokensTest 10, GlslTransformerSpikeTest 3,
+  ShaderAstParityTest 400 (1 skipped), TransformCorpusReplayTest 2 (1 skipped), TransformPatcherCacheTest 5,
+  TransformPatcherTest 3: 451 tests, 0 failures, 0 errors, 3 skipped (22:42:57 to 22:42:58 UTC). The 22 more than
+  S5's 429: 20 rows, the deviation test and the orchestrator test.
+- The brief's Verify 3 (`run/s5f-verify3.out`): TransformPatcherCacheTest 5 tests, 0 failures, 0 errors (22:43:07
+  UTC); its output holds `GLSL transform engine: douira`.
+- Verify 4: `ls build/reports/transform-replay` after the pack replay: `summary.txt`; `accepted.txt` 24 lines
+  (unchanged).
+- Full build, the step's second `check` run (`run/s5f-build.out`): `./gradlew build` gave `BUILD SUCCESSFUL in 11s`;
+  `:test` executed 130 classes, 972 tests, 0 failures, 0 errors, 4 skipped (22:43:22 to 22:43:25 UTC; S5: 950).
+  `verifyCeleritasPin`, `verifyDiagnosticsJar`, `verifyDiagnosticsRemap`, `verifyDistributedJar`,
+  `verifyModuleBoundaries`, `verifyRunClasspath` and `verifyS8tnlibPin` ran. It ran before one last edit to
+  `ShaderAst` (the dropped-directive log message, and a sentence of `newParser`'s javadoc); after that edit, with no
+  third `check` run, the Verify commands ran again on the committed code: Verify 2 (`run/s5f-verify2-final.out`) 12
+  classes, 451 tests, 0 failures, 0 errors, 3 skipped (22:48:45 to 22:48:46 UTC); Verify 1
+  (`run/s5f-verify1-final.out`) `cases=36 identical=36 ... failing=0`; the mini-corpus (`run/s5f-mini-douira-final2.out`)
+  `cases=7 identical=6 ... accepted=1 failing=0`, `concurrent ... differing=0`; Verify 3 (`run/s5f-verify3-final.out`)
+  5 tests, 0 failures, engine `douira`. The timing runs below swapped five source files and restored them (compared
+  with `cmp`) before that edit.
+- Skipped: dev runs (as in S5: no pack runs on the new engine before Step 6), the `taumc` all-kind pack replay (no
+  TauMC-engine code changed), the S5 lock measurements (the lock and parser are unchanged).
+
+**Timing.** This follow-up's replay times are higher than S5's on both engines: the machine was loaded by processes
+that are not mine (load average 4.07 with no Gradle run; a `javap` at 257 % CPU). TauMC's engine on the 36 COMPOSITE
+cases: first pass 1,253.1 ms, warm 703.5 ms (S5: 1,114 to 1,136 and 652 to 695). For the fix's own cost, the S5 code
+and the fixed code were run in turn, three times each, under the same load (`run/s5f-ab-*.out`; the five changed
+source files swapped, then restored and compared with `cmp`):
+
+| Code | Replay first pass (ms) | Warm (ms) | 8 threads, wall (ms) |
+|---|---|---|---|
+| S5 (`448264f5`) | 918.4, 853.9, 857.8 (mean 876.7) | 541.7, 534.8, 526.8 (534.4) | 224.1, 224.5, 213.3 |
+| this fix | 944.8, 867.9, 906.3 (mean 906.3) | 522.2, 530.3, 539.0 (530.5) | 209.0, 198.1, 219.0 |
+
+Warm and concurrent times are the same; the first pass differs by 3 %, inside the spread of either side. The scan
+reads only the leading directive lines of each source.
+
+### Notes for the next step (additions)
+
+- `ShaderAst.extensionDirectives()` is TauMC's header rule: the leading directive block only. Later `#extension`
+  lines are dropped and listed in `droppedDirectives()` with the suffix `(after the leading directives)`. Every recorded
+  input of every kind has its `#extension` lines in the leading block, so ATTRIBUTES and CELERITAS_TERRAIN should
+  show no diff from it.
+- GLSM's `CompatShaderTransformer` separates its preamble with its own text code (`separatePreprocessorPreamble`) and
+  does not use TauMC's pre-parser; Step 10 should keep that and not switch to `extensionDirectives()` without
+  comparing.
+- TauMC's removed-anchor `IndexOutOfBoundsException` (remark 2): more `error`-stage cases of this class will appear.
+  Accept one only after checking the new engine's output parses and declares what the grouped step injects.
+- Code that hands pack-derived text to a verb as a snippet (not Iris's fixed strings) meets remark 3: the snippet
+  cache ignores the lexer version.
+- The mini-corpus has 17 cases now (`composite-extension-placement` added).

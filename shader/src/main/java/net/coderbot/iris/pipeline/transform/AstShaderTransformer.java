@@ -43,10 +43,13 @@ import java.util.regex.Pattern;
  * (glsl-transformer 3.0.0-pre3 is not thread-safe there, and its parser is shared). Step 5 measured the alternative,
  * the lock around the whole transform: as fast alone, and serialized on eight threads.</p>
  *
- * <p>Two things differ from the TauMC engine by construction. The {@code #extension} lines come from the parsed
- * program ({@link ShaderAst#extensionDirectives()}); TauMC printed every directive of its pre-parser tree except
- * {@code #version}, so it also re-emitted a {@code #define} or {@code #pragma} in the header, which glsl-transformer
- * drops and logs (sources arrive preprocessed; no recorded input has one). A source that does not parse throws
+ * <p>The header's {@code #extension} lines are the ones the TauMC engine wrote: those of the source's leading
+ * directive block, the directive lines at its very start up to the first blank line, comment, indented line or code
+ * ({@link ShaderAst#extensionDirectives()}). TauMC's pre-parser read only that block, and its parser ignores
+ * directives, so an {@code #extension} after the block is dropped, here as there. Two things differ from the TauMC
+ * engine by construction. TauMC's header held every directive of the leading block except {@code #version}, so a
+ * {@code #define} or {@code #pragma} there came back in the header; glsl-transformer drops and logs them (sources
+ * arrive preprocessed; no recorded input has one). A source that does not parse throws
  * {@link ShaderAst.SyntaxException}; TauMC re-parsed it with error recovery and returned what it recovered.</p>
  */
 public class AstShaderTransformer {

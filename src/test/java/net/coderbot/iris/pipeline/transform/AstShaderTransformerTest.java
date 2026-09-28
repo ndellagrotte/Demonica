@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The glsl-transformer engine's orchestrator (Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md) against the
  * TauMC engine, on the shapes the corpus replay does not cover: the case TauMC could not transform, the header's
- * extension lines, the matrix spellings {@code transformGrouped} compares, and the named behaviour differences. Outputs
+ * extension lines and the ones after the leading directives, the matrix spellings {@code transformGrouped} compares, and the named behaviour differences. Outputs
  * are compared as {@link GlslTokens}.
  */
 class AstShaderTransformerTest {
@@ -134,9 +134,35 @@ class AstShaderTransformerTest {
     }
 
     /**
-     * Named difference: TauMC's header printed every directive of its pre-parser tree but {@code #version}, so a
-     * {@code #define} or {@code #pragma} the source still had came back in the header; glsl-transformer drops them
-     * (and logs them). Sources reach the transform preprocessed; no recorded input has one.
+     * An {@code #extension} after the leading directive block (after code, a blank line, a comment) is dropped, as
+     * TauMC dropped it: its pre-parser read only the leading block and its parser ignores directives. glsl-transformer
+     * parses the directive anywhere at the top level, so the header would otherwise gain a {@code require} TauMC's
+     * output never had. The first program is the S5 verifier's repro ({@code p9-midfile-extension}).
+     */
+    @Test
+    void extensionsAfterTheLeadingDirectivesAreDropped() {
+        final String vertex = "#version 330 core\nin vec3 vaPosition;\nvoid main() { gl_Position = vec4(vaPosition, 1.0); }\n";
+        final String afterCode = "#version 330 core\nuniform sampler2D colortex0;\n#extension GL_EXT_gpu_shader4 : require\n"
+            + "layout(location = 0) out vec4 outColor;\nvoid main() { outColor = texture(colortex0, vec2(0.5)); }";
+        final Map<PatchShaderType, String> output = douira(vertex, afterCode);
+        assertSameProgram(taumc(vertex, afterCode), output);
+        assertFalse(output.get(PatchShaderType.FRAGMENT).contains("#extension"), output.get(PatchShaderType.FRAGMENT));
+
+        final String mixed = "#version 330 core\n#extension GL_ARB_shader_texture_lod : enable\n\n#extension GL_EXT_gpu_shader4 : require\n"
+            + "uniform sampler2D colortex0;\n// a comment\n#extension GL_ARB_gpu_shader5 : enable\n"
+            + "layout(location = 0) out vec4 outColor;\nvoid main() { outColor = texture(colortex0, vec2(0.5)); }\n";
+        final Map<PatchShaderType, String> mixedOutput = douira(vertex, mixed);
+        assertSameProgram(taumc(vertex, mixed), mixedOutput);
+        final String fragment = mixedOutput.get(PatchShaderType.FRAGMENT);
+        assertTrue(fragment.startsWith("#version 330 core\n\n#extension GL_ARB_shader_texture_lod : enable\n"), fragment);
+        assertEquals(1, fragment.lines().filter(line -> line.startsWith("#extension")).count(), fragment);
+    }
+
+    /**
+     * Named difference: TauMC's header held every directive of the source's leading directive block but
+     * {@code #version} (its pre-parser read only that block), so a {@code #define} or {@code #pragma} there came back in
+     * the header; glsl-transformer drops them (and logs them). Sources reach the transform preprocessed; no recorded
+     * input has one.
      */
     @Test
     void differenceOtherDirectivesAreNotReemitted() {

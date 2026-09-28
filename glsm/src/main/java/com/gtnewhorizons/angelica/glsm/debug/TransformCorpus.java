@@ -204,7 +204,6 @@ public final class TransformCorpus {
         return out.toString();
     }
 
-    /** Created on the first recorded case, so an unset property never touches the file system or starts a process. */
     /**
      * Runs {@code command} in {@code directory} and returns its trimmed output (standard out and error), or null when
      * it cannot start, exits with a non-zero status or is still running after {@code timeoutSeconds} (it is then
@@ -244,6 +243,7 @@ public final class TransformCorpus {
         }
     }
 
+    /** Created on the first recorded case, so an unset property never touches the file system or starts a process. */
     private static final class Writer {
         static final Writer INSTANCE = new Writer();
 
