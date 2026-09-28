@@ -590,7 +590,10 @@ with `javap`. S8TNLib keeps 47 files, 4,750 lines. The `cel/` copies and
     release jar calls `func_175180_a`, so in a normal install it would have
     mirrored the flag without restoring the HUD baseline, and logged nothing.
     It now matches both names, WARNs when it mirrors without restoring, and
-    both transformers log an INFO line when they apply.
+    both transformers log an INFO line when they apply. In the Prism
+    `prod-smoke-test` instance (Cleanroom 0.6.13, the release StellarCore and
+    JourneyMap jars) the log shows the restore inserted, and the minimap is
+    right with and without BSL.
   - `MixinConfigurationTest` fails for any transformer in
     `loading.fml.transformers` that `MixinEarly` does not register.
   - `-PwithHudCache=stellarcore|gnetum` loads the mods in a dev client.
