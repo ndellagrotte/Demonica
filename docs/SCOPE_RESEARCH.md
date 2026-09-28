@@ -251,6 +251,50 @@ Celeritas's mesher. They would be needed by any Celeritas user with those mods,
 shader pack or not. They belong upstream, and the ledger's C1 draft already says
 so.
 
+**Status (2026-09-27, `feat/version-gate`).** The guard is a version gate
+(recommendation B). The build writes `META-INF/demonica/celeritas-pin` (the
+upstream commit, the version and the pinned SHA-256s); `QuarantineGuard` hashes
+the installed Celeritas jar, and on a pinned hash every patch applies. On
+anything else, shaders are off with the reason on the shader pack screen, and
+only BASE (S15) applies, so terrain keeps its fog. Deleted: `AnchorExtractor`,
+`AnchorAudit`, the anchor file format, `Anchor`, `MemberRef`, `ClassIndex`, the
+four levels, the drills and `-Ddemonica.guard.audit`, the refmap reader,
+`PatchGroup.Gate`, `@Patch`'s `context`/`uses`/`usesPackages`, the shader pack
+screen's notice rows, `AnchorInventoryTest`, `UpstreamMixinInventory` and its
+snapshot, `GuardDrillTest`, `ProductionAnchorCheck`, and the
+`generateCeleritasAnchors` and `verifyProductionAnchors` tasks. Kept: the
+injection audit, now fatal in a dev run (`InjectionAuditDevCheck` throws on the
+game thread, so the client stops with a crash report naming the injector), and
+`QuarantineLedgerTest` and `QuarantinePriorityTest`, which read `@Patch` and
+upstream's mixins straight from the class files. Moving the pin is now: build,
+one dev run that loads a world, the Prism smoke test (`docs/celeritas/PIN.md`).
+The guard package went from 2,025 to 773 lines; main sources lost 1,296 lines
+net, tests 662. The original claims needed four corrections:
+- The "2,000 lines of guard" counted the injection audit's 293 lines, which
+  stay (with a 39-line dev check).
+- By then the audit covered 253 anchors on 19 mixins, not 316 on 21 (RSO's
+  removal took O1 and its anchors).
+- The workspace's Celeritas is Unimined's remap and can never match a pin, so
+  a dev run needs a hash of its own: the build records it as `dev_sha256`, the
+  guard trusts it only in a deobfuscated environment, the `jar` task drops it,
+  and `verifyDistributedJar` fails if it is there.
+  `-Ddemonica.celeritas.pinsOnly=true` shows the rejection in a dev client.
+- The config's `required: false` already kept a moved anchor from crashing the
+  game; what the gate adds is that a foreign build never runs a partial set of
+  patches. Two things the anchor tests checked are not injector misses and
+  stay as a test: an override of S2's `begin`/`end` in forge122's renderer,
+  and an upstream `isInShadowPass` duplicating S3.
+
+Verified: `./gradlew build` (568 tests, 0 failures, 1 skipped). Dev client:
+accepted by `dev_sha256`, all 19 mixins at n of n, the pack list through the
+Shader Packs tab, BSL with terrain shadows; with `pinsOnly`, the mismatch
+error, 18 mixins left out, only S15 applied (7 of 7), fog right, and
+`ShadersUnavailableScreen` with the reason; with S16's target renamed, the client
+crashed a second after `DefaultChunkRenderer` loaded, the crash report naming
+the injector. Prism `prod-smoke-test` with the 0.5.0-SNAPSHOT jars: the release
+asset (`4dd4b35d`) is the pin, all 19 at n of n, BSL with shadows; a copy of it
+with one added zip entry is rejected in the same way as in dev.
+
 ### 3.2 GLSM, the redirector and the core profile
 
 GLSM exists in Angelica because 1.7.10 has no `GlStateManager` and mods call
