@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.Shadow;
  * S19 (docs/celeritas/patches/S19.md): exposes the tracker's neighbour gate, which the Distant Horizons uniforms
  * read (Iris's CameraUniforms, through ChunkTrackers).
  */
-@Patch(value = "S19", group = PatchGroup.DEGRADE, uses = ChunkTrackers.class)
+@Patch(value = "S19", group = PatchGroup.DEGRADE)
 @Mixin(value = ChunkTracker.class, remap = false, priority = 1100)
 public abstract class ChunkTrackerMixin implements ChunkTrackerAccess {
     @Shadow

@@ -75,49 +75,6 @@ def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', 
 sourceSets.main.output.dir(mergedEmbeddedLibraryClassesDir, builtBy: mergeEmbeddedLibraryClasses)
 
 /*
- * META-INF/demonica/celeritas-anchors: the Celeritas build the jar is made for and every anchor of the quarantine's
- * patches, extracted from the compiled mixins. QuarantineGuard reads it at startup, and checks the anchors when the
- * installed Celeritas is not the pinned build (docs/celeritas/LEDGER.md, "The guard").
- */
-def generatedAnchorsDir = layout.buildDirectory.dir('generated/celeritas-anchors')
-def generateCeleritasAnchors = tasks.register('generateCeleritasAnchors', JavaExec) {
-    description = 'Extracts the anchors of the Celeritas patches from the compiled quarantine mixins.'
-    def compiledClasses = tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory }
-    def quarantineConfig = file('src/main/resources/mixins.demonica.celeritas.json')
-    // The jar the build compiles against (Unimined's MCP remap of the pin): its upstream mixins name the same members.
-    def celeritasJar = configurations.compileClasspath.filter {
-        it.name.startsWith('celeritas-forge-mc12.2-') && !it.name.endsWith('-sources.jar')
-    }
-    def outputFile = generatedAnchorsDir.map { it.file('META-INF/demonica/celeritas-anchors') }
-    def pins = project.property('celeritas_sha256').toString()
-    def upstreamCommit = project.property('celeritas_sha').toString()
-    def celeritasVersion = project.property('celeritas_version').toString()
-
-    dependsOn mergeEmbeddedLibraryClasses
-    inputs.files(compiledClasses, mergedEmbeddedLibraryClassesDir).withPropertyName('classes')
-    inputs.file(quarantineConfig).withPropertyName('config')
-    inputs.files(celeritasJar).withPropertyName('celeritasJar')
-    inputs.property('pins', pins)
-    inputs.property('upstreamCommit', upstreamCommit)
-    inputs.property('celeritasVersion', celeritasVersion)
-    outputs.dir(generatedAnchorsDir)
-
-    classpath = files(compiledClasses) + configurations.compileClasspath
-    mainClass = 'com.demonica.celeritas.guard.AnchorExtractor'
-    javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-    doFirst {
-        delete(generatedAnchorsDir)
-        args = [outputFile.get().asFile.absolutePath, quarantineConfig.absolutePath, celeritasJar.singleFile.absolutePath,
-                upstreamCommit, celeritasVersion, pins,
-                compiledClasses.get().asFile.absolutePath, mergedEmbeddedLibraryClassesDir.get().asFile.absolutePath]
-    }
-}
-
-sourceSets.main.output.dir(generatedAnchorsDir, builtBy: generateCeleritasAnchors)
-
-/*
  * META-INF/demonica/celeritas-pin: the Celeritas build this Demonica was made for. QuarantineGuard compares the
  * installed jar's SHA-256 with it at startup (docs/celeritas/LEDGER.md, "The guard"). dev_sha256 is the hash of
  * Unimined's remap of the pin, which the compile classpath, the tests and the dev client all use; the guard trusts it
@@ -605,7 +562,6 @@ processResources {
 
 tasks.named('classes').configure {
     dependsOn mergeEmbeddedLibraryClasses
-    dependsOn generateCeleritasAnchors
     dependsOn generateCeleritasPin
 }
 
@@ -874,8 +830,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mixins.demonica.conditions.properties',
                 'mixins.demonica.distanthorizons.json',
                 'mixins.demonica-refmap.json',
-                // The pin and the patches' anchors, which QuarantineGuard checks at startup.
-                'META-INF/demonica/celeritas-anchors',
+                // The Celeritas pin, which QuarantineGuard checks the installed jar against at startup.
+                'META-INF/demonica/celeritas-pin',
                 // Loaded by path at runtime (Celeritas's ShaderLoader): the shaders of Iris's CenterDepthSampler.
                 'assets/angelica/shaders/centerDepth.vsh'
             ] + containedJars.get()

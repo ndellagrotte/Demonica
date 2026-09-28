@@ -40,7 +40,7 @@ import org.taumc.celeritas.impl.render.terrain.compile.task.ChunkBuilderMeshingT
  * </ul>
  * The method selectors carry the full descriptor: an erased bridge {@code execute(...)Object} calls this one.
  */
-@Patch(value = {"S10", "S13"}, group = PatchGroup.MESHING, uses = ShaderBlockContexts.class)
+@Patch(value = {"S10", "S13"}, group = PatchGroup.MESHING)
 @Mixin(value = ChunkBuilderMeshingTask.class, remap = false, priority = 1100)
 public abstract class ChunkBuilderMeshingTaskMixin {
     @Unique

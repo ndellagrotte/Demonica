@@ -5,8 +5,6 @@ import com.demonica.celeritas.guard.Patch;
 import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
 import net.coderbot.iris.Iris;
-import net.coderbot.iris.celeritas.vertices.ExtendedChunkVertexEncoder;
-import net.coderbot.iris.celeritas.vertices.ExtendedChunkVertexType;
 import net.coderbot.iris.layer.GbufferPrograms;
 import net.minecraftforge.client.MinecraftForgeClient;
 import org.embeddedt.embeddium.impl.render.chunk.ChunkRenderMatrices;
@@ -27,8 +25,7 @@ import org.taumc.celeritas.impl.render.terrain.CeleritasWorldRenderer;
  *   perf-debug report).</li>
  * </ul>
  */
-@Patch(value = {"S5", "S6m", "S9"}, group = PatchGroup.CORE_TERRAIN,
-    uses = {ExtendedChunkVertexType.class, ExtendedChunkVertexEncoder.class})
+@Patch(value = {"S5", "S6m", "S9"}, group = PatchGroup.CORE_TERRAIN)
 @Mixin(value = CeleritasWorldRenderer.class, remap = false, priority = 1100)
 public abstract class CeleritasWorldRendererMixin {
     @Inject(method = "chooseVertexType", at = @At("HEAD"), cancellable = true)
