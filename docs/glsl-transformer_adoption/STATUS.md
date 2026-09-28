@@ -10,7 +10,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S2 corpus recorder, replayer, baselines | done | `ebb9d89b`, `c211a5f6`, `6eeea2da` (report) | 2026-09-28 | [S02-corpus.md](reports/S02-corpus.md) |
 | S3 `ShaderAst` core verbs | done | `3e1f5fa9`, `80fda189`, `2ab0db35` (report); verification fix `3f9f926f` | 2026-09-28 | [S03-shaderast-core.md](reports/S03-shaderast-core.md) |
 | S4 `ShaderAst` structural verbs | done | `53bc8702`, `490fb1bd` (report) | 2026-09-28 | [S04-shaderast-structural.md](reports/S04-shaderast-structural.md) |
-| S5 orchestrator, COMPOSITE and COMPUTE | not started | | | |
+| S5 orchestrator, COMPOSITE and COMPUTE | done | `8b7b3489`, the S5 report-and-status commit | 2026-09-28 | [S05-orchestrator-composite.md](reports/S05-orchestrator-composite.md) |
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | not started | | | |
 | S7 DH and AdaptiveShadowBounds | not started | | | |
 | S8 flip the default, port the tests, full run (exit point A) | not started | | | |
@@ -61,7 +61,27 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   the injection anchors, `findType`, `removeVariable`, `findQualifiers` and `removeConstAssignment`; nodes built through
   `t`/`tree`/`root` directly are not recorded as additions. `findQualifiers` iterates in TauMC's `HashMap` order, which
   `transformGrouped`'s injection order depends on; `ShaderAstParityTest.transformGrouped` is TauMC's
-  `transformGrouped` written on `ShaderAst` and matches it (S4 report).
+  `transformGrouped` written on `ShaderAst` and matches it (S4 report; S5 lifted it into
+  `transformer/CompatibilityTransformer.transformGrouped`, which the test now calls).
 - Baselines (S2): frames in `run/baseline-screenshots/corpus-*.png`; `transformMs` log sums bsl 4,734.4 ms,
   complementary 13,151.2 ms, vanilla 5,703.3 ms (`run/corpus-<pack>.out`, `-Ddemonica.glsmPerfDebug=true`, recorder on,
   default `demonica.openglProfile`).
+- New engine (S5): `AstShaderTransformer` transforms COMPOSITE and COMPUTE (replay: 36/36 pack COMPOSITE cases and 5
+  mini-corpus cases identical, 1 accepted); other kinds throw `UnsupportedOperationException("glsl-transformer engine:
+  <kind> not ported yet")` at entry (keep the phrase: the replay's "unsupported" depends on it). Port a kind by adding it
+  to `AstShaderTransformer.PORTED` and `doTransform`. The ported transformers are
+  `shader/.../pipeline/transform/transformer/*` on `ShaderAst`; engine-neutral code: `transform/VersionNegotiation`
+  (hoisting, stage minimum, negotiation; `ShaderTransformer.init()`, `versionHoistingState()` and
+  `resetVersionHoistingForTesting()` delegate to it) and `transform/CompatibilityPatches` (pack text patches).
+  Adaptive shadow bounds is a `TODO(S7)` no-op in `transformer/CommonTransformer`.
+- `ShaderAst` (S5): one parser shared by every program, guarded by `BUILD_LOCK` (measured faster than a parser per call
+  and than a lock around the whole transform; S5 report). Code that builds nodes through `t`/`tree`/`root` must run
+  inside `ast.build(() -> ...)`, which holds the lock and restores the program's lexer version.
+  `findQualifiers(...).typeName()` is the type as spelled in the source (`mat2x2` is not `mat2`), as TauMC compared it.
+  `extensionDirectives()` gives the `#extension` lines for the header; the header no longer re-emits other directives.
+  A source that does not parse throws `ShaderAst.SyntaxException` (TauMC recovered).
+- Replay (S5): `-PglslReplayThreads=N` adds a concurrent pass (`replay: concurrent ... differing=0` must stay 0);
+  `replay: transformMs` gives the engine time per kind. `accepted.txt` stages are checked (`vertex`, `geometry`,
+  `tess_control`, `tess_eval`, `fragment`, `compute`, `compat`, `error`, `*`); `error` accepts a case recorded as a
+  TauMC error whose replay differs (report `<case>.error.diff`). `-PglslEngine=taumc|douira` sets
+  `demonica.glsl.engine` in the test JVM.
