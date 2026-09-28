@@ -117,6 +117,53 @@ def generateCeleritasAnchors = tasks.register('generateCeleritasAnchors', JavaEx
 
 sourceSets.main.output.dir(generatedAnchorsDir, builtBy: generateCeleritasAnchors)
 
+/*
+ * META-INF/demonica/celeritas-pin: the Celeritas build this Demonica was made for. QuarantineGuard compares the
+ * installed jar's SHA-256 with it at startup (docs/celeritas/LEDGER.md, "The guard"). dev_sha256 is the hash of
+ * Unimined's remap of the pin, which the compile classpath, the tests and the dev client all use; the guard trusts it
+ * only in a deobfuscated environment, and the jar task drops it.
+ */
+def generatedPinDir = layout.buildDirectory.dir('generated/celeritas-pin')
+def generateCeleritasPin = tasks.register('generateCeleritasPin') {
+    description = 'Writes the Celeritas pin QuarantineGuard checks the installed jar against.'
+    def isCeleritasJar = { File file -> file.name.startsWith('celeritas-forge-mc12.2-') && !file.name.endsWith('-sources.jar') }
+    def compileJar = configurations.compileClasspath.filter(isCeleritasJar)
+    def runtimeJar = configurations.runtimeClasspath.filter(isCeleritasJar)
+    def outputFile = generatedPinDir.map { it.file('META-INF/demonica/celeritas-pin') }
+    def pins = project.property('celeritas_sha256').toString()
+    def upstreamCommit = project.property('celeritas_sha').toString()
+    def celeritasVersion = project.property('celeritas_version').toString()
+
+    inputs.files(compileJar).withPropertyName('compileJar')
+    inputs.files(runtimeJar).withPropertyName('runtimeJar')
+    inputs.property('pins', pins)
+    inputs.property('upstreamCommit', upstreamCommit)
+    inputs.property('celeritasVersion', celeritasVersion)
+    outputs.dir(generatedPinDir)
+
+    doLast {
+        def sha256 = { File jar -> java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString() }
+        def devSha256 = sha256(compileJar.singleFile)
+        def runtimeSha256 = sha256(runtimeJar.singleFile)
+        if (devSha256 != runtimeSha256) {
+            throw new GradleException("The Celeritas jar the build compiles against (${compileJar.singleFile}, SHA-256 " +
+                "${devSha256}) is not the one the dev client runs (${runtimeJar.singleFile}, SHA-256 ${runtimeSha256}).")
+        }
+        def file = outputFile.get().asFile
+        delete(generatedPinDir)
+        file.parentFile.mkdirs()
+        file.text = """\
+            |# The Celeritas build this Demonica was made for (docs/celeritas/PIN.md). Written by generateCeleritasPin.
+            |celeritas_sha=${upstreamCommit}
+            |celeritas_version=${celeritasVersion}
+            |celeritas_sha256=${pins.split(',')*.trim().join(',')}
+            |dev_sha256=${devSha256}
+            |""".stripMargin()
+    }
+}
+
+sourceSets.main.output.dir(generatedPinDir, builtBy: generateCeleritasPin)
+
 subprojects {
     apply plugin: 'java-library'
     group = rootProject.group
@@ -559,6 +606,7 @@ processResources {
 tasks.named('classes').configure {
     dependsOn mergeEmbeddedLibraryClasses
     dependsOn generateCeleritasAnchors
+    dependsOn generateCeleritasPin
 }
 
 tasks.named('sourcesJar').configure {
