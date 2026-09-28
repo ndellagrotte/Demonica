@@ -6,7 +6,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 
 | Step | Status | Commit | Date | Report |
 |---|---|---|---|---|
-| S1 build wiring, license, spike | done | `4104a798`, `f7232573`, `114feb14` (report); verification fix in the commit after `114feb14` | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
+| S1 build wiring, license, spike | done | `4104a798`, `f7232573`, `114feb14` (report); verification fix `86e62ef7` | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
 | S2 corpus recorder, replayer, baselines | not started | | | |
 | S3 `ShaderAst` core verbs | not started | | | |
 | S4 `ShaderAst` structural verbs | not started | | | |

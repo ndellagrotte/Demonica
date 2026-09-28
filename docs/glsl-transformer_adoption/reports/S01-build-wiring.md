@@ -14,7 +14,7 @@ on 2026-09-28.
 | `4104a798` | glsl-transformer: S1 relicense to AGPL-3.0 and contain glsl-transformer 3.0.0-pre3 |
 | `f7232573` | glsl-transformer: S1 engine switch, stub engine and parser spike |
 | `114feb14` | glsl-transformer: S1 report and status |
-| (the commit after `114feb14`) | glsl-transformer: S1 fix the unknown-engine warning and the notice's header claim ([Verification follow-up](#verification-follow-up)) |
+| `86e62ef7` | glsl-transformer: S1 fix the unknown-engine warning and the notice's header claim ([Verification follow-up](#verification-follow-up)) |
 
 ## What changed
 

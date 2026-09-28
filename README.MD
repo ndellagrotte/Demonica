@@ -125,7 +125,7 @@ Demonica is distributed under AGPL-3.0 ([`LICENSE`](LICENSE)); releases up to
 Angelica's and Iris's is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt),
 Angelica's license file), and Actinium's is GPL-3.0
 ([`LICENSE-GPL-3.0.txt`](LICENSE-GPL-3.0.txt)); section 13 of GPL-3.0 and of
-AGPL-3.0 lets the two be combined in one work. The contained glsl-transformer
+AGPL-3.0 lets these parts be combined with Demonica's AGPL-3.0 code in one work. The contained glsl-transformer
 library is AGPL-3.0. S8TNLib, installed separately, is GPL-3.0. The MIT- and
 BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 has the details, and the mod jar and the diagnostics jar carry all four files.
