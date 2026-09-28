@@ -9,7 +9,7 @@ Step 3 of [the adoption plan](../ADOPTION_PLAN.md). Branch `feat/glsl-transforme
 
 | Done when | Evidence |
 |---|---|
-| Parity green for the twelve verbs | `ShaderAstParityTest`: 129 tests, 0 failures, 0 errors, 1 skipped (the corpus mode, which needs `-PglslCorpusDir`), on the tree committed as `80fda189`. The corpus mode on `run/transform-corpus` (811 inputs, 221 distinct): `unexplained=0`; on the mini-corpus (27 inputs, 24 distinct): `unexplained=0` |
+| Parity green for the twelve verbs | `ShaderAstParityTest`: 129 tests, 0 failures, 0 errors, 1 skipped (the corpus mode, which needs `-PglslCorpusDir`), on the tree committed as `80fda189`. The corpus mode on `run/transform-corpus` (811 inputs, 221 distinct): `unexplained=0`; on the mini-corpus (27 inputs, 24 distinct): `unexplained=0`. After the [verification follow-up](#verification-follow-up): 141 tests, 0 failures, 1 skipped; corpus mode `unexplained=0` on both |
 | Every verb has a javadoc line stating its semantics | `ShaderAst`: each public verb's javadoc starts "TauMC `<verb>`: ..." and names what it matches, what it skips and its deviations |
 | Report | this page |
 
@@ -66,6 +66,10 @@ mode's diffs under `build/reports/shader-ast-parity/`.
   `keyword()`, `is(Type)`, `is(BuiltinType)`), or `null` where TauMC returned 0.
 
 ### The verbs
+
+The [verification follow-up](#verification-follow-up) at the end of this page changed `replaceExpression`'s matching
+(no more `Matcher`) and `removeVariable`'s `for`-initializer case, and named further deviations; where it differs from
+the rows below, it wins.
 
 TauMC's semantics are those of `Transformer` at `7dd88a4`, which implements each verb over cached parse-tree rule
 contexts; the listener classes the brief lists (`Renamer`, `ReplaceExpression`, `HasVariable`, ...) back the older
@@ -290,7 +294,8 @@ No replay of an engine runs in this step (the new engine is not ported until Ste
   the 221 distinct prepared pack inputs already differed before any verb ran. Floats and integers were already
   canonical (S2).
 - TauMC anchors: `ShaderAst` reproduces TauMC's declaration order exactly (the corpus sequence of six injections is
-  identical on all 221 inputs), so the replay should not need "declaration order" entries.
+  identical on all 221 inputs), so the replay should not need "declaration order" entries for injections. The order
+  `findType` and `removeVariable` scan in is another matter: see the verification follow-up.
 - The lexer version set by `parse` stays on the parser for the verbs' snippets. The orchestrator's `#version` for the
   new engine (S5) should be the effective version, as `GlslCorpusParseSurveyTest.prepare` writes it.
 - `replaceExpression` patterns in Demonica are names, array and member accesses and calls; all four shapes are
@@ -302,3 +307,124 @@ No replay of an engine runs in this step (the new engine is not ported until Ste
 - TauMC sources for Step 4: `run/lib-src/taumc/` has `Transformer.java` (whose `removeUnusedFunctions`,
   `removeConstAssignment`, `findQualifiers`, `hasAssigment`, `initialize`, `renameAndWrapShadow` Step 4 needs) and
   `TransformerCollector`/`TransformerRemover`; fetch the listener classes Step 4 lists from `7dd88a4` the same way.
+
+## Verification follow-up
+
+An independent verification (outputs `run/s3v-*.out`) found one blocking issue and made eight remarks. Fixed on
+2026-09-28 on `feat/glsl-transformer`; commits below. Status stays **done**.
+
+### Blocking: `replaceExpression` call patterns matched calls whose argument list is a prefix
+
+**Confirmed, and wider than reported.** glsl-transformer 3.0.0-pre3's `Matcher.matches` (`ast/query/match/Matcher.java`
+lines 185-195) walks the candidate and compares it item by item with the pattern's pre-order items (node classes and
+data) but never checks that every pattern item was consumed, so a candidate whose items are a prefix of the pattern's
+matches. The verifier's proposed fix, requiring a match in both directions, is not enough: the item sequence has no
+list boundaries, so two calls with the same identifiers nested differently have equal sequences. The probe
+`run/s3f-matcher-probe.out` (jshell against the test classpath, `new Matcher<>(x).matches(y)` and the reverse, each
+side parsed with `ASTParser.parseExpression` into its own root):
+```
+f(g(a), b) vs f(g(a, b)): fwd=true bwd=true
+f(a, b) vs f(a): fwd=true bwd=false
+vec4(worldpos, 0.0) vs vec4(worldpos): fwd=true bwd=false
+f(g(a), h(b)) vs f(g(a, h(b))): fwd=true bwd=true
+f(a, b) vs f(a, b): fwd=true bwd=true
+```
+
+**Fix.** `ShaderAst.replaceExpression` no longer uses `Matcher`. A private `structure(ASTNode)` records the same items
+the `Matcher` compares (the node class of every node, the data the visitor reports: identifier names, literal types,
+values and integer formats, type and qualifier enums) plus an end marker after each node's children, and a candidate
+matches when its structure list equals the pattern's. That is exact tree equality, with literals still equal by
+value (`deviationLiteralsMatchByValue` unchanged). The javadoc now says so, and says occurrences are collected before
+anything is replaced.
+
+**Tests.** Five parity cases in `ShaderAstParityTest.replaceExpression`, on two new fixtures:
+- `OVERLOADS_330` (overloads `f(float)`, `f(float, float)`, `g(float)`, `g(float, float)`; calls
+  `vec4(f(a), f(a, b), f(b), 0.0)` and `vec4(f(g(a), b), f(g(a, b)), 0.0, 0.0)`): pattern `f(a, b)` (the verifier's
+  repro 1), `f(a)`, `f(g(a, b))` and `f(g(a), b)`;
+- `CELERITAS_VEC4_330` (`uniform vec4 worldpos; ... gl_Position = vec4(worldpos);`): CeleritasTransformer's pattern
+  `vec4(worldpos, 0.0)` with its replacement (the verifier's repro 2).
+
+Before the fix (`run/s3f-before-fix.out`), four of the five failed, as the probe predicts (`f(a)` passes: a longer
+candidate never matched):
+```
+ShaderAstParityTest > replaceExpression() > a call pattern with more arguments than a call of the same overloaded name FAILED
+ShaderAstParityTest > replaceExpression() > Celeritas's constructor pattern on a one-argument constructor FAILED
+ShaderAstParityTest > replaceExpression() > a nested call pattern against a call whose argument sits one level up FAILED
+ShaderAstParityTest > replaceExpression() > a nested call pattern against a call whose argument sits one level down FAILED
+141 tests completed, 5 failed, 1 skipped
+```
+(the fifth failure is the new `deviationRemovingAForInitializerKeepsTheLoop`, below). The diffs were the ones reported,
+for example `- o = vec4 ( f ( a ) , iris_z , f ( b ) , 0.0 ) ;` against `+ o = vec4 ( iris_z , iris_z , f ( b ) , 0.0 ) ;`
+and `- gl_Position = vec4 ( worldpos ) ;` against
+`+ gl_Position = iris_ProjectionMatrix * gbufferModelView * vec4 ( worldpos , 1.0 ) ;`; the nested cases replaced both
+`f(g(a), b)` and `f(g(a, b))`.
+
+**Corpus mode.** Its call pattern was the lexicographically first small call of each program, which never exposed a
+prefix. `ShaderAstCorpusDifferential` now also applies that call with one more argument
+(`f(x, y, iris_parityExtra)`), which occurs nowhere, so both sides must leave the program alone. Before the fix
+(`run/s3f-corpus-packs-before-fix.out`):
+```
+shader-ast-parity: corpus=/home/nick/IdeaProjects/Demonica/run/transform-corpus inputs=811 distinct=221 parseFailures=0 skipped=0 unexplained=25 seconds=18
+shader-ast-parity:   replaceExpression(CallWithAnExtraArgument) {IDENTICAL=167, DIFFERENT=25} changedTheProgram=0
+```
+After it, below.
+
+### Remarks
+
+| # | Remark | Resolution |
+|---|---|---|
+| 1 | `removeVariable` of a variable declared only in a `for` initializer deleted the whole loop (`target.getParent().getParent()` is the `ForLoopStatement`) | **Fixed.** When the `TypeAndInitDeclaration`'s parent is a `ForLoopStatement`, only the declaration is detached (`setInitDeclaration(null)` through the self-replacer), giving `for (; i < 4; i++)`. TauMC writes `for ( i < 4 ; i ++ )`, not GLSL; either way `i` is undeclared. Named in the javadoc; test `deviationRemovingAForInitializerKeepsTheLoop` (it failed before the fix: the loop was gone) |
+| 2 | The order `findType` and `removeVariable` treat as TauMC's is right only before a mutation | **Documented, not emulated.** Confirmed in `Transformer.java`/`TransformerCollector.java`: TauMC's rule-context cache is a `LinkedHashSet` per rule; `injectVariable`, `injectFunction`, `prependMain`, `appendMain` and `replaceExpression` (`replaceNode`) call `scanNode`, which appends what they added. Emulating it would mean tracking an insertion epoch for every node the verbs add, for a case no current caller reaches (below). Javadoc of both verbs corrected; test `deviationDeclarationOrderAfterAnInjection` asserts the verifier's repro (TauMC `findType` = `VEC2`, `ShaderAst` = `FLOAT32`; `removeVariable` removes the injected uniform in TauMC and the local in `ShaderAst`) |
+| 3 | TauMC's `replaceExpression` by-text cache is not updated by `rename`, `renameFunctionCall`, `renameArray` | **Named deviation.** Confirmed in the source: `cachedContextsByText` is built at the first `replaceExpression` of a rule and only `TransformerCollector`/`TransformerRemover` update it; the renames call `setText` on tokens. So TauMC misses a renamed node under its new name and still finds it under its old one. Test `deviationReplaceExpressionSeesRenamedIdentifiers` asserts both (`y = b + a` against `y = b + d`; and `rename(c, e)` then `replaceExpression(c, d)`: TauMC `y = b + d`, `ShaderAst` `y = b + e`). Named in the javadoc |
+| 4 | Unnamed divergences where TauMC writes broken or wrong GLSL | **Named** in the javadoc and each asserted by a test: ternary replacement truncated by TauMC's binary pass (`deviationTernaryReplacementIsKeptWhole`: `x > u > 0.0` against `x > ( u > 0.0 ? 1.0 : 2.0 )`); non-postfix replacement under unary minus (`deviationReplacementKeepsItsPrecedence` now also has `y = -x;`: `- a` against `- ( a + b )`); self-referential replacement (`deviationSelfReferentialReplacementAppliesOnce`: `f ( f ( f ( f ( v ) ) ) )` against `f ( f ( f ( v ) ) )`); `renameArray` index `+1` (`deviationRenameArrayWithAUnaryPlusIndexThrows`: TauMC records 1 and writes `a + 1`, `ShaderAst` throws `NumberFormatException`); struct name in `S[2](...)` and `arr.length()` under `rename` (`deviationRenameLeavesTypeNamesAndLength`) |
+| 5 | `rename("texture2D", ...)`: javadoc and comment mention it, the test asserted only `containsCall` | **Fixed.** `deviationTexture2DIsAnIdentifier` also asserts that `rename("texture2D", "texture")` leaves TauMC's `texture2D ( texture , texcoord )` and renames it in `ShaderAst`; `rename`'s javadoc names it |
+| 6 | `BUILD_LOCK` is held around the whole `parseTranslationUnit`, lexing and ANTLR parsing included | **Unchanged, carried to Step 5.** The lock has to cover the AST build, and glsl-transformer's `ASTParser.parseTranslationUnit` does the parse and the build in one call; splitting them means driving `EnhancedParser` and `ASTBuilder` directly. Step 5 measures `transformMs` first (Notes, thread safety) |
+| 7 | Other claims reproduced; mini-corpus replay and Appendix C run not re-run by the verifier | Appendix C re-run below; the `taumc` replay is not affected (no change to `GlslTokens` or the replayer) and was not re-run |
+| 8 | Verifier outputs in `run/s3v-*.out`; scratch test removed | Nothing to do |
+
+None of the remarks' cases is reachable from Demonica's current arguments, with one production shape to know about:
+`CELERITAS_TERRAIN` runs `patchMultiTexCoord3` (`rename("gl_MultiTexCoord3", "mc_midTexCoord")`, then
+`injectVariable("attribute vec4 mc_midTexCoord;")`) and then `replaceMidTexCoord` (`findType`, `removeVariable`,
+`replaceExpression` of `mc_midTexCoord`), after `CeleritasTransformer` has already called `replaceExpression`. It
+runs only when the vertex shader declares `gl_MultiTexCoord3` (`hasVariable`), and then remarks 2 and 3 both apply:
+TauMC's `findType` sees the renamed declaration first, its `removeVariable` removes the injected one, and its last
+`replaceExpression` misses the renamed references. No recorded corpus vertex input declares `gl_MultiTexCoord3`
+(verifier's check).
+
+### Commands run and their outcomes
+
+- `./gradlew :test --tests '*ShaderAstParityTest' --tests '*GlslTransformerSpikeTest' --rerun` (the brief's Verify,
+  `run/s3f-verify.out`): `BUILD SUCCESSFUL in 3s`; from `build/test-results/test/`: ShaderAstParityTest 141 tests,
+  0 failures, 0 errors, 1 skipped (the corpus mode); GlslTransformerSpikeTest 3 tests, 0 failures (20:20 UTC).
+  ShaderAstParityTest has 12 more tests than at `80fda189`: 5 parity cases and 7 deviation tests.
+- Corpus mode, pack corpora (`run/s3f-corpus-packs.out`):
+  ```
+  shader-ast-parity: corpus=/home/nick/IdeaProjects/Demonica/run/transform-corpus inputs=811 distinct=221 parseFailures=0 skipped=0 unexplained=0 seconds=18
+  shader-ast-parity:   replaceExpression(Call) {IDENTICAL=192} changedTheProgram=192
+  shader-ast-parity:   replaceExpression(CallWithAnExtraArgument) {IDENTICAL=192} changedTheProgram=0
+  ```
+  Every other line is as at `80fda189` (baseline 221/221, removeVariable 531/531, product 45 identical + 142 explained,
+  sum 75 + 112, queries containsCall 6,377, findType 4,988, hasVariable 6,397 with 0 different).
+- Corpus mode, mini-corpus (`run/s3f-corpus-mini.out`): `inputs=27 distinct=24 parseFailures=0 skipped=0
+  unexplained=0`; `replaceExpression(CallWithAnExtraArgument) {IDENTICAL=7} changedTheProgram=0`, the rest as before.
+- Appendix C transform tests with `--rerun` (`run/s3f-transform-tests.out`): `BUILD SUCCESSFUL in 2s`; 14 classes,
+  215 tests, 0 failures, 0 errors, 3 skipped (the corpus-gated ones).
+- Full build, this follow-up's one `check` run (`run/s3f-build.out`): `./gradlew build` gave `BUILD SUCCESSFUL in 8s`;
+  `:test` executed: 128 classes, 702 tests, 0 failures, 0 errors, 4 skipped. `verifyCeleritasPin`,
+  `verifyDiagnosticsJar`, `verifyDiagnosticsRemap`, `verifyDistributedJar`, `verifyModuleBoundaries`,
+  `verifyRunClasspath` and `verifyS8tnlibPin` ran. The mod jar holds 10 `ShaderAst*.class` entries (one more
+  anonymous visitor). It ran before two javadoc-only edits (`ShaderAst`, `ShaderAstCorpusDifferential`); the Verify
+  command after them recompiled both and passed again (`run/s3f-verify-final.out`: 141 tests, 0 failures, 1 skipped;
+  spike 3 tests, 0 failures).
+- Skipped: the `taumc` determinism replay (nothing it reads changed) and any dev run (no engine is wired yet).
+
+### Notes for the next step (additions)
+
+- `replaceExpression` matching is exact tree equality now. Do not use glsl-transformer's `Matcher` or
+  `AutoHintedMatcher` for patterns without wildcards in Steps 4 to 10 (Iris's `replaceExpressionMatches` idiom uses
+  it): it has the prefix and nesting holes above. `matches` never checks that the pattern was consumed, with or
+  without wildcards, so a wildcard pattern needs the same care (compare structures, or check the match some other
+  way).
+- Step 5's replay: a `CELERITAS_TERRAIN` vertex shader that declares `gl_MultiTexCoord3` can differ (remarks 2 and
+  3; not observed, no recorded input has one); such a diff is TauMC's cache order or its stale by-text cache, not a
+  port error.

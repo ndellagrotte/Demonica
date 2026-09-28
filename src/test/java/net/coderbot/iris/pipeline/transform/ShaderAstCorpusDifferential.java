@@ -65,7 +65,8 @@ import java.util.stream.Stream;
  * {@code rename} (one name per identifier kind, as a map, and the most frequent name), {@code renameFunctionCall}
  * (called and defined functions and referenced variables, as a map, and the most called function),
  * {@code replaceExpression} (a referenced variable, an array access with a literal index, a member access, a small
- * call, a product or sum of two names), {@code prependMain} and {@code appendMain}, a sequence of
+ * call and the same call with one more argument, which occurs nowhere, a product or sum of two names),
+ * {@code prependMain} and {@code appendMain}, a sequence of
  * {@code injectVariable} and {@code injectFunction}, {@code removeVariable} (a sole global, a shared declarator, a sole
  * local) and {@code renameArray} (arrays indexed only by literals, and one indexed otherwise, which both must reject).</p>
  *
@@ -545,7 +546,15 @@ final class ShaderAstCorpusDifferential {
                 break;
             }
         }
-        patterns(probe).forEach((shape, pattern) -> applications.add(replace(shape, pattern, "iris_parity" + shape)));
+        final Map<String, Pattern> patterns = patterns(probe);
+        patterns.forEach((shape, pattern) -> applications.add(replace(shape, pattern, "iris_parity" + shape)));
+        // The call pattern with one more argument: it occurs nowhere, so both sides must leave the program alone.
+        // glsl-transformer's Matcher accepted the shorter call for it (S3 verification follow-up).
+        final Pattern call = patterns.get("Call");
+        if (call != null && call.text().endsWith(")")) {
+            final String extended = call.text().substring(0, call.text().length() - 1) + ", iris_parityExtra)";
+            applications.add(replace("CallWithAnExtraArgument", extended, "iris_parityCallWithAnExtraArgument"));
+        }
 
         // prependMain and appendMain together.
         applications.add(Application.of("prependMain+appendMain", "",

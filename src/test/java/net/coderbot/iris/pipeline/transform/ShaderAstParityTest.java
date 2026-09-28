@@ -583,6 +583,17 @@ class ShaderAstParityTest {
         assertThrows(NumberFormatException.class, () -> viaShaderAst(FRAGMENT_330, a -> a.renameArray("weights", "w", new TreeSet<>())));
     }
 
+    @Test
+    void deviationRenameArrayWithAUnaryPlusIndexThrows() {
+        // TauMC's Integer.parseInt("+1") succeeds; it records 1 and writes the token 'a+1', which reads as 'a + 1'.
+        final String source = "#version 330 core\nuniform float arr[4];\nout vec4 o;\nvoid main() { o = vec4(arr[+1]); }\n";
+        final Set<Integer> found = new TreeSet<>();
+        final String taumc = viaTauMC(source, t -> t.renameArray("arr", "a", found));
+        assertEquals(Set.of(1), found);
+        assertTrue(GlslTokens.contains(taumc, "o = vec4 ( a + 1 ) ;"), taumc);
+        assertThrows(NumberFormatException.class, () -> viaShaderAst(source, a -> a.renameArray("arr", "a", new TreeSet<>())));
+    }
+
     // ---------------------------------------------------------------------------------------------------------------
     // Expressions and main
 
@@ -607,9 +618,46 @@ class ShaderAstParityTest {
             replaceParity("an identifier that is also called, replaced by an identifier", VERTEX_120, "wave", "iris_wave"),
             replaceParity("a varying assigned through a member", VERTEX_120, "gl_TexCoord[1]", "iris_TexCoord1"),
             replaceParity("a name that does not occur", FRAGMENT_330, "gl_Nothing", "vec4(0.0)"),
-            replaceParity("an array constructor whose longest name is its size", ARRAY_SIZE_330, "vec2[PAIR_SIZE](a, b)", "iris_pair")
+            replaceParity("an array constructor whose longest name is its size", ARRAY_SIZE_330, "vec2[PAIR_SIZE](a, b)", "iris_pair"),
+            // glsl-transformer's Matcher accepts a candidate whose items are a prefix of the pattern's and has no list
+            // boundaries; these three failed with it (S3 verification follow-up).
+            replaceParity("a call pattern with more arguments than a call of the same overloaded name", OVERLOADS_330,
+                "f(a, b)", "iris_z"),
+            replaceParity("a call pattern with fewer arguments than a call of the same overloaded name", OVERLOADS_330,
+                "f(a)", "iris_z"),
+            replaceParity("Celeritas's constructor pattern on a one-argument constructor", CELERITAS_VEC4_330,
+                "vec4(worldpos, 0.0)", "iris_ProjectionMatrix * gbufferModelView * vec4(worldpos, 1.0)"),
+            replaceParity("a nested call pattern against a call whose argument sits one level up", OVERLOADS_330,
+                "f(g(a, b))", "iris_z"),
+            replaceParity("a nested call pattern against a call whose argument sits one level down", OVERLOADS_330,
+                "f(g(a), b)", "iris_z")
         );
     }
+
+    /** Overloads of two functions and calls whose argument lists are prefixes of each other or regroup the same names. */
+    static final String OVERLOADS_330 = """
+        #version 330 core
+        uniform float a, b;
+        out vec4 o;
+        float g(float x) { return x; }
+        float g(float x, float y) { return x + y; }
+        float f(float x) { return x; }
+        float f(float x, float y) { return x * y; }
+        void main() {
+            o = vec4(f(a), f(a, b), f(b), 0.0);
+            o += vec4(f(g(a), b), f(g(a, b)), 0.0, 0.0);
+        }
+        """;
+
+    /** CeleritasTransformer's replaceExpression pattern, on a pack that passes a vec4 to the constructor. */
+    static final String CELERITAS_VEC4_330 = """
+        #version 330 core
+        uniform vec4 worldpos;
+        uniform mat4 gbufferModelView, iris_ProjectionMatrix;
+        void main() {
+            gl_Position = vec4(worldpos);
+        }
+        """;
 
     private static DynamicTest replaceParity(String name, String source, String oldCode, String newCode) {
         return parity(name, source, t -> t.replaceExpression(oldCode, newCode), a -> a.replaceExpression(oldCode, newCode));
@@ -617,14 +665,56 @@ class ShaderAstParityTest {
 
     @Test
     void deviationReplacementKeepsItsPrecedence() {
-        final String source = "#version 330 core\nuniform float x, c;\nout float y;\nvoid main() { y = x * c; y += x.x; }\n";
-        // TauMC splices the text: 'a + b * c' changes the meaning, and in postfix position it keeps only 'a'.
+        final String source = "#version 330 core\nuniform float x, c;\nout float y;\nvoid main() { y = x * c; y += x.x; y = -x; }\n";
+        // TauMC splices the text: 'a + b * c' changes the meaning, and in postfix position (after '.' or under a unary
+        // operator) it keeps only 'a'.
         final String taumc = viaTauMC(source, t -> t.replaceExpression("x", "a + b"));
         assertTrue(GlslTokens.contains(taumc, "y = a + b * c ;"), taumc);
         assertTrue(GlslTokens.contains(taumc, "y += a . x ;"), taumc);
+        assertTrue(GlslTokens.contains(taumc, "y = - a ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("x", "a + b"));
         assertTrue(GlslTokens.contains(adapter, "y = ( a + b ) * c ;"), adapter);
         assertTrue(GlslTokens.contains(adapter, "y += ( a + b ) . x ;"), adapter);
+        assertTrue(GlslTokens.contains(adapter, "y = - ( a + b ) ;"), adapter);
+    }
+
+    @Test
+    void deviationTernaryReplacementIsKeptWhole() {
+        final String source = "#version 330 core\nuniform float x, c, u;\nout float y;\nvoid main() { y = !(x > c) ? x : c; }\n";
+        // TauMC's binary pass reparses the replacement as a binary expression, which drops '? 1.0 : 2.0'.
+        final String taumc = viaTauMC(source, t -> t.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
+        assertTrue(GlslTokens.contains(taumc, "y = ! ( x > u > 0.0 ) ? x : u > 0.0 ;"), taumc);
+        final String adapter = viaShaderAst(source, a -> a.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
+        assertTrue(GlslTokens.contains(adapter, "y = ! ( x > ( u > 0.0 ? 1.0 : 2.0 ) ) ? x : u > 0.0 ? 1.0 : 2.0 ;"), adapter);
+    }
+
+    @Test
+    void deviationSelfReferentialReplacementAppliesOnce() {
+        final String source = "#version 330 core\nuniform float v;\nout float y;\nfloat f(float x) { return x; }\nvoid main() { y = f(f(v)); }\n";
+        // TauMC's postfix pass finds the pattern again inside what its binary pass inserted and replaces it a second time.
+        final String taumc = viaTauMC(source, t -> t.replaceExpression("f(v)", "f(f(v))"));
+        assertTrue(GlslTokens.contains(taumc, "y = f ( f ( f ( f ( v ) ) ) ) ;"), taumc);
+        final String adapter = viaShaderAst(source, a -> a.replaceExpression("f(v)", "f(f(v))"));
+        assertTrue(GlslTokens.contains(adapter, "y = f ( f ( f ( v ) ) ) ;"), adapter);
+    }
+
+    @Test
+    void deviationReplaceExpressionSeesRenamedIdentifiers() {
+        final String source = "#version 330 core\nuniform float a, c;\nout float y;\nvoid main() { y = a + c; }\n";
+        // TauMC's replaceExpression finds nodes through a by-text cache (cachedContextsByText) that rename,
+        // renameFunctionCall and renameArray do not update, so the second replaceExpression misses the 'a' that was 'c'.
+        // Production shape: CELERITAS_TERRAIN renames gl_MultiTexCoord3 to mc_midTexCoord (patchMultiTexCoord3), then
+        // replaces mc_midTexCoord.
+        final String taumc = viaTauMC(source, t -> { t.replaceExpression("a", "b"); t.rename("c", "a"); t.replaceExpression("a", "d"); });
+        assertTrue(GlslTokens.contains(taumc, "y = b + a ;"), taumc);
+        final String adapter = viaShaderAst(source, a -> { a.replaceExpression("a", "b"); a.rename("c", "a"); a.replaceExpression("a", "d"); });
+        assertTrue(GlslTokens.contains(adapter, "y = b + d ;"), adapter);
+
+        // The stale cache also still finds a renamed node under its old name.
+        final String taumcOld = viaTauMC(source, t -> { t.replaceExpression("a", "b"); t.rename("c", "e"); t.replaceExpression("c", "d"); });
+        assertTrue(GlslTokens.contains(taumcOld, "y = b + d ;"), taumcOld);
+        final String adapterOld = viaShaderAst(source, a -> { a.replaceExpression("a", "b"); a.rename("c", "e"); a.replaceExpression("c", "d"); });
+        assertTrue(GlslTokens.contains(adapterOld, "y = b + e ;"), adapterOld);
     }
 
     @Test
@@ -712,6 +802,38 @@ class ShaderAstParityTest {
         assertTrue(GlslTokens.contains(taumc, "float b = 1.0 ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.removeVariable("a"));
         assertTrue(GlslTokens.contains(adapter, "float b ;"), adapter);
+    }
+
+    @Test
+    void deviationRemovingAForInitializerKeepsTheLoop() {
+        final String source = "#version 330 core\nout vec4 c;\nvoid main() { float s = 0.0; for (int i = 0; i < 4; i++) { s += 1.0; } c = vec4(s); }\n";
+        // Both outputs leave 'i' undeclared. TauMC drops the declaration with its ';', which is not GLSL; ShaderAst
+        // empties the initializer and keeps the loop.
+        final String taumc = viaTauMC(source, t -> t.removeVariable("i"));
+        assertTrue(GlslTokens.contains(taumc, "for ( i < 4 ; i ++ ) {"), taumc);
+        final String adapter = viaShaderAst(source, a -> a.removeVariable("i"));
+        assertTrue(GlslTokens.contains(adapter, "for ( ; i < 4 ; i ++ ) { s += 1.0 ; }"), adapter);
+    }
+
+    @Test
+    void deviationDeclarationOrderAfterAnInjection() {
+        final String source = "#version 330 core\nout vec4 o;\nvoid main() { vec2 w = vec2(1.0); o = vec4(w, 0.0, 1.0); }\n";
+        // TauMC scans its rule-context cache: the original program in document order, then what the verbs added, in the
+        // order they added it. ShaderAst scans the document, where injectVariable put the uniform before main.
+        final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
+        transformer.injectVariable("uniform float w;");
+        assertEquals(GLSLLexer.VEC2, transformer.findType("w"), "TauMC finds the local first");
+        final ShaderAst ast = ShaderAst.parse(source);
+        ast.injectVariable("uniform float w;");
+        assertTrue(ast.findType("w").is(Type.FLOAT32), "ShaderAst finds the uniform first");
+
+        // removeVariable removes the last sole declarator of that order: TauMC the injected uniform, ShaderAst the local.
+        final String taumc = viaTauMC(source, t -> { t.injectVariable("uniform float w;"); t.removeVariable("w"); });
+        assertFalse(GlslTokens.contains(taumc, "uniform float w ;"), taumc);
+        assertTrue(GlslTokens.contains(taumc, "vec2 w = vec2 ( 1.0 ) ;"), taumc);
+        final String adapter = viaShaderAst(source, a -> { a.injectVariable("uniform float w;"); a.removeVariable("w"); });
+        assertTrue(GlslTokens.contains(adapter, "uniform float w ;"), adapter);
+        assertFalse(GlslTokens.contains(adapter, "vec2 w = vec2 ( 1.0 ) ;"), adapter);
     }
 
     @TestFactory
@@ -804,6 +926,30 @@ class ShaderAstParityTest {
         final Transformer transformer = new Transformer(ShaderParser.parseShader(FRAGMENT_120).full());
         assertFalse(transformer.containsCall("texture2D"));
         assertTrue(ShaderAst.parse(FRAGMENT_120).containsCall("texture2D"));
+
+        final String taumc = viaTauMC(FRAGMENT_120, t -> t.rename("texture2D", "texture"));
+        assertTrue(GlslTokens.contains(taumc, "vec4 color = texture2D ( texture , texcoord ) * glcolor ;"), taumc);
+        final String adapter = viaShaderAst(FRAGMENT_120, a -> a.rename("texture2D", "texture"));
+        assertTrue(GlslTokens.contains(adapter, "vec4 color = texture ( texture , texcoord ) * glcolor ;"), adapter);
+    }
+
+    @Test
+    void deviationRenameLeavesTypeNamesAndLength() {
+        // A struct name in an array constructor is a type reference in glsl-transformer and a variable_identifier in
+        // TauMC; the struct's declaration keeps its name in both, so neither output compiles. The length() method is
+        // an identifier in TauMC and a node of its own in glsl-transformer.
+        final String struct = "#version 330 core\nstruct S { float a; };\nuniform float u;\nout vec4 o;\n"
+            + "void main() { S t = S(u); S both[2] = S[2](t, t); o = vec4(both[1].a); }\n";
+        final String taumc = viaTauMC(struct, t -> t.rename("S", "S2"));
+        assertTrue(GlslTokens.contains(taumc, "S t = S2 ( u ) ; S both [ 2 ] = S2 [ 2 ] ( t , t ) ;"), taumc);
+        final String adapter = viaShaderAst(struct, a -> a.rename("S", "S2"));
+        assertTrue(GlslTokens.contains(adapter, "S t = S2 ( u ) ; S both [ 2 ] = S [ 2 ] ( t , t ) ;"), adapter);
+
+        final String length = "#version 430\nuniform float arr[4];\nout vec4 o;\nvoid main() { float length = 1.0; o = vec4(float(arr.length()) + length); }\n";
+        final String taumcLength = viaTauMC(length, t -> t.rename("length", "len"));
+        assertTrue(GlslTokens.contains(taumcLength, "o = vec4 ( float ( arr . len ( ) ) + len ) ;"), taumcLength);
+        final String adapterLength = viaShaderAst(length, a -> a.rename("length", "len"));
+        assertTrue(GlslTokens.contains(adapterLength, "o = vec4 ( float ( arr . length ( ) ) + len ) ;"), adapterLength);
     }
 
     // ---------------------------------------------------------------------------------------------------------------

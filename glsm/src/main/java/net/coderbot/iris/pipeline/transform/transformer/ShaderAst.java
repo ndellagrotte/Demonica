@@ -19,6 +19,7 @@ import io.github.douira.glsl_transformer.ast.node.external_declaration.ExternalD
 import io.github.douira.glsl_transformer.ast.node.external_declaration.FunctionDefinition;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.LayoutDefaults;
 import io.github.douira.glsl_transformer.ast.node.external_declaration.PragmaDirective;
+import io.github.douira.glsl_transformer.ast.node.statement.loop.ForLoopStatement;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.TypeQualifier;
 import io.github.douira.glsl_transformer.ast.node.type.specifier.BuiltinFixedTypeSpecifier;
@@ -29,7 +30,6 @@ import io.github.douira.glsl_transformer.ast.print.ASTPrinter;
 import io.github.douira.glsl_transformer.ast.print.PrintType;
 import io.github.douira.glsl_transformer.ast.query.Root;
 import io.github.douira.glsl_transformer.ast.query.RootSupplier;
-import io.github.douira.glsl_transformer.ast.query.match.Matcher;
 import io.github.douira.glsl_transformer.ast.transform.ASTParser;
 import io.github.douira.glsl_transformer.ast.transform.JobParameters;
 import io.github.douira.glsl_transformer.ast.traversal.ASTVoidVisitor;
@@ -370,6 +370,13 @@ public final class ShaderAst {
      * fields and swizzles), or a function prototype's name (definitions and declarations). Like TauMC, it leaves
      * alone function parameter names, struct and interface block member declarations, struct and block names, type
      * names, layout qualifier names and the name declared in a loop condition.
+     *
+     * <p>Deviations, none reachable from Demonica's arguments: a struct name used as the element type of an array
+     * constructor ({@code S[2](a, b)}) is a type name here and is left alone, where TauMC renamed it (a struct
+     * constructor call {@code S(x)} is renamed by both, the struct's declaration by neither); the {@code length} of
+     * {@code arr.length()} is not an identifier here, where TauMC renamed it; {@code texture2D} and
+     * {@code texture3D} are renamed here, where TauMC's lexer made them keywords that only
+     * {@link #renameFunctionCall} touched.</p>
      */
     public void rename(Map<String, String> names) {
         renameWhere(names, ShaderAst::isRenameTarget);
@@ -386,7 +393,8 @@ public final class ShaderAst {
      * TauMC {@code renameFunctionCall(Map)}: {@link #rename(Map)} without the variable declarators. Despite the name
      * it renames every expression identifier (references, calls and member selections) and function prototype
      * names, not only calls. TauMC also renamed the {@code texture2D} and {@code texture3D} keywords of its own
-     * lexer; glsl-transformer lexes them as identifiers, so they are ordinary call names here.
+     * lexer; glsl-transformer lexes them as identifiers, so they are ordinary call names here. The struct-name and
+     * {@code length()} deviations of {@link #rename(Map)} apply.
      */
     public void renameFunctionCall(Map<String, String> names) {
         renameWhere(names, id -> isRenameTarget(id) && !(id.getParent() instanceof DeclarationMember));
@@ -428,7 +436,8 @@ public final class ShaderAst {
      * {@code int} literal (a variable, an expression, {@code 0u}, {@code 0x1}) makes it throw
      * {@link NumberFormatException}; this does the same. Deviations: an octal literal such as {@code 07} gives
      * {@code newName + "7"}, where TauMC wrote {@code newName + "07"} but recorded 7; a negative index ({@code [-1]})
-     * throws, where TauMC wrote the identifier {@code newName + "-1"}.</p>
+     * throws, where TauMC wrote the identifier {@code newName + "-1"}; an index with a unary plus ({@code [+1]})
+     * throws, where TauMC recorded 1 and wrote the token {@code newName + "+1"}, which reads as an addition.</p>
      */
     public void renameArray(String oldName, String newName, Set<Integer> found) {
         for (Identifier identifier : new ArrayList<>(root.identifierIndex.get(oldName))) {
@@ -462,20 +471,33 @@ public final class ShaderAst {
      * selections. When {@code newCode} is an identifier too, calls of a function named {@code oldCode} are renamed
      * as well, as TauMC's postfix pass did.</p>
      *
-     * <p>Any other {@code oldCode} matches every expression node that is structurally equal to its parse (same node
-     * classes, same identifiers, same operators, literals equal by value); TauMC compared the source text of binary
-     * and postfix expressions.</p>
+     * <p>Any other {@code oldCode} matches every expression node that is structurally equal to its parse: the same
+     * tree of node classes, the same identifiers and operators, the same number of arguments at every level, literals
+     * equal by value (see the private {@code structure(ASTNode)}; glsl-transformer's own {@code Matcher} is not used because it accepts
+     * {@code f(a)} for the pattern {@code f(a, b)}). TauMC compared the source text of binary and postfix
+     * expressions. Occurrences are collected before anything is replaced, so a replacement is never searched.</p>
      *
      * <p>Deviations, all where TauMC produced wrong code or depended on spelling: literals match by value
      * ({@code 0.0}, {@code 0.} and {@code 0.0f} are one literal; TauMC matched the spelling); a replacement is
      * parenthesized by the printer where the context binds tighter (TauMC printed {@code a + b * c} for
-     * {@code x * c} with {@code x} replaced by {@code a + b}); a replacement in postfix position (an assignment
-     * target, {@code old.xy}, {@code old[0]}) is kept whole, where TauMC reparsed it as a postfix expression and
-     * dropped everything after the first operator; a pattern that is itself a binary expression
-     * ({@code colorSample * mult}) replaces only its matches, where TauMC's postfix pass also cut the pattern to its
-     * first operand and replaced every remaining occurrence of that operand ({@code colorSample}); a call of
-     * {@code oldCode} is left alone when {@code newCode} is not an identifier (TauMC wrote {@code newCode(args)}).
-     * None of Demonica's patterns (names, array and member accesses, calls) reaches the last two.</p>
+     * {@code x * c} with {@code x} replaced by {@code a + b}); a replacement in postfix or unary position (an
+     * assignment target, {@code old.xy}, {@code old[0]}, {@code -old}) is kept whole, where TauMC reparsed it as a
+     * postfix expression and dropped everything after the first operator ({@code -x} with {@code x} replaced by
+     * {@code a + b} gave {@code -a}); a conditional replacement is kept whole, where TauMC's binary pass reparsed it
+     * as a binary expression and dropped the {@code ? :} part ({@code c} replaced by {@code u > 0.0 ? 1.0 : 2.0}
+     * in {@code x > c} gave {@code x > u > 0.0}); a replacement that contains the pattern is not searched again,
+     * where TauMC's postfix pass replaced what its binary pass had inserted ({@code f(v)} replaced by
+     * {@code f(f(v))} in {@code f(f(v))} gave {@code f(f(f(f(v))))}); identifiers renamed by an earlier
+     * {@link #rename}, {@link #renameFunctionCall} or {@link #renameArray} match under their new name, where TauMC
+     * looked nodes up in a by-text cache that those verbs do not update, built at its first {@code replaceExpression},
+     * so it missed them under their new name and still found them under the old one; a pattern that is itself a
+     * binary expression ({@code colorSample * mult}) replaces only its matches, where TauMC's postfix pass also cut
+     * the pattern to its first operand and replaced every remaining occurrence of that operand
+     * ({@code colorSample}); a call of {@code oldCode} is left alone when {@code newCode} is not an identifier
+     * (TauMC wrote {@code newCode(args)}). Demonica's patterns are names, array and member accesses and calls, so
+     * none reaches the last two; the rename case needs a {@code CELERITAS_TERRAIN} vertex shader that declares
+     * {@code gl_MultiTexCoord3} ({@code patchMultiTexCoord3} renames it to {@code mc_midTexCoord}, which
+     * {@code replaceMidTexCoord} then replaces).</p>
      */
     public void replaceExpression(String oldCode, String newCode) {
         final Expression pattern = locked(() -> t.parseExpression(patternRoot(), oldCode));
@@ -493,7 +515,7 @@ public final class ShaderAst {
             return;
         }
 
-        final Matcher<Expression> matcher = new Matcher<>(pattern);
+        final List<Object> shape = structure(pattern);
         final Class<? extends Expression> patternClass = pattern.getClass();
         final Set<Expression> matches = Collections.newSetFromMap(new IdentityHashMap<>());
         final String hint = longestIdentifier(pattern);
@@ -503,14 +525,14 @@ public final class ShaderAst {
                 // that class (the pattern f(g(x)) with the hint x), or below a non-expression node of the pattern (the
                 // array size N of mat4[N](...)).
                 for (ASTNode node = identifier.getParent(); node != null && node != tree; node = node.getParent()) {
-                    if (node.getClass() == patternClass && matcher.matches((Expression) node)) {
+                    if (node.getClass() == patternClass && structure(node).equals(shape)) {
                         matches.add((Expression) node);
                     }
                 }
             }
         } else {
             for (Expression node : root.nodeIndex.get(patternClass)) {
-                if (matcher.matches(node)) {
+                if (structure(node).equals(shape)) {
                     matches.add(node);
                 }
             }
@@ -521,6 +543,36 @@ public final class ShaderAst {
                 match.replaceByAndDelete(locked(() -> t.parseExpression(root, newCode)));
             }
         }
+    }
+
+    private static final Object STRUCTURE_END = new Object();
+
+    /**
+     * The node's structure: its pre-order sequence of node classes (an operator is its node's class) and data
+     * (identifier names; literal types, values and integer formats; type and qualifier enums), with an end marker
+     * after each node's children. Two expressions are structurally equal when their structures are equal.
+     *
+     * <p>glsl-transformer 3.0.0-pre3's {@code Matcher} compares the same sequence without the end markers and does
+     * not check that the whole pattern was consumed, so it accepts {@code f(a)} for the pattern {@code f(a, b)} (a
+     * prefix) and {@code f(g(a), b)} for {@code f(g(a, b))} (the same items, another nesting), in both directions.</p>
+     */
+    private static List<Object> structure(ASTNode node) {
+        final List<Object> items = new ArrayList<>();
+        new ASTVoidVisitor() {
+            @Override
+            public Void visit(ASTNode visited) {
+                items.add(visited.getClass());
+                visited.accept(this);
+                items.add(STRUCTURE_END);
+                return null;
+            }
+
+            @Override
+            public void visitVoidData(Object data) {
+                items.add(data);
+            }
+        }.startVisit(node);
+        return items;
     }
 
     private static Root patternRoot() {
@@ -588,9 +640,18 @@ public final class ShaderAst {
      * that is alone in its declaration is remembered and the scan goes on, so the last such one is removed, together
      * with its whole declaration (global or local statement). Nothing happens if no declarator has the name.
      *
-     * <p>Deviation: removing the first declarator of {@code float a = 1.0, b;} gives {@code float b;}; TauMC wrote the
+     * <p>Document order is TauMC's order only until a verb adds a declaration. TauMC scanned its rule-context cache:
+     * the parsed program in document order, then every declaration a verb added (injected, or inside a replacement or
+     * a prepended or appended statement), in the order added. So after {@code injectVariable("uniform float w;")}
+     * in a program with a local {@code vec2 w}, TauMC removed the injected uniform (the last it scanned) and this
+     * removes the local (the last in the document).</p>
+     *
+     * <p>Deviations: removing the first declarator of {@code float a = 1.0, b;} gives {@code float b;}; TauMC wrote the
      * next declarator's text into the first one's name and kept the first one's array size and initializer
-     * ({@code float b = 1.0;}).</p>
+     * ({@code float b = 1.0;}). A variable declared alone in a {@code for} initializer
+     * ({@code for (int i = 0; i < n; i++)}) leaves the loop with an empty initializer ({@code for (; i < n; i++)});
+     * TauMC dropped the declaration with its semicolon ({@code for (i < n; i++)}, not GLSL). Either way {@code i} is
+     * no longer declared.</p>
      */
     public void removeVariable(String name) {
         DeclarationMember target = null;
@@ -607,9 +668,15 @@ public final class ShaderAst {
         }
         if (shared) {
             target.detachAndDelete();
+            return;
+        }
+        final ASTNode declaration = target.getParent();
+        if (declaration.getParent() instanceof ForLoopStatement) {
+            // A for initializer: the loop keeps an empty initializer.
+            declaration.detachAndDelete();
         } else {
-            // TypeAndInitDeclaration, then its DeclarationExternalDeclaration or DeclarationStatement.
-            target.getParent().getParent().detachAndDelete();
+            // The TypeAndInitDeclaration's DeclarationExternalDeclaration or DeclarationStatement.
+            declaration.getParent().detachAndDelete();
         }
     }
 
@@ -619,6 +686,10 @@ public final class ShaderAst {
      * keyword's lexer token, 0 when nothing matched; this returns a {@link DeclaredType}, or null when nothing
      * matched. Like TauMC it skips a declaration whose type is a struct and looks further. An array declaration
      * reports its element type.
+     *
+     * <p>The order differs from TauMC's after a verb has added a declaration of the name (see
+     * {@link #removeVariable}): after {@code injectVariable("uniform float w;")} in a program with a local
+     * {@code vec2 w}, TauMC reported {@code vec2} and this reports {@code float}.</p>
      */
     public DeclaredType findType(String name) {
         for (DeclarationMember member : declaratorsInDocumentOrder(name)) {
