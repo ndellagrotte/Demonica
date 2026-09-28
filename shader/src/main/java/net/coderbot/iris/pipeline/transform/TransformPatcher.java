@@ -18,10 +18,56 @@ import net.coderbot.iris.shaderpack.texture.TextureStage;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 public class TransformPatcher {
+
+    /** The system property that selects the transform engine (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.2). */
+    public static final String ENGINE_PROPERTY = "demonica.glsl.engine";
+
+    /** The GLSL transform engines. The switch exists while the pipeline moves from one library to the other. */
+    public enum Engine {
+        /** {@link ShaderTransformer}, on TauMC's glsl-transformation-lib. */
+        TAUMC("taumc"),
+        /** {@link AstShaderTransformer}, on douira's glsl-transformer. */
+        DOUIRA("douira");
+
+        public final String id;
+
+        Engine(String id) {
+            this.id = id;
+        }
+    }
+
+    // Resolved and logged once, when a transform first needs it (the holder class initializes on first access).
+    private static final class EngineHolder {
+        static final Engine ENGINE = resolveEngine();
+
+        private static Engine resolveEngine() {
+            final String value = System.getProperty(ENGINE_PROPERTY, Engine.TAUMC.id).trim().toLowerCase(Locale.ROOT);
+            Engine resolved = null;
+            for (Engine candidate : Engine.values()) {
+                if (candidate.id.equals(value)) {
+                    resolved = candidate;
+                    break;
+                }
+            }
+            if (resolved == null) {
+                Iris.logger.warn("[TransformPatcher] Unknown GLSL transform engine '{}' in {}; using {}",
+                    value, ENGINE_PROPERTY, Engine.TAUMC.id);
+                resolved = Engine.TAUMC;
+            }
+            Iris.logger.info("[TransformPatcher] GLSL transform engine: {} ({})", resolved.id, ENGINE_PROPERTY);
+            return resolved;
+        }
+    }
+
+    /** The engine every transform in this JVM uses, from {@value #ENGINE_PROPERTY} (default {@code taumc}). */
+    public static Engine engine() {
+        return EngineHolder.ENGINE;
+    }
 
     private static final int MAX_CACHE_ENTRIES = 400;
     private static final Map<TransformPatcher.CacheKey, Map<PatchShaderType, String>> cache = new LinkedHashMap<>(MAX_CACHE_ENTRIES + 1, .75F, true) {
@@ -129,7 +175,10 @@ public class TransformPatcher {
         }
 
         final long transformStart = logCacheEvents ? System.nanoTime() : 0L;
-        final Map<PatchShaderType, String> transformed = ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
+        final Map<PatchShaderType, String> transformed = switch (engine()) {
+            case TAUMC -> ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
+            case DOUIRA -> AstShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
+        };
         if (!useCache) {
             return finishWithoutCache(transformed, CacheDomain.GRAPHICS, transformStart, logCacheEvents);
         }
@@ -152,7 +201,10 @@ public class TransformPatcher {
         }
 
         final long transformStart = logCacheEvents ? System.nanoTime() : 0L;
-        final Map<PatchShaderType, String> transformed = ShaderTransformer.transformCompute(compute, parameters);
+        final Map<PatchShaderType, String> transformed = switch (engine()) {
+            case TAUMC -> ShaderTransformer.transformCompute(compute, parameters);
+            case DOUIRA -> AstShaderTransformer.transformCompute(compute, parameters);
+        };
         if (!useCache) {
             return finishWithoutCache(transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents);
         }
@@ -277,5 +329,6 @@ public class TransformPatcher {
             Iris.logger.info("[ShaderTransformCache] cleared entries={}", cachedEntries);
         }
         ShaderTransformer.clearSessionState();
+        AstShaderTransformer.clearSessionState();
     }
 }
