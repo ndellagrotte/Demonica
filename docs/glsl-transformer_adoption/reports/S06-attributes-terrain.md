@@ -20,7 +20,9 @@ leftovers, the class-loading check) are closed.
 | Commit | Subject |
 |---|---|
 | `09e53d27` | glsl-transformer: S6 ATTRIBUTES and CELERITAS_TERRAIN on glsl-transformer |
-| the commit that adds this page | glsl-transformer: S6 report and status |
+| `78534be0` | glsl-transformer: S6 report (this page, and the `accepted.txt` comment correction) |
+| `0eb8356c` | glsl-transformer: S6 status |
+| the commit that records this table | glsl-transformer: S6 report commit table |
 
 ## What changed
 
