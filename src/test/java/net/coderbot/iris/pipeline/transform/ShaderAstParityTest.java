@@ -778,6 +778,25 @@ class ShaderAstParityTest {
         );
     }
 
+    /** Every query verb on every fixture, for every identifier that occurs in it (and one that does not). */
+    @TestFactory
+    Stream<DynamicTest> queriesOverEveryIdentifier() {
+        final List<DynamicTest> tests = new ArrayList<>();
+        for (int i = 0; i < FIXTURES.size(); i++) {
+            final String source = FIXTURES.get(i);
+            final List<String> names = new ArrayList<>(new TreeSet<>(GlslTokens.of(source).tokens().stream()
+                .filter(token -> token.matches("[A-Za-z_][A-Za-z0-9_]*")).toList()));
+            names.add("iris_absent");
+            // texture2D and texture3D: see deviationTexture2DIsAnIdentifier.
+            final List<String> callNames = names.stream().filter(n -> !n.equals("texture2D") && !n.equals("texture3D")).toList();
+            tests.add(queryParity("findType, fixture " + i, source, names,
+                (t, n) -> taumcTypeKeyword(t.findType(n)), (a, n) -> adapterTypeKeyword(a.findType(n))));
+            tests.add(queryParity("hasVariable, fixture " + i, source, names, Transformer::hasVariable, ShaderAst::hasVariable));
+            tests.add(queryParity("containsCall, fixture " + i, source, callNames, Transformer::containsCall, ShaderAst::containsCall));
+        }
+        return tests.stream();
+    }
+
     @Test
     void deviationTexture2DIsAnIdentifier() {
         // TauMC's lexer makes texture2D and texture3D keywords, so only renameFunctionCall sees them; containsCall and
