@@ -28,6 +28,8 @@ Step 3 of [the adoption plan](../ADOPTION_PLAN.md). Branch `feat/glsl-transforme
 Added:
 - `glsm/src/main/java/net/coderbot/iris/pipeline/transform/transformer/ShaderAst.java` (815 lines). The package is the
   plan's; the project is `glsm`, not `shader` (see Deviations 2).
+  *(Correction, 2026-09-28, Step 4: 815 lines was the count at `3e1f5fa9` to `2ab0db35`; the verification fix
+  `3f9f926f` made it 886 lines, which is the count at `fc042ac6`, where this step ended.)*
 - `src/test/java/net/coderbot/iris/pipeline/transform/ShaderAstParityTest.java`: fixtures, the per-verb parity tests,
   the deviation tests, life-cycle tests, and the corpus mode's entry point `corpusDifferential`.
 - `src/test/java/net/coderbot/iris/pipeline/transform/ShaderAstCorpusDifferential.java`: the corpus mode (not a test
@@ -298,6 +300,16 @@ No replay of an engine runs in this step (the new engine is not ported until Ste
 - TauMC anchors: `ShaderAst` reproduces TauMC's declaration order exactly (the corpus sequence of six injections is
   identical on all 221 inputs), so the replay should not need "declaration order" entries for injections. The order
   `findType` and `removeVariable` scan in is another matter: see the verification follow-up.
+  *(Correction, 2026-09-28, Step 4: not exactly. TauMC fixes its first variable anchor from the first storage qualifier
+  in its rule-context cache (the parsed program first, then what verbs added) and uses that qualifier's declaration
+  only if it comes before the first function, otherwise the first function; `ShaderAst` at `fc042ac6` took the first
+  external declaration in document order that was a function or held a storage qualifier. The two differ when
+  `injectFunction` inserts a storage-qualified declaration before the anchor is fixed in a program whose own
+  qualifiers all sit inside or after its first function: `void main() { const float k = 1.0; gl_FragDepth = k; }`
+  with `injectFunction("uniform float iris_q;")` then `injectVariable("uniform float iris_r;")` gives TauMC
+  `iris_q; iris_r; main` and `fc042ac6`'s `ShaderAst` `iris_r; iris_q; main`. The six-injection corpus sequence starts
+  with `injectVariable`, so it never reached the case. Step 4 (`53bc8702`) rebuilds TauMC's cache order and matches;
+  see [S04](S04-shaderast-structural.md).)*
 - The lexer version set by `parse` stays on the parser for the verbs' snippets. The orchestrator's `#version` for the
   new engine (S5) should be the effective version, as `GlslCorpusParseSurveyTest.prepare` writes it.
 - `replaceExpression` patterns in Demonica are names, array and member accesses and calls; all four shapes are
@@ -377,7 +389,7 @@ After it, below.
 | # | Remark | Resolution |
 |---|---|---|
 | 1 | `removeVariable` of a variable declared only in a `for` initializer deleted the whole loop (`target.getParent().getParent()` is the `ForLoopStatement`) | **Fixed.** When the `TypeAndInitDeclaration`'s parent is a `ForLoopStatement`, only the declaration is detached (`setInitDeclaration(null)` through the self-replacer), giving `for (; i < 4; i++)`. TauMC writes `for ( i < 4 ; i ++ )`, not GLSL; either way `i` is undeclared. Named in the javadoc; test `deviationRemovingAForInitializerKeepsTheLoop` (it failed before the fix: the loop was gone) |
-| 2 | The order `findType` and `removeVariable` treat as TauMC's is right only before a mutation | **Documented, not emulated.** Confirmed in `Transformer.java`/`TransformerCollector.java`: TauMC's rule-context cache is a `LinkedHashSet` per rule; `injectVariable`, `injectFunction`, `prependMain`, `appendMain` and `replaceExpression` (`replaceNode`) call `scanNode`, which appends what they added. Emulating it would mean tracking an insertion epoch for every node the verbs add, for a case no current caller reaches (below). Javadoc of both verbs corrected; test `deviationDeclarationOrderAfterAnInjection` asserts the verifier's repro (TauMC `findType` = `VEC2`, `ShaderAst` = `FLOAT32`; `removeVariable` removes the injected uniform in TauMC and the local in `ShaderAst`) |
+| 2 | The order `findType` and `removeVariable` treat as TauMC's is right only before a mutation | **Documented, not emulated.** Confirmed in `Transformer.java`/`TransformerCollector.java`: TauMC's rule-context cache is a `LinkedHashSet` per rule; `injectVariable`, `injectFunction`, `prependMain`, `appendMain` and `replaceExpression` (`replaceNode`) call `scanNode`, which appends what they added. Emulating it would mean tracking an insertion epoch for every node the verbs add, for a case no current caller reaches (below). Javadoc of both verbs corrected; test `deviationDeclarationOrderAfterAnInjection` asserts the verifier's repro (TauMC `findType` = `VEC2`, `ShaderAst` = `FLOAT32`; `removeVariable` removes the injected uniform in TauMC and the local in `ShaderAst`). *(2026-09-28, Step 4: now emulated, `53bc8702`; the test became the parity cases `declarationOrderAfterAnInjection`.)* |
 | 3 | TauMC's `replaceExpression` by-text cache is not updated by `rename`, `renameFunctionCall`, `renameArray` | **Named deviation.** Confirmed in the source: `cachedContextsByText` is built at the first `replaceExpression` of a rule and only `TransformerCollector`/`TransformerRemover` update it; the renames call `setText` on tokens. So TauMC misses a renamed node under its new name and still finds it under its old one. Test `deviationReplaceExpressionSeesRenamedIdentifiers` asserts both (`y = b + a` against `y = b + d`; and `rename(c, e)` then `replaceExpression(c, d)`: TauMC `y = b + d`, `ShaderAst` `y = b + e`). Named in the javadoc |
 | 4 | Unnamed divergences where TauMC writes broken or wrong GLSL | **Named** in the javadoc and each asserted by a test: ternary replacement truncated by TauMC's binary pass (`deviationTernaryReplacementIsKeptWhole`: `x > u > 0.0` against `x > ( u > 0.0 ? 1.0 : 2.0 )`); non-postfix replacement under unary minus (`deviationReplacementKeepsItsPrecedence` now also has `y = -x;`: `- a` against `- ( a + b )`); self-referential replacement (`deviationSelfReferentialReplacementAppliesOnce`: `f ( f ( f ( f ( v ) ) ) )` against `f ( f ( f ( v ) ) )`); `renameArray` index `+1` (`deviationRenameArrayWithAUnaryPlusIndexThrows`: TauMC records 1 and writes `a + 1`, `ShaderAst` throws `NumberFormatException`); struct name in `S[2](...)` and `arr.length()` under `rename` (`deviationRenameLeavesTypeNamesAndLength`) |
 | 5 | `rename("texture2D", ...)`: javadoc and comment mention it, the test asserted only `containsCall` | **Fixed.** `deviationTexture2DIsAnIdentifier` also asserts that `rename("texture2D", "texture")` leaves TauMC's `texture2D ( texture , texcoord )` and renames it in `ShaderAst`; `rename`'s javadoc names it |
