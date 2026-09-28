@@ -1,0 +1,26 @@
+# glsl-transformer Step 2 (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): records I Like Vanilla's transform corpus and its
+# baseline frames. Run through capture.sh, which sets -Ddemonica.glsl.corpus and -Ddemonica.glsmPerfDebug=true.
+pack off
+wait 20
+world corpus 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 6000
+cmd /weather clear
+cmd /gamemode spectator
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+shot corpus-vanilla-0-nopack
+log pack I Like Vanilla
+pack I Like Vanilla v1.4.4.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot corpus-vanilla-1-pack
+log pack off
+pack off
+wait 20
+exit
