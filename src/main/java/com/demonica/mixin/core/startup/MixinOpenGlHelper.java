@@ -1,6 +1,6 @@
 package com.demonica.mixin.core.startup;
 
-import com.demonica.debug.DemonicaStartupDebugConfig;
+import com.demonica.debug.DemonicaStartupConfig;
 import net.coderbot.iris.debug.Diagnostics;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.hooks.GLSMHooks;
@@ -40,7 +40,7 @@ public class MixinOpenGlHelper {
 
         GLStateManager.setDrawableGL(Display.getDrawable());
         GLStateManager.initialize(GLSMInitConfig.builder()
-            .lwjglDebug(DemonicaStartupDebugConfig.enableLwjglDebug())
+            .lwjglDebug(DemonicaStartupConfig.enableLwjglDebug())
             .displaySize(mc.displayWidth, mc.displayHeight)
             .framebufferSupported(OpenGlHelper.framebufferSupported)
             .fboEnabled(mc.gameSettings.fboEnable)

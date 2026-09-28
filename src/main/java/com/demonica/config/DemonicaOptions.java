@@ -74,6 +74,9 @@ public final class DemonicaOptions {
     public static class AdvancedSettings {
         public boolean allowDirectMemoryAccess = true;
         public StreamingUploadStrategy streamingUploadStrategy = StreamingUploadStrategy.MAP_BUFFER_RANGE;
+        // DemonicaStartupConfig reads this key ("opengl_profile") from the raw JSON before the display exists, so the
+        // key name is load-bearing.
+        public OpenGlProfile openglProfile = OpenGlProfile.AUTO;
     }
 
     public static class DebugSettings {
@@ -149,6 +152,9 @@ public final class DemonicaOptions {
         options.configPath = path;
         if (options.advanced.streamingUploadStrategy == null) {
             options.advanced.streamingUploadStrategy = StreamingUploadStrategy.MAP_BUFFER_RANGE;
+        }
+        if (options.advanced.openglProfile == null) {
+            options.advanced.openglProfile = OpenGlProfile.AUTO;
         }
 
         if (save) {

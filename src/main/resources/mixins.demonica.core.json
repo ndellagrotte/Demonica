@@ -17,7 +17,7 @@
     "core.MixinWorldVertexBufferUploader",
     "core.startup.MixinEntityRendererFovFallback",
     "core.startup.MixinGameSettingsIrisInit",
-    "core.startup.MixinMinecraftCoreProfileDisplay",
+    "core.startup.MixinMinecraftDisplay",
     "core.startup.MixinMinecraftIrisLoadingComplete",
     "core.startup.MixinOpenGlHelper",
     "core.startup.MixinSplashProgress",

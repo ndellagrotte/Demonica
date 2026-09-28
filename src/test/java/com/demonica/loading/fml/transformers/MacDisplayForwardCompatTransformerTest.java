@@ -92,6 +92,42 @@ class MacDisplayForwardCompatTransformerTest {
         assertTrue(hasForwardCompatConstant, "GLFW_OPENGL_FORWARD_COMPAT constant was not injected");
     }
 
+    @Test
+    void givesTheHintOnlyWhileDemonicaRequestsACoreContext() throws Exception {
+        byte[] transformed = new MacDisplayForwardCompatTransformer().transform(
+            "org.lwjgl.opengl.Display",
+            "org.lwjgl.opengl.Display",
+            readDisplayClass()
+        );
+
+        ClassNode classNode = new ClassNode();
+        new ClassReader(transformed).accept(classNode, 0);
+        MethodNode create = classNode.methods.stream()
+            .filter(method -> "create".equals(method.name) && "()V".equals(method.desc))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Display.create()V not found"));
+
+        boolean gated = false;
+        for (AbstractInsnNode instruction = create.instructions.getFirst();
+             instruction != null;
+             instruction = instruction.getNext()) {
+            if (instruction instanceof LdcInsnNode ldc
+                && "demonica.gl.forwardCompat".equals(ldc.cst)
+                && instruction.getNext() instanceof MethodInsnNode getBoolean
+                && Opcodes.INVOKESTATIC == getBoolean.getOpcode()
+                && "java/lang/Boolean".equals(getBoolean.owner)
+                && "getBoolean".equals(getBoolean.name)
+                && "(Ljava/lang/String;)Z".equals(getBoolean.desc)
+                && getBoolean.getNext() instanceof JumpInsnNode jump
+                && Opcodes.IFEQ == jump.getOpcode()) {
+                gated = true;
+                break;
+            }
+        }
+
+        assertTrue(gated, "The hint is not gated on demonica.gl.forwardCompat");
+    }
+
     private static boolean isForwardCompatHintCall(MethodInsnNode methodCall) {
         AbstractInsnNode hintValue = methodCall.getPrevious();
         AbstractInsnNode hintConstant = hintValue == null ? null : hintValue.getPrevious();

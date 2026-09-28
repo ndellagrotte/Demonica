@@ -2,6 +2,7 @@ package com.demonica.gui;
 
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
+import com.demonica.config.OpenGlProfile;
 import com.demonica.gui.options.DemonicaOptionsStorage;
 import com.demonica.runtime.DemonicaRuntime;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebugHooks;
@@ -34,8 +35,8 @@ import java.util.function.Supplier;
  * <ul>
  *   <li>Quality, Sorting group: the fast block renderer toggle is Demonica's setting, which the meshing patch S13
  *   reads, in place of Celeritas's toggle of its static flag, which S13 overrides.</li>
- *   <li>Advanced: GLSM's upload strategy joins the CPU Saving group; direct memory access and ignoring framebuffer
- *   errors follow as groups of their own.</li>
+ *   <li>Advanced: GLSM's upload strategy joins the CPU Saving group; direct memory access, ignoring framebuffer
+ *   errors and the OpenGL profile follow as groups of their own.</li>
  *   <li>Pages: Iris's (shadow distance) and Demonica's Debug page while {@code enable_debug_tab} is set. The shader
  *   pack screen is Celeritas's own "Shader Packs" tab, which finds Iris through {@code IrisApi}.</li>
  * </ul>
@@ -48,6 +49,7 @@ public final class DemonicaOptionPages {
     // an option.
     static final OptionIdentifier<Void> DIRECT_MEMORY_GROUP = OptionIdentifier.create(DemonicaRuntime.MODID, "direct_memory");
     static final OptionIdentifier<Void> FRAMEBUFFER_ERRORS_GROUP = OptionIdentifier.create(DemonicaRuntime.MODID, "framebuffer_errors");
+    static final OptionIdentifier<Void> OPENGL_CONTEXT_GROUP = OptionIdentifier.create(DemonicaRuntime.MODID, "opengl_context");
     static final OptionIdentifier<Void> DEBUG_GROUP = OptionIdentifier.create(DemonicaRuntime.MODID, "diagnostics");
     // Matched by name: creating the identifier here would fail if upstream ever gave it another type.
     static final String CELERITAS_FAST_BLOCK_RENDERER = "celeritas:fast_block_renderer";
@@ -88,6 +90,7 @@ public final class DemonicaOptionPages {
             event.addGroup(group(FRAMEBUFFER_ERRORS_GROUP,
                 tickBox("ignore_framebuffer_errors", "sodium.options.actinium.ignore_framebuffer_errors", OptionImpact.MEDIUM,
                     o -> o.debug.ignoreFramebufferErrors, (o, v) -> o.debug.ignoreFramebufferErrors = v)));
+            event.addGroup(group(OPENGL_CONTEXT_GROUP, openGlProfile()));
         }
     }
 
@@ -159,6 +162,24 @@ public final class DemonicaOptionPages {
             .setControl(option -> new CyclingControl<>(option, DemonicaOptions.StreamingUploadStrategy.class, names))
             .setBinding((o, v) -> o.advanced.streamingUploadStrategy = v, o -> o.advanced.streamingUploadStrategy)
             // GLSM picks its uploader once, when the GL context is created.
+            .setFlags(OptionFlag.REQUIRES_GAME_RESTART)
+            .build();
+    }
+
+    private static Option<OpenGlProfile> openGlProfile() {
+        OpenGlProfile[] profiles = OpenGlProfile.values();
+        TextComponent[] names = new TextComponent[profiles.length];
+        for (int i = 0; i < profiles.length; i++) {
+            names[i] = TextComponent.translatable(profiles[i].translationKey());
+        }
+        return OptionImpl.createBuilder(OpenGlProfile.class, STORAGE)
+            .setId(OptionIdentifier.create(DemonicaRuntime.MODID, "opengl_profile", OpenGlProfile.class))
+            .setName(TextComponent.translatable("sodium.options.opengl_profile.name"))
+            .setTooltip(TextComponent.translatable("sodium.options.opengl_profile.tooltip"))
+            .setControl(option -> new CyclingControl<>(option, OpenGlProfile.class, names))
+            .setImpact(OptionImpact.HIGH)
+            .setBinding((o, v) -> o.advanced.openglProfile = v, o -> o.advanced.openglProfile)
+            // The display mixin reads it once, before the GL context is created.
             .setFlags(OptionFlag.REQUIRES_GAME_RESTART)
             .build();
     }
