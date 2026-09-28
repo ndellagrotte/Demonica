@@ -10,7 +10,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S2 corpus recorder, replayer, baselines | done | `ebb9d89b`, `c211a5f6`, `6eeea2da` (report) | 2026-09-28 | [S02-corpus.md](reports/S02-corpus.md) |
 | S3 `ShaderAst` core verbs | done | `3e1f5fa9`, `80fda189`, `2ab0db35` (report); verification fix `3f9f926f` | 2026-09-28 | [S03-shaderast-core.md](reports/S03-shaderast-core.md) |
 | S4 `ShaderAst` structural verbs | done | `53bc8702`, `490fb1bd` (report) | 2026-09-28 | [S04-shaderast-structural.md](reports/S04-shaderast-structural.md) |
-| S5 orchestrator, COMPOSITE and COMPUTE | done | `8b7b3489`, the S5 report-and-status commit | 2026-09-28 | [S05-orchestrator-composite.md](reports/S05-orchestrator-composite.md) |
+| S5 orchestrator, COMPOSITE and COMPUTE | done | `8b7b3489`, `448264f5` (report); verification fix `c9b2eeb2` | 2026-09-28 | [S05-orchestrator-composite.md](reports/S05-orchestrator-composite.md) |
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | not started | | | |
 | S7 DH and AdaptiveShadowBounds | not started | | | |
 | S8 flip the default, port the tests, full run (exit point A) | not started | | | |
@@ -37,7 +37,8 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 - Transform corpus: recorded with `-Ddemonica.glsl.corpus=<dir>` (`glsm/.../debug/TransformCorpus`,
   `transform/corpus/TransformCorpusRecorder`); the pack corpora are local, `run/transform-corpus/{bsl,complementary,
   vanilla,compat}/` (424 cases), re-recorded with `scripts/glsl-corpus/capture.sh <name>`; the committed mini-corpus
-  is `src/test/resources/transform-corpus/` (16 cases). Replay:
+  is `src/test/resources/transform-corpus/` (17 cases; S5's verification follow-up added
+  `composite-extension-placement`). Replay:
   `./gradlew :test --tests '*TransformCorpusReplayTest' -PglslCorpusDir=<abs> -PglslReplayEngine=taumc|douira
   [-PglslReplayPatches=...,COMPAT]`, filtered with `grep -E 'replay|Tests run|FAILED|BUILD'`; tolerated differences in
   `src/test/resources/transform-replay/accepted.txt`. At S2, `taumc` replays all of it identically.
@@ -66,7 +67,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 - Baselines (S2): frames in `run/baseline-screenshots/corpus-*.png`; `transformMs` log sums bsl 4,734.4 ms,
   complementary 13,151.2 ms, vanilla 5,703.3 ms (`run/corpus-<pack>.out`, `-Ddemonica.glsmPerfDebug=true`, recorder on,
   default `demonica.openglProfile`).
-- New engine (S5): `AstShaderTransformer` transforms COMPOSITE and COMPUTE (replay: 36/36 pack COMPOSITE cases and 5
+- New engine (S5): `AstShaderTransformer` transforms COMPOSITE and COMPUTE (replay: 36/36 pack COMPOSITE cases and 6
   mini-corpus cases identical, 1 accepted); other kinds throw `UnsupportedOperationException("glsl-transformer engine:
   <kind> not ported yet")` at entry (keep the phrase: the replay's "unsupported" depends on it). Port a kind by adding it
   to `AstShaderTransformer.PORTED` and `doTransform`. The ported transformers are
@@ -76,9 +77,13 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   Adaptive shadow bounds is a `TODO(S7)` no-op in `transformer/CommonTransformer`.
 - `ShaderAst` (S5): one parser shared by every program, guarded by `BUILD_LOCK` (measured faster than a parser per call
   and than a lock around the whole transform; S5 report). Code that builds nodes through `t`/`tree`/`root` must run
-  inside `ast.build(() -> ...)`, which holds the lock and restores the program's lexer version.
+  inside `ast.build(() -> ...)`, which holds the lock and restores the program's lexer version. The parser's snippet
+  AST cache is keyed on the snippet's text and rule, not on the lexer version (S5 verification; `newParser` javadoc).
   `findQualifiers(...).typeName()` is the type as spelled in the source (`mat2x2` is not `mat2`), as TauMC compared it.
-  `extensionDirectives()` gives the `#extension` lines for the header; the header no longer re-emits other directives.
+  `extensionDirectives()` gives the `#extension` lines for the header: TauMC's rule, those of the leading directive
+  block only (the directive lines at the very start of the source, up to the first blank line, comment, indented line
+  or code); a later `#extension` is dropped, as TauMC dropped it, and listed in `droppedDirectives()` (S5
+  verification). The header no longer re-emits other directives.
   A source that does not parse throws `ShaderAst.SyntaxException` (TauMC recovered).
 - Replay (S5): `-PglslReplayThreads=N` adds a concurrent pass (`replay: concurrent ... differing=0` must stay 0);
   `replay: transformMs` gives the engine time per kind. `accepted.txt` stages are checked (`vertex`, `geometry`,

@@ -33,7 +33,9 @@ Each new check was run against the code it guards against. With S4's canonical `
 | Commit | Subject |
 |---|---|
 | `8b7b3489` | glsl-transformer: S5 orchestrator, COMPOSITE and COMPUTE on glsl-transformer |
-| the commit that adds this page | glsl-transformer: S5 report and status |
+| `448264f5` | glsl-transformer: S5 report and status |
+| `c9b2eeb2` | glsl-transformer: S5 fix #extension lines after the leading directives (verification follow-up) |
+| the commit that records it | glsl-transformer: S5 fix status |
 
 ## What changed
 
@@ -346,9 +348,8 @@ order in every case.
 ## Verification follow-up
 
 An independent verification (outputs `run/s5v-*.out`, probes in `run/s5v-probe-min/` and `run/s5v-probe-corpus/`)
-found one blocking issue and made seven remarks. Fixed on 2026-09-28 on `feat/glsl-transformer` in the commit
-"glsl-transformer: S5 fix #extension lines after the leading directives" (code, tests, a mini-corpus case, this
-section); the next commit records it in `STATUS.md`. Status stays **done**. Outputs of this follow-up:
+found one blocking issue and made seven remarks. Fixed on 2026-09-28 on `feat/glsl-transformer` in `c9b2eeb2`
+(code, tests, a mini-corpus case, this section); the next commit records it in `STATUS.md`. Status stays **done**. Outputs of this follow-up:
 `run/s5f-*.out`.
 
 ### Blocking: an `#extension` after code went into the header; TauMC dropped it
