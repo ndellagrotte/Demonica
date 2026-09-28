@@ -9,7 +9,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S1 build wiring, license, spike | done | `4104a798`, `f7232573`, `114feb14` (report); verification fix `86e62ef7` | 2026-09-28 | [S01-build-wiring.md](reports/S01-build-wiring.md) |
 | S2 corpus recorder, replayer, baselines | done | `ebb9d89b`, `c211a5f6`, `6eeea2da` (report) | 2026-09-28 | [S02-corpus.md](reports/S02-corpus.md) |
 | S3 `ShaderAst` core verbs | done | `3e1f5fa9`, `80fda189`, `2ab0db35` (report); verification fix `3f9f926f` | 2026-09-28 | [S03-shaderast-core.md](reports/S03-shaderast-core.md) |
-| S4 `ShaderAst` structural verbs | not started | | | |
+| S4 `ShaderAst` structural verbs | done | `53bc8702`, `490fb1bd` (report) | 2026-09-28 | [S04-shaderast-structural.md](reports/S04-shaderast-structural.md) |
 | S5 orchestrator, COMPOSITE and COMPUTE | not started | | | |
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | not started | | | |
 | S7 DH and AdaptiveShadowBounds | not started | | | |
@@ -53,6 +53,15 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   exact structures instead; do not use `Matcher` for pattern replacement without the same care (S3 verification
   follow-up).
 - `GlslTokens` also treats `mat2x2` as `mat2` and `((x))` as `(x)` (S3): glsl-transformer prints both that way.
+- `ShaderAst` has all nineteen verbs (S4): the S3 twelve plus `renameAndWrapShadow`, `removeUnusedFunctions`,
+  `removeConstAssignment`, `findQualifiers(StorageQualifier.StorageType)` (a `QualifiedDeclaration` record: `typeText`
+  with qualifiers, `flat out float`; `typeName`; `arraySpecifierText` of the type), `hasAssignment`, `initialize`,
+  `replaceFunctionDefinition(name, source)`; queries `functions()` (`FunctionInfo`), `source`, `text`,
+  `isDeclaredGlobal`. It rebuilds TauMC's rule-context cache order (the parsed program, then what its verbs added) for
+  the injection anchors, `findType`, `removeVariable`, `findQualifiers` and `removeConstAssignment`; nodes built through
+  `t`/`tree`/`root` directly are not recorded as additions. `findQualifiers` iterates in TauMC's `HashMap` order, which
+  `transformGrouped`'s injection order depends on; `ShaderAstParityTest.transformGrouped` is TauMC's
+  `transformGrouped` written on `ShaderAst` and matches it (S4 report).
 - Baselines (S2): frames in `run/baseline-screenshots/corpus-*.png`; `transformMs` log sums bsl 4,734.4 ms,
   complementary 13,151.2 ms, vanilla 5,703.3 ms (`run/corpus-<pack>.out`, `-Ddemonica.glsmPerfDebug=true`, recorder on,
   default `demonica.openglProfile`).
