@@ -102,7 +102,9 @@ at Checkpoint 3.
 
 ## 4. Seam anchors
 
-`AnchorInventoryTest` checks every anchor the plan needs (S1–S19, I1, I2)
+*Superseded: `AnchorInventoryTest` went with the version gate (2026-09-27,
+`feat/version-gate`); see [`PIN.md`](PIN.md), "Moving the pin".* At the time,
+`AnchorInventoryTest` checked every anchor the plan needs (S1–S19, I1, I2)
 against the pinned jar, along with upstream's overwrite set (10 members) and
 its priorities (RenderGlobal 1000, BiomeColorHelper 1200, TextureUtil 900). All
 of them are present.

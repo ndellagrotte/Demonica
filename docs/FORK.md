@@ -25,8 +25,8 @@ From the fork point on:
 - **Celeritas is patched only through the quarantine.** Demonica may patch
   Celeritas internals only in `mixins.demonica.celeritas.json`. Each patch gets
   a ledger entry and an upstream PR draft
-  ([`celeritas/LEDGER.md`](celeritas/LEDGER.md)), is guarded by the jar pin and
-  the anchor audit, and fails soft.
+  ([`celeritas/LEDGER.md`](celeritas/LEDGER.md)), is guarded by the jar pin, and
+  fails soft.
 
 ## Identity
 

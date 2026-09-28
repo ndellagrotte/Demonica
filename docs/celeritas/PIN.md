@@ -68,17 +68,18 @@ accepted.
   - keeps every other entry.
 - `verifyCeleritasPin` (part of `check`) hashes the resolved Maven jar and fails
   unless it is one of `celeritas_sha256`.
-- `generateCeleritasAnchors` extracts every anchor of the quarantine's patches
-  from the compiled mixins into `META-INF/demonica/celeritas-anchors`, together
-  with the upstream commit, the version and the accepted SHA-256s. The guard
-  reads it at runtime (below).
-- `AnchorInventoryTest` checks those anchors against the pinned jar (in its dev
-  remap), upstream's mixin priorities and `@Overwrite`s, and a snapshot of
-  upstream's whole mixin inventory
-  (`src/test/resources/com/demonica/celeritas/upstream-mixin-inventory.txt`).
-  `verifyProductionAnchors` (part of `check`) checks the anchors the distributed
-  jar carries against the SRG-named Maven jar, through the jar's refmap, as the
-  guard would in a real install.
+- `generateCeleritasPin` writes `META-INF/demonica/celeritas-pin`: the upstream
+  commit, the version and the accepted SHA-256s, plus `dev_sha256`, the hash of
+  the remapped jar the workspace compiles, tests and runs against (the task fails
+  if the compile and runtime classpaths hold different ones). The guard reads it
+  at runtime (below).
+- The `jar` task drops `dev_sha256`, and `verifyDistributedJar` (part of `check`)
+  fails unless the distributed jar's pin names exactly the upstream commit, the
+  version and the SHA-256s of `gradle.properties`, with no other key.
+- `QuarantineGuardTest` checks that the pin on the test classpath matches
+  `gradle.properties`, and that its `dev_sha256` is the jar the tests read.
+  `QuarantinePriorityTest` reads upstream's mixin priorities and `@Overwrite`s from
+  the pinned jar, and fails if forge122 overrides what S2 patches or S3 adds.
 - `GlsmRedirectLinkageTest` runs GLSM's redirector over every class in the jar and
   checks that each rewritten call exists in `GLStateManager`.
 
@@ -86,13 +87,13 @@ accepted.
 
 `QuarantineGuard` hashes the Celeritas jar the game loads (from the class path,
 or the mods folder) before Mixin applies the quarantine. On a pinned SHA-256 every
-patch applies. On any other build it checks every anchor against that jar's
-classes and turns off the patch groups whose anchors moved: at worst shaders are
-off, with the reason in the log and on the shader pack screen. The levels and
-what each group costs are in [`LEDGER.md`](LEDGER.md#the-guard).
+patch applies. On any other build shaders are off, with the reason in the log and
+on the shader pack screen, and only the fog patch (S15) applies. Details in
+[`LEDGER.md`](LEDGER.md#the-guard).
 
-The development workspace runs Unimined's remap of the pin, whose hash never
-matches, so every dev run checks the anchors and logs whether they all hold.
+The development workspace runs Unimined's remap of the pin, which no pin matches;
+the guard accepts it by `dev_sha256`, only in a deobfuscated environment.
+`-PdevProps=demonica.celeritas.pinsOnly=true` makes a dev client reject it.
 
 ## Moving the pin
 
@@ -100,13 +101,15 @@ matches, so every dev run checks the anchors and logs whether they all hold.
    `01-…-dev.jar` and the Maven jar; hash both.
 2. Update `celeritas_sha`, `celeritas_version` and `celeritas_sha256` in
    `gradle.properties`, and the table above.
-3. Run `./gradlew build`. Expect `AnchorInventoryTest` to report every anchor and
-   upstream mixin that moved; its snapshot mismatch writes the new inventory to
-   `run/test/upstream-mixin-inventory.actual.txt`. Before changing anything, a dev
-   run on the new jar shows what the guard would do for a player who installed it.
-4. For each change, re-derive the affected quarantine patch and its `@Patch`
-   declaration, update its ledger entry (`LEDGER.md`), then update the snapshot.
-5. Repeat the spike's two runs ([`SPIKE.md`](SPIKE.md) sections 1 and 2), the
-   current checkpoint's matrix, the guard's drills
-   ([`LEDGER.md`](LEDGER.md#the-guard), "Rehearsing it") and the production-shaped
-   smoke test (`LEDGER.md`, after Checkpoint 10) before accepting the new pin.
+3. Run `./gradlew build`. A Celeritas class or member that Demonica's code uses
+   and that was renamed or removed fails to compile (an injector's target string
+   does not; step 4 catches those); `QuarantinePriorityTest` reports upstream priorities or overwrites
+   that now clash. Re-derive each affected patch and update its ledger entry
+   (`LEDGER.md`). Check by hand the calls the S1, S2 and S13 mixins' Javadoc names.
+4. Run the dev client and load a world. The injection audit is fatal in dev: a
+   quarantine injector that found no target stops the client with a crash report
+   that names it. A clean run with all the "n of n injectors found their targets"
+   lines means every patch found its target. Repeat the current checkpoint's
+   matrix.
+5. Run the production-shaped smoke test (`LEDGER.md`, after Checkpoint 10) with the
+   release asset before accepting the new pin.

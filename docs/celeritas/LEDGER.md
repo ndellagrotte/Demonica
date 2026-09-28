@@ -25,7 +25,8 @@ propose them upstream is the maintainer's decision.
   that found no target: `Applied <mixin> to <class>: n of n injectors found
   their targets`. A dev run that loads a world lists all 19 lines (a mixin is
   applied when its target class loads); anything short
-  of `n of n` is a moved anchor. MixinExtras applies `@ModifyExpressionValue`,
+  of `n of n` is a moved anchor, and in a dev run it stops the game (see the
+  guard below). MixinExtras applies `@ModifyExpressionValue`,
   `@WrapOperation`, `@WrapWithCondition` and `@WrapMethod` in its own
   transformer extensions, after every config plugin's `postApply`, so the
   plugin holds its lines back until `InjectionAuditExtension`, inserted right
@@ -34,34 +35,30 @@ propose them upstream is the maintainer's decision.
   lines say how many injectors were "applied later by MixinExtras and not
   checked" instead.
 - Each quarantine mixin names its ledger ids and its group with `@Patch`
-  (`com.demonica.celeritas.guard`), and, where the patch relies on more than its
-  injectors name, the calls it relies on (`context`) and the Demonica classes
-  that carry its behaviour (`uses`). `QuarantineLedgerTest` checks the
-  declarations against this ledger.
-- The build extracts every patch's anchors from the compiled mixins
-  (`AnchorExtractor`) into the mod jar. `AnchorInventoryTest` checks them
-  against the pinned jar, along with upstream's mixin priorities and overwrites
-  and a snapshot of upstream's whole mixin inventory; `verifyProductionAnchors`
-  checks them in production names; `QuarantinePriorityTest` checks the rules
-  above.
+  (`com.demonica.celeritas.guard`). Where a patch relies on a call that no
+  injector names (S1, S2, S13), the mixin's Javadoc says which, for a pin move to
+  check by hand.
+- `QuarantineLedgerTest` checks the `@Patch` declarations against this ledger,
+  and `QuarantinePriorityTest` checks the rules above against upstream's mixins
+  in the pinned jar, and that forge122 overrides nothing that would bypass S2 or
+  duplicate S3.
 
 ## Groups
 
-What a patch's failure costs. When the installed Celeritas is not the pinned
-build, the guard (below) turns off a whole group when any of its anchors moved,
-except where the group says otherwise.
+What each group's patches provide. On a Celeritas that is not the pinned build,
+the guard (below) turns every group off except BASE.
 
-| Group | Patches | If the group fails |
+| Group | Patches | What the patches provide |
 |---|---|---|
-| BASE | S15 | Terrain is drawn in solid fog colour, with or without a shader pack. |
-| CORE_TERRAIN | S2, S5, S6m + S8, S9, S14 | Packs cannot draw terrain. Shaders are turned off with a named reason (L2). |
-| SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shaders without terrain shadows (L1). |
-| MESHING | S10, S11, S13 | Packs get no block IDs from terrain: plants do not wave, blocks fall back to the pack's defaults, and water is drawn in the translucent pass instead of the water pass. |
-| DEGRADE | S4, S17, S19, S20 | One feature degrades; see the row. Only the failing mixin is turned off. |
-| COMPAT | C1 | The mods it serves lose that part of their rendering; see the row. Nothing else changes. Only the failing mixin is turned off. |
+| BASE | S15 | Terrain fog from GLSM's fog state. Without it, terrain is drawn in solid fog colour, with or without a shader pack. |
+| CORE_TERRAIN | S2, S5, S6m + S8, S9, S14 | Shader packs draw terrain. |
+| SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shader packs draw terrain into their shadow map. |
+| MESHING | S10, S11, S13 | Shader packs get block IDs from terrain (plants wave, blocks get the pack's materials), and water is drawn in the pack's water pass. |
+| DEGRADE | S4, S17, S19, S20 | One feature each; see the row. |
+| COMPAT | C1 | The mods it serves; see the row. |
 
-BASE is never turned off: each of S15's seven getters stands alone, Mixin skips
-any that no longer match, and every one that still applies keeps fog right.
+BASE applies on any Celeritas: each of S15's seven getters stands alone, Mixin
+skips any that no longer match, and every one that still applies keeps fog right.
 
 Two assignments differ from the plan:
 - **I2 is in SHADOW, not CORE_TERRAIN.** The stamps that go backwards are the
@@ -77,61 +74,35 @@ Two assignments differ from the plan:
 ## The guard
 
 Demonica is built for one Celeritas build ([`PIN.md`](PIN.md)), but a player can
-install another. Before Mixin applies anything from the quarantine,
-`QuarantineGuard` decides what may apply, and `QuarantinePlugin.shouldApplyMixin`
-leaves out the rest. It reads class bytes only and never loads a Celeritas
-class.
+install another, and every upstream dev build calls itself `2.4.0-dev`: the jar's
+SHA-256 is its only identity.
 
-1. **Pin check.** It finds the jar Celeritas is loaded from (on the class path,
-   or in the mods folder) and hashes it. A pinned SHA-256 applies every patch:
-   the build has proven every anchor against that jar.
-2. **Anchor audit.** Otherwise it checks every anchor against the installed
-   jar's class bytes, read through the class loader. The anchors ship in the mod
-   jar (`META-INF/demonica/celeritas-anchors`, with the pins), extracted at build
-   time from the compiled quarantine mixins by `AnchorExtractor`:
-   - each mixin's Celeritas targets, and what it shadows there;
-   - the methods its injectors select, and the calls and field accesses their
-     `@At`s name. For a vanilla target, only a method that upstream
-     `@Overwrite`s belongs to Celeritas, and its body is checked in upstream's
-     mixin (S8);
-   - the methods it adds that override a supertype's (S3), which must stay
-     inherited and not final;
-   - every Celeritas class and member its own code uses, and the code of the
-     helper classes its `@Patch` names;
-   - its `@Patch` context: calls that make the patched code the code that runs
-     (S1, S2, S13), and overrides that would bypass it (S2).
+**The pin.** The build writes `META-INF/demonica/celeritas-pin` into the mod jar
+(`generateCeleritasPin`): the upstream commit, the version and the accepted
+SHA-256s from `gradle.properties`. In the workspace it also holds `dev_sha256`,
+the hash of Unimined's remap of the pin, which the compile classpath, the tests
+and the dev client all use; the `jar` task drops that line, and
+`verifyDistributedJar` fails if the distributed jar has it.
 
-   Strings that a mixin annotation wrote go through the jar's refmap first, as
-   Mixin resolves them, so vanilla members are checked by their production
-   names; `verifyProductionAnchors` proves that against the SRG-named pin. A
-   member a Celeritas class inherits from a vanilla or JDK type cannot be seen
-   in Celeritas's bytes and passes.
-3. **Levels.** What the failed groups leave of shaders:
+**The gate.** Before Mixin applies anything from the quarantine,
+`QuarantineGuard` finds the jar Celeritas is loaded from (on the class path, or in
+the mods folder) and hashes it. A pinned SHA-256, or in a deobfuscated
+environment `dev_sha256`, applies every patch. Anything else (another build, a
+jar it cannot find or read, a pin it cannot read) turns shaders off:
+`IrisDebugOptions.enableIris()` and `enableCeleritas()` return false, the log
+names the expected and the found hash, and "Shader Packs" opens a screen with the
+reason instead of the pack list. `QuarantinePlugin.shouldApplyMixin` then applies
+only the BASE group, read from each mixin's `@Patch`, so terrain keeps its fog.
+It never loads a Celeritas class. In a dev client,
+`-PdevProps=demonica.celeritas.pinsOnly=true` ignores `dev_sha256`, to see that
+path.
 
-| Level | When | Result |
-|---|---|---|
-| L0 | Nothing failed, or only MESHING, DEGRADE, COMPAT or BASE | Shaders with terrain shadows; each failed group costs its own feature |
-| L1 | SHADOW failed | Shaders without terrain shadows. The shader pack screen says so |
-| L2 | CORE_TERRAIN failed | Shaders off: `IrisDebugOptions.enableIris()` and `enableCeleritas()` return false, the log names the anchor that moved, and "Shader Packs" opens a screen with the reason instead of the pack list |
-| L3 | The anchor list cannot be read, or the guard itself fails | Shaders off, and only the patches outside CORE_TERRAIN, SHADOW and MESHING apply |
-
-A MESHING failure is also named on the shader pack screen; the others are in the
-log only. The log lists every anchor that did not hold and the mixins turned
-off.
-
-The audit does not check MixinExtras's `@Local` captures (S13, C1). A local that
-changed type makes that injector miss, which the injection audit then reports
-("n of m injectors found their targets"). Nor does it check what Demonica's
-option pages rely on in Celeritas's own pages: a change there misplaces
-Demonica's settings rather than breaking a patch, and `AnchorInventoryTest`
-checks it at build time.
-
-**Rehearsing it.** `-Ddemonica.guard.drill=<group|id|L3>[,...]` (in a dev run,
-`-PdevProps=demonica.guard.drill=SHADOW`) treats groups or ledger ids as
-failed even on the pin, and `L3` sets the anchor list aside.
-`-Ddemonica.guard.audit=always` audits a pinned jar too. The development
-workspace runs Unimined's remap of the pin, whose hash never matches, so every
-dev run audits and logs "All N anchors ... hold".
+**The injection audit.** On an accepted jar, every quarantine injector must find
+its target: the rules above describe the "n of n" lines. In a deobfuscated
+environment each miss is also recorded, and `InjectionAuditDevCheck` throws on the
+game thread, at init and on every client tick, so the client stops with a crash
+report naming the injector. A pin move cannot lose a patch without a dev run
+saying so. Production only logs the miss.
 
 ## Patches
 
@@ -176,7 +147,8 @@ exported with `-PmixinExport` shows S16's injection in
 `DefaultChunkRenderer.render`, S8's `@ModifyArg` before `drawChunkLayer`, and
 I2's `@ModifyVariable` at the head of both searches.
 
-Checkpoint 10 (run/client/scripts/guard-*.txt, each run with its
+*Superseded by the version gate (2026-09-27, `feat/version-gate`); kept as the
+record of the drills.* Checkpoint 10 (run/client/scripts/guard-*.txt, each run with its
 `-PdevProps=demonica.guard.drill=...`), 2026-09-24: each drill loads a world, takes a
 frame without a pack, opens Video Settings and the shader pack screen, and selects
 BSL. Without a drill, all 316 anchors hold, and all 21 mixins apply with 46 of 46

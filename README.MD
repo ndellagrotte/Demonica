@@ -55,7 +55,7 @@ from `maven.outlands.top` and the pinned S8TNLib from its GitHub release.
 `verifyCeleritasPin` and `verifyS8tnlibPin` check both jars' SHA-256.
 
 ```sh
-./gradlew build      # compile, test, and check the pins, the patches' anchors and the mod jar
+./gradlew build      # compile, test, and check the pins and the mod jar
 ./gradlew runClient  # dev client with Celeritas, S8TNLib and Demonica
 ```
 
@@ -71,7 +71,7 @@ normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<ver
 | Property | Effect |
 |---|---|
 | `-PdevScript=@scripts/<name>.txt` | drive the client from a script in `run/client/scripts` (steps in `com.demonica.diagnostics.dev.DevHarness`, part of the diagnostics jar) |
-| `-PdevProps=key=value,...` | pass system properties, for example `demonica.guard.drill=SHADOW` to rehearse a patch group failing |
+| `-PdevProps=key=value,...` | pass system properties, for example `demonica.celeritas.pinsOnly=true` to see what a Celeritas that is not the pin gets |
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for |
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
