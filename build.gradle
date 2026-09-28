@@ -317,8 +317,8 @@ unimined.minecraft {
             if (project.findProperty('mixinExport') != null) {
                 systemProperty 'mixin.debug.export', 'true'
             }
-            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.perfDebug=true. A
-            // value may hold commas (demonica.guard.drill=SHADOW,MESHING): only a comma before the next key= separates.
+            // -PdevProps=key=value[,key=value...]: further system properties, e.g. demonica.celeritas.pinsOnly=true. A
+            // value may hold a comma-separated list: only a comma before the next key= separates.
             def devProps = project.findProperty('devProps')
             if (devProps != null) {
                 devProps.toString().split(/,(?=[\w.-]+=)/).each { entry ->
@@ -602,6 +602,11 @@ jar {
         }
     }
 
+    // The workspace remap's hash is for dev runs only: a distributed jar trusts exactly the pins (QuarantineGuard).
+    filesMatching('META-INF/demonica/celeritas-pin') {
+        filter { String line -> line.startsWith('dev_sha256=') ? null : line }
+    }
+
     finalizedBy tasks.named('remapJar')
 }
 
@@ -618,7 +623,7 @@ test {
     dependsOn prepareTestRunDirectory
     systemProperty 'demonica.projectRoot', rootProject.projectDir.absolutePath
     // Read from the project directory rather than the classpath: the patch ledger and its drafts (QuarantineLedgerTest)
-    // and the pins (AnchorInventoryTest). Declared, so that editing them re-runs the tests instead of reusing a result.
+    // and the pins (QuarantineGuardTest). Declared, so that editing them re-runs the tests instead of reusing a result.
     inputs.files('docs/celeritas/LEDGER.md', 'gradle.properties')
         .withPropertyName('projectFiles').withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir('docs/celeritas/patches').withPropertyName('patchDrafts').withPathSensitivity(PathSensitivity.RELATIVE)
@@ -751,7 +756,13 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
 
     def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
     def containedJars = provider { configurations.contain.collect { it.name } }
+    def celeritasPin = [
+        celeritas_sha: project.property('celeritas_sha').toString().trim(),
+        celeritas_version: project.property('celeritas_version').toString().trim(),
+        celeritas_sha256: (project.property('celeritas_sha256').toString().split(',')*.trim()*.toLowerCase() as Set)
+    ]
     inputs.file(remappedJar)
+    inputs.property('celeritasPin', celeritasPin.toString())
 
     doLast {
         def jarFile = remappedJar.get().asFile
@@ -835,6 +846,26 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
             if (mod.modid != 'demonica' || !(mod.dependencies as List).containsAll(requiredMods)
                     || !(mod.requiredMods as List).containsAll(requiredMods)) {
                 problems << "mcmod.info must declare modid demonica and require ${requiredMods.join(' and ')}: ${mod}"
+            }
+
+            // Exactly the pins of gradle.properties, and nothing else: no dev_sha256, which only a dev run may trust.
+            def pinEntry = jar.getEntry('META-INF/demonica/celeritas-pin')
+            if (pinEntry != null) {
+                def pin = new Properties()
+                jar.getInputStream(pinEntry).withReader('UTF-8') { pin.load(it) }
+                def unexpected = pin.stringPropertyNames() - celeritasPin.keySet()
+                if (!unexpected.isEmpty()) {
+                    problems << "META-INF/demonica/celeritas-pin has keys it must not have: ${unexpected}"
+                }
+                def pinnedSha256 = (pin.getProperty('celeritas_sha256') ?: '').split(',')*.trim()*.toLowerCase().findAll { it } as Set
+                if (pinnedSha256 != celeritasPin.celeritas_sha256) {
+                    problems << "META-INF/demonica/celeritas-pin pins ${pinnedSha256}, gradle.properties ${celeritasPin.celeritas_sha256}"
+                }
+                ['celeritas_sha', 'celeritas_version'].each { key ->
+                    if (pin.getProperty(key)?.trim() != celeritasPin[key]) {
+                        problems << "META-INF/demonica/celeritas-pin has ${key} ${pin.getProperty(key)}, gradle.properties ${celeritasPin[key]}"
+                    }
+                }
             }
         }
         if (!problems.isEmpty()) {
