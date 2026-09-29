@@ -27,20 +27,21 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # Fetches the pinned Celeritas jar from maven.outlands.top and checks its SHA-256
-      # (docs/celeritas/PIN.md), so an unreachable or moved pin fails here, by name.
+      # (docs/celeritas/PIN.md), so an unreachable or moved pin fails here, by name. Every Gradle
+      # step asks GitHub's API for S8TNLib's latest release (docs/FORK.md); the token lifts the
+      # anonymous rate limit.
       - name: Check the Celeritas pin
         run: ./gradlew verifyCeleritasPin
-
-      # Fetches the pinned S8TNLib mod jar from the assets of its GitHub release v<s8tnlib_version>
-      # and checks its SHA-256 (docs/FORK.md).
-      - name: Check the S8TNLib pin
-        run: ./gradlew verifyS8tnlibPin
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       # Compiles and tests, then checks the mod jar and its Celeritas pin (verifyDistributedJar), the
-      # diagnostics jar (verifyDiagnosticsJar, verifyDiagnosticsRemap) and that no S8TNLib jar is on
-      # the dev client's class path (verifyRunClasspath).
+      # diagnostics jar (verifyDiagnosticsJar, verifyDiagnosticsRemap) and that the dev client gets
+      # GTNHLib only from the merged mod classes, not from an S8TNLib jar (verifyRunClasspath).
       - name: Build
         run: ./gradlew build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       # The mod jar, the diagnostics jar (Demonica-diagnostics-<version>.jar) and the sources jar of
       # every successful build. A release tag's run supplies the jars
