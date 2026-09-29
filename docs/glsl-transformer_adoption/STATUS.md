@@ -16,7 +16,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S7b pre-flip hardening (added by the orchestrator) | done | `307d84ce`; report and status `33916dfc`; verification fixes `658bf2cf` and `glsl-transformer: S7b fix continued line comments on extension lines` | 2026-09-29 | [S7b-hardening.md](reports/S7b-hardening.md) |
 | S8 flip the default, port the tests, full run (exit point A) | done; **exit point A reached** | `72190445`; report and status `392f4dd3`; verification fix `02f161d6` | 2026-09-29 | [S08-flip-default.md](reports/S08-flip-default.md) |
 | S9 GLSM subtractions and utilities | done | `21eb3764`; report and status in the commit that adds the report | 2026-09-29 | [S09-glsm-subtractions.md](reports/S09-glsm-subtractions.md) |
-| S10 `CompatShaderTransformer` | done | `65b3efed`; report and status in the commit that adds the report | 2026-09-29 | [S10-compat-shader-transformer.md](reports/S10-compat-shader-transformer.md) |
+| S10 `CompatShaderTransformer` | done | `65b3efed`; report and status `f00339e3` | 2026-09-29 | [S10-compat-shader-transformer.md](reports/S10-compat-shader-transformer.md) |
 | S11 remove TauMC, release checks (exit point B) | not started | | | |
 | S12 optional payoff | not started | | | |
 
@@ -27,7 +27,9 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   `TransformPatcher.engine()` and logged at first use as
   `[TransformPatcher] GLSL transform engine: <id> (demonica.glsl.engine)`. An unknown value logs a WARN,
   `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using douira`, and falls back
-  to the default (before S8: `taumc`). The engine is fixed per JVM, and the transform cache key does not include it. The new engine is
+  to the default (before S8: `taumc`). The engine is fixed per JVM; `TransformPatcher`'s transform cache key does not include it,
+  while GLSM's `CompatShaderTransformer` cache key (S10) does, because its three-argument `transform` picks the engine per call
+  (S11 correction). The new engine is
   `shader/.../pipeline/transform/AstShaderTransformer.java`.
 - glsl-transformer sources: `run/lib-src/glsl-transformer/` (gitignored; Step 1 unpacked them). Read by class.
 - Reference parser configuration: `src/test/java/net/coderbot/iris/pipeline/transform/GlslTransformerSpikeTest.java`.
