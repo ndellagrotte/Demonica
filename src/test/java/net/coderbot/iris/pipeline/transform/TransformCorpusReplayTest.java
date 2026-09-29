@@ -1,7 +1,6 @@
 package net.coderbot.iris.pipeline.transform;
 
 import com.gtnewhorizons.angelica.glsm.CompatShaderTransformer;
-import com.gtnewhorizons.angelica.glsm.GlslTransformEngine;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import com.gtnewhorizons.angelica.glsm.backend.BackendManager;
 import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
@@ -52,15 +51,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Replays a recorded transform corpus through one engine and compares every stage with the recorded TauMC output
- * ({@code out.taumc.<stage>.glsl}) as {@link GlslTokens} (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5).
+ * Replays a recorded transform corpus through the transform engine (glsl-transformer, recorded as {@code douira}) and
+ * compares every stage with the recorded reference output of TauMC's engine ({@code out.taumc.<stage>.glsl}) as
+ * {@link GlslTokens} (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5). The TauMC engine and its library were
+ * removed in Step 11; its recorded outputs stay the reference.
  *
- * <p>Without a configured corpus it replays the committed mini-corpus, {@code src/test/resources/transform-corpus}, on
- * the default engine, so every {@code :test} and {@code check} guards the transform output against its recorded TauMC
- * snapshot (Step 8; record mode needs an explicit corpus). The root {@code test {}} block forwards the Gradle
- * properties: {@code -PglslCorpusDir=<abs>} (another corpus, searched recursively for {@code case.properties}),
- * {@code -PglslReplayEngine=taumc|douira}
- * (default: the engine {@code demonica.glsl.engine} selects), {@code -PglslReplayPatches=COMPOSITE,COMPUTE,...}
+ * <p>Without a configured corpus it replays the committed mini-corpus, {@code src/test/resources/transform-corpus}, so
+ * every {@code :test} and {@code check} guards the transform output against its recorded TauMC snapshot (Step 8;
+ * record mode needs an explicit corpus). The root {@code test {}} block forwards the Gradle properties:
+ * {@code -PglslCorpusDir=<abs>} (another corpus, searched recursively for {@code case.properties}),
+ * {@code -PglslReplayPatches=COMPOSITE,COMPUTE,...}
  * (patch kinds to replay, {@code COMPAT} for GLSM's mod-shader cases; default all) and {@code -PglslReplayRecord=true}
  * (write {@code out.<engine>.<stage>.glsl} instead of comparing) and {@code -PglslReplayThreads=N} (after the replay,
  * transform every case the engine replayed successfully again, once more on this thread and then all at once on N
@@ -72,8 +72,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * ({@link AdaptiveShadowBoundsStats#activateForTesting(int)}) and the {@link Parameters}; then it calls the engine
  * directly, not through the cache. A stage that differs is written to {@code build/reports/transform-replay/} and
  * fails the test unless {@code src/test/resources/transform-replay/accepted.txt} tolerates it. A case the engine cannot
- * run (a state the replayer cannot restore) is counted as unsupported. GLSM's compat cases run on the replay's engine
- * through {@code CompatShaderTransformer.transform(source, isFragment, engine)} (Step 10). Every patch kind is ported since Step 7, so an engine exception is a failure (or an accepted error).</p>
+ * run (a state the replayer cannot restore) is counted as unsupported. GLSM's compat cases run through
+ * {@code CompatShaderTransformer.transform(source, isFragment)} (Step 10). An engine exception is a failure (or an
+ * accepted error).</p>
  *
  * <p>A case recorded with {@code outcome=error} (the TauMC engine threw) is identical when the replay throws the same
  * {@code class: message}. When the replay succeeds or throws something else, the case's outcome differs: the report
@@ -83,22 +84,20 @@ import static org.junit.jupiter.api.Assertions.fail;
  * replay throws is failing unless an entry with the stage {@code threw} accepts it (Step 7b); its report is
  * {@code <case>.error.diff} too.</p>
  *
- * <p>Dead entries fail too (Step 7): when an engine other than the reference engine replays, every
- * {@code accepted.txt} entry whose case glob matches a case this run replayed (not filtered out, not unsupported) must
+ * <p>Dead entries fail too (Step 7): every {@code accepted.txt} entry whose case glob matches a case this run replayed (not filtered out, not unsupported) must
  * have tolerated a difference of it; an entry that matched none is listed as {@code STALE} and fails the test, so
  * entries cannot outlive the differences they were written for. Entries for cases the run did not replay (another
- * corpus, a filtered patch kind) are not judged. The reference engine replays its own recordings, where no entry
- * applies, so its runs skip the check.</p>
+ * corpus, a filtered patch kind) are not judged. Record mode skips the check.</p>
  *
  * <p>The summary also gives the engine's time: the sum of the engine calls per patch kind ({@code replay: transformMs}),
  * measured around the direct call, as {@code TransformPatcher}'s {@code transformMs} is around its call.</p>
  */
 class TransformCorpusReplayTest {
     static final String CORPUS_DIR_PROPERTY = "demonica.glsl.corpus.dir";
-    static final String ENGINE_PROPERTY = "demonica.glsl.replay.engine";
     static final String PATCHES_PROPERTY = "demonica.glsl.replay.patches";
     static final String RECORD_PROPERTY = "demonica.glsl.replay.record";
     static final String THREADS_PROPERTY = "demonica.glsl.replay.threads";
+    /** The engine whose recorded outputs are the reference: TauMC's, removed in Step 11. */
     static final String REFERENCE_ENGINE = "taumc";
     private static final String ACCEPTED_RESOURCE = "/transform-replay/accepted.txt";
 
@@ -177,9 +176,7 @@ class TransformCorpusReplayTest {
         final Path corpus = (dirValue.isEmpty() ? miniCorpus() : Paths.get(dirValue)).toAbsolutePath().normalize();
         assertTrue(Files.isDirectory(corpus), "corpus directory does not exist: " + corpus);
 
-        final String engineValue = System.getProperty(ENGINE_PROPERTY, "").trim().toLowerCase(Locale.ROOT);
-        final String engine = engineValue.isEmpty() ? TransformPatcher.engine().id : engineValue;
-        assertTrue(engine.equals("taumc") || engine.equals("douira"), "unknown replay engine: " + engine);
+        final String engine = TransformCorpus.ENGINE;
         final Set<String> patches = parsePatches(System.getProperty(PATCHES_PROPERTY, ""));
         final boolean record = Boolean.parseBoolean(System.getProperty(RECORD_PROPERTY, "false"));
         // The committed snapshot is written only on purpose, with the corpus named explicitly.
@@ -223,10 +220,9 @@ class TransformCorpusReplayTest {
         summary.perPatch.forEach((patch, counts) -> System.out.println("replay:   " + patch + " " + counts));
         summary.unsupportedReasons.forEach((reason, count) -> System.out.println("replay:   unsupported " + count + "x: " + reason));
         summary.failures.forEach(failure -> System.out.println("replay:   FAILING " + failure));
-        final List<AcceptedDiff> stale = record || engine.equals(REFERENCE_ENGINE) ? List.of() : replayer.staleEntries();
-        final String staleLine = record || engine.equals(REFERENCE_ENGINE)
-            ? "replay: accepted entries not checked for staleness (" + (record ? "record mode" : "the reference engine")
-                + ")"
+        final List<AcceptedDiff> stale = record ? List.of() : replayer.staleEntries();
+        final String staleLine = record
+            ? "replay: accepted entries not checked for staleness (record mode)"
             : "replay: accepted entries in scope=" + replayer.inScope.size() + " used=" + replayer.used.size()
                 + " stale=" + stale.size();
         System.out.println(staleLine);
@@ -385,8 +381,7 @@ class TransformCorpusReplayTest {
             final String input = Files.readString(caseDir.resolve("in.glsl"), StandardCharsets.UTF_8);
             final boolean isFragment = Boolean.parseBoolean(p.get("isFragment"));
             CompatShaderTransformer.clearCache();
-            // The replay's engine, not the JVM's (Step 10: CompatShaderTransformer has the same switch as TransformPatcher).
-            final String output = CompatShaderTransformer.transform(input, isFragment, GlslTransformEngine.byId(engine));
+            final String output = CompatShaderTransformer.transform(input, isFragment);
             final Map<String, String> actual = new LinkedHashMap<>();
             actual.put("", output);
             return compare(name, caseDir, actual);
@@ -570,18 +565,14 @@ class TransformCorpusReplayTest {
                                                        Parameters parameters) {
             if (patch == Patch.COMPUTE) {
                 final String compute = in.get(PatchShaderType.COMPUTE);
-                return engine.equals(REFERENCE_ENGINE)
-                    ? ShaderTransformer.transformCompute(compute, parameters)
-                    : AstShaderTransformer.transformCompute(compute, parameters);
+                return ShaderTransformer.transformCompute(compute, parameters);
             }
             final String vertex = in.get(PatchShaderType.VERTEX);
             final String geometry = in.get(PatchShaderType.GEOMETRY);
             final String tessControl = in.get(PatchShaderType.TESS_CONTROL);
             final String tessEval = in.get(PatchShaderType.TESS_EVAL);
             final String fragment = in.get(PatchShaderType.FRAGMENT);
-            return engine.equals(REFERENCE_ENGINE)
-                ? ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters)
-                : AstShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
+            return ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
         }
 
         /** Restores the GLSL capability and version hoisting; returns why it cannot, or null. */

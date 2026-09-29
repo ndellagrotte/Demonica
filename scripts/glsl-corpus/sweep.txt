@@ -1,7 +1,7 @@
 # glsl-transformer Step 8 (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): a cp4-shaped sweep of the three packs,
 # switched mid-game at the corpus camera, then each pack loaded a second time, which the transform cache serves
 # (BSL, Complementary Reimagined and I Like Vanilla need about 390 of its 400 entries, and Iris clears it only after
-# 120 s without a transform). Run with -PdevProps=demonica.glsmPerfDebug=true[,demonica.glsl.engine=...] and read the
+# 120 s without a transform). Run with -PdevProps=demonica.glsmPerfDebug=true and read the
 # phases with scripts/glsl-corpus/transform-times.py --phases <log>: each "log" step starts a phase. The first BSL
 # frame repeats bsl.txt's corpus-bsl-1-pack (same steps before it); the others follow other packs.
 pack off

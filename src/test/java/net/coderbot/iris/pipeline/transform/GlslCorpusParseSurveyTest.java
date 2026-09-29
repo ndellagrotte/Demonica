@@ -52,7 +52,7 @@ class GlslCorpusParseSurveyTest {
 
     @AfterAll
     static void restoreGlobalState() {
-        ShaderTransformer.resetVersionHoistingForTesting();
+        VersionNegotiation.resetForTesting();
         RenderSystem.initializeGlslCapabilityForTesting(460, false, false);
     }
 
@@ -110,8 +110,8 @@ class GlslCorpusParseSurveyTest {
     }
 
     /**
-     * The text ShaderTransformer hands TauMC's parser, with its {@code #version} line set to the effective version.
-     * Package-private, as is {@link #restoreHoisting}: {@link ShaderAstCorpusDifferential} prepares its inputs with them.
+     * The text the orchestrator hands the parser, with its {@code #version} line set to the effective version (as the
+     * TauMC engine prepared it; Step 2).
      */
     static String prepare(String source, PatchShaderType stage, Patch patch, Map<String, String> p,
                                   Method requiredVersion) throws Exception {
@@ -137,11 +137,11 @@ class GlslCorpusParseSurveyTest {
             final boolean fragment = stage.glShaderType == ShaderType.FRAGMENT;
             input = CompatShaderTransformer.fixupQualifiers(input, fragment);
             if (patch == Patch.COMPOSITE && fragment) {
-                input = CompatibilityTransformer.patchCaveSkyholeClouds(input);
-                input = CompatibilityTransformer.patchVolumetricCloudReferenceDistance(input);
+                input = CompatibilityPatches.patchCaveSkyholeClouds(input);
+                input = CompatibilityPatches.patchVolumetricCloudReferenceDistance(input);
             }
             if (fragment) {
-                input = CompatibilityTransformer.patchCloudMovementTime(input);
+                input = CompatibilityPatches.patchCloudMovementTime(input);
             }
         }
         return VERSION.matcher(input).replaceFirst("#version " + versionInt + (versionInt >= 150 ? " core" : ""));
@@ -150,9 +150,9 @@ class GlslCorpusParseSurveyTest {
     static void restoreHoisting(Map<String, String> p) {
         RenderSystem.initializeGlslCapabilityForTesting(Integer.parseInt(p.getOrDefault("glsl.maxVersion", "460")),
             Boolean.parseBoolean(p.get("glsl.ssbo")), Boolean.parseBoolean(p.get("glsl.imageLoadStore")));
-        ShaderTransformer.resetVersionHoistingForTesting();
+        VersionNegotiation.resetForTesting();
         if (!"none".equals(p.getOrDefault("versionHoisting", "none"))) {
-            ShaderTransformer.init();
+            VersionNegotiation.init();
         }
     }
 

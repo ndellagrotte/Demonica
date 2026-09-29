@@ -1,7 +1,7 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
 import net.coderbot.iris.gl.shader.ShaderType;
-import net.coderbot.iris.pipeline.transform.AstShaderTransformer;
+import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 
 /**
@@ -41,9 +41,9 @@ public final class DHGenericTransformer {
         }
 
         transformer.replaceExpression("gl_NormalMatrix", "iris_NormalMatrix");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_NormalMatrix", "uniform mat3 iris_NormalMatrix;");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrixInverse", "uniform mat4 iris_ModelViewMatrixInverse;");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrixInverse", "uniform mat4 iris_ProjectionMatrixInverse;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_NormalMatrix", "uniform mat3 iris_NormalMatrix;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrixInverse", "uniform mat4 iris_ModelViewMatrixInverse;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrixInverse", "uniform mat4 iris_ProjectionMatrixInverse;");
 
         transformer.rename("gl_ModelViewMatrix", "iris_ModelViewMatrix");
         transformer.rename("gl_ModelViewMatrixInverse", "iris_ModelViewMatrixInverse");
@@ -54,40 +54,40 @@ public final class DHGenericTransformer {
                 transformer.injectFunction("vec4 ftransform() { return gl_ModelViewProjectionMatrix * gl_Vertex; }");
             }
 
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
             transformer.injectFunction("vec4 getVertexPosition() { return vec4(_vert_position, 1.0); }");
             transformer.replaceExpression("gl_Vertex", "getVertexPosition()");
 
             injectVertInit(transformer);
         } else {
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
         }
 
         transformer.replaceExpression("gl_ModelViewProjectionMatrix", "(iris_ProjectionMatrix * iris_ModelViewMatrix)");
-        AstShaderTransformer.applyIntelHd4000Workaround(transformer);
+        ShaderTransformer.applyIntelHd4000Workaround(transformer);
     }
 
     /** Declares DH's generic vertex inputs and the Iris values, and calls {@code _vert_init()} first in {@code main}. */
     public static void injectVertInit(ShaderAst transformer) {
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_position", "vec3 _vert_position;");
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_tex_light_coord", "vec2 _vert_tex_light_coord;");
-        AstShaderTransformer.addIfNotExists(transformer, "dhMaterialId", "int dhMaterialId;");
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_color", "vec4 _vert_color;");
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_normal", "vec3 _vert_normal;");
-        AstShaderTransformer.addIfNotExists(transformer, "uOffsetChunk", "uniform ivec3 uOffsetChunk;");
-        AstShaderTransformer.addIfNotExists(transformer, "uOffsetSubChunk", "uniform vec3 uOffsetSubChunk;");
-        AstShaderTransformer.addIfNotExists(transformer, "uCameraPosChunk", "uniform ivec3 uCameraPosChunk;");
-        AstShaderTransformer.addIfNotExists(transformer, "uCameraPosSubChunk", "uniform vec3 uCameraPosSubChunk;");
-        AstShaderTransformer.addIfNotExists(transformer, "uSkyLight", "uniform int uSkyLight;");
-        AstShaderTransformer.addIfNotExists(transformer, "uBlockLight", "uniform int uBlockLight;");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_color", "in vec4 iris_color;");
-        AstShaderTransformer.addIfNotExists(transformer, "aScale", "in vec3 aScale;");
-        AstShaderTransformer.addIfNotExists(transformer, "aTranslateChunk", "in ivec3 aTranslateChunk;");
-        AstShaderTransformer.addIfNotExists(transformer, "aTranslateSubChunk", "in vec3 aTranslateSubChunk;");
-        AstShaderTransformer.addIfNotExists(transformer, "aMaterial", "in int aMaterial;");
-        AstShaderTransformer.addIfNotExists(transformer, "vPosition", "in vec3 vPosition;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_position", "vec3 _vert_position;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_tex_light_coord", "vec2 _vert_tex_light_coord;");
+        ShaderTransformer.addIfNotExists(transformer, "dhMaterialId", "int dhMaterialId;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_color", "vec4 _vert_color;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_normal", "vec3 _vert_normal;");
+        ShaderTransformer.addIfNotExists(transformer, "uOffsetChunk", "uniform ivec3 uOffsetChunk;");
+        ShaderTransformer.addIfNotExists(transformer, "uOffsetSubChunk", "uniform vec3 uOffsetSubChunk;");
+        ShaderTransformer.addIfNotExists(transformer, "uCameraPosChunk", "uniform ivec3 uCameraPosChunk;");
+        ShaderTransformer.addIfNotExists(transformer, "uCameraPosSubChunk", "uniform vec3 uCameraPosSubChunk;");
+        ShaderTransformer.addIfNotExists(transformer, "uSkyLight", "uniform int uSkyLight;");
+        ShaderTransformer.addIfNotExists(transformer, "uBlockLight", "uniform int uBlockLight;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_color", "in vec4 iris_color;");
+        ShaderTransformer.addIfNotExists(transformer, "aScale", "in vec3 aScale;");
+        ShaderTransformer.addIfNotExists(transformer, "aTranslateChunk", "in ivec3 aTranslateChunk;");
+        ShaderTransformer.addIfNotExists(transformer, "aTranslateSubChunk", "in vec3 aTranslateSubChunk;");
+        ShaderTransformer.addIfNotExists(transformer, "aMaterial", "in int aMaterial;");
+        ShaderTransformer.addIfNotExists(transformer, "vPosition", "in vec3 vPosition;");
 
         transformer.injectFunction("const vec3 irisNormals[6] = vec3[](vec3(0,0,-1), vec3(0,0,1), vec3(-1,0,0), vec3(1,0,0), vec3(0,-1,0), vec3(0,1,0));");
         transformer.injectFunction(

@@ -45,6 +45,13 @@ public final class TransformCorpus {
     public static final String PROPERTY = "demonica.glsl.corpus";
     /** The file that describes a case. */
     public static final String CASE_FILE = "case.properties";
+    /**
+     * The engine name recorded with every case and in its output file names ({@code out.<engine>.<stage>.glsl}):
+     * glsl-transformer. Until Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md the system property
+     * {@code demonica.glsl.engine} could select TauMC's library, recorded as {@code taumc}; the recorded reference corpora
+     * and the committed mini-corpus hold those {@code out.taumc.*} outputs.
+     */
+    public static final String ENGINE = "douira";
 
     private static final Logger LOGGER = LogManager.getLogger("TransformCorpus");
     private static final Path DIR = resolveDir(System.getProperty(PROPERTY));

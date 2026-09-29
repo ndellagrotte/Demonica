@@ -1,8 +1,5 @@
 package com.gtnewhorizons.angelica.glsm;
 
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -102,52 +99,5 @@ public class GlslTransformUtils {
         source = source.replace(RENAMED_PREFIX + "sample", "sample");
         source = source.replace(RENAMED_PREFIX + "new", "new");
         return source;
-    }
-
-    /**
-     * The TauMC-era token-spaced serializer: one space after every token, a newline after {@code ;}, <code>{</code>
-     * and <code>}</code>. The glsl-transformer engine prints with {@code ShaderAst.print(header)} instead.
-     *
-     * @deprecated Kept only for the code still on TauMC's parse tree (the old Iris engine's {@code ShaderTransformer}
-     * and {@code AdaptiveShadowBoundsTransformer}, GLSM's {@code CompatShaderTransformer} on the {@code taumc} engine,
-     * and the TauMC oracle tests); Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md deletes it with TauMC's library.
-     */
-    @Deprecated
-    public static String getFormattedShader(ParseTree tree, String header) {
-        StringBuilder sb = new StringBuilder(header + "\n");
-        String[] tabHolder = {""};
-        getFormattedShader(tree, sb, tabHolder);
-        return sb.toString();
-    }
-
-    private static void getFormattedShader(ParseTree tree, StringBuilder builder, String[] tabHolder) {
-        if (tree instanceof TerminalNode) {
-            String text = tree.getText();
-            if ("<EOF>".equals(text)) {
-                return;
-            }
-            if ("#".equals(text)) {
-                builder.append("\n#");
-                return;
-            }
-            builder.append(text);
-            if ("{".equals(text)) {
-                builder.append(" \n\t");
-                tabHolder[0] = "\t";
-            }
-            if ("}".equals(text)) {
-                if (builder.length() >= 2) {
-                    builder.deleteCharAt(builder.length() - 2);
-                }
-                tabHolder[0] = "";
-                builder.append(" \n");
-            } else {
-                builder.append(";".equals(text) ? " \n" + tabHolder[0] : " ");
-            }
-            return;
-        }
-        for (int i = 0; i < tree.getChildCount(); i++) {
-            getFormattedShader(tree.getChild(i), builder, tabHolder);
-        }
     }
 }

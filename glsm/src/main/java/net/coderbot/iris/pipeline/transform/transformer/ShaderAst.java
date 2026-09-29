@@ -74,8 +74,8 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
- * One parsed GLSL program on glsl-transformer, with the verbs Demonica's transformers call on TauMC's
- * {@code org.taumc.glsl.Transformer}, under the same names and with the same semantics
+ * One parsed GLSL program on glsl-transformer, with the verbs Demonica's transformers called on TauMC's
+ * glsl-transformation-lib {@code Transformer} (removed in Step 11), under the same names and with the same semantics
  * (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.4 and Appendix B). A transformer class ports by changing its
  * parameter type; code that is being brought closer to upstream Iris can use {@link #t}, {@link #tree} and
  * {@link #root} directly, as Iris does.
@@ -305,7 +305,7 @@ public final class ShaderAst {
      * {@code \r} (Step 6; before, only {@code \n} ended one, so a CR-only source was one line). Both lexers end a
      * directive only at {@code \n}, so glsl-transformer does not parse a source whose directives end in a lone
      * {@code \r} anyway; the count is then never used. Probed against the pinned TauMC jar
-     * ({@code ShaderAstParityTest.extensionHeaderLines}); the recorded corpora have every {@code #extension} (111) in
+     * ({@code ShaderAstSnapshotTest.extensionHeaderLines}, frozen from TauMC in Step 11); the recorded corpora have every {@code #extension} (111) in
      * this block.
      *
      * <p>Not modelled, because preprocessed sources have neither: a comment on a directive line, which TauMC's
@@ -742,7 +742,7 @@ public final class ShaderAst {
     }
 
     /**
-     * Prints the program under {@code header}, as {@code GlslTransformUtils.getFormattedShader(tree, header)} did:
+     * Prints the program under {@code header}, as the TauMC-era token-spaced serializer did:
      * the header, a newline, then the body. The body is printed with {@link PrintType#INDENTED} after the version
      * statement is removed from {@link #tree} (the orchestrator writes its own {@code #version} and extension lines
      * into the header; the tree has no {@code #extension} directive, see {@link ExtensionLines}).

@@ -18,9 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * GLSM's mod-shader transform. Runs on the engine {@code demonica.glsl.engine} selects (the build's
- * {@code -PglslEngine=taumc|douira}); both must pass. The oracles are engine-neutral (Step 10 of
- * docs/glsl-transformer_adoption/ADOPTION_PLAN.md): a transformed program must parse with {@link ShaderAst}, tokens
+ * GLSM's mod-shader transform, on glsl-transformer. Until Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md it
+ * ran on both engines ({@code -PglslEngine=taumc|douira}); its oracles have been library-neutral since Step 10: a
+ * transformed program must parse with {@link ShaderAst}, tokens
  * are compared as {@link GlslTokens}, and preprocessor directives and line continuations are counted per line.
  */
 class CompatShaderTransformerTest {

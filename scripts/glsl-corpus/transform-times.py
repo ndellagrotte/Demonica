@@ -8,8 +8,9 @@ Reads the "[ShaderTransformCache] ... miss transformMs=N" lines that -Ddemonica.
 miss (the transform on its Shader-Transform thread, from the call to the result) and prints, per log: the engine the
 log names, the number of transforms, the median, the 90th percentile and the sum in milliseconds, and the median of the
 first 30 transforms against the rest (warm-up). For the glsl-transformer engine it also sums the
-"[AstShaderTransformer] ... timing" lines: the ANTLR parses, the AST builds, and the waits for and holds of
-ShaderAst.BUILD_LOCK.
+"[ShaderTransformer] ... timing" lines ("[AstShaderTransformer]" before Step 11): the ANTLR parses, the AST builds, and
+the waits for and holds of ShaderAst.BUILD_LOCK. A log from Step 11 on names no engine (the engine switch is gone; the
+only engine is glsl-transformer, douira); logs before then name the one they ran.
 
 With --phases (Step 8), each log is also split at the dev harness's "Dev marker: <text>" lines (a script's "log" steps)
 and every phase is summarized on its own: transforms (cache misses), cache hits, median, p90 and sum, so one run that
@@ -23,7 +24,7 @@ MISS = re.compile(r"\[ShaderTransformCache\] \w+ miss transformMs=([0-9.]+)")
 ENGINE = re.compile(r"GLSL transform engine: (\w+)")
 HIT = re.compile(r"\[ShaderTransformCache\] \w+ hit cacheSize=")
 MARKER = re.compile(r"Dev marker: (.*)")
-TIMING = re.compile(r"\[AstShaderTransformer\] \w+ timing totalMs=([0-9.]+) parseMs=([0-9.]+) buildMs=([0-9.]+) "
+TIMING = re.compile(r"\[(?:Ast)?ShaderTransformer\] \w+ timing totalMs=([0-9.]+) parseMs=([0-9.]+) buildMs=([0-9.]+) "
                     r"lockWaitMs=([0-9.]+) lockHeldMs=([0-9.]+) locks=(\d+) contended=(\d+)")
 
 
@@ -41,7 +42,7 @@ def summarize(path):
         text = log.read()
     times = [float(value) for value in MISS.findall(text)]
     engine = ENGINE.search(text)
-    engine = engine.group(1) if engine else "?"
+    engine = engine.group(1) if engine else "douira"
     if not times:
         print(f"{path}: engine={engine} no transformMs lines")
         return

@@ -1,6 +1,5 @@
 package net.coderbot.iris.pipeline.transform;
 
-import com.gtnewhorizons.angelica.glsm.GlslTransformEngine;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
 import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
@@ -25,37 +24,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public class TransformPatcher {
-
-    /**
-     * The system property that selects the transform engine (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.2),
-     * {@link GlslTransformEngine#PROPERTY}. GLSM's {@code CompatShaderTransformer} reads the same property through the
-     * same helper (Step 10).
-     */
-    public static final String ENGINE_PROPERTY = GlslTransformEngine.PROPERTY;
-
-    // Resolved and logged once, when a transform first needs it (the holder class initializes on first access).
-    private static final class EngineHolder {
-        static final GlslTransformEngine ENGINE = resolveEngine();
-
-        private static GlslTransformEngine resolveEngine() {
-            // Concatenated: IrisLogging has no warn(String, Object...), so '{}' arguments would bind to
-            // warn(Object...) and log the array's identity instead of the message.
-            final GlslTransformEngine resolved = GlslTransformEngine.fromSystemProperty(value -> Iris.logger.warn(
-                "[TransformPatcher] Unknown GLSL transform engine '" + value + "' in " + ENGINE_PROPERTY + "; using "
-                    + GlslTransformEngine.DEFAULT.id));
-            Iris.logger.info("[TransformPatcher] GLSL transform engine: {} ({})", resolved.id, ENGINE_PROPERTY);
-            return resolved;
-        }
-    }
-
-    /**
-     * The engine every transform in this JVM uses, from {@value #ENGINE_PROPERTY} (default
-     * {@link GlslTransformEngine#DEFAULT}, {@code douira}): {@link ShaderTransformer} on TauMC's library for
-     * {@code taumc}, {@link AstShaderTransformer} on glsl-transformer for {@code douira}.
-     */
-    public static GlslTransformEngine engine() {
-        return EngineHolder.ENGINE;
-    }
 
     private static final int MAX_CACHE_ENTRIES = 400;
     private static final Map<TransformPatcher.CacheKey, Map<PatchShaderType, String>> cache = new LinkedHashMap<>(MAX_CACHE_ENTRIES + 1, .75F, true) {
@@ -167,13 +135,10 @@ public class TransformPatcher {
         final long transformStart = logCacheEvents || corpusCase != null ? System.nanoTime() : 0L;
         final Map<PatchShaderType, String> transformed;
         try {
-            transformed = switch (engine()) {
-                case TAUMC -> ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
-                case DOUIRA -> AstShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
-            };
+            transformed = ShaderTransformer.transform(vertex, geometry, tessControl, tessEval, fragment, parameters);
         } catch (RuntimeException | Error e) {
             if (corpusCase != null) {
-                TransformCorpusRecorder.finish(corpusCase, engine().id, null, e, System.nanoTime() - transformStart);
+                TransformCorpusRecorder.finish(corpusCase, TransformCorpus.ENGINE, null, e, System.nanoTime() - transformStart);
             }
             throw e;
         }
@@ -183,7 +148,7 @@ public class TransformPatcher {
             : finishWithoutCache(transformed, CacheDomain.GRAPHICS, transformStart, logCacheEvents);
         if (corpusCase != null) {
             // After caching, so the file writes stay out of the transformMs the cache logs.
-            TransformCorpusRecorder.finish(corpusCase, engine().id, transformed, null, transformNanos);
+            TransformCorpusRecorder.finish(corpusCase, TransformCorpus.ENGINE, transformed, null, transformNanos);
         }
         return result;
     }
@@ -206,13 +171,10 @@ public class TransformPatcher {
         final long transformStart = logCacheEvents || corpusCase != null ? System.nanoTime() : 0L;
         final Map<PatchShaderType, String> transformed;
         try {
-            transformed = switch (engine()) {
-                case TAUMC -> ShaderTransformer.transformCompute(compute, parameters);
-                case DOUIRA -> AstShaderTransformer.transformCompute(compute, parameters);
-            };
+            transformed = ShaderTransformer.transformCompute(compute, parameters);
         } catch (RuntimeException | Error e) {
             if (corpusCase != null) {
-                TransformCorpusRecorder.finish(corpusCase, engine().id, null, e, System.nanoTime() - transformStart);
+                TransformCorpusRecorder.finish(corpusCase, TransformCorpus.ENGINE, null, e, System.nanoTime() - transformStart);
             }
             throw e;
         }
@@ -221,7 +183,7 @@ public class TransformPatcher {
             ? cacheResult(key, transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents)
             : finishWithoutCache(transformed, CacheDomain.COMPUTE, transformStart, logCacheEvents);
         if (corpusCase != null) {
-            TransformCorpusRecorder.finish(corpusCase, engine().id, transformed, null, transformNanos);
+            TransformCorpusRecorder.finish(corpusCase, TransformCorpus.ENGINE, transformed, null, transformNanos);
         }
         return result;
     }
@@ -349,6 +311,5 @@ public class TransformPatcher {
             Iris.logger.info("[ShaderTransformCache] cleared entries={}", cachedEntries);
         }
         ShaderTransformer.clearSessionState();
-        AstShaderTransformer.clearSessionState();
     }
 }

@@ -4,11 +4,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Text patches for specific shader packs that run on a stage's source before it is parsed, in both transform engines
- * ({@link ShaderTransformer} and {@link AstShaderTransformer}, in that order: {@link #patchCaveSkyholeClouds} and
- * {@link #patchVolumetricCloudReferenceDistance} for COMPOSITE fragment shaders, then {@link #patchCloudMovementTime}
- * for every fragment shader). Library-free; moved unchanged out of {@link CompatibilityTransformer} in Step 5 of
- * docs/glsl-transformer_adoption/ADOPTION_PLAN.md, which still delegates here.
+ * Text patches for specific shader packs that run on a stage's source before it is parsed, in
+ * {@link ShaderTransformer}: {@link #patchCaveSkyholeClouds} and {@link #patchVolumetricCloudReferenceDistance} for
+ * COMPOSITE fragment shaders, then {@link #patchCloudMovementTime} for every fragment shader. Library-free; moved
+ * unchanged out of the TauMC engine's {@code CompatibilityTransformer} in Step 5 of
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md.
  */
 public final class CompatibilityPatches {
     private CompatibilityPatches() {

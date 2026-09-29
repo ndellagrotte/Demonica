@@ -1,7 +1,7 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
 import net.coderbot.iris.gl.shader.ShaderType;
-import net.coderbot.iris.pipeline.transform.AstShaderTransformer;
+import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 
 /**
@@ -41,9 +41,9 @@ public final class DHTerrainTransformer {
         }
 
         transformer.replaceExpression("gl_NormalMatrix", "iris_NormalMatrix");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_NormalMatrix", "uniform mat3 iris_NormalMatrix;");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrixInverse", "uniform mat4 iris_ModelViewMatrixInverse;");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrixInverse", "uniform mat4 iris_ProjectionMatrixInverse;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_NormalMatrix", "uniform mat3 iris_NormalMatrix;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrixInverse", "uniform mat4 iris_ModelViewMatrixInverse;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrixInverse", "uniform mat4 iris_ProjectionMatrixInverse;");
 
         transformer.rename("gl_ModelViewMatrix", "iris_ModelViewMatrix");
         transformer.rename("gl_ModelViewMatrixInverse", "iris_ModelViewMatrixInverse");
@@ -54,33 +54,33 @@ public final class DHTerrainTransformer {
                 transformer.injectFunction("vec4 ftransform() { return gl_ModelViewProjectionMatrix * gl_Vertex; }");
             }
 
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
             transformer.injectFunction("vec4 getVertexPosition() { return vec4(modelOffset + _vert_position, 1.0); }");
             transformer.replaceExpression("gl_Vertex", "getVertexPosition()");
 
             injectVertInit(transformer);
         } else {
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
-            AstShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ModelViewMatrix", "uniform mat4 iris_ModelViewMatrix;");
+            ShaderTransformer.addIfNotExists(transformer, "iris_ProjectionMatrix", "uniform mat4 iris_ProjectionMatrix;");
         }
 
         transformer.replaceExpression("gl_ModelViewProjectionMatrix", "(iris_ProjectionMatrix * iris_ModelViewMatrix)");
-        AstShaderTransformer.applyIntelHd4000Workaround(transformer);
+        ShaderTransformer.applyIntelHd4000Workaround(transformer);
     }
 
     /** Declares DH's terrain vertex inputs and the Iris values, and calls {@code _vert_init()} first in {@code main}. */
     public static void injectVertInit(ShaderAst transformer) {
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_position", "vec3 _vert_position;");
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_tex_light_coord", "vec2 _vert_tex_light_coord;");
-        AstShaderTransformer.addIfNotExists(transformer, "dhMaterialId", "int dhMaterialId;");
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_color", "vec4 _vert_color;");
-        AstShaderTransformer.addIfNotExists(transformer, "_vert_normal", "vec3 _vert_normal;");
-        AstShaderTransformer.addIfNotExists(transformer, "mircoOffset", "uniform float mircoOffset;");
-        AstShaderTransformer.addIfNotExists(transformer, "modelOffset", "uniform vec3 modelOffset;");
-        AstShaderTransformer.addIfNotExists(transformer, "iris_color", "in vec4 iris_color;");
-        AstShaderTransformer.addIfNotExists(transformer, "vPosition", "in uvec4 vPosition;");
-        AstShaderTransformer.addIfNotExists(transformer, "irisExtra", "in uvec4 irisExtra;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_position", "vec3 _vert_position;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_tex_light_coord", "vec2 _vert_tex_light_coord;");
+        ShaderTransformer.addIfNotExists(transformer, "dhMaterialId", "int dhMaterialId;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_color", "vec4 _vert_color;");
+        ShaderTransformer.addIfNotExists(transformer, "_vert_normal", "vec3 _vert_normal;");
+        ShaderTransformer.addIfNotExists(transformer, "mircoOffset", "uniform float mircoOffset;");
+        ShaderTransformer.addIfNotExists(transformer, "modelOffset", "uniform vec3 modelOffset;");
+        ShaderTransformer.addIfNotExists(transformer, "iris_color", "in vec4 iris_color;");
+        ShaderTransformer.addIfNotExists(transformer, "vPosition", "in uvec4 vPosition;");
+        ShaderTransformer.addIfNotExists(transformer, "irisExtra", "in uvec4 irisExtra;");
 
         transformer.injectFunction("const vec3 irisNormals[6] = vec3[](vec3(0,-1,0), vec3(0,1,0), vec3(0,0,-1), vec3(0,0,1), vec3(-1,0,0), vec3(1,0,0));");
         transformer.injectFunction(

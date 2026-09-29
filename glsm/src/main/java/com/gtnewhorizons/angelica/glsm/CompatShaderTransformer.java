@@ -6,8 +6,6 @@ import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
 import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.taumc.glsl.ShaderParser;
-import org.taumc.glsl.Transformer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -47,11 +45,9 @@ import static com.gtnewhorizons.angelica.glsm.backend.BackendManager.RENDER_BACK
  *   <li>Reserved word pre-parse renaming (texture-as-variable, sample, etc.)</li>
  * </ul>
  *
- * <p>The parse, the verbs and the print run on the engine {@code demonica.glsl.engine} selects
- * ({@link GlslTransformEngine}, shared with Iris's {@code TransformPatcher}): glsl-transformer through
- * {@link ShaderAst} by default, TauMC's library with {@code taumc} until Step 11 of
- * docs/glsl-transformer_adoption/ADOPTION_PLAN.md removes it. The preprocessor handling before the parse and the
- * text passes after the print are library-free and shared.</p>
+ * <p>The parse, the verbs and the print run on glsl-transformer through {@link ShaderAst} (Steps 10 and 11 of
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md; TauMC's glsl-transformation-lib before). The preprocessor handling
+ * before the parse and the text passes after the print are library-free.</p>
  */
 public class CompatShaderTransformer {
 
@@ -102,7 +98,7 @@ public class CompatShaderTransformer {
     }
 
     private static final int CACHE_SIZE = 32;
-    private record CacheKey(String source, boolean isFragment, GlslTransformEngine engine) {}
+    private record CacheKey(String source, boolean isFragment) {}
     private static final Map<CacheKey, String> cache = Collections.synchronizedMap(
         new LinkedHashMap<>(32, 0.75f, true) {
             @Override protected boolean removeEldestEntry(Map.Entry<CacheKey, String> eldest) {
@@ -114,31 +110,8 @@ public class CompatShaderTransformer {
         cache.clear();
     }
 
-    // Resolved and logged once, when a transform first needs it (the holder class initializes on first access).
-    private static final class EngineHolder {
-        static final GlslTransformEngine ENGINE = resolveEngine();
-
-        private static GlslTransformEngine resolveEngine() {
-            final GlslTransformEngine resolved = GlslTransformEngine.fromSystemProperty(value -> LOGGER.warn(
-                "[CompatShaderTransformer] Unknown GLSL transform engine '{}' in {}; using {}", value,
-                GlslTransformEngine.PROPERTY, GlslTransformEngine.DEFAULT.id));
-            LOGGER.info("[CompatShaderTransformer] GLSL transform engine: {} ({})", resolved.id, GlslTransformEngine.PROPERTY);
-            return resolved;
-        }
-    }
-
     /**
-     * The engine that parses, transforms and prints mod shaders in this JVM: {@link GlslTransformEngine#PROPERTY}, read
-     * once through the helper Iris's {@code TransformPatcher} uses, so both default to the same engine
-     * ({@link GlslTransformEngine#DEFAULT}) and fall back the same way (Step 10 of
-     * docs/glsl-transformer_adoption/ADOPTION_PLAN.md).
-     */
-    public static GlslTransformEngine engine() {
-        return EngineHolder.ENGINE;
-    }
-
-    /**
-     * Transform a mod shader source for core profile compatibility, on {@link #engine()}.
+     * Transform a mod shader source for core profile compatibility.
      *
      * <p>Deliberate divergence from upstream Angelica: Angelica additionally re-emits the
      * transformed 330-core GLSL as GLSL ES 320 on GLES contexts. Demonica runs on desktop GL
@@ -146,21 +119,12 @@ public class CompatShaderTransformer {
      * concern: it strips ES precision guard blocks so ES-style mod shaders parse as desktop GLSL.
      */
     public static String transform(String source, boolean isFragment) {
-        return transform(source, isFragment, engine());
-    }
-
-    /**
-     * {@link #transform(String, boolean)} on the given engine instead of {@link #engine()}: the corpus replay and the
-     * tests pick the engine per call. Only the parse, the verbs and the print depend on it; everything before the parse
-     * and after the print is the same code on both engines.
-     */
-    public static String transform(String source, boolean isFragment, GlslTransformEngine engine) {
         final boolean needsTransform = needsTransformation(source);
         String result;
         if (!needsTransform) {
             result = fixupVersion(source);
         } else {
-            final CacheKey key = new CacheKey(source, isFragment, engine);
+            final CacheKey key = new CacheKey(source, isFragment);
             final String cached = cache.get(key);
             if (cached != null) {
                 dumpShader(source, cached, isFragment, needsTransform);
@@ -170,16 +134,16 @@ public class CompatShaderTransformer {
             final long transformStart = TransformCorpus.isEnabled() ? System.nanoTime() : 0L;
             boolean fallback = false;
             try {
-                result = transformInternal(source, isFragment, engine);
+                result = transformInternal(source, isFragment);
                 cache.put(key, result);
             } catch (Exception e) {
-                // Includes ShaderAst.SyntaxException (the douira engine's parse failure) and TauMC's syntax-error check.
+                // Includes ShaderAst.SyntaxException, the parse failure.
                 LOGGER.warn("CompatShaderTransformer: AST transformation failed, falling back to version fixup only", e);
                 result = fixupVersion(source);
                 fallback = true;
             }
             if (TransformCorpus.isEnabled()) {
-                TransformCorpus.recordCompat(source, isFragment, result, fallback, engine.id, System.nanoTime() - transformStart);
+                TransformCorpus.recordCompat(source, isFragment, result, fallback, TransformCorpus.ENGINE, System.nanoTime() - transformStart);
             }
         }
 
@@ -198,7 +162,7 @@ public class CompatShaderTransformer {
         return NEEDS_TRANSFORM_PATTERN.matcher(source).find();
     }
 
-    private static String transformInternal(String source, boolean isFragment, GlslTransformEngine engine) {
+    private static String transformInternal(String source, boolean isFragment) {
         final Matcher versionMatcher = VERSION_PATTERN.matcher(source);
         int declaredVersion = 110;
         if (versionMatcher.find()) {
@@ -216,13 +180,10 @@ public class CompatShaderTransformer {
         source = GlslTransformUtils.renameParseBreakingTextureFunctions(source);
         source = GlslTransformUtils.renameReservedWords(source, targetVersion);
 
-        final Verbs transformer = switch (engine) {
-            case TAUMC -> parseTauMc(source);
-            // The body has no #version line (the header carries it), so the lexer gets the target version: the one the
-            // output declares and the one renameReservedWords renamed for. A parse failure throws
-            // ShaderAst.SyntaxException, which transform() turns into the version fix-up, as TauMC's syntax-error check.
-            case DOUIRA -> new AstVerbs(ShaderAst.parse(source, targetVersion), targetVersion);
-        };
+        // The body has no #version line (the header carries it), so the lexer gets the target version: the one the
+        // output declares and the one renameReservedWords renamed for. A parse failure throws ShaderAst.SyntaxException,
+        // which transform() turns into the version fix-up (fail fast: a recovered tree would print broken GLSL).
+        final ShaderAst transformer = ShaderAst.parse(source, targetVersion);
 
         injectMatrixUniforms(transformer);
 
@@ -304,7 +265,9 @@ public class CompatShaderTransformer {
         final String versionDirective = "#version " + targetVersion + " core\n";
         final String preprocessor = separatedSource.preprocessor().trim();
         final String header = versionDirective + (preprocessor.isEmpty() ? "" : "\n" + preprocessor + "\n");
-        final String printed = transformer.print(header);
+        // Below GLSL 1.30, print(header, version) prints floats without glsl-transformer's 'f' suffix, which 1.10 and
+        // 1.20 lack (never the case today: the output is at least the backend's minimum, 330).
+        final String printed = transformer.print(header, targetVersion);
 
         // Restore pre-parse renames
         String output = GlslTransformUtils.restoreReservedWords(printed);
@@ -1028,104 +991,9 @@ public class CompatShaderTransformer {
     ) {}
 
     /**
-     * The verbs {@link #transformInternal} calls, on either engine (Step 10 of
-     * docs/glsl-transformer_adoption/ADOPTION_PLAN.md): one sequence of calls, so both engines run the same transform.
-     * The names and semantics are TauMC's {@code Transformer} verbs, which {@link ShaderAst} reproduces. Step 11 removes
-     * TauMC's adapter and this interface with it.
-     */
-    private interface Verbs {
-        void injectVariable(String code);
-
-        void injectFunction(String code);
-
-        void rename(String oldName, String newName);
-
-        void rename(Map<String, String> names);
-
-        void replaceExpression(String oldCode, String newCode);
-
-        void prependMain(String code);
-
-        void appendMain(String code);
-
-        void renameArray(String oldName, String newName, Set<Integer> found);
-
-        boolean containsCall(String name);
-
-        boolean hasVariable(String name);
-
-        void renameFunctionCall(Map<String, String> names);
-
-        void renameAndWrapShadow(String oldName, String newName);
-
-        /** The program under {@code header}: the header, a newline, then the body. */
-        String print(String header);
-    }
-
-    /**
-     * Parses on TauMC's library. ANTLR recovers from syntax errors silently; transforming the recovered tree emits broken
-     * GLSL that the driver then rejects, so a syntax error throws and {@link #transform} falls back to version fix-up.
-     */
-    private static Verbs parseTauMc(String source) {
-        final ShaderParser.ParsedShader parsedShader = ShaderParser.parseShader(source);
-        if (parsedShader.preParser().getNumberOfSyntaxErrors() > 0
-                || parsedShader.parser().getNumberOfSyntaxErrors() > 0) {
-            throw new IllegalStateException("GLSL parse failed (shader: "
-                    + parsedShader.parser().getNumberOfSyntaxErrors() + " syntax errors, preprocessor: "
-                    + parsedShader.preParser().getNumberOfSyntaxErrors() + ")");
-        }
-        return new TauMcVerbs(new Transformer(parsedShader.full()));
-    }
-
-    /** The old engine: TauMC's {@code Transformer}, printed by the token-spaced serializer. */
-    private record TauMcVerbs(Transformer transformer) implements Verbs {
-        @Override public void injectVariable(String code) { transformer.injectVariable(code); }
-        @Override public void injectFunction(String code) { transformer.injectFunction(code); }
-        @Override public void rename(String oldName, String newName) { transformer.rename(oldName, newName); }
-        @Override public void rename(Map<String, String> names) { transformer.rename(names); }
-        @Override public void replaceExpression(String oldCode, String newCode) { transformer.replaceExpression(oldCode, newCode); }
-        @Override public void prependMain(String code) { transformer.prependMain(code); }
-        @Override public void appendMain(String code) { transformer.appendMain(code); }
-        @Override public void renameArray(String oldName, String newName, Set<Integer> found) { transformer.renameArray(oldName, newName, found); }
-        @Override public boolean containsCall(String name) { return transformer.containsCall(name); }
-        @Override public boolean hasVariable(String name) { return transformer.hasVariable(name); }
-        @Override public void renameFunctionCall(Map<String, String> names) { transformer.renameFunctionCall(names); }
-        @Override public void renameAndWrapShadow(String oldName, String newName) { transformer.renameAndWrapShadow(oldName, newName); }
-
-        @Override
-        @SuppressWarnings("deprecation") // GlslTransformUtils.getFormattedShader goes with TauMC in Step 11.
-        public String print(String header) {
-            final StringBuilder result = new StringBuilder();
-            transformer.mutateTree(tree -> result.append(GlslTransformUtils.getFormattedShader(tree, header)));
-            return result.toString();
-        }
-    }
-
-    /**
-     * The new engine: {@link ShaderAst} on glsl-transformer. {@code version} is the {@code #version} the output
-     * declares; {@link ShaderAst#print(String, int)} prints floats without glsl-transformer's {@code f} suffix below
-     * GLSL 1.30, which has none (never the case today: the output is at least the backend's minimum, 330).
-     */
-    private record AstVerbs(ShaderAst ast, int version) implements Verbs {
-        @Override public void injectVariable(String code) { ast.injectVariable(code); }
-        @Override public void injectFunction(String code) { ast.injectFunction(code); }
-        @Override public void rename(String oldName, String newName) { ast.rename(oldName, newName); }
-        @Override public void rename(Map<String, String> names) { ast.rename(names); }
-        @Override public void replaceExpression(String oldCode, String newCode) { ast.replaceExpression(oldCode, newCode); }
-        @Override public void prependMain(String code) { ast.prependMain(code); }
-        @Override public void appendMain(String code) { ast.appendMain(code); }
-        @Override public void renameArray(String oldName, String newName, Set<Integer> found) { ast.renameArray(oldName, newName, found); }
-        @Override public boolean containsCall(String name) { return ast.containsCall(name); }
-        @Override public boolean hasVariable(String name) { return ast.hasVariable(name); }
-        @Override public void renameFunctionCall(Map<String, String> names) { ast.renameFunctionCall(names); }
-        @Override public void renameAndWrapShadow(String oldName, String newName) { ast.renameAndWrapShadow(oldName, newName); }
-        @Override public String print(String header) { return ast.print(header, version); }
-    }
-
-    /**
      * Inject matrix uniforms and rename compat builtins.
      */
-    private static void injectMatrixUniforms(Verbs transformer) {
+    private static void injectMatrixUniforms(ShaderAst transformer) {
         transformer.injectVariable("uniform mat4 actinium_ModelViewMatrix;");
         transformer.injectVariable("uniform mat4 actinium_ModelViewMatrixInverse;");
         transformer.injectVariable("uniform mat4 actinium_ProjectionMatrix;");
@@ -1147,7 +1015,7 @@ public class CompatShaderTransformer {
     /**
      * Transform fragment outputs for core profile.
      */
-    private static void transformFragmentOutputs(Verbs transformer) {
+    private static void transformFragmentOutputs(ShaderAst transformer) {
         if (transformer.containsCall("gl_FragColor")) {
             transformer.replaceExpression("gl_FragColor", "gl_FragData[0]");
         }
@@ -1166,7 +1034,7 @@ public class CompatShaderTransformer {
         }
     }
 
-    private static void transformFog(Verbs transformer, boolean isFragment, String source) {
+    private static void transformFog(ShaderAst transformer, boolean isFragment, String source) {
         // Vertex side is unconditional: fragment may read gl_FogFragCoord without vertex writing it
         transformer.rename("gl_FogFragCoord", "actinium_FogFragCoord");
         if (!isFragment) {
@@ -1192,7 +1060,7 @@ public class CompatShaderTransformer {
     /**
      * Replace removed FFP vertex attributes with explicit {@code in} declarations at core profile attribute locations.
      */
-    private static void transformVertexAttributes(Verbs transformer, String source) {
+    private static void transformVertexAttributes(ShaderAst transformer, String source) {
         if (source.contains("gl_Vertex") || source.contains("ftransform")) {
             transformer.injectVariable("layout(location = 0) in vec4 actinium_Vertex;");
             transformer.rename("gl_Vertex", "actinium_Vertex");

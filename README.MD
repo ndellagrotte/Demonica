@@ -139,7 +139,8 @@ The reasons are in [the decision record](docs/glsl-transformer_adoption/DECISION
 - DHJComical and embeddedt for Actinium and its 1.12.2 Iris/Celeritas adaptation
 - embeddedt for Celeritas; JellySquid and the CaffeineMC team for Sodium
 - The GTNewHorizons team for GTNHLib; embeddedt and Ferri_Arnus for
-  [glsl-transformation-lib](https://github.com/TauMC/glsl-transformation-lib)
+  [glsl-transformation-lib](https://github.com/TauMC/glsl-transformation-lib), which Demonica's shader
+  transforms used up to 0.4.0
 - douira for [glsl-transformer](https://github.com/IrisShaders/glsl-transformer)
 - The original ShadersMod authors: karyonix, sonic ether, id_miner and daxnitro
 - [Mesa](https://gitlab.freedesktop.org/mesa/mesa), for the display-list ID

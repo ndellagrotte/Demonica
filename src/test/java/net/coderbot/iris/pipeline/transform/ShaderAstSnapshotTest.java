@@ -11,14 +11,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.TestInfo;
-import org.taumc.glsl.ShaderParser;
-import org.taumc.glsl.ShaderPrinter;
-import org.taumc.glsl.Transformer;
-import org.taumc.glsl.grammar.GLSLLexer;
-import org.taumc.glsl.grammar.GLSLParser;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,7 +23,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,31 +31,32 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
- * Proves that {@link ShaderAst}'s verbs do what TauMC's {@link Transformer} verbs do
- * (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, Steps 3 and 4): every case runs the verb on both libraries over the same
- * source and compares the printed programs as {@link GlslTokens}. TauMC's side is parsed with
- * {@link ShaderParser#parseShader} and printed with {@link GlslTransformUtils#getFormattedShader}, as the old engine
- * does; the adapter's side with {@link ShaderAst#parse} and {@link ShaderAst#printBody()}.
+ * {@link ShaderAst}'s verbs against TauMC's {@code Transformer} verbs, whose answers are frozen in
+ * {@code src/test/resources/shader-ast-parity/} ({@link TauMcSnapshots}). Until Step 11 of
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md this was {@code ShaderAstParityTest}, which ran every case on both
+ * libraries over the same source; Step 11 recorded TauMC's side of every case (its printed program, parsed with
+ * {@code ShaderParser.parseShader} and printed with the token-spaced serializer as the old engine did; its query
+ * answers; the exceptions it threw), checked the recording against the live library, and removed the library. The
+ * adapter's side is still computed here, with {@link ShaderAst#parse} and {@link ShaderAst#printBody()}, and compared
+ * with the snapshot as {@link GlslTokens}.
  *
  * <p>The fixtures are hand-written: GLSL 120 and 330 styles, names that are both a function and a variable,
  * multi-declarator declarations, arrays, nested calls, struct fields and swizzles, parameters, interface blocks and
- * comments. Deliberate deviations (where TauMC throws or writes broken GLSL) are separate tests named
+ * comments. Deliberate deviations (where TauMC threw or wrote broken GLSL) are separate tests named
  * {@code deviation...} that assert both behaviours.</p>
  *
- * <p>Step 4 adds the structural verbs (renameAndWrapShadow, removeUnusedFunctions, removeConstAssignment,
+ * <p>Step 4 added the structural verbs (renameAndWrapShadow, removeUnusedFunctions, removeConstAssignment,
  * findQualifiers, hasAssignment, initialize, replaceFunctionDefinition) with their own fixtures, the queries that have
  * no TauMC verb (functions, isDeclaredGlobal) against the parse-tree reads they replace, {@link #transformGrouped}
- * (TauMC's CompatibilityTransformer.transformGrouped written on ShaderAst) against the real one, and the order TauMC's
- * rule-context cache gives after verbs have added nodes. Cases built with {@link #changingParity} also check that
- * TauMC's verb changed the program.</p>
- *
- * <p>With {@code -PglslCorpusDir=<abs>} the test {@link #corpusDifferential} also runs every verb on every recorded input
- * under that directory with arguments drawn from the input ({@link ShaderAstCorpusDifferential}).</p>
+ * against TauMC's CompatibilityTransformer.transformGrouped, and the order TauMC's rule-context cache gives after verbs
+ * have added nodes. Cases built with {@link #changingParity} also check that TauMC's verb changed the program (Step 11
+ * checked, before recording, that TauMC's unchanged program equals ShaderAst's for every such case, so the check now
+ * compares with ShaderAst's). A snapshot is keyed by the test method and the case name; renaming either needs the
+ * snapshot entry renamed with it.</p>
  */
-class ShaderAstParityTest {
+class ShaderAstSnapshotTest {
     // ---------------------------------------------------------------------------------------------------------------
     // Fixtures
 
@@ -221,16 +214,12 @@ class ShaderAstParityTest {
 
     @AfterAll
     static void restoreGlobalState() {
-        ShaderTransformer.resetVersionHoistingForTesting();
+        VersionNegotiation.resetForTesting();
         RenderSystem.initializeGlslCapabilityForTesting(460, false, false);
-        if (TauMcSnapshots.recording()) {
-            SNAPSHOTS.writeRecorded();
-        }
     }
 
     // ---------------------------------------------------------------------------------------------------------------
-    // Step 11: TauMC's answers, recorded into src/test/resources/shader-ast-parity/ with
-    // -Ddemonica.taumc.snapshots.record=true, otherwise compared with those files (ShaderAstSnapshotTest's oracle).
+    // TauMC's answers (Step 11)
 
     static final TauMcSnapshots SNAPSHOTS = new TauMcSnapshots("shader-ast-parity");
     private static String method;
@@ -240,42 +229,20 @@ class ShaderAstParityTest {
         method = info.getTestMethod().orElseThrow().getName();
     }
 
-    /** TauMC's answer {@code key} of the running test method: recorded, or compared with its snapshot; a throw is rethrown. */
-    static String taumc(String key, Supplier<String> answer) {
-        String value;
-        RuntimeException thrown = null;
-        try {
-            value = answer.get();
-        } catch (RuntimeException e) {
-            thrown = e;
-            value = TauMcSnapshots.thrown(e);
-        }
-        if (TauMcSnapshots.recording()) {
-            SNAPSHOTS.record(method, key, value);
-        } else {
-            assertEquals(SNAPSHOTS.get(method, key), value, "TauMC's answer against its snapshot: " + method + " / " + key);
-        }
-        if (thrown != null) {
-            throw thrown;
-        }
-        return value;
+    /** TauMC's answer {@code key} of the running test method (for a dynamic test, of its factory). */
+    static String expected(String key) {
+        return SNAPSHOTS.get(method, key);
+    }
+
+    /** TauMC threw {@code type} for {@code key}. */
+    static void assertTauMcThrew(Class<? extends RuntimeException> type, String key) {
+        final String value = expected(key);
+        assertTrue(value.equals(TauMcSnapshots.THROWS + type.getName()) || value.startsWith(TauMcSnapshots.THROWS + type.getName() + ": "),
+            () -> "TauMC's recorded answer for " + key + ": " + value);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
     // Harness
-
-    static String printTauMC(String source, Consumer<Transformer> verb) {
-        final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
-        verb.accept(transformer);
-        final StringBuilder printed = new StringBuilder();
-        transformer.mutateTree(tree -> printed.append(GlslTransformUtils.getFormattedShader(tree, "")));
-        return printed.toString();
-    }
-
-    /** TauMC's printed program after {@code verb}, as the snapshot {@code key}. */
-    static String viaTauMC(String key, String source, Consumer<Transformer> verb) {
-        return taumc(key, () -> printTauMC(source, verb));
-    }
 
     static String viaShaderAst(String source, Consumer<ShaderAst> verb) {
         final ShaderAst ast = ShaderAst.parse(source);
@@ -283,59 +250,40 @@ class ShaderAstParityTest {
         return ast.printBody();
     }
 
-    static void assertParity(String key, String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
-        final String expected = viaTauMC(key, source, taumc);
+    static void assertParity(String key, String source, Consumer<ShaderAst> adapter) {
+        final String expected = expected(key);
         final String actual = viaShaderAst(source, adapter);
         final String diff = GlslTokens.diff(expected, actual);
         assertTrue(diff.isEmpty(), () -> "TauMC and ShaderAst differ (- TauMC, + ShaderAst):\n" + diff
             + "\n--- TauMC\n" + expected + "\n--- ShaderAst\n" + actual);
     }
 
-    static DynamicTest parity(String name, String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
-        return DynamicTest.dynamicTest(name, () -> assertParity(name, source, taumc, adapter));
+    static DynamicTest parity(String name, String source, Consumer<ShaderAst> adapter) {
+        return DynamicTest.dynamicTest(name, () -> assertParity(name, source, adapter));
     }
 
     /**
      * {@link #parity}, and TauMC's verb must have changed the program (a case that two no-ops would pass is useless).
-     * Step 11: TauMC's unchanged program must equal ShaderAst's, so the snapshot test can compare with the latter.
+     * The unchanged program is ShaderAst's, which Step 11 checked equals TauMC's for every such case.
      */
-    static DynamicTest changingParity(String name, String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
+    static DynamicTest changingParity(String name, String source, Consumer<ShaderAst> adapter) {
         return DynamicTest.dynamicTest(name, () -> {
-            final String unchanged = printTauMC(source, t -> { });
-            assertTrue(GlslTokens.of(unchanged).equals(GlslTokens.of(viaShaderAst(source, a -> { }))),
-                "TauMC's and ShaderAst's unchanged programs differ");
-            assertFalse(GlslTokens.of(viaTauMC(name, source, taumc)).equals(GlslTokens.of(unchanged)),
+            assertFalse(GlslTokens.of(expected(name)).equals(GlslTokens.of(viaShaderAst(source, a -> { }))),
                 "TauMC's verb left the program unchanged");
-            assertParity(name, source, taumc, adapter);
+            assertParity(name, source, adapter);
         });
     }
 
+    /** Each name's answer, {@code name = answer} per line, against TauMC's. */
     static DynamicTest queryParity(String name, String source, List<String> names,
-                                   BiFunction<Transformer, String, Object> taumc,
                                    BiFunction<ShaderAst, String, Object> adapter) {
         return DynamicTest.dynamicTest(name, () -> {
-            final String expected = taumc(name, () -> {
-                final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
-                final StringBuilder answers = new StringBuilder();
-                names.forEach(n -> answers.append(n).append(" = ").append(taumc.apply(transformer, n)).append('\n'));
-                return answers.toString();
-            });
+            final String expected = expected(name);
             final ShaderAst ast = ShaderAst.parse(source);
             final StringBuilder actual = new StringBuilder();
             names.forEach(n -> actual.append(n).append(" = ").append(adapter.apply(ast, n)).append('\n'));
             assertEquals(expected, actual.toString());
         });
-    }
-
-    /** TauMC's findType result as the keyword {@link ShaderAst.DeclaredType#keyword()} gives, or "none" for 0. */
-    static String taumcTypeKeyword(int token) {
-        if (token == 0) {
-            return "none";
-        }
-        final String literal = GLSLLexer.VOCABULARY.getLiteralName(token);
-        final String keyword = literal == null ? GLSLLexer.VOCABULARY.getSymbolicName(token) : literal.substring(1, literal.length() - 1);
-        // glsl-transformer names a square matrix by its short name only.
-        return keyword.matches("d?mat([234])x\\1") ? keyword.substring(0, keyword.length() - 2) : keyword;
     }
 
     static String adapterTypeKeyword(ShaderAst.DeclaredType type) {
@@ -349,7 +297,7 @@ class ShaderAstParityTest {
     Stream<DynamicTest> printIdentity() {
         final List<DynamicTest> tests = new ArrayList<>();
         for (int i = 0; i < FIXTURES.size(); i++) {
-            tests.add(parity("fixture " + i, FIXTURES.get(i), t -> { }, a -> { }));
+            tests.add(parity("fixture " + i, FIXTURES.get(i), a -> { }));
         }
         return tests.stream();
     }
@@ -379,7 +327,7 @@ class ShaderAstParityTest {
             void main() { }
             """));
         for (ShaderAst.SyntaxException e : List.of(missing, noViable, mismatch)) {
-            System.out.println("[ShaderAstParityTest] " + e.getMessage() + " / cause " + e.getCause().getClass().getName());
+            System.out.println("[ShaderAstSnapshotTest] " + e.getMessage() + " / cause " + e.getCause().getClass().getName());
             assertTrue(e.getMessage().startsWith("line "), e.getMessage());
         }
         assertEquals(org.antlr.v4.runtime.misc.ParseCancellationException.class, missing.getCause().getClass());
@@ -415,22 +363,6 @@ class ShaderAstParityTest {
             assertFalse(printed.contains("#pragma"), printed);
             assertTrue(tokens.contains("void main ( ) { fragColor = vec4 ( 1.0 ) ; }"), printed);
         }
-    }
-
-    /**
-     * The {@code #extension} lines of TauMC's header, as the old engine computed them: its pre-parser's tree printed,
-     * the {@code #version} line removed; here only the extension lines, whitespace-normalized.
-     */
-    static List<String> taumcHeaderExtensions(String source) {
-        final String pre = GlslTransformUtils.getFormattedShader(ShaderParser.parseShader(source).pre(), "");
-        final List<String> lines = new ArrayList<>();
-        for (String line : pre.split("\n")) {
-            final String normalized = line.trim().replaceAll("\\s+", " ");
-            if (normalized.startsWith("#extension")) {
-                lines.add(normalized);
-            }
-        }
-        return lines;
     }
 
     /**
@@ -471,7 +403,7 @@ class ShaderAstParityTest {
         final List<DynamicTest> tests = new ArrayList<>();
         rows.forEach((name, row) -> tests.add(DynamicTest.dynamicTest(name, () -> {
             final String source = (String) row[0];
-            final List<String> taumc = List.of(taumc(name, () -> String.join("\n", taumcHeaderExtensions(source))).split("\n", -1))
+            final List<String> taumc = List.of(expected(name).split("\n", -1))
                 .stream().filter(line -> !line.isEmpty()).toList();
             assertEquals(row[1], taumc.size(), () -> "TauMC's header: " + taumc);
             final ShaderAst ast = ShaderAst.parse(source);
@@ -494,7 +426,7 @@ class ShaderAstParityTest {
     void deviationACommentOnADirectiveLine() {
         final String source = "#version 330 core\n#extension GL_ARB_shader_texture_lod : enable /* c */\n"
             + "#extension GL_EXT_gpu_shader4 : require\nuniform float u;\nvoid main() { }\n";
-        assertEquals("#extension GL_ARB_shader_texture_lod : enable", taumc("header", () -> String.join("\n", taumcHeaderExtensions(source))));
+        assertEquals("#extension GL_ARB_shader_texture_lod : enable", expected("header"));
         assertEquals(List.of("#extension GL_ARB_shader_texture_lod : enable", "#extension GL_EXT_gpu_shader4 : require"),
             ShaderAst.parse(source).extensionDirectives());
     }
@@ -548,14 +480,14 @@ class ShaderAstParityTest {
         final List<String> sources = List.of(VERTEX_120, FRAGMENT_330, NAMES_330, COMPOSITE_120);
         final List<String> expected = new ArrayList<>();
         for (String source : sources) {
-            expected.add(viaShaderAst(source, ShaderAstParityTest::busyWork));
+            expected.add(viaShaderAst(source, ShaderAstSnapshotTest::busyWork));
         }
         final ExecutorService pool = Executors.newFixedThreadPool(8);
         try {
             final List<Future<String>> results = new ArrayList<>();
             for (int i = 0; i < 64; i++) {
                 final String source = sources.get(i % sources.size());
-                results.add(pool.submit(() -> viaShaderAst(source, ShaderAstParityTest::busyWork)));
+                results.add(pool.submit(() -> viaShaderAst(source, ShaderAstSnapshotTest::busyWork)));
             }
             for (int i = 0; i < results.size(); i++) {
                 assertEquals(expected.get(i % sources.size()), results.get(i).get(), "run " + i);
@@ -582,32 +514,23 @@ class ShaderAstParityTest {
     Stream<DynamicTest> injectVariable() {
         return Stream.of(
             parity("two uniforms into a 120 vertex shader (the second lands first)", VERTEX_120,
-                t -> { t.injectVariable("uniform mat4 iris_ModelViewMatrix;"); t.injectVariable("uniform mat4 iris_ProjectionMatrix;"); },
                 a -> { a.injectVariable("uniform mat4 iris_ModelViewMatrix;"); a.injectVariable("uniform mat4 iris_ProjectionMatrix;"); }),
             parity("layout outputs and a uniform into a 330 fragment shader", FRAGMENT_330,
-                t -> { t.injectVariable("layout (location = 1) out vec4 iris_FragData1;"); t.injectVariable("uniform float iris_currentAlphaTest;"); },
                 a -> { a.injectVariable("layout (location = 1) out vec4 iris_FragData1;"); a.injectVariable("uniform float iris_currentAlphaTest;"); }),
             parity("unqualified, then qualified (only the qualified one moves the anchor)", VERTEX_120,
-                t -> { t.injectVariable("vec4 iris_LightTexCoord;"); t.injectVariable("uniform vec3 u_RegionOffset;"); t.injectVariable("in vec3 iris_Normal;"); t.injectVariable("vec2 iris_Other;"); },
                 a -> { a.injectVariable("vec4 iris_LightTexCoord;"); a.injectVariable("uniform vec3 u_RegionOffset;"); a.injectVariable("in vec3 iris_Normal;"); a.injectVariable("vec2 iris_Other;"); }),
             parity("a function before the first qualified declaration is the anchor", FUNCTION_FIRST_330,
-                t -> t.injectVariable("uniform float iris_FogDensity;"),
                 a -> a.injectVariable("uniform float iris_FogDensity;")),
             parity("const counts as a storage qualifier", NAMES_330,
-                t -> { t.injectVariable("const float iris_Pi = 3.14159;"); t.injectVariable("float iris_Plain;"); t.injectVariable("uniform float iris_U;"); },
                 a -> { a.injectVariable("const float iris_Pi = 3.14159;"); a.injectVariable("float iris_Plain;"); a.injectVariable("uniform float iris_U;"); }),
             parity("after an injected function, variables go before it", FRAGMENT_120,
-                t -> { t.injectFunction("vec4 iris_f() { return vec4(1.0); }"); t.injectVariable("uniform float iris_u;"); t.injectVariable("uniform float iris_v;"); },
                 a -> { a.injectFunction("vec4 iris_f() { return vec4(1.0); }"); a.injectVariable("uniform float iris_u;"); a.injectVariable("uniform float iris_v;"); }),
             parity("no qualified declaration and no function: nothing is inserted", "#version 330 core\nvec4 a;\nfloat b;\n",
-                t -> t.injectVariable("uniform float iris_lost;"),
                 a -> a.injectVariable("uniform float iris_lost;")),
             parity("a compute layout declaration is a qualified declaration (its qualifier has no parent in glsl-transformer)",
                 "#version 430\ninvariant gl_Position;\nlayout(local_size_x = 8, local_size_y = 8) in;\nlayout(rgba16f) uniform image2D img;\nvoid main() { imageStore(img, ivec2(0), vec4(1.0)); }\n",
-                t -> { t.injectVariable("uniform float iris_u0;"); t.injectVariable("vec4 iris_g0;"); },
                 a -> { a.injectVariable("uniform float iris_u0;"); a.injectVariable("vec4 iris_g0;"); }),
             parity("an unqualified global before the first uniform stays first", "#version 120\nvec3 sunVec;\nconst int steps = 4;\nuniform float rainStrength;\nvoid main() { gl_FragColor = vec4(sunVec * rainStrength, float(steps)); }\n",
-                t -> t.injectVariable("uniform vec4 iris_FogColor;"),
                 a -> a.injectVariable("uniform vec4 iris_FogColor;"))
         );
     }
@@ -616,30 +539,20 @@ class ShaderAstParityTest {
     Stream<DynamicTest> injectFunction() {
         return Stream.of(
             parity("ftransform replacement", VERTEX_120,
-                t -> t.injectFunction("vec4 iris_ftransform() { return gl_ModelViewProjectionMatrix * gl_Vertex; }"),
                 a -> a.injectFunction("vec4 iris_ftransform() { return gl_ModelViewProjectionMatrix * gl_Vertex; }")),
             parity("two functions (the second lands first)", FRAGMENT_330,
-                t -> { t.injectFunction("float iris_a() { return 1.0; }"); t.injectFunction("float iris_b() { return iris_a(); }"); },
                 a -> { a.injectFunction("float iris_a() { return 1.0; }"); a.injectFunction("float iris_b() { return iris_a(); }"); }),
             parity("CommonTransformer's fog struct and its initialized global", FRAGMENT_120,
-                t -> {
-                    t.injectVariable("uniform float iris_FogStart;");
-                    t.injectFunction("struct iris_FogParameters {vec4 color;float density;float start;float end;float scale;};");
-                    t.injectFunction("iris_FogParameters iris_Fog = iris_FogParameters(iris_FogColor, iris_FogDensity, iris_FogStart, iris_FogEnd, 1.0f / (iris_FogEnd - iris_FogStart));");
-                },
                 a -> {
                     a.injectVariable("uniform float iris_FogStart;");
                     a.injectFunction("struct iris_FogParameters {vec4 color;float density;float start;float end;float scale;};");
                     a.injectFunction("iris_FogParameters iris_Fog = iris_FogParameters(iris_FogColor, iris_FogDensity, iris_FogStart, iris_FogEnd, 1.0f / (iris_FogEnd - iris_FogStart));");
                 }),
             parity("an array constant (DH normals)", VERTEX_120,
-                t -> t.injectFunction("const vec3 irisNormals[6] = vec3[](vec3(0,0,-1), vec3(0,0,1), vec3(-1,0,0), vec3(1,0,0), vec3(0,-1,0), vec3(0,1,0));"),
                 a -> a.injectFunction("const vec3 irisNormals[6] = vec3[](vec3(0,0,-1), vec3(0,0,1), vec3(-1,0,0), vec3(1,0,0), vec3(0,-1,0), vec3(0,1,0));")),
             parity("a declaration after an injected function goes before it", NAMES_330,
-                t -> { t.injectFunction("float iris_f(float x) { return x; }"); t.injectFunction("float iris_MidTex = (mc_midTexCoord.x * 1.0).x;"); t.injectFunction("uniform vec4 iris_later;"); },
                 a -> { a.injectFunction("float iris_f(float x) { return x; }"); a.injectFunction("float iris_MidTex = (mc_midTexCoord.x * 1.0).x;"); a.injectFunction("uniform vec4 iris_later;"); }),
             parity("a function whose parameters carry qualifiers", FUNCTION_FIRST_330,
-                t -> { t.injectFunction("void iris_out(in vec2 p, out float r) { r = p.x; }"); t.injectVariable("uniform float iris_after;"); },
                 a -> { a.injectFunction("void iris_out(in vec2 p, out float r) { r = p.x; }"); a.injectVariable("uniform float iris_after;"); })
         );
     }
@@ -648,7 +561,7 @@ class ShaderAstParityTest {
     void deviationInjectFunctionWithoutAnyFunction() {
         // TauMC anchors on the first function definition; without one, List.add(-1, ...) throws. ShaderAst appends.
         final String source = "#version 330 core\nuniform float a;\n";
-        assertThrows(IndexOutOfBoundsException.class, () -> viaTauMC("injectFunction", source, t -> t.injectFunction("float iris_f() { return a; }")));
+        assertTauMcThrew(IndexOutOfBoundsException.class, "injectFunction");
         final String printed = viaShaderAst(source, a -> a.injectFunction("float iris_f() { return a; }"));
         assertTrue(GlslTokens.contains(printed, "uniform float a ; float iris_f ( ) { return a ; }"), printed);
     }
@@ -659,50 +572,32 @@ class ShaderAstParityTest {
     @TestFactory
     Stream<DynamicTest> rename() {
         return Stream.of(
-            parity("gl_TexCoord (array references)", VERTEX_120,
-                t -> t.rename("gl_TexCoord", "iris_TexCoord"), a -> a.rename("gl_TexCoord", "iris_TexCoord")),
-            parity("a varying that is also a parameter and a struct field", NAMES_330,
-                t -> t.rename("color", "iris_color"), a -> a.rename("color", "iris_color")),
-            parity("a function name (prototype, forward declaration and calls)", NAMES_330,
-                t -> t.rename("scaled", "iris_scaled"), a -> a.rename("scaled", "iris_scaled")),
-            parity("a function name that is also a local variable", FRAGMENT_330,
-                t -> t.rename("luma", "iris_luma"), a -> a.rename("luma", "iris_luma")),
-            parity("a function name that is also a parameter name", VERTEX_120,
-                t -> t.rename("wave", "iris_wave"), a -> a.rename("wave", "iris_wave")),
-            parity("a swizzle name", VERTEX_120,
-                t -> t.rename("xy", "zw"), a -> a.rename("xy", "zw")),
+            parity("gl_TexCoord (array references)", VERTEX_120, a -> a.rename("gl_TexCoord", "iris_TexCoord")),
+            parity("a varying that is also a parameter and a struct field", NAMES_330, a -> a.rename("color", "iris_color")),
+            parity("a function name (prototype, forward declaration and calls)", NAMES_330, a -> a.rename("scaled", "iris_scaled")),
+            parity("a function name that is also a local variable", FRAGMENT_330, a -> a.rename("luma", "iris_luma")),
+            parity("a function name that is also a parameter name", VERTEX_120, a -> a.rename("wave", "iris_wave")),
+            parity("a swizzle name", VERTEX_120, a -> a.rename("xy", "zw")),
             parity("struct type, block, block member and block instance names", NAMES_330,
-                t -> t.rename(Map.of("Material", "M2", "Block", "B2", "blockColor", "bc2", "named", "n2", "namedColor", "nc2")),
                 a -> a.rename(Map.of("Material", "M2", "Block", "B2", "blockColor", "bc2", "named", "n2", "namedColor", "nc2"))),
-            parity("a layout qualifier name and a loop variable", FRAGMENT_330,
-                t -> t.rename(Map.of("location", "loc", "i", "j")), a -> a.rename(Map.of("location", "loc", "i", "j"))),
+            parity("a layout qualifier name and a loop variable", FRAGMENT_330, a -> a.rename(Map.of("location", "loc", "i", "j"))),
             parity("the matrix map of CoreTransformHelper", VERTEX_120,
-                t -> t.rename(Map.of("gl_ModelViewMatrix", "iris_ModelViewMatrix", "gl_ProjectionMatrix", "iris_ProjectionMatrix", "gl_NormalMatrix", "iris_NormalMatrix")),
                 a -> a.rename(Map.of("gl_ModelViewMatrix", "iris_ModelViewMatrix", "gl_ProjectionMatrix", "iris_ProjectionMatrix", "gl_NormalMatrix", "iris_NormalMatrix"))),
-            parity("a swap through the map happens at once", FRAGMENT_330,
-                t -> t.rename(Map.of("a", "b", "b", "a")), a -> a.rename(Map.of("a", "b", "b", "a"))),
-            parity("a multi-declarator varying", VERTEX_120,
-                t -> t.rename("tint", "iris_tint"), a -> a.rename("tint", "iris_tint")),
-            parity("texture as a sampler name (CommonTransformer)", FRAGMENT_120,
-                t -> t.rename("texture", "gtexture"), a -> a.rename("texture", "gtexture"))
+            parity("a swap through the map happens at once", FRAGMENT_330, a -> a.rename(Map.of("a", "b", "b", "a"))),
+            parity("a multi-declarator varying", VERTEX_120, a -> a.rename("tint", "iris_tint")),
+            parity("texture as a sampler name (CommonTransformer)", FRAGMENT_120, a -> a.rename("texture", "gtexture"))
         );
     }
 
     @TestFactory
     Stream<DynamicTest> renameFunctionCall() {
         return Stream.of(
-            parity("ftransform", VERTEX_120,
-                t -> t.renameFunctionCall("ftransform", "iris_ftransform"), a -> a.renameFunctionCall("ftransform", "iris_ftransform")),
-            parity("TEXTURE_RENAMES on a 120 fragment shader", FRAGMENT_120,
-                t -> t.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES), a -> a.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES)),
-            parity("TEXTURE_RENAMES on a 120 composite shader", FRAGCOLOR_120,
-                t -> t.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES), a -> a.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES)),
-            parity("a user function (definition and calls)", VERTEX_120,
-                t -> t.renameFunctionCall("shade", "iris_shade"), a -> a.renameFunctionCall("shade", "iris_shade")),
-            parity("a variable: references change, the declarator does not", NAMES_330,
-                t -> t.renameFunctionCall("color", "iris_color"), a -> a.renameFunctionCall("color", "iris_color")),
+            parity("ftransform", VERTEX_120, a -> a.renameFunctionCall("ftransform", "iris_ftransform")),
+            parity("TEXTURE_RENAMES on a 120 fragment shader", FRAGMENT_120, a -> a.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES)),
+            parity("TEXTURE_RENAMES on a 120 composite shader", FRAGCOLOR_120, a -> a.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES)),
+            parity("a user function (definition and calls)", VERTEX_120, a -> a.renameFunctionCall("shade", "iris_shade")),
+            parity("a variable: references change, the declarator does not", NAMES_330, a -> a.renameFunctionCall("color", "iris_color")),
             parity("a function that is also a local and a parameter", FRAGMENT_330,
-                t -> t.renameFunctionCall(Map.of("luma", "iris_luma", "fogColor", "iris_fog")),
                 a -> a.renameFunctionCall(Map.of("luma", "iris_luma", "fogColor", "iris_fog")))
         );
     }
@@ -721,17 +616,16 @@ class ShaderAstParityTest {
 
     private static DynamicTest renameArrayParity(String name, String source, String oldName, String newName) {
         return DynamicTest.dynamicTest(name, () -> {
-            final Set<Integer> foundTauMC = new TreeSet<>();
             final Set<Integer> foundAst = new TreeSet<>();
-            assertParity(name, source, t -> t.renameArray(oldName, newName, foundTauMC), a -> a.renameArray(oldName, newName, foundAst));
-            assertEquals(taumc(name + " / indices", foundTauMC::toString), foundAst.toString(), "indices found");
+            assertParity(name, source, a -> a.renameArray(oldName, newName, foundAst));
+            assertEquals(expected(name + " / indices"), foundAst.toString(), "indices found");
         });
     }
 
     @Test
     void renameArrayWithANonLiteralIndexThrowsLikeTauMC() {
         // TauMC reads the index with Integer.parseInt of its text; weights[i] throws NumberFormatException.
-        assertThrows(NumberFormatException.class, () -> viaTauMC("renameArray", FRAGMENT_330, t -> t.renameArray("weights", "w", new TreeSet<>())));
+        assertTauMcThrew(NumberFormatException.class, "renameArray");
         assertThrows(NumberFormatException.class, () -> viaShaderAst(FRAGMENT_330, a -> a.renameArray("weights", "w", new TreeSet<>())));
     }
 
@@ -739,9 +633,8 @@ class ShaderAstParityTest {
     void deviationRenameArrayWithAUnaryPlusIndexThrows() {
         // TauMC's Integer.parseInt("+1") succeeds; it records 1 and writes the token 'a+1', which reads as 'a + 1'.
         final String source = "#version 330 core\nuniform float arr[4];\nout vec4 o;\nvoid main() { o = vec4(arr[+1]); }\n";
-        final Set<Integer> found = new TreeSet<>();
-        final String taumc = viaTauMC("taumc", source, t -> t.renameArray("arr", "a", found));
-        assertEquals("[1]", taumc("found", found::toString));
+        final String taumc = expected("taumc");
+        assertEquals("[1]", expected("found"));
         assertTrue(GlslTokens.contains(taumc, "o = vec4 ( a + 1 ) ;"), taumc);
         assertThrows(NumberFormatException.class, () -> viaShaderAst(source, a -> a.renameArray("arr", "a", new TreeSet<>())));
     }
@@ -812,7 +705,7 @@ class ShaderAstParityTest {
         """;
 
     private static DynamicTest replaceParity(String name, String source, String oldCode, String newCode) {
-        return parity(name, source, t -> t.replaceExpression(oldCode, newCode), a -> a.replaceExpression(oldCode, newCode));
+        return parity(name, source, a -> a.replaceExpression(oldCode, newCode));
     }
 
     @Test
@@ -820,7 +713,7 @@ class ShaderAstParityTest {
         final String source = "#version 330 core\nuniform float x, c;\nout float y;\nvoid main() { y = x * c; y += x.x; y = -x; }\n";
         // TauMC splices the text: 'a + b * c' changes the meaning, and in postfix position (after '.' or under a unary
         // operator) it keeps only 'a'.
-        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("x", "a + b"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "y = a + b * c ;"), taumc);
         assertTrue(GlslTokens.contains(taumc, "y += a . x ;"), taumc);
         assertTrue(GlslTokens.contains(taumc, "y = - a ;"), taumc);
@@ -834,7 +727,7 @@ class ShaderAstParityTest {
     void deviationTernaryReplacementIsKeptWhole() {
         final String source = "#version 330 core\nuniform float x, c, u;\nout float y;\nvoid main() { y = !(x > c) ? x : c; }\n";
         // TauMC's binary pass reparses the replacement as a binary expression, which drops '? 1.0 : 2.0'.
-        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "y = ! ( x > u > 0.0 ) ? x : u > 0.0 ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
         assertTrue(GlslTokens.contains(adapter, "y = ! ( x > ( u > 0.0 ? 1.0 : 2.0 ) ) ? x : u > 0.0 ? 1.0 : 2.0 ;"), adapter);
@@ -844,7 +737,7 @@ class ShaderAstParityTest {
     void deviationSelfReferentialReplacementAppliesOnce() {
         final String source = "#version 330 core\nuniform float v;\nout float y;\nfloat f(float x) { return x; }\nvoid main() { y = f(f(v)); }\n";
         // TauMC's postfix pass finds the pattern again inside what its binary pass inserted and replaces it a second time.
-        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("f(v)", "f(f(v))"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "y = f ( f ( f ( f ( v ) ) ) ) ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("f(v)", "f(f(v))"));
         assertTrue(GlslTokens.contains(adapter, "y = f ( f ( f ( v ) ) ) ;"), adapter);
@@ -857,13 +750,13 @@ class ShaderAstParityTest {
         // renameFunctionCall and renameArray do not update, so the second replaceExpression misses the 'a' that was 'c'.
         // Production shape: CELERITAS_TERRAIN renames gl_MultiTexCoord3 to mc_midTexCoord (patchMultiTexCoord3), then
         // replaces mc_midTexCoord.
-        final String taumc = viaTauMC("taumc", source, t -> { t.replaceExpression("a", "b"); t.rename("c", "a"); t.replaceExpression("a", "d"); });
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "y = b + a ;"), taumc);
         final String adapter = viaShaderAst(source, a -> { a.replaceExpression("a", "b"); a.rename("c", "a"); a.replaceExpression("a", "d"); });
         assertTrue(GlslTokens.contains(adapter, "y = b + d ;"), adapter);
 
         // The stale cache also still finds a renamed node under its old name.
-        final String taumcOld = viaTauMC("taumcOld", source, t -> { t.replaceExpression("a", "b"); t.rename("c", "e"); t.replaceExpression("c", "d"); });
+        final String taumcOld = expected("taumcOld");
         assertTrue(GlslTokens.contains(taumcOld, "y = b + d ;"), taumcOld);
         final String adapterOld = viaShaderAst(source, a -> { a.replaceExpression("a", "b"); a.rename("c", "e"); a.replaceExpression("c", "d"); });
         assertTrue(GlslTokens.contains(adapterOld, "y = b + e ;"), adapterOld);
@@ -876,7 +769,7 @@ class ShaderAstParityTest {
         // expression (they are names, accesses and calls), so production output never showed this.
         final String source = "#version 330 core\nuniform vec3 colorSample;\nuniform float mult;\nout vec3 c;\n"
             + "void main() { c = colorSample * mult; c = max(c, colorSample); }\n";
-        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("colorSample * mult", "iris_product"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "c = iris_product ; c = max ( c , iris_product ) ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("colorSample * mult", "iris_product"));
         assertTrue(GlslTokens.contains(adapter, "c = iris_product ; c = max ( c , colorSample ) ;"), adapter);
@@ -885,7 +778,7 @@ class ShaderAstParityTest {
     @Test
     void deviationLiteralsMatchByValue() {
         final String source = "#version 330 core\nuniform vec3 p;\nout vec4 o;\nvoid main() { o = vec4(p, 0.); }\n";
-        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("vec4(p, 0.0)", "vec4(1.0)"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "o = vec4 ( p , 0.0 ) ;"), "TauMC matches the spelling only: " + taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("vec4(p, 0.0)", "vec4(1.0)"));
         assertTrue(GlslTokens.contains(adapter, "o = vec4 ( 1.0 ) ;"), adapter);
@@ -898,27 +791,24 @@ class ShaderAstParityTest {
         final String clipPlanes = "{ if (actinium_ClipPlanesEnabled) { vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex; "
             + "gl_ClipDistance[0] = dot(actinium_ClipPlane[0], _cp_ep); gl_ClipDistance[1] = dot(actinium_ClipPlane[1], _cp_ep); } }";
         return Stream.of(
-            parity("prepend an assignment", VERTEX_120, t -> t.prependMain("iris_FogFragCoord = 0.0f;"), a -> a.prependMain("iris_FogFragCoord = 0.0f;")),
+            parity("prepend an assignment", VERTEX_120, a -> a.prependMain("iris_FogFragCoord = 0.0f;")),
             parity("prepend twice (the second lands first)", FRAGMENT_330,
-                t -> { t.prependMain("iris_FrontColor = vec4(1.0);"); t.prependMain("_celeritas_init();"); },
                 a -> { a.prependMain("iris_FrontColor = vec4(1.0);"); a.prependMain("_celeritas_init();"); }),
             parity("append a discard", FRAGMENT_120,
-                t -> t.appendMain("if (iris_FragData0.a <= iris_currentAlphaTest) discard;"),
                 a -> a.appendMain("if (iris_FragData0.a <= iris_currentAlphaTest) discard;")),
-            parity("append after a trailing return", withReturn, t -> t.appendMain("c.a = 0.5;"), a -> a.appendMain("c.a = 0.5;")),
-            parity("append a compound statement (the clip planes)", VERTEX_120, t -> t.appendMain(clipPlanes), a -> a.appendMain(clipPlanes)),
+            parity("append after a trailing return", withReturn, a -> a.appendMain("c.a = 0.5;")),
+            parity("append a compound statement (the clip planes)", VERTEX_120, a -> a.appendMain(clipPlanes)),
             parity("no main: nothing happens", noMain,
-                t -> { t.prependMain("x = 1.0;"); t.appendMain("y = 2.0;"); },
                 a -> { a.prependMain("x = 1.0;"); a.appendMain("y = 2.0;"); }),
-            parity("a declaration statement", COMPOSITE_120, t -> t.prependMain("vec4 iris_tmp = vec4(0.0);"), a -> a.prependMain("vec4 iris_tmp = vec4(0.0);"))
+            parity("a declaration statement", COMPOSITE_120, a -> a.prependMain("vec4 iris_tmp = vec4(0.0);"))
         );
     }
 
     @Test
     void deviationEmptyMainGetsTheStatement() {
         final String source = "#version 330 core\nvoid main() {}\n";
-        assertThrows(NullPointerException.class, () -> viaTauMC("prependMain", source, t -> t.prependMain("float x = 1.0;")));
-        assertThrows(NullPointerException.class, () -> viaTauMC("appendMain", source, t -> t.appendMain("float x = 1.0;")));
+        assertTauMcThrew(NullPointerException.class, "prependMain");
+        assertTauMcThrew(NullPointerException.class, "appendMain");
         final String printed = viaShaderAst(source, a -> { a.prependMain("float x = 1.0;"); a.appendMain("float y = 2.0;"); });
         assertTrue(GlslTokens.contains(printed, "void main ( ) { float x = 1.0 ; float y = 2.0 ; }"), printed);
     }
@@ -931,18 +821,17 @@ class ShaderAstParityTest {
         final String globalAndLocal = "#version 330 core\nuniform float t;\nout vec4 c;\nvoid main() { float t = 2.0; c = vec4(t); }\n";
         final String localThenShared = "#version 330 core\nout vec4 c;\nvoid main() { float t = 2.0; c = vec4(t); }\nfloat u, t;\n";
         return Stream.of(
-            parity("a sole global declarator", VERTEX_120, t -> t.removeVariable("chunkOffset"), a -> a.removeVariable("chunkOffset")),
-            parity("an attribute", VERTEX_120, t -> t.removeVariable("mc_Entity"), a -> a.removeVariable("mc_Entity")),
-            parity("the first of two declarators (no initializer)", FRAGMENT_330, t -> t.removeVariable("a"), a -> a.removeVariable("a")),
-            parity("the second of two declarators", FRAGMENT_330, t -> t.removeVariable("b"), a -> a.removeVariable("b")),
-            parity("the second of two varyings", VERTEX_120, t -> t.removeVariable("tint"), a -> a.removeVariable("tint")),
-            parity("a sole local declarator", FRAGMENT_330, t -> t.removeVariable("albedo"), a -> a.removeVariable("albedo")),
-            parity("a local array", FRAGMENT_330, t -> t.removeVariable("weights"), a -> a.removeVariable("weights")),
-            parity("a global and a local of one name: the last sole declarator goes", globalAndLocal,
-                t -> t.removeVariable("t"), a -> a.removeVariable("t")),
-            parity("a shared declarator stops the scan", localThenShared, t -> t.removeVariable("t"), a -> a.removeVariable("t")),
-            parity("a parameter is not a declarator", VERTEX_120, t -> t.removeVariable("c"), a -> a.removeVariable("c")),
-            parity("a name that does not occur", VERTEX_120, t -> t.removeVariable("nothing"), a -> a.removeVariable("nothing"))
+            parity("a sole global declarator", VERTEX_120, a -> a.removeVariable("chunkOffset")),
+            parity("an attribute", VERTEX_120, a -> a.removeVariable("mc_Entity")),
+            parity("the first of two declarators (no initializer)", FRAGMENT_330, a -> a.removeVariable("a")),
+            parity("the second of two declarators", FRAGMENT_330, a -> a.removeVariable("b")),
+            parity("the second of two varyings", VERTEX_120, a -> a.removeVariable("tint")),
+            parity("a sole local declarator", FRAGMENT_330, a -> a.removeVariable("albedo")),
+            parity("a local array", FRAGMENT_330, a -> a.removeVariable("weights")),
+            parity("a global and a local of one name: the last sole declarator goes", globalAndLocal, a -> a.removeVariable("t")),
+            parity("a shared declarator stops the scan", localThenShared, a -> a.removeVariable("t")),
+            parity("a parameter is not a declarator", VERTEX_120, a -> a.removeVariable("c")),
+            parity("a name that does not occur", VERTEX_120, a -> a.removeVariable("nothing"))
         );
     }
 
@@ -950,7 +839,7 @@ class ShaderAstParityTest {
     void deviationRemovingAnInitializedFirstDeclarator() {
         final String source = "#version 330 core\nout vec4 c;\nvoid main() { float a = 1.0, b; b = 2.0; c = vec4(b); }\n";
         // TauMC writes the second declarator's text into the first one's name and keeps the first one's initializer.
-        final String taumc = viaTauMC("taumc", source, t -> t.removeVariable("a"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "float b = 1.0 ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.removeVariable("a"));
         assertTrue(GlslTokens.contains(adapter, "float b ;"), adapter);
@@ -961,7 +850,7 @@ class ShaderAstParityTest {
         final String source = "#version 330 core\nout vec4 c;\nvoid main() { float s = 0.0; for (int i = 0; i < 4; i++) { s += 1.0; } c = vec4(s); }\n";
         // Both outputs leave 'i' undeclared. TauMC drops the declaration with its ';', which is not GLSL; ShaderAst
         // empties the initializer and keeps the loop.
-        final String taumc = viaTauMC("taumc", source, t -> t.removeVariable("i"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "for ( i < 4 ; i ++ ) {"), taumc);
         final String adapter = viaShaderAst(source, a -> a.removeVariable("i"));
         assertTrue(GlslTokens.contains(adapter, "for ( ; i < 4 ; i ++ ) { s += 1.0 ; }"), adapter);
@@ -979,11 +868,7 @@ class ShaderAstParityTest {
             + "void main() { vec2 w = vec2(1.0); o = vec4(w, f(), 1.0); }\n";
         return Stream.of(
             DynamicTest.dynamicTest("findType finds the local, which TauMC scanned before the injected uniform", () -> {
-                final String taumc = taumc("findType finds the local, which TauMC scanned before the injected uniform", () -> {
-                    final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
-                    transformer.injectVariable("uniform float w;");
-                    return taumcTypeKeyword(transformer.findType("w"));
-                });
+                final String taumc = expected("findType finds the local, which TauMC scanned before the injected uniform");
                 assertEquals("vec2", taumc);
                 final ShaderAst ast = ShaderAst.parse(source);
                 ast.injectVariable("uniform float w;");
@@ -991,13 +876,10 @@ class ShaderAstParityTest {
                 assertEquals(taumc, adapterTypeKeyword(ast.findType("w")));
             }),
             parity("removeVariable removes the injected uniform, the last TauMC scanned", source,
-                t -> { t.injectVariable("uniform float w;"); t.removeVariable("w"); },
                 a -> { a.injectVariable("uniform float w;"); a.removeVariable("w"); }),
             parity("a declaration prepended to main is scanned after the program's own", twoLocals,
-                t -> { t.prependMain("float w = 3.0;"); t.removeVariable("w"); },
                 a -> { a.prependMain("float w = 3.0;"); a.removeVariable("w"); }),
             parity("two injections are scanned in the order they were made", source,
-                t -> { t.injectVariable("uniform float w;"); t.injectFunction("float w = 4.0;"); t.removeVariable("w"); },
                 a -> { a.injectVariable("uniform float w;"); a.injectFunction("float w = 4.0;"); a.removeVariable("w"); })
         );
     }
@@ -1011,14 +893,10 @@ class ShaderAstParityTest {
             "chunkOffset", "PI", "lights", "offset", "wave", "x", "position", "gl_Vertex");
         final String structFirst = "#version 330 core\nstruct S { float v; };\nvoid f() { S t; }\nuniform vec2 t;\nvoid main() { }\n";
         return Stream.of(
-            queryParity("330 fragment names", FRAGMENT_330, names330,
-                (t, n) -> taumcTypeKeyword(t.findType(n)), (a, n) -> adapterTypeKeyword(a.findType(n))),
-            queryParity("120 vertex names", VERTEX_120, names120,
-                (t, n) -> taumcTypeKeyword(t.findType(n)), (a, n) -> adapterTypeKeyword(a.findType(n))),
-            queryParity("120 fragment samplers", FRAGMENT_120, List.of("texture", "lightmap", "shadow", "color"),
-                (t, n) -> taumcTypeKeyword(t.findType(n)), (a, n) -> adapterTypeKeyword(a.findType(n))),
-            queryParity("a struct-typed declaration is skipped", structFirst, List.of("t", "S", "v"),
-                (t, n) -> taumcTypeKeyword(t.findType(n)), (a, n) -> adapterTypeKeyword(a.findType(n)))
+            queryParity("330 fragment names", FRAGMENT_330, names330, (a, n) -> adapterTypeKeyword(a.findType(n))),
+            queryParity("120 vertex names", VERTEX_120, names120, (a, n) -> adapterTypeKeyword(a.findType(n))),
+            queryParity("120 fragment samplers", FRAGMENT_120, List.of("texture", "lightmap", "shadow", "color"), (a, n) -> adapterTypeKeyword(a.findType(n))),
+            queryParity("a struct-typed declaration is skipped", structFirst, List.of("t", "S", "v"), (a, n) -> adapterTypeKeyword(a.findType(n)))
         );
     }
 
@@ -1037,14 +915,11 @@ class ShaderAstParityTest {
     Stream<DynamicTest> hasVariable() {
         return Stream.of(
             queryParity("120 vertex", VERTEX_120, List.of("mc_Entity", "color", "tint", "PI", "lights", "wave", "shade",
-                    "main", "offset", "x", "c", "Light", "position", "gl_Vertex", "gl_TexCoord", "ftransform", "nothing"),
-                Transformer::hasVariable, ShaderAst::hasVariable),
+                    "main", "offset", "x", "c", "Light", "position", "gl_Vertex", "gl_TexCoord", "ftransform", "nothing"), ShaderAst::hasVariable),
             queryParity("names in blocks, structs and prototypes", NAMES_330, List.of("Material", "color", "roughness",
-                    "material", "Block", "blockColor", "Named", "named", "namedColor", "tint", "scaled", "x", "color2", "local"),
-                Transformer::hasVariable, ShaderAst::hasVariable),
+                    "material", "Block", "blockColor", "Named", "named", "namedColor", "tint", "scaled", "x", "color2", "local"), ShaderAst::hasVariable),
             queryParity("330 fragment", FRAGMENT_330, List.of("a", "b", "luma", "fogColorAt", "fogColor", "i", "weights",
-                    "albedo", "texture", "location"),
-                Transformer::hasVariable, ShaderAst::hasVariable)
+                    "albedo", "texture", "location"), ShaderAst::hasVariable)
         );
     }
 
@@ -1052,17 +927,13 @@ class ShaderAstParityTest {
     Stream<DynamicTest> containsCall() {
         return Stream.of(
             queryParity("120 vertex", VERTEX_120, List.of("ftransform", "wave", "shade", "sin", "gl_Vertex", "gl_TexCoord",
-                    "position", "strength", "xy", "texcoord", "mc_Entity", "chunkOffset", "c", "x", "Light", "nothing"),
-                Transformer::containsCall, ShaderAst::containsCall),
+                    "position", "strength", "xy", "texcoord", "mc_Entity", "chunkOffset", "c", "x", "Light", "nothing"), ShaderAst::containsCall),
             queryParity("names in blocks, structs and prototypes", NAMES_330, List.of("color", "roughness", "material",
-                    "blockColor", "namedColor", "named", "tint", "scaled", "Material", "local", "r"),
-                Transformer::containsCall, ShaderAst::containsCall),
+                    "blockColor", "namedColor", "named", "tint", "scaled", "Material", "local", "r"), ShaderAst::containsCall),
             queryParity("330 fragment", FRAGMENT_330, List.of("texture", "gcolor", "luma", "fogColorAt", "float", "vec4",
-                    "i", "weights", "rgb", "location", "outColor0"),
-                Transformer::containsCall, ShaderAst::containsCall),
+                    "i", "weights", "rgb", "location", "outColor0"), ShaderAst::containsCall),
             queryParity("120 fragment (texture2D left out: see deviationTexture2DIsAnIdentifier)", FRAGMENT_120,
-                List.of("texture", "shadow2D", "texture2DLod", "gl_FragData", "gl_FragColor"),
-                Transformer::containsCall, ShaderAst::containsCall)
+                List.of("texture", "shadow2D", "texture2DLod", "gl_FragData", "gl_FragColor"), ShaderAst::containsCall)
         );
     }
 
@@ -1077,10 +948,9 @@ class ShaderAstParityTest {
             names.add("iris_absent");
             // texture2D and texture3D: see deviationTexture2DIsAnIdentifier.
             final List<String> callNames = names.stream().filter(n -> !n.equals("texture2D") && !n.equals("texture3D")).toList();
-            tests.add(queryParity("findType, fixture " + i, source, names,
-                (t, n) -> taumcTypeKeyword(t.findType(n)), (a, n) -> adapterTypeKeyword(a.findType(n))));
-            tests.add(queryParity("hasVariable, fixture " + i, source, names, Transformer::hasVariable, ShaderAst::hasVariable));
-            tests.add(queryParity("containsCall, fixture " + i, source, callNames, Transformer::containsCall, ShaderAst::containsCall));
+            tests.add(queryParity("findType, fixture " + i, source, names, (a, n) -> adapterTypeKeyword(a.findType(n))));
+            tests.add(queryParity("hasVariable, fixture " + i, source, names, ShaderAst::hasVariable));
+            tests.add(queryParity("containsCall, fixture " + i, source, callNames, ShaderAst::containsCall));
         }
         return tests.stream();
     }
@@ -1089,10 +959,10 @@ class ShaderAstParityTest {
     void deviationTexture2DIsAnIdentifier() {
         // TauMC's lexer makes texture2D and texture3D keywords, so only renameFunctionCall sees them; containsCall and
         // rename never do. glsl-transformer lexes them as identifiers. No Demonica caller asks either verb about them.
-        assertEquals("false", taumc("containsCall", () -> String.valueOf(new Transformer(ShaderParser.parseShader(FRAGMENT_120).full()).containsCall("texture2D"))));
+        assertEquals("false", expected("containsCall"));
         assertTrue(ShaderAst.parse(FRAGMENT_120).containsCall("texture2D"));
 
-        final String taumc = viaTauMC("taumc", FRAGMENT_120, t -> t.rename("texture2D", "texture"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "vec4 color = texture2D ( texture , texcoord ) * glcolor ;"), taumc);
         final String adapter = viaShaderAst(FRAGMENT_120, a -> a.rename("texture2D", "texture"));
         assertTrue(GlslTokens.contains(adapter, "vec4 color = texture ( texture , texcoord ) * glcolor ;"), adapter);
@@ -1105,13 +975,13 @@ class ShaderAstParityTest {
         // an identifier in TauMC and a node of its own in glsl-transformer.
         final String struct = "#version 330 core\nstruct S { float a; };\nuniform float u;\nout vec4 o;\n"
             + "void main() { S t = S(u); S both[2] = S[2](t, t); o = vec4(both[1].a); }\n";
-        final String taumc = viaTauMC("taumc", struct, t -> t.rename("S", "S2"));
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "S t = S2 ( u ) ; S both [ 2 ] = S2 [ 2 ] ( t , t ) ;"), taumc);
         final String adapter = viaShaderAst(struct, a -> a.rename("S", "S2"));
         assertTrue(GlslTokens.contains(adapter, "S t = S2 ( u ) ; S both [ 2 ] = S [ 2 ] ( t , t ) ;"), adapter);
 
         final String length = "#version 430\nuniform float arr[4];\nout vec4 o;\nvoid main() { float length = 1.0; o = vec4(float(arr.length()) + length); }\n";
-        final String taumcLength = viaTauMC("taumcLength", length, t -> t.rename("length", "len"));
+        final String taumcLength = expected("taumcLength");
         assertTrue(GlslTokens.contains(taumcLength, "o = vec4 ( float ( arr . len ( ) ) + len ) ;"), taumcLength);
         final String adapterLength = viaShaderAst(length, a -> a.rename("length", "len"));
         assertTrue(GlslTokens.contains(adapterLength, "o = vec4 ( float ( arr . length ( ) ) + len ) ;"), adapterLength);
@@ -1310,7 +1180,7 @@ class ShaderAstParityTest {
     void deviationWrappedShadowCallKeepsANegatedLiteral() {
         final String source = "#version 330 core\nuniform sampler2DShadow s;\nin vec3 p;\nout vec4 o;\n"
             + "void main() { o = vec4(shadow2D(s, vec3(p.xy, p.z - -0.001)).r); }\n";
-        final String taumc = viaTauMC("taumc", source, t -> t.renameAndWrapShadow("shadow2D", "texture"));
+        final String taumc = expected("taumc");
         final String adapter = viaShaderAst(source, a -> a.renameAndWrapShadow("shadow2D", "texture"));
         assertTrue(GlslTokens.contains(taumc, "p . z -- 0.001"), taumc);
         assertTrue(GlslTokens.contains(adapter, "o = vec4 ( vec4 ( texture ( s , vec3 ( p . xy , p . z - - 0.001 ) ) ) . r ) ;"), adapter);
@@ -1321,12 +1191,6 @@ class ShaderAstParityTest {
     private static final String[] COMMON_SHADOW_RENAMES = {"shadow2D", "texture", "shadow2DLod", "textureLod"};
     private static final String[] COMPAT_SHADOW_RENAMES = {"shadow2D", "texture", "shadow2DLod", "textureLod", "shadow1D", "texture",
         "shadow1DProj", "textureProj", "shadow2DProj", "textureProj", "shadow1DLod", "textureLod"};
-
-    static void wrapShadowsTauMC(Transformer transformer, String[] renames) {
-        for (int i = 0; i < renames.length; i += 2) {
-            transformer.renameAndWrapShadow(renames[i], renames[i + 1]);
-        }
-    }
 
     static void wrapShadows(ShaderAst ast, String[] renames) {
         for (int i = 0; i < renames.length; i += 2) {
@@ -1340,28 +1204,19 @@ class ShaderAstParityTest {
             + "vec4 shadow2DLod(sampler2D t, vec3 q, float l) { return texture2DLod(t, q.xy, l); }\n"
             + "void main() { gl_FragColor = shadow2DLod(s, p, 0.0).rrrr; }\n";
         return Stream.of(
-            changingParity("CommonTransformer's two renames", SHADOW_120,
-                t -> wrapShadowsTauMC(t, COMMON_SHADOW_RENAMES), a -> wrapShadows(a, COMMON_SHADOW_RENAMES)),
-            changingParity("CompatShaderTransformer's six renames", SHADOW_120,
-                t -> wrapShadowsTauMC(t, COMPAT_SHADOW_RENAMES), a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
-            changingParity("shadow2DProj(s, p).r alone", SHADOW_120,
-                t -> t.renameAndWrapShadow("shadow2DProj", "textureProj"), a -> a.renameAndWrapShadow("shadow2DProj", "textureProj")),
-            changingParity("the nested call: only the outer one is wrapped", SHADOW_120,
-                t -> t.renameAndWrapShadow("shadow2D", "texture"), a -> a.renameAndWrapShadow("shadow2D", "texture")),
-            changingParity("a 120 gbuffers shader's shadow2D(...).r in a compound assignment", FRAGMENT_120,
-                t -> wrapShadowsTauMC(t, COMPAT_SHADOW_RENAMES), a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
-            parity("a program without shadow calls is left alone", FRAGMENT_330,
-                t -> wrapShadowsTauMC(t, COMPAT_SHADOW_RENAMES), a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
-            changingParity("a user function of the name: its calls are wrapped, its prototype renamed", userOverload,
-                t -> t.renameAndWrapShadow("shadow2DLod", "textureLod"), a -> a.renameAndWrapShadow("shadow2DLod", "textureLod")),
+            changingParity("CommonTransformer's two renames", SHADOW_120, a -> wrapShadows(a, COMMON_SHADOW_RENAMES)),
+            changingParity("CompatShaderTransformer's six renames", SHADOW_120, a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
+            changingParity("shadow2DProj(s, p).r alone", SHADOW_120, a -> a.renameAndWrapShadow("shadow2DProj", "textureProj")),
+            changingParity("the nested call: only the outer one is wrapped", SHADOW_120, a -> a.renameAndWrapShadow("shadow2D", "texture")),
+            changingParity("a 120 gbuffers shader's shadow2D(...).r in a compound assignment", FRAGMENT_120, a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
+            parity("a program without shadow calls is left alone", FRAGMENT_330, a -> wrapShadows(a, COMPAT_SHADOW_RENAMES)),
+            changingParity("a user function of the name: its calls are wrapped, its prototype renamed", userOverload, a -> a.renameAndWrapShadow("shadow2DLod", "textureLod")),
             // Step 5 (S4 verification): the second rename wraps the program's own shadow2DLod call before the one inside
             // the first rename's wrapper, as TauMC's cache order has it; removeConstAssignment then reaches x (in the
             // later wrapper) after a, so b keeps its const. In document order both would lose it.
             changingParity("a second rename's wrappers in TauMC's cache order, as removeConstAssignment sees them", WRAP_ORDER_330,
-                t -> { wrapShadowsTauMC(t, COMMON_SHADOW_RENAMES); t.removeConstAssignment(); },
                 a -> { wrapShadows(a, COMMON_SHADOW_RENAMES); a.removeConstAssignment(); }),
             changingParity("after an injection and a replacement (added nodes are wrapped too)", SHADOW_120,
-                t -> { t.injectFunction("float iris_s(vec3 q) { return shadow2D(shadowtex0, q).r; }"); t.replaceExpression("whole", "shadow2D(shadowtex1, shadowPos.xyz)"); wrapShadowsTauMC(t, COMPAT_SHADOW_RENAMES); },
                 a -> { a.injectFunction("float iris_s(vec3 q) { return shadow2D(shadowtex0, q).r; }"); a.replaceExpression("whole", "shadow2D(shadowtex1, shadowPos.xyz)"); wrapShadows(a, COMPAT_SHADOW_RENAMES); })
         );
     }
@@ -1369,18 +1224,15 @@ class ShaderAstParityTest {
     @TestFactory
     Stream<DynamicTest> removeUnusedFunctions() {
         final List<DynamicTest> tests = new ArrayList<>();
-        tests.add(changingParity("a chain of unused helpers, prototypes, a local of a function's name, overloads, recursion", UNUSED_330,
-            Transformer::removeUnusedFunctions, ShaderAst::removeUnusedFunctions));
+        tests.add(changingParity("a chain of unused helpers, prototypes, a local of a function's name, overloads, recursion", UNUSED_330, ShaderAst::removeUnusedFunctions));
         tests.add(changingParity("after an injected unused function", UNUSED_330,
-            t -> { t.injectFunction("float iris_unused(float x) { return x; }"); t.removeUnusedFunctions(); },
             a -> { a.injectFunction("float iris_unused(float x) { return x; }"); a.removeUnusedFunctions(); }));
-        tests.add(parity("only main", "#version 330 core\nout vec4 o;\nvoid main() { o = vec4(1.0); }\n",
-            Transformer::removeUnusedFunctions, ShaderAst::removeUnusedFunctions));
+        tests.add(parity("only main", "#version 330 core\nout vec4 o;\nvoid main() { o = vec4(1.0); }\n", ShaderAst::removeUnusedFunctions));
         for (int i = 0; i < FIXTURES.size(); i++) {
-            tests.add(parity("fixture " + i, FIXTURES.get(i), Transformer::removeUnusedFunctions, ShaderAst::removeUnusedFunctions));
+            tests.add(parity("fixture " + i, FIXTURES.get(i), ShaderAst::removeUnusedFunctions));
         }
         for (int i = 0; i < STEP4_FIXTURES.size(); i++) {
-            tests.add(parity("step 4 fixture " + i, STEP4_FIXTURES.get(i), Transformer::removeUnusedFunctions, ShaderAst::removeUnusedFunctions));
+            tests.add(parity("step 4 fixture " + i, STEP4_FIXTURES.get(i), ShaderAst::removeUnusedFunctions));
         }
         return tests.stream();
     }
@@ -1388,37 +1240,18 @@ class ShaderAstParityTest {
     @TestFactory
     Stream<DynamicTest> removeConstAssignment() {
         final List<DynamicTest> tests = new ArrayList<>();
-        tests.add(changingParity("first qualifier const, chains, a second declarator, a member name, overloads", CONST_PARAMS_330,
-            Transformer::removeConstAssignment, ShaderAst::removeConstAssignment));
-        tests.add(changingParity("transformEach's order: unused functions, then const assignments", CONST_PARAMS_330,
-            t -> { t.removeUnusedFunctions(); t.removeConstAssignment(); }, a -> { a.removeUnusedFunctions(); a.removeConstAssignment(); }));
+        tests.add(changingParity("first qualifier const, chains, a second declarator, a member name, overloads", CONST_PARAMS_330, ShaderAst::removeConstAssignment));
+        tests.add(changingParity("transformEach's order: unused functions, then const assignments", CONST_PARAMS_330, a -> { a.removeUnusedFunctions(); a.removeConstAssignment(); }));
         tests.add(changingParity("a const parameter in a prototype and its definition", "#version 330 core\nout vec4 o;\n"
-                + "float f(const float a);\nvoid main() { o = vec4(f(1.0)); }\nfloat f(const float a) { const float b = a; const float c = b * b; return c; }\n",
-            Transformer::removeConstAssignment, ShaderAst::removeConstAssignment));
+                + "float f(const float a);\nvoid main() { o = vec4(f(1.0)); }\nfloat f(const float a) { const float b = a; const float c = b * b; return c; }\n", ShaderAst::removeConstAssignment));
         tests.add(changingParity("a for initializer and an array size", "#version 330 core\nout vec4 o;\n"
-                + "float f(const int n) { const int m = n; float s = 0.0; for (int i = m; i < 4; i++) { s += 1.0; } return s; }\nvoid main() { o = vec4(f(2)); }\n",
-            Transformer::removeConstAssignment, ShaderAst::removeConstAssignment));
+                + "float f(const int n) { const int m = n; float s = 0.0; for (int i = m; i < 4; i++) { s += 1.0; } return s; }\nvoid main() { o = vec4(f(2)); }\n", ShaderAst::removeConstAssignment));
         tests.add(parity("a const in main initialized from a const global stays", "#version 330 core\nconst float g = 1.0;\nout vec4 o;\n"
-                + "float f(const float a) { return a; }\nvoid main() { const float x = g; o = vec4(f(x)); }\n",
-            Transformer::removeConstAssignment, ShaderAst::removeConstAssignment));
+                + "float f(const float a) { return a; }\nvoid main() { const float x = g; o = vec4(f(x)); }\n", ShaderAst::removeConstAssignment));
         for (int i = 0; i < FIXTURES.size(); i++) {
-            tests.add(parity("fixture " + i, FIXTURES.get(i), Transformer::removeConstAssignment, ShaderAst::removeConstAssignment));
+            tests.add(parity("fixture " + i, FIXTURES.get(i), ShaderAst::removeConstAssignment));
         }
         return tests.stream();
-    }
-
-    // TauMC's findQualifiers as rows: name | type as ShaderPrinter prints it | type getText | type keyword | type array.
-    static List<String> taumcQualifiers(Transformer transformer, int token) {
-        final List<String> rows = new ArrayList<>();
-        for (Map.Entry<String, GLSLParser.Single_declarationContext> entry : transformer.findQualifiers(token).entrySet()) {
-            final GLSLParser.Fully_specified_typeContext type = entry.getValue().fully_specified_type();
-            final GLSLParser.Type_specifierContext specifier = type.type_specifier();
-            rows.add(entry.getKey() + " | " + GlslTokens.of(ShaderPrinter.getFormattedShader(type)).text()
-                + " | " + squareMatrix(type.getText())
-                + " | " + specifier.type_specifier_nonarray().children.get(0).getText()
-                + " | " + (specifier.array_specifier() == null ? "-" : specifier.array_specifier().getText()));
-        }
-        return rows;
     }
 
     static List<String> adapterQualifiers(ShaderAst ast, StorageQualifier.StorageType type) {
@@ -1433,12 +1266,6 @@ class ShaderAstParityTest {
                 + " | " + (declaration.arraySpecifierText() == null ? "-" : declaration.arraySpecifierText().replaceAll("\\s+", "")));
         }
         return rows;
-    }
-
-    // TauMC keeps a square matrix's spelling; glsl-transformer prints it by its short name (typeText; typeName keeps
-    // the spelling since Step 5).
-    private static String squareMatrix(String text) {
-        return text.replaceAll("(d?mat)([234])x\\2", "$1$2");
     }
 
     /**
@@ -1463,11 +1290,10 @@ class ShaderAstParityTest {
         return flags.toString();
     }
 
-    static final Map<StorageQualifier.StorageType, Integer> STORAGE_TOKENS = Map.of(
-        StorageQualifier.StorageType.IN, GLSLLexer.IN, StorageQualifier.StorageType.OUT, GLSLLexer.OUT,
-        StorageQualifier.StorageType.UNIFORM, GLSLLexer.UNIFORM, StorageQualifier.StorageType.CONST, GLSLLexer.CONST,
-        StorageQualifier.StorageType.ATTRIBUTE, GLSLLexer.ATTRIBUTE, StorageQualifier.StorageType.VARYING, GLSLLexer.VARYING,
-        StorageQualifier.StorageType.CENTROID, GLSLLexer.CENTROID);
+    /** The storage types TauMC's findQualifiers took as lexer tokens. */
+    static final List<StorageQualifier.StorageType> STORAGE_TYPES = List.of(StorageQualifier.StorageType.IN,
+        StorageQualifier.StorageType.OUT, StorageQualifier.StorageType.UNIFORM, StorageQualifier.StorageType.CONST,
+        StorageQualifier.StorageType.ATTRIBUTE, StorageQualifier.StorageType.VARYING, StorageQualifier.StorageType.CENTROID);
 
     /** Key order (TauMC's HashMap order) and, per name, the type text, keyword and array, for every storage type. */
     @TestFactory
@@ -1480,13 +1306,12 @@ class ShaderAstParityTest {
             + "uniform struct Light { vec3 p; } light;\nvoid f(in vec3 pp, out float r) { const float local = 2.0; r = pp.x * local; }\nvoid main() { }\n");
         for (int i = 0; i < sources.size(); i++) {
             final String source = sources.get(i);
-            for (Map.Entry<StorageQualifier.StorageType, Integer> type : STORAGE_TOKENS.entrySet()) {
-                final String name = "source " + i + ", " + type.getKey();
+            for (StorageQualifier.StorageType type : STORAGE_TYPES) {
+                final String name = "source " + i + ", " + type;
                 tests.add(DynamicTest.dynamicTest(name, () -> {
-                    final String expected = taumc(name, () -> String.join("\n",
-                        taumcQualifiers(new Transformer(ShaderParser.parseShader(source).full()), type.getValue())));
+                    final String expected = expected(name);
                     final ShaderAst ast = ShaderAst.parse(source);
-                    assertEquals(expected, String.join("\n", adapterQualifiers(ast, type.getKey())));
+                    assertEquals(expected, String.join("\n", adapterQualifiers(ast, type)));
                 }));
             }
         }
@@ -1495,11 +1320,7 @@ class ShaderAstParityTest {
             .mapToObj(i -> "out float o" + i + ";\n").toList()) + "void main() { }\n";
         tests.add(DynamicTest.dynamicTest("after injections (collisions in the map follow TauMC's cache order)", () -> {
             final List<String> injected = List.of("pa", "iris_FogFragCoord", "iris_FrontColor", "qa", "o3");
-            final String expected = taumc("after injections (collisions in the map follow TauMC's cache order)", () -> {
-                final Transformer transformer = new Transformer(ShaderParser.parseShader(many).full());
-                injected.forEach(name -> transformer.injectVariable("out vec4 " + name + ";"));
-                return String.join("\n", taumcQualifiers(transformer, GLSLLexer.OUT));
-            });
+            final String expected = expected("after injections (collisions in the map follow TauMC's cache order)");
             final ShaderAst ast = ShaderAst.parse(many);
             injected.forEach(name -> ast.injectVariable("out vec4 " + name + ";"));
             assertEquals(expected, String.join("\n", adapterQualifiers(ast, StorageQualifier.StorageType.OUT)));
@@ -1528,12 +1349,11 @@ class ShaderAstParityTest {
             + "void main() { colorOut = vec4(1.0); tint.rgb = vec3(1.0); k += 1.0; arr[0] = vec4(0.0); tint++; }\n";
         final List<DynamicTest> tests = new ArrayList<>();
         tests.add(queryParity("text prefixes, members, compound assignments, increments", prefixes,
-            List.of("color", "colorOut", "colorO", "col", "tint", "k", "arr", "o", "main"), Transformer::hasAssigment, ShaderAst::hasAssignment));
+            List.of("color", "colorOut", "colorO", "col", "tint", "k", "arr", "o", "main"), ShaderAst::hasAssignment));
         final List<String> sources = new ArrayList<>(FIXTURES);
         sources.addAll(STEP4_FIXTURES);
         for (int i = 0; i < sources.size(); i++) {
-            tests.add(queryParity("every identifier of source " + i, sources.get(i), identifierNames(sources.get(i)),
-                Transformer::hasAssigment, ShaderAst::hasAssignment));
+            tests.add(queryParity("every identifier of source " + i, sources.get(i), identifierNames(sources.get(i)), ShaderAst::hasAssignment));
         }
         return tests.stream();
     }
@@ -1549,16 +1369,13 @@ class ShaderAstParityTest {
     Stream<DynamicTest> initialize() {
         final List<DynamicTest> tests = new ArrayList<>();
         for (String name : List.of("f", "v3", "i", "iv", "u", "uv", "b", "bv", "m", "m22", "m23", "m4", "s")) {
-            final Consumer<Transformer> taumc = t -> t.initialize(t.findQualifiers(GLSLLexer.IN).get(name), name + "_out");
             final Consumer<ShaderAst> adapter = a -> a.initialize(a.findQualifiers(StorageQualifier.StorageType.IN).get(name), name + "_out");
             // A struct type initializes nothing, in TauMC as here.
-            tests.add(name.equals("s") ? parity(name, INITIALIZE_400, taumc, adapter) : changingParity(name, INITIALIZE_400, taumc, adapter));
+            tests.add(name.equals("s") ? parity(name, INITIALIZE_400, adapter) : changingParity(name, INITIALIZE_400, adapter));
         }
         tests.add(changingParity("a second declarator and a flat declaration", GROUPED_VERTEX_330,
-            t -> { t.initialize(t.findQualifiers(GLSLLexer.OUT).get("recolor"), "recolor"); t.initialize(t.findQualifiers(GLSLLexer.OUT).get("isMoon"), "isMoon"); },
             a -> { a.initialize(a.findQualifiers(StorageQualifier.StorageType.OUT).get("recolor"), "recolor"); a.initialize(a.findQualifiers(StorageQualifier.StorageType.OUT).get("isMoon"), "isMoon"); }));
         tests.add(changingParity("an array on the type initializes its element type, as in TauMC", GROUPED_VERTEX_330,
-            t -> t.initialize(t.findQualifiers(GLSLLexer.OUT).get("tangents"), "tangents"),
             a -> a.initialize(a.findQualifiers(StorageQualifier.StorageType.OUT).get("tangents"), "tangents")));
         return tests.stream();
     }
@@ -1567,10 +1384,7 @@ class ShaderAstParityTest {
     void deviationInitializeDoubles() {
         // TauMC writes 0.0d, which its own parser reads as 0.0 and an error (and a vector initializer as "v = ;").
         final String source = "#version 400 core\nin double d;\nin dvec2 dv;\nout vec4 o;\nvoid main() { o = vec4(1.0); }\n";
-        final String taumc = viaTauMC("taumc", source, t -> {
-            t.initialize(t.findQualifiers(GLSLLexer.IN).get("d"), "d_out");
-            t.initialize(t.findQualifiers(GLSLLexer.IN).get("dv"), "dv_out");
-        });
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "d_out = 0.0 d"), taumc);
         assertThrows(ShaderAst.SyntaxException.class, () -> ShaderAst.parse("#version 400 core\n" + taumc), taumc);
         final String adapter = viaShaderAst(source, a -> {
@@ -1589,22 +1403,13 @@ class ShaderAstParityTest {
         net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer.transformGrouped(trees, null);
     }
 
-    /** Runs TauMC's transformGrouped and {@link #transformGrouped} on the same stages; the printed stages, or the throw. */
+    /** TauMC's transformGrouped output (snapshot) and {@link #transformGrouped}'s on the same stages, printed. */
     static Map<PatchShaderType, String[]> groupedOnBoth(String name, Map<PatchShaderType, String> stages) {
-        final Map<PatchShaderType, Transformer> taumc = new java.util.EnumMap<>(PatchShaderType.class);
         final Map<PatchShaderType, ShaderAst> adapter = new java.util.EnumMap<>(PatchShaderType.class);
-        stages.forEach((stage, source) -> {
-            taumc.put(stage, new Transformer(ShaderParser.parseShader(source).full()));
-            adapter.put(stage, ShaderAst.parse(source));
-        });
-        CompatibilityTransformer.transformGrouped(taumc, null);
+        stages.forEach((stage, source) -> adapter.put(stage, ShaderAst.parse(source)));
         transformGrouped(adapter);
         final Map<PatchShaderType, String[]> printed = new java.util.EnumMap<>(PatchShaderType.class);
-        stages.keySet().forEach(stage -> {
-            final StringBuilder text = new StringBuilder();
-            taumc.get(stage).mutateTree(tree -> text.append(GlslTransformUtils.getFormattedShader(tree, "")));
-            printed.put(stage, new String[]{taumc(name + " / " + stage, text::toString), adapter.get(stage).printBody()});
-        });
+        stages.keySet().forEach(stage -> printed.put(stage, new String[]{expected(name + " / " + stage), adapter.get(stage).printBody()}));
         return printed;
     }
 
@@ -1645,29 +1450,13 @@ class ShaderAstParityTest {
                 assertTrue(diff.isEmpty(), () -> stage + ": TauMC and ShaderAst differ (- TauMC, + ShaderAst):\n" + diff);
             });
             // Every case but the one without ins and outs and the differently spelled matrices changes the vertex stage.
-            final String unchanged = printTauMC(stages.get(PatchShaderType.VERTEX), t -> { });
-            assertTrue(GlslTokens.of(unchanged).equals(GlslTokens.of(viaShaderAst(stages.get(PatchShaderType.VERTEX), a -> { }))),
-                "TauMC's and ShaderAst's unchanged vertex programs differ");
+            // The unchanged program is ShaderAst's, which Step 11 checked equals TauMC's for every case.
+            final String unchanged = viaShaderAst(stages.get(PatchShaderType.VERTEX), a -> { });
             final boolean changed = !GlslTokens.of(printed.get(PatchShaderType.VERTEX)[0]).equals(GlslTokens.of(unchanged));
             assertEquals(!name.startsWith("120 varyings") && !name.contains("spelled differently"), changed,
                 "TauMC changed the vertex stage");
         })));
         return tests.stream();
-    }
-
-    // TauMC's side of replaceFunctionDefinition: AdaptiveShadowBoundsTransformer's print and three-argument replace.
-    static void replaceFunctionTauMC(Transformer transformer, String name, int overload, java.util.function.UnaryOperator<String> patch) {
-        final List<GLSLParser.Function_definitionContext> definitions = new ArrayList<>();
-        transformer.mutateTree(tree -> org.antlr.v4.runtime.tree.ParseTreeWalker.DEFAULT.walk(new org.taumc.glsl.grammar.GLSLParserBaseListener() {
-            @Override
-            public void enterFunction_definition(GLSLParser.Function_definitionContext context) {
-                if (context.function_prototype().IDENTIFIER().getText().equals(name)) {
-                    definitions.add(context);
-                }
-            }
-        }, tree));
-        final String source = GlslTransformUtils.getFormattedShader(definitions.get(overload), "");
-        transformer.replaceExpression(source, patch.apply(source), GLSLParser::function_definition);
     }
 
     static void replaceFunction(ShaderAst ast, String name, int overload, java.util.function.UnaryOperator<String> patch) {
@@ -1684,19 +1473,14 @@ class ShaderAstParityTest {
         final String guard = "if (!(shadowPos.x > 1.5 / shadowMapResolution && shadowPos.z < 1.0)) return 1.0;";
         return Stream.of(
             changingParity("the sampler2D overload of texture2DShadow2x2", PCF_330,
-                t -> replaceFunctionTauMC(t, "texture2DShadow2x2", 0, afterFirstBrace(guard)),
                 a -> replaceFunction(a, "texture2DShadow2x2", 0, afterFirstBrace(guard))),
             changingParity("the sampler2DShadow overload of texture2DShadow2x2", PCF_330,
-                t -> replaceFunctionTauMC(t, "texture2DShadow2x2", 1, afterFirstBrace(guard)),
                 a -> replaceFunction(a, "texture2DShadow2x2", 1, afterFirstBrace(guard))),
             changingParity("SampleFilteredShadow with the instrumented guard, then the stats buffer", PCF_330,
-                t -> { replaceFunctionTauMC(t, "SampleFilteredShadow", 0, afterFirstBrace("atomicCounterIncrement(iris_calls); if (!(shadowPos.x > 0.0)) { return vec3(1.0); }")); t.injectVariable("layout(binding = 95) uniform atomic_uint iris_calls;"); },
                 a -> { replaceFunction(a, "SampleFilteredShadow", 0, afterFirstBrace("atomicCounterIncrement(iris_calls); if (!(shadowPos.x > 0.0)) { return vec3(1.0); }")); a.injectVariable("layout(binding = 95) uniform atomic_uint iris_calls;"); }),
             changingParity("the first function replaced before the first injection: TauMC's anchor moves on", FUNCTION_FIRST_330,
-                t -> { replaceFunctionTauMC(t, "helper", 0, afterFirstBrace("x += 1.0;")); t.injectVariable("uniform float iris_after;"); },
                 a -> { replaceFunction(a, "helper", 0, afterFirstBrace("x += 1.0;")); a.injectVariable("uniform float iris_after;"); }),
             changingParity("the anchor function replaced after an injection: the anchor stays with it", FUNCTION_FIRST_330,
-                t -> { t.injectVariable("uniform float iris_before;"); replaceFunctionTauMC(t, "helper", 0, afterFirstBrace("x += 1.0;")); t.injectVariable("uniform float iris_after;"); t.injectFunction("float iris_f() { return 1.0; }"); },
                 a -> { a.injectVariable("uniform float iris_before;"); replaceFunction(a, "helper", 0, afterFirstBrace("x += 1.0;")); a.injectVariable("uniform float iris_after;"); a.injectFunction("float iris_f() { return 1.0; }"); })
         );
     }
@@ -1712,32 +1496,6 @@ class ShaderAstParityTest {
             () -> ast.replaceFunctionDefinition(ast.functions().get(0).node(), "uniform float iris_rejected;"));
         assertFalse(ast.hasVariable("iris_rejected"));
         assertTrue(GlslTokens.of(ast.printBody()).equals(GlslTokens.of(viaShaderAst(PCF_330, a -> { }))), "nothing changed");
-    }
-
-    // TauMC's side of functions(): what AdaptiveShadowBoundsTransformer.FunctionCandidate.from read, as rows.
-    static List<String> taumcFunctions(Transformer transformer) {
-        final List<String> rows = new ArrayList<>();
-        transformer.mutateTree(tree -> org.antlr.v4.runtime.tree.ParseTreeWalker.DEFAULT.walk(new org.taumc.glsl.grammar.GLSLParserBaseListener() {
-            @Override
-            public void enterFunction_definition(GLSLParser.Function_definitionContext context) {
-                final GLSLParser.Function_prototypeContext prototype = context.function_prototype();
-                final List<String> parameters = new ArrayList<>();
-                if (prototype.function_parameters() != null) {
-                    for (GLSLParser.Parameter_declarationContext declaration : prototype.function_parameters().parameter_declaration()) {
-                        final GLSLParser.Parameter_declaratorContext declarator = declaration.parameter_declarator();
-                        final String type = declarator != null ? declarator.type_specifier().getText()
-                            : declaration.parameter_type_specifier().type_specifier().getText();
-                        parameters.add(type + " " + (declarator == null ? null : declarator.IDENTIFIER().getText()));
-                    }
-                }
-                final List<String> names = new ArrayList<>();
-                parameters.forEach(p -> names.add(p.substring(p.indexOf(' ') + 1)));
-                rows.add(prototype.IDENTIFIER().getText() + " | " + prototype.fully_specified_type().getText() + " | " + parameters
-                    + " | " + GlslTokens.of(GlslTransformUtils.getFormattedShader(context.compound_statement_no_new_scope(), "")).text()
-                    + " | " + boundsNeedles(context.compound_statement_no_new_scope().getText(), names));
-            }
-        }, tree));
-        return rows;
     }
 
     static List<String> adapterFunctions(ShaderAst ast) {
@@ -1765,30 +1523,10 @@ class ShaderAstParityTest {
             final String source = sources.get(i);
             final String name = "source " + i;
             tests.add(DynamicTest.dynamicTest(name, () -> assertEquals(
-                taumc(name, () -> String.join("\n", taumcFunctions(new Transformer(ShaderParser.parseShader(source).full())))),
+                expected(name),
                 String.join("\n", adapterFunctions(ShaderAst.parse(source))))));
         }
         return tests.stream();
-    }
-
-    // TauMC has no isDeclaredGlobal: a typeless_declaration of the name outside every function definition.
-    static boolean taumcDeclaredGlobal(Transformer transformer, String name) {
-        final boolean[] found = {false};
-        transformer.mutateTree(tree -> org.antlr.v4.runtime.tree.ParseTreeWalker.DEFAULT.walk(new org.taumc.glsl.grammar.GLSLParserBaseListener() {
-            @Override
-            public void enterTypeless_declaration(GLSLParser.Typeless_declarationContext context) {
-                if (context.IDENTIFIER() == null || !context.IDENTIFIER().getText().equals(name)) {
-                    return;
-                }
-                for (org.antlr.v4.runtime.ParserRuleContext parent = context.getParent(); parent != null; parent = parent.getParent()) {
-                    if (parent instanceof GLSLParser.Function_definitionContext) {
-                        return;
-                    }
-                }
-                found[0] = true;
-            }
-        }, tree));
-        return found[0];
     }
 
     @TestFactory
@@ -1797,8 +1535,7 @@ class ShaderAstParityTest {
         final List<String> sources = new ArrayList<>(FIXTURES);
         sources.addAll(STEP4_FIXTURES);
         for (int i = 0; i < sources.size(); i++) {
-            tests.add(queryParity("every identifier of source " + i, sources.get(i), identifierNames(sources.get(i)),
-                ShaderAstParityTest::taumcDeclaredGlobal, ShaderAst::isDeclaredGlobal));
+            tests.add(queryParity("every identifier of source " + i, sources.get(i), identifierNames(sources.get(i)), ShaderAst::isDeclaredGlobal));
         }
         return tests.stream();
     }
@@ -1814,16 +1551,12 @@ class ShaderAstParityTest {
             // The S3 verifier's repro: TauMC 'iris_q; iris_r; main', S3's ShaderAst 'iris_r; iris_q; main'.
             changingParity("a qualified declaration injected as a function does not anchor before the program's own qualifier",
                 qualifiersInMain,
-                t -> { t.injectFunction("uniform float iris_q;"); t.injectVariable("uniform float iris_r;"); },
                 a -> { a.injectFunction("uniform float iris_q;"); a.injectVariable("uniform float iris_r;"); }),
             changingParity("with no qualifier of its own, the injected one is the first", noQualifiers,
-                t -> { t.injectFunction("uniform float iris_q;"); t.injectVariable("uniform float iris_r;"); t.injectVariable("vec4 iris_s;"); },
                 a -> { a.injectFunction("uniform float iris_q;"); a.injectVariable("uniform float iris_r;"); a.injectVariable("vec4 iris_s;"); }),
             changingParity("a const prepended to main does not count before the program's qualifiers", FUNCTION_FIRST_330,
-                t -> { t.prependMain("const float iris_c = 1.0;"); t.injectVariable("uniform float iris_r;"); },
                 a -> { a.prependMain("const float iris_c = 1.0;"); a.injectVariable("uniform float iris_r;"); }),
             changingParity("a function injected first anchors everything", qualifiersInMain,
-                t -> { t.injectFunction("float iris_f() { return 1.0; }"); t.injectFunction("uniform float iris_q;"); t.injectVariable("uniform float iris_r;"); },
                 a -> { a.injectFunction("float iris_f() { return 1.0; }"); a.injectFunction("uniform float iris_q;"); a.injectVariable("uniform float iris_r;"); })
         );
     }
@@ -1833,7 +1566,7 @@ class ShaderAstParityTest {
         final String source = "#version 330 core\nuniform bool c;\nout vec4 o;\n"
             + "void main() { float y = 0.0; if (c) float x = 1.0; y = 2.0; for (int i = 0; i < 2; i++) float z = 3.0; o = vec4(y); }\n";
         // TauMC removes the declaration and leaves the if without a body, so 'y = 2.0;' becomes the body.
-        final String taumc = viaTauMC("taumc", source, t -> { t.removeVariable("x"); t.removeVariable("z"); });
+        final String taumc = expected("taumc");
         assertTrue(GlslTokens.contains(taumc, "if ( c ) y = 2.0 ;"), taumc);
         // ShaderAst leaves an empty statement (S3 left a null body, and printing threw NullPointerException).
         final String adapter = viaShaderAst(source, a -> { a.removeVariable("x"); a.removeVariable("z"); });
@@ -1848,21 +1581,11 @@ class ShaderAstParityTest {
         // TauMC's grammar makes the length of arr.length() a variable_identifier; glsl-transformer has a
         // LengthAccessExpression without an identifier (the same gap as deviationRenameLeavesTypeNamesAndLength).
         final String source = "#version 430\nuniform float arr[4];\nout vec4 o;\nvoid main() { o = vec4(float(arr.length())); }\n";
-        assertEquals("true", taumc("containsCall", () -> String.valueOf(new Transformer(ShaderParser.parseShader(source).full()).containsCall("length"))));
+        assertEquals("true", expected("containsCall"));
         assertFalse(ShaderAst.parse(source).containsCall("length"));
     }
 
     // ---------------------------------------------------------------------------------------------------------------
     // Corpus
 
-    @Test
-    void corpusDifferential() throws Exception {
-        final String dirValue = System.getProperty(TransformCorpusReplayTest.CORPUS_DIR_PROPERTY, "").trim();
-        assumeFalse(dirValue.isEmpty(), "no transform corpus configured (-PglslCorpusDir)");
-        final Path corpus = Paths.get(dirValue).toAbsolutePath().normalize();
-        final Path reports = Paths.get(System.getProperty("demonica.projectRoot", "."), "build", "reports", "shader-ast-parity");
-        final ShaderAstCorpusDifferential.Summary summary = ShaderAstCorpusDifferential.run(corpus, reports);
-        summary.lines().forEach(System.out::println);
-        assertEquals(0, summary.unexplained(), () -> "unexplained differences; see " + reports);
-    }
 }

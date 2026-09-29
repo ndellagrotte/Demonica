@@ -26,7 +26,7 @@ import java.util.Locale;
  * <p>The source the guard is inserted into is the definition as glsl-transformer prints it
  * ({@link ShaderAst#source}), where TauMC's was its token-spaced print; the guard goes after the first opening brace
  * in both, which is the body's (a prototype has none). The body searches read {@link ShaderAst.FunctionInfo#bodyText()},
- * TauMC's {@code getText()} form; {@code ShaderAstParityTest.boundsNeedles} checks that they answer as TauMC's did.</p>
+ * TauMC's {@code getText()} form; {@code ShaderAstSnapshotTest.boundsNeedles} checks that they answer as TauMC's did (Step 11 froze its answers).</p>
  */
 public final class AdaptiveShadowBoundsTransformer {
     /** The helper names the transformer recognizes; nothing else is rewritten. */

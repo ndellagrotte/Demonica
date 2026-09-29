@@ -16,7 +16,7 @@ class CompatibilityTransformerCaveSkyholeTest {
             }
             """;
 
-        String patched = CompatibilityTransformer.patchCaveSkyholeClouds(source);
+        String patched = CompatibilityPatches.patchCaveSkyholeClouds(source);
 
         assertEquals("""
             void main() {

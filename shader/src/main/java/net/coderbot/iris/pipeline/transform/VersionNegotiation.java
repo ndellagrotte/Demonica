@@ -10,15 +10,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The engine-neutral part of the transform pipeline's version handling, shared by {@link ShaderTransformer} (TauMC) and
- * {@link AstShaderTransformer} (glsl-transformer): the {@code #version} regex, version hoisting (a shader that uses a
+ * The transform pipeline's version handling, used by {@link ShaderTransformer}: the {@code #version} regex, version hoisting (a shader that uses a
  * feature of a later GLSL version is raised to it, if the hardware has the feature), the stage minimum, and the
  * negotiation against {@link RenderSystem#getMaxGlslVersion()}, which never lowers a version.
  *
- * <p>Extracted from {@code ShaderTransformer} unchanged in Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md.
- * {@code Iris} and the corpus recorder call it directly since Step 7; {@link ShaderTransformer#init()},
- * {@link ShaderTransformer#versionHoistingState()} and {@code ShaderTransformer.resetVersionHoistingForTesting()} still
- * delegate here for the tests that call them, until Step 11 deletes the TauMC engine.</p>
+ * <p>Extracted unchanged from the TauMC engine's orchestrator in Step 5 of
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md, when two engines shared it. {@code Iris}, the corpus recorder and
+ * the tests call it directly.</p>
  */
 public final class VersionNegotiation {
     /** The {@code #version} directive: group 1 the number, group 2 the profile, if any. */

@@ -33,8 +33,8 @@
 # transformGrouped: the vertex shader has no ftransform() call, so removeUnusedFunctions removed the injected
 # iris_ftransform, which was TauMC's variable anchor. ShaderAst fixes a removed anchor again (S3/S4 deviation) and the
 # new engine declares and initializes the missing out (out vec3 viewDir; viewDir = vec3(0.0f);), valid GLSL, checked
-# by AstShaderTransformerTest.theGroupedCaseTauMCCouldNotTransform.
-transform-grouped-330-undeclared | error-succeeded | old engine threw (removed injection anchor); the new engine transforms it, checked by AstShaderTransformerTest
+# by ShaderTransformerTest.theGroupedCaseTauMCCouldNotTransform.
+transform-grouped-330-undeclared | error-succeeded | old engine threw (removed injection anchor); the new engine transforms it, checked by ShaderTransformerTest
 
 # Step 6 (2026-09-28): ATTRIBUTES and CELERITAS_TERRAIN on the glsl-transformer engine.
 #
@@ -47,8 +47,8 @@ transform-grouped-330-undeclared | error-succeeded | old engine threw (removed i
 # the verbs as documented (the references become iris_MidTex; a removed anchor is fixed again) and transforms the case.
 # Until Step 7b its output declared mc_midTexCoord twice (in vec2 injected, in vec4 renamed); since Step 7b the new
 # engine's patchMultiTexCoord3 injects no declaration when the shader declared gl_MultiTexCoord3 itself, so the output
-# declares it once (in vec2) and compiles (glslangValidator). Checked by AstShaderTransformerTest.theMultiTexCoord3Case.
-celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it into a program that declares mc_midTexCoord once (Step 7b), checked by AstShaderTransformerTest
+# declares it once (in vec2) and compiles (glslangValidator). Checked by ShaderTransformerTest.theMultiTexCoord3Case.
+celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it into a program that declares mc_midTexCoord once (Step 7b), checked by ShaderTransformerTest
 
 # Step 7 (2026-09-28): DH_TERRAIN, DH_GENERIC and adaptive shadow bounds on the glsl-transformer engine. The 53
 # "S7 pending" entries of Step 6 (51 BSL fragment stages, and the mini-corpus's shadow-bounds and
@@ -61,8 +61,8 @@ celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed i
 # cache still knows them as gl_MultiTexCoord2; S3 remark 3), so its output keeps gl_MultiTexCoord1, which a core-profile
 # program does not declare; the new engine replaces them as the transformer means. The vertex stage differs in that one
 # statement. No recorded pack input uses gl_MultiTexCoord2 in a DH program. Checked by
-# AstShaderTransformerTest.dhMultiTexCoord2Alias.
-dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by AstShaderTransformerTest
+# ShaderTransformerTest.dhMultiTexCoord2Alias.
+dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by ShaderTransformerTest
 
 # Step 7b (2026-09-29): pre-flip hardening (report S7b-hardening.md). Nine mini-corpus cases, TauMC outputs recorded
 # with -PglslReplayEngine=taumc -PglslReplayRecord=true. Three replay identically on the new engine:
@@ -77,23 +77,23 @@ dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the r
 # "'mc_midTexCoord' : redefinition"), and left the built-in, which a core profile does not have, in the program
 # (attributes-multitexcoord3-builtin, celeritas-terrain-multitexcoord3-builtin: "'gl_MultiTexCoord3' : undeclared
 # identifier"). The new engine renames every gl_MultiTexCoord3 to mc_midTexCoord and declares it once; its three vertex
-# outputs compile (glslangValidator). Checked by AstShaderTransformerTest.multiTexCoord3Shapes.
-attributes-multitexcoord3-declared | vertex | Step 7b: TauMC declared mc_midTexCoord twice (renamed gl_MultiTexCoord3 and injected); the new engine keeps the renamed declaration only, checked by AstShaderTransformerTest
-attributes-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads mc_midTexCoord and declares it (Iris 26.1), checked by AstShaderTransformerTest
-celeritas-terrain-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads it through iris_MidTex from Celeritas's mc_midTexCoord (Iris 26.1), checked by AstShaderTransformerTest
+# outputs compile (glslangValidator). Checked by ShaderTransformerTest.multiTexCoord3Shapes.
+attributes-multitexcoord3-declared | vertex | Step 7b: TauMC declared mc_midTexCoord twice (renamed gl_MultiTexCoord3 and injected); the new engine keeps the renamed declaration only, checked by ShaderTransformerTest
+attributes-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads mc_midTexCoord and declares it (Iris 26.1), checked by ShaderTransformerTest
+celeritas-terrain-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads it through iris_MidTex from Celeritas's mc_midTexCoord (Iris 26.1), checked by ShaderTransformerTest
 #
 # patch as an identifier: TauMC's lexer reads patch as a keyword at every version, so its output for a program that
 # names a variable patch is broken GLSL ('<missing ';'>' text in it; glslangValidator "syntax error, unexpected
 # UNIFORM" and "unexpected PATCH"). glsl-transformer's lexer is version-aware: at 330 patch is an identifier and the new
 # engine's output compiles; at 420 (hoisted by imageLoad) patch is a keyword and the new engine throws a syntax error,
-# where TauMC's output would not have compiled either. Checked by AstShaderTransformerTest.patchAsAnIdentifier.
-composite-patch-identifier | fragment | Step 7b: TauMC's output is broken GLSL (patch lexed as a keyword); the new engine's compiles, checked by AstShaderTransformerTest
-composite-patch-hoisted | threw | Step 7b: at 420 patch is a keyword; the new engine throws a syntax error where TauMC emitted broken GLSL that no compiler accepts, checked by AstShaderTransformerTest
+# where TauMC's output would not have compiled either. Checked by ShaderTransformerTest.patchAsAnIdentifier.
+composite-patch-identifier | fragment | Step 7b: TauMC's output is broken GLSL (patch lexed as a keyword); the new engine's compiles, checked by ShaderTransformerTest
+composite-patch-hoisted | threw | Step 7b: at 420 patch is a keyword; the new engine throws a syntax error where TauMC emitted broken GLSL that no compiler accepts, checked by ShaderTransformerTest
 #
 # texture2DRect, textureCube, texture1D and texture2DArray under #version 330 core: GlslTransformUtils.TEXTURE_RENAMES
 # lacks them, so neither engine renames them. TauMC's grammar lexes them as keywords and its output is broken GLSL; the
 # new engine keeps the non-core calls, which a core profile does not have (glslangValidator: "'texture2DRect' :
 # undeclared identifier" for TauMC's output; it aborts on an assertion for the new engine's). A behaviour change for both
-# engines, left to the maintainer (report S7b, Open questions); AstShaderTransformerTest.legacyTextureCallsKeepTheirNames
+# engines, left to the maintainer (report S7b, Open questions); ShaderTransformerTest.legacyTextureCallsKeepTheirNames
 # pins the new engine's output.
-composite-legacy-textures | fragment | Step 7b: TauMC's output is broken GLSL (the legacy texture functions lexed as keywords); the new engine keeps the non-core calls (not renamed by either engine; open question), pinned by AstShaderTransformerTest
+composite-legacy-textures | fragment | Step 7b: TauMC's output is broken GLSL (the legacy texture functions lexed as keywords); the new engine keeps the non-core calls (not renamed by either engine; open question), pinned by ShaderTransformerTest

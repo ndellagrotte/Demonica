@@ -27,7 +27,6 @@ import java.util.EnumMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,8 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The glsl-transformer engine's orchestrator (Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md) against the
- * TauMC engine, on the shapes the corpus replay does not cover: the cases TauMC could not transform, the header's
+ * The orchestrator, {@link ShaderTransformer} (Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md, as
+ * {@code AstShaderTransformerTest} until Step 11), against the TauMC engine's outputs, frozen in
+ * {@code src/test/resources/transform-engine-taumc/} when Step 11 removed that engine ({@link TauMcSnapshots}; each
+ * output is keyed by the test method, the patch kind and a hash of the inputs, so a changed input needs a new
+ * recording, which the removed library can no longer make), on the shapes the corpus replay does not cover: the cases TauMC could not transform, the header's
  * extension lines and the ones after the leading directives, the matrix spellings {@code transformGrouped} compares, and the named behaviour differences. Outputs
  * are compared as {@link GlslTokens}. Step 6 adds ATTRIBUTES and CELERITAS_TERRAIN: every declared type of
  * {@code mc_Entity} and {@code mc_midTexCoord} (the corpora have only {@code vec3}/{@code vec4} and
@@ -45,27 +47,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DH_GENERIC. Step 7b adds the {@code #extension} lines glsl-transformer's grammar rejects, {@code patch} as an
  * identifier, the {@code gl_MultiTexCoord3} shapes and the legacy texture calls neither engine renames.
  */
-class AstShaderTransformerTest {
+class ShaderTransformerTest {
 
     @BeforeAll
     static void fullCapability() {
         // As the mini-corpus was recorded: GLSL 460 with SSBO and image load/store, full version hoisting.
         RenderSystem.initializeGlslCapabilityForTesting(460, true, true);
-        ShaderTransformer.resetVersionHoistingForTesting();
-        ShaderTransformer.init();
+        VersionNegotiation.resetForTesting();
+        VersionNegotiation.init();
     }
 
     @AfterAll
     static void restoreGlobalState() {
-        ShaderTransformer.resetVersionHoistingForTesting();
+        VersionNegotiation.resetForTesting();
         RenderSystem.initializeGlslCapabilityForTesting(460, false, false);
-        if (TauMcSnapshots.recording()) {
-            SNAPSHOTS.writeRecorded();
-        }
     }
 
-    // Step 11: the TauMC engine's outputs, recorded into src/test/resources/transform-engine-taumc/ with
-    // -Ddemonica.taumc.snapshots.record=true, otherwise compared with those files (the oracle once TauMC is gone).
+    // The TauMC engine's outputs, frozen in src/test/resources/transform-engine-taumc/ (Step 11; TauMcSnapshots).
     private static final TauMcSnapshots SNAPSHOTS = new TauMcSnapshots("transform-engine-taumc");
     private static String method;
 
@@ -74,33 +72,21 @@ class AstShaderTransformerTest {
         method = info.getTestMethod().orElseThrow().getName();
     }
 
-    /** TauMC's answer {@code key} of the running test method: recorded, or compared with its snapshot; a throw is rethrown. */
-    private static String snapshot(String key, Supplier<String> answer) {
-        String value;
-        RuntimeException thrown = null;
-        try {
-            value = answer.get();
-        } catch (RuntimeException e) {
-            thrown = e;
-            value = TauMcSnapshots.thrown(e);
-        }
-        if (TauMcSnapshots.recording()) {
-            SNAPSHOTS.record(method, key, value);
-        } else {
-            assertEquals(SNAPSHOTS.get(method, key), value, "TauMC's answer against its snapshot: " + method + " / " + key);
-        }
-        if (thrown != null) {
-            throw thrown;
-        }
-        return value;
+    /** TauMC's answer {@code key} of the running test method. */
+    private static String snapshot(String key) {
+        return SNAPSHOTS.get(method, key);
     }
 
     /**
      * The TauMC engine's output for {@code label} (the patch kind and parameters) and these inputs, keyed by the label and
-     * a hash of the inputs.
+     * a hash of the inputs; where it threw, the same exception type with the same message is thrown.
      */
-    private static Map<PatchShaderType, String> taumcEngine(String label, List<String> inputs, Supplier<Map<PatchShaderType, String>> engine) {
-        return fromSnapshot(snapshot(label + " " + inputHash(label, inputs), () -> toSnapshot(engine.get())));
+    private static Map<PatchShaderType, String> taumcEngine(String label, List<String> inputs) {
+        final String value = snapshot(label + " " + inputHash(label, inputs));
+        if (TauMcSnapshots.threw(value)) {
+            throw TauMcSnapshots.exception(value);
+        }
+        return fromSnapshot(value);
     }
 
     static String inputHash(String label, List<String> inputs) {
@@ -150,12 +136,11 @@ class AstShaderTransformerTest {
     }
 
     private static Map<PatchShaderType, String> taumc(String vertex, String fragment) {
-        return taumcEngine("COMPOSITE", Arrays.asList(vertex, fragment),
-            () -> ShaderTransformer.transform(vertex, null, null, null, fragment, composite()));
+        return taumcEngine("COMPOSITE", Arrays.asList(vertex, fragment));
     }
 
     private static Map<PatchShaderType, String> douira(String vertex, String fragment) {
-        return AstShaderTransformer.transform(vertex, null, null, null, fragment, composite());
+        return ShaderTransformer.transform(vertex, null, null, null, fragment, composite());
     }
 
     private static void assertSameProgram(Map<PatchShaderType, String> expected, Map<PatchShaderType, String> actual) {
@@ -167,7 +152,7 @@ class AstShaderTransformerTest {
     }
 
     private static String resource(String path) throws IOException {
-        try (InputStream in = AstShaderTransformerTest.class.getResourceAsStream(path)) {
+        try (InputStream in = ShaderTransformerTest.class.getResourceAsStream(path)) {
             assertTrue(in != null, "missing test resource " + path);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
@@ -201,9 +186,8 @@ class AstShaderTransformerTest {
 
     private static Map<PatchShaderType, String> terrain(boolean douira, String vertex, String geometry, String fragment) {
         final CeleritasTerrainParameters parameters = new CeleritasTerrainParameters(Patch.CELERITAS_TERRAIN);
-        return douira ? AstShaderTransformer.transform(vertex, geometry, null, null, fragment, parameters)
-            : taumcEngine("CELERITAS_TERRAIN", Arrays.asList(vertex, geometry, fragment),
-                () -> ShaderTransformer.transform(vertex, geometry, null, null, fragment, parameters));
+        return douira ? ShaderTransformer.transform(vertex, geometry, null, null, fragment, parameters)
+            : taumcEngine("CELERITAS_TERRAIN", Arrays.asList(vertex, geometry, fragment));
     }
 
     /** How many lines of {@code glsl}'s {@link GlslTokens#text()} are the statement {@code line}. */
@@ -236,23 +220,11 @@ class AstShaderTransformerTest {
             () -> terrain(false, vertex, null, fragment));
         assertEquals("Index: -1, Size: 30", thrown.getMessage());
 
-        // TauMC's verbs, in the engine's order, up to the throw: the renamed references are missed.
-        // The engine's pre-passes for a vertex shader at the effective version 330.
-        final String prepared = com.gtnewhorizons.angelica.glsm.CompatShaderTransformer.fixupQualifiers(
-            com.gtnewhorizons.angelica.glsm.GlslTransformUtils.renameReservedWords(
-                com.gtnewhorizons.angelica.glsm.GlslTransformUtils.replaceTexture(vertex), 330), false);
-        final String taumcTree = snapshot("TauMC's verbs up to the throw", () -> {
-            final org.taumc.glsl.Transformer t = new org.taumc.glsl.Transformer(org.taumc.glsl.ShaderParser.parseShader(prepared).full());
-            final CeleritasTerrainParameters parameters = new CeleritasTerrainParameters(Patch.CELERITAS_TERRAIN);
-            parameters.type = ShaderType.VERTEX;
-            CeleritasTransformer.transform(t, parameters, 330);
-            ShaderTransformer.patchMultiTexCoord3(t, parameters);
-            t.removeVariable("mc_midTexCoord");
-            t.replaceExpression("mc_midTexCoord", "iris_MidTex");
-            final StringBuilder tree = new StringBuilder();
-            t.mutateTree(root -> tree.append(com.gtnewhorizons.angelica.glsm.GlslTransformUtils.getFormattedShader(root, "")));
-            return tree.toString();
-        });
+        // TauMC's verbs, in the engine's order, up to the throw: the renamed references are missed. Recorded from the
+        // engine's pre-passes for a vertex shader at the effective version 330 (fixupQualifiers, renameReservedWords,
+        // replaceTexture), then CeleritasTransformer, patchMultiTexCoord3, removeVariable("mc_midTexCoord") and
+        // replaceExpression("mc_midTexCoord", "iris_MidTex") on TauMC's Transformer, printed.
+        final String taumcTree = snapshot("TauMC's verbs up to the throw");
         assertTrue(GlslTokens.contains(taumcTree, "midcoord = ( iris_TextureMatrix * mc_midTexCoord ) . xy ;"), taumcTree);
         assertTrue(GlslTokens.contains(taumcTree, "position . xz += ( mc_midTexCoord . xy - texcoord ) * 0.05 ;"), taumcTree);
 
@@ -328,11 +300,9 @@ class AstShaderTransformerTest {
         assertTrue(GlslTokens.contains(now.get(PatchShaderType.VERTEX),
             "gl_Position = iris_ProjectionMatrix * gbufferModelView * vec4 ( worldpos , 1.0 ) ;"), now.get(PatchShaderType.VERTEX));
 
-        final AttributeParameters oldAttributes = new AttributeParameters(Patch.ATTRIBUTES, true, new InputAvailability(true, true, true));
         final AttributeParameters newAttributes = new AttributeParameters(Patch.ATTRIBUTES, true, new InputAvailability(true, true, true));
-        assertSameProgram(taumcEngine("ATTRIBUTES geometry=true inputs=111", Arrays.asList(vertex, geometry, fragment),
-                () -> ShaderTransformer.transform(vertex, geometry, null, null, fragment, oldAttributes)),
-            AstShaderTransformer.transform(vertex, geometry, null, null, fragment, newAttributes));
+        assertSameProgram(taumcEngine("ATTRIBUTES geometry=true inputs=111", Arrays.asList(vertex, geometry, fragment)),
+            ShaderTransformer.transform(vertex, geometry, null, null, fragment, newAttributes));
     }
 
     /** ATTRIBUTES under every input-availability combination (the corpora have five of the eight). */
@@ -347,9 +317,8 @@ class AstShaderTransformerTest {
         for (int flags = 0; flags < 8; flags++) {
             final InputAvailability inputs = new InputAvailability((flags & 1) != 0, (flags & 2) != 0, (flags & 4) != 0);
             final String label = "ATTRIBUTES geometry=false inputs=" + (flags & 1) + ((flags & 2) >> 1) + ((flags & 4) >> 2);
-            assertSameProgram(taumcEngine(label, Arrays.asList(vertex, fragment),
-                    () -> ShaderTransformer.transform(vertex, null, null, null, fragment, new AttributeParameters(Patch.ATTRIBUTES, false, inputs))),
-                AstShaderTransformer.transform(vertex, null, null, null, fragment, new AttributeParameters(Patch.ATTRIBUTES, false, inputs)));
+            assertSameProgram(taumcEngine(label, Arrays.asList(vertex, fragment)),
+                ShaderTransformer.transform(vertex, null, null, null, fragment, new AttributeParameters(Patch.ATTRIBUTES, false, inputs)));
         }
     }
 
@@ -443,9 +412,8 @@ class AstShaderTransformerTest {
 
     private static Map<PatchShaderType, String> attributes(boolean douira, String vertex, String fragment) {
         final AttributeParameters parameters = new AttributeParameters(Patch.ATTRIBUTES, false, new InputAvailability(true, true, true));
-        return douira ? AstShaderTransformer.transform(vertex, null, null, null, fragment, parameters)
-            : taumcEngine("ATTRIBUTES geometry=false inputs=111", Arrays.asList(vertex, fragment),
-                () -> ShaderTransformer.transform(vertex, null, null, null, fragment, parameters));
+        return douira ? ShaderTransformer.transform(vertex, null, null, null, fragment, parameters)
+            : taumcEngine("ATTRIBUTES geometry=false inputs=111", Arrays.asList(vertex, fragment));
     }
 
     /**
@@ -606,7 +574,7 @@ class AstShaderTransformerTest {
     @Test
     void everyKindIsPorted() {
         final DHParameters dh = new DHParameters(Patch.DH_TERRAIN, null);
-        final Map<PatchShaderType, String> output = AstShaderTransformer.transform(
+        final Map<PatchShaderType, String> output = ShaderTransformer.transform(
             "#version 330 core\nvoid main() { gl_Position = gl_Vertex; }\n", null, null, null, null, dh);
         assertTrue(GlslTokens.contains(output.get(PatchShaderType.VERTEX), "_vert_init ( ) ;"), output.get(PatchShaderType.VERTEX));
         assertNull(dh.type);
@@ -643,10 +611,9 @@ class AstShaderTransformerTest {
             + " gl_FragData[0] = texture2D(texture, texcoord) * glcolor * p.w * (gl_TextureMatrix[0] * vec4(material)).x; }\n";
         for (Patch patch : List.of(Patch.DH_TERRAIN, Patch.DH_GENERIC)) {
             for (String withGeometry : new String[] {null, geometry}) {
-                final Map<PatchShaderType, String> old = taumcEngine(patch.name(), Arrays.asList(vertex, withGeometry, fragment),
-                    () -> ShaderTransformer.transform(vertex, withGeometry, null, null, fragment, new DHParameters(patch, null)));
+                final Map<PatchShaderType, String> old = taumcEngine(patch.name(), Arrays.asList(vertex, withGeometry, fragment));
                 final DHParameters parameters = new DHParameters(patch, null);
-                final Map<PatchShaderType, String> now = AstShaderTransformer.transform(vertex, withGeometry, null, null, fragment,
+                final Map<PatchShaderType, String> now = ShaderTransformer.transform(vertex, withGeometry, null, null, fragment,
                     parameters);
                 assertSameProgram(old, now);
                 assertNull(parameters.type);
@@ -679,9 +646,8 @@ class AstShaderTransformerTest {
             + "void main() { lmcoord = gl_MultiTexCoord2.xy + gl_MultiTexCoord1.xy; gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; }\n";
         final String fragment = "#version 120\nvarying vec2 lmcoord;\nvoid main() { gl_FragData[0] = vec4(lmcoord, 0.0, 1.0); }\n";
         for (Patch patch : List.of(Patch.DH_TERRAIN, Patch.DH_GENERIC)) {
-            final Map<PatchShaderType, String> old = taumcEngine(patch.name(), Arrays.asList(vertex, fragment),
-                () -> ShaderTransformer.transform(vertex, null, null, null, fragment, new DHParameters(patch, null)));
-            final Map<PatchShaderType, String> now = AstShaderTransformer.transform(vertex, null, null, null, fragment,
+            final Map<PatchShaderType, String> old = taumcEngine(patch.name(), Arrays.asList(vertex, fragment));
+            final Map<PatchShaderType, String> now = ShaderTransformer.transform(vertex, null, null, null, fragment,
                 new DHParameters(patch, null));
             final String light = "vec4 ( _vert_tex_light_coord , 0.0 , 1.0 ) . xy";
             assertTrue(GlslTokens.contains(old.get(PatchShaderType.VERTEX), "lmcoord = gl_MultiTexCoord1 . xy + " + light + " ;"),
@@ -703,16 +669,15 @@ class AstShaderTransformerTest {
     void compute() {
         final String compute = "#version 430\nlayout(local_size_x = 8) in;\nuniform sampler2D colortex0;\nlayout(rgba8) uniform image2D colorimg0;\n"
             + "void main() { imageStore(colorimg0, ivec2(gl_GlobalInvocationID.xy), texture2D(colortex0, vec2(0.5))); }\n";
-        final Map<PatchShaderType, String> old = taumcEngine("COMPUTE", List.of(compute), () -> ShaderTransformer.transformCompute(compute,
-            new ComputeParameters(Patch.COMPUTE, TextureStage.COMPOSITE_AND_FINAL, null)));
+        final Map<PatchShaderType, String> old = taumcEngine("COMPUTE", List.of(compute));
         final ComputeParameters parameters = new ComputeParameters(Patch.COMPUTE, TextureStage.COMPOSITE_AND_FINAL, null);
-        final Map<PatchShaderType, String> now = AstShaderTransformer.transformCompute(compute, parameters);
+        final Map<PatchShaderType, String> now = ShaderTransformer.transformCompute(compute, parameters);
         assertSameProgram(old, now);
         assertTrue(now.get(PatchShaderType.COMPUTE).startsWith("#version 430 core\n"), now.get(PatchShaderType.COMPUTE));
         assertNull(parameters.type);
 
         final ComputeParameters failing = new ComputeParameters(Patch.COMPUTE, TextureStage.COMPOSITE_AND_FINAL, null);
-        assertThrows(IllegalArgumentException.class, () -> AstShaderTransformer.transformCompute("void main() {}", failing));
+        assertThrows(IllegalArgumentException.class, () -> ShaderTransformer.transformCompute("void main() {}", failing));
         assertNull(failing.type);
     }
 }

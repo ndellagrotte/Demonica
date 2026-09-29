@@ -1,6 +1,6 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
-import net.coderbot.iris.pipeline.transform.AstShaderTransformer;
+import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,6 +59,6 @@ public final class CoreTransformHelper {
         transformer.renameFunctionCall("ftransform", "iris_ftransform");
         transformer.injectFunction("vec4 iris_ftransform() { return (iris_ProjectionMatrix * iris_ModelViewMatrix) * iris_Vertex; }");
 
-        AstShaderTransformer.applyIntelHd4000Workaround(transformer);
+        ShaderTransformer.applyIntelHd4000Workaround(transformer);
     }
 }

@@ -52,9 +52,8 @@ Packaged unmodified as nested jars in the mod jar, and listed in its manifest's
 
 | Artifact | License |
 |---|---|
-| `org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH` | not stated in its POM or jar; Angelica's credits list it as LGPL-3.0 (https://github.com/TauMC/glsl-transformation-lib) |
 | `io.github.douira:glsl-transformer:3.0.0-pre3` | AGPL-3.0 (https://github.com/IrisShaders/glsl-transformer). The jar carries no license file; the AGPL-3.0 text ships as `LICENSE`. It contains a subset of Apache Commons Collections 4 (`org.apache.commons.collections4`, Apache-2.0), and its parser is generated from a grammar that extends GraphicsFuzz's (Apache-2.0); see [Notices](#glsl-transformer-agpl-30) |
-| `org.antlr:antlr4-runtime:4.13.2` | BSD-3-Clause |
+| `org.antlr:antlr4-runtime:4.13.1` | BSD-3-Clause |
 | `org.anarres:jcpp:1.4.14` | Apache-2.0 |
 
 ## Compile-only dependencies
