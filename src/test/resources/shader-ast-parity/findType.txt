@@ -1,0 +1,51 @@
+==== 120 fragment samplers
+texture = sampler2D
+lightmap = sampler2D
+shadow = sampler2DShadow
+color = vec4
+
+==== 120 vertex names
+mc_Entity = vec4
+mc_midTexCoord = vec2
+texcoord = vec2
+color = vec4
+tint = vec4
+frameTimeCounter = float
+chunkOffset = vec3
+PI = float
+lights = none
+offset = float
+wave = none
+x = none
+position = none
+gl_Vertex = none
+
+==== 330 fragment names
+texcoord = vec2
+color = vec4
+gcolor = sampler2D
+noisetex = usampler2D
+volume = isampler3D
+gradient = sampler1D
+rect = sampler2DRect
+frameCounter = uint
+atlasSize = ivec2
+entityId = int
+hand = bool
+rotation = mat2
+fogColor = vec3
+outColor0 = vec4
+a = float
+b = float
+albedo = vec4
+luma = float
+weights = float
+i = int
+c = none
+nothing = none
+
+==== a struct-typed declaration is skipped
+t = vec2
+S = none
+v = none
+

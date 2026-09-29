@@ -1,0 +1,11 @@
+==== taumc
+
+uniform float v ; 
+out float y ; 
+float f ( float x ) { 
+	 return x ; 
+} 
+void main ( ) { 
+	 y = f ( f ( f ( f ( v ) ) ) ) ; 
+} 
+

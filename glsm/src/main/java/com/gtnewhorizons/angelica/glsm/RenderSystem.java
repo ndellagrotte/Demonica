@@ -49,6 +49,7 @@ public class RenderSystem {
     private static int maxSSBOBindings;
     private static int maxGlslVersion;
     private static boolean supportsGpuShader4;
+    private static volatile String contextProfile = "unknown";
 
     private static volatile boolean isLTW;
     private static volatile boolean ltwDetected;
@@ -140,6 +141,8 @@ public class RenderSystem {
 
         if (GLStateManager.capabilities.OpenGL32) {
             final int profileMask = RENDER_BACKEND.getInteger(GL32.GL_CONTEXT_PROFILE_MASK);
+            contextProfile = (profileMask & GL32.GL_CONTEXT_CORE_PROFILE_BIT) != 0 ? "core"
+                : (profileMask & GL32.GL_CONTEXT_COMPATIBILITY_PROFILE_BIT) != 0 ? "compatibility" : "unknown";
             if ((profileMask & GL32.GL_CONTEXT_CORE_PROFILE_BIT) != 0) {
                 GLStateManager.LOGGER.info("GL 3.3 core profile detected, enabling FFP shader emulation.");
                 ShaderManager.getInstance().enable();
@@ -543,6 +546,24 @@ public class RenderSystem {
             throw new IllegalArgumentException("maximumGlslVersion must not be negative");
         }
         maxGlslVersion = maximumGlslVersion;
+    }
+
+    /**
+     * Supplies the whole GLSL capability the shader transformer reads (the maximum version, SSBO and image load/store
+     * support), for replaying recorded transforms headlessly. Like the one-argument form, it does not touch OpenGL.
+     */
+    public static void initializeGlslCapabilityForTesting(int maximumGlslVersion, boolean ssbo, boolean imageLoadStore) {
+        initializeGlslCapabilityForTesting(maximumGlslVersion);
+        supportsSSBO = ssbo;
+        supportsImageLoadStore = imageLoadStore;
+    }
+
+    /**
+     * The profile of the context {@link #initRenderer()} ran on, from {@code GL_CONTEXT_PROFILE_MASK}: {@code core},
+     * {@code compatibility}, or {@code unknown} (before initialization, or below OpenGL 3.2).
+     */
+    public static String getContextProfile() {
+        return contextProfile;
     }
 
     public static boolean supportsGpuShader4() {

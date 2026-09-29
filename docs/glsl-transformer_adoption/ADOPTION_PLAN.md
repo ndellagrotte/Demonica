@@ -2,6 +2,10 @@
 
 Date: 2026-09-25. Tree: `dev` at `8e19cb75` (0.3.0-SNAPSHOT). Status: **Draft, not started.**
 
+Completed on 2026-09-29 (exit point B), commit `06895328` on `feat/glsl-transformer`: TauMC's library, the old engine and the engine switch are gone, and the jar contains glsl-transformer, ANTLR's runtime 4.13.1 and jcpp only. Step 12 (optional payoff) remains. Progress and the step reports: [`STATUS.md`](STATUS.md); Step 11's report: [`reports/S11-remove-taumc.md`](reports/S11-remove-taumc.md).
+
+Step 12 completed on 2026-09-29, commit `32551715` on `feat/glsl-transformer`: Iris 26.1's empty-declaration removal and `transformGrouped` ported without translation, [`PORTING_GUIDE.md`](PORTING_GUIDE.md) written, the reserved-word passes kept; report: [`reports/S12-payoff.md`](reports/S12-payoff.md).
+
 Revalidated 2026-09-28 against `dev` at `94665262` (0.5.0-SNAPSHOT): the line numbers in the briefs and in Appendix A were re-measured there. Where the earlier text is kept for the record, the correction is marked *(2026-09-28)*.
 
 The file inventory (Appendix A) and the byte counts in the briefs were measured at `11b6c618` earlier the same day; none of the transform, GLSM or test files it lists changed between the two commits (the commits in between removed Reese's Sodium Options and Actinium's performance features). *(2026-09-28)* The transform and test files are still unchanged at `94665262`; in GLSM, `df08c785` (`feat/drop-dead-code`, merged as `a80d94d5`) deleted the three SPIR-V files and trimmed `CompatShaderTransformer` to 1,211 lines. The build-file and notice line numbers were re-checked at `94665262`.
@@ -87,7 +91,7 @@ GLSM's path is separate: `GLStateManager.glShaderSource` (line 5429) runs `GlslT
 
 `TransformPatcher` gets an engine selector, read once from the system property `demonica.glsl.engine` (`taumc` or `douira`; default `taumc` until Step 8 flips it, removed in Step 11), logged at first use. Its two private entry points route to `ShaderTransformer` (old) or `AstShaderTransformer` (new). `clearCache()` clears both engines' session state. `CompatShaderTransformer` reads the same property for its own parse/transform/print block from Step 10 on. Nothing else in the code base sees the switch.
 
-Until a patch kind is ported, the new engine throws `UnsupportedOperationException("glsl-transformer engine: <kind> not ported yet")`. The replay test (3.5) filters by kind, so partial engines are testable. A dev run on the new engine before Step 6 therefore fails to load any pack (gbuffers programs are ATTRIBUTES); end-to-end runs start in Step 6.
+Until a patch kind is ported, the new engine throws `UnsupportedOperationException("glsl-transformer engine: <kind> not ported yet")`. *(2026-09-29) Every kind is ported since Step 7; the exception and the replayer's catch for it are gone (Step 7b).* The replay test (3.5) filters by kind, so partial engines are testable. A dev run on the new engine before Step 6 therefore fails to load any pack (gbuffers programs are ATTRIBUTES); end-to-end runs start in Step 6.
 
 ### 3.3 Package layout during and after
 

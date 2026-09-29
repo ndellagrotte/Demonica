@@ -52,7 +52,7 @@ IN_SCOPE = (
 LIBRARIES = (
     "java.", "javax.", "sun.misc.", "org.junit.", "org.lwjgl.", "org.joml.",
     "it.unimi.dsi.fastutil.", "com.google.common.", "com.google.gson.",
-    "org.objectweb.asm.", "org.antlr.v4.", "org.taumc.glsl.", "org.anarres.cpp.",
+    "org.objectweb.asm.", "org.antlr.v4.", "io.github.douira.glsl_transformer.", "org.anarres.cpp.",
     "org.apache.logging.log4j.", "org.jetbrains.annotations.", "lombok.",
     "net.minecraft.", "net.minecraftforge.",
 )

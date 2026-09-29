@@ -1,0 +1,152 @@
+==== COMPOSITE 0807288cbdf1
+---- VERTEX 1143
+#version 330 core
+
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+out vec2 texcoord ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	gl_Position = iris_ftransform ( ) ; 
+	texcoord = iris_MultiTexCoord0 . xy ; 
+} 
+
+---- FRAGMENT 1112
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+uniform sampler2D colortex0 ; 
+in vec2 texcoord ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 float patch uniform sampler2D colortex0 ; 
+	in vec2 texcoord ; 
+	void main ( ) <missing ';'> { 
+	 float patch = 0.5 ; 
+	iris_FragData0 = <missing ';'> texture2D <missing ';'> ( <missing ';'> colortex0 , texcoord ) * patch ; 
+} 
+<missing '}'> 
+
+==== COMPOSITE 2677962a8068
+---- VERTEX 1143
+#version 330 core
+
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+out vec2 texcoord ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	gl_Position = iris_ftransform ( ) ; 
+	texcoord = iris_MultiTexCoord0 . xy ; 
+} 
+
+---- FRAGMENT 1159
+#version 420 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+layout ( rgba8 ) uniform image2D colorimg0 ; 
+in vec2 texcoord ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 float patch layout ( rgba8 ) uniform image2D colorimg0 ; 
+	in vec2 texcoord ; 
+	void main ( ) <missing ';'> { 
+	 float patch = 0.5 ; 
+	iris_FragData0 = <missing ';'> imageLoad <missing ';'> ( <missing ';'> colorimg0 , ivec2 ( texcoord * 16.0 ) ) * patch ; 
+} 
+<missing '}'> 
+

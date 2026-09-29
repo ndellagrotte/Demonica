@@ -2,10 +2,10 @@ package com.gtnewhorizons.angelica.glsm;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormatElement.Usage;
 import com.gtnewhorizons.angelica.glsm.backend.RenderBackend;
+import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
+import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.taumc.glsl.ShaderParser;
-import org.taumc.glsl.Transformer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +44,10 @@ import static com.gtnewhorizons.angelica.glsm.backend.BackendManager.RENDER_BACK
  *   <li>Version upgrade to 330 core minimum</li>
  *   <li>Reserved word pre-parse renaming (texture-as-variable, sample, etc.)</li>
  * </ul>
+ *
+ * <p>The parse, the verbs and the print run on glsl-transformer through {@link ShaderAst} (Steps 10 and 11 of
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md; TauMC's glsl-transformation-lib before). The preprocessor handling
+ * before the parse and the text passes after the print are library-free.</p>
  */
 public class CompatShaderTransformer {
 
@@ -127,12 +131,19 @@ public class CompatShaderTransformer {
                 return cached;
             }
 
+            final long transformStart = TransformCorpus.isEnabled() ? System.nanoTime() : 0L;
+            boolean fallback = false;
             try {
                 result = transformInternal(source, isFragment);
                 cache.put(key, result);
             } catch (Exception e) {
+                // Includes ShaderAst.SyntaxException, the parse failure.
                 LOGGER.warn("CompatShaderTransformer: AST transformation failed, falling back to version fixup only", e);
                 result = fixupVersion(source);
+                fallback = true;
+            }
+            if (TransformCorpus.isEnabled()) {
+                TransformCorpus.recordCompat(source, isFragment, result, fallback, TransformCorpus.ENGINE, System.nanoTime() - transformStart);
             }
         }
 
@@ -169,17 +180,10 @@ public class CompatShaderTransformer {
         source = GlslTransformUtils.renameParseBreakingTextureFunctions(source);
         source = GlslTransformUtils.renameReservedWords(source, targetVersion);
 
-        final ShaderParser.ParsedShader parsedShader = ShaderParser.parseShader(source);
-        if (parsedShader.preParser().getNumberOfSyntaxErrors() > 0
-                || parsedShader.parser().getNumberOfSyntaxErrors() > 0) {
-            // ANTLR recovers from syntax errors silently; transforming the recovered tree emits
-            // broken GLSL that the driver then rejects. Fail fast so transform() falls back to
-            // version fixup instead.
-            throw new IllegalStateException("GLSL parse failed (shader: "
-                    + parsedShader.parser().getNumberOfSyntaxErrors() + " syntax errors, preprocessor: "
-                    + parsedShader.preParser().getNumberOfSyntaxErrors() + ")");
-        }
-        final Transformer transformer = new Transformer(parsedShader.full());
+        // The body has no #version line (the header carries it), so the lexer gets the target version: the one the
+        // output declares and the one renameReservedWords renamed for. A parse failure throws ShaderAst.SyntaxException,
+        // which transform() turns into the version fix-up (fail fast: a recovered tree would print broken GLSL).
+        final ShaderAst transformer = ShaderAst.parse(source, targetVersion);
 
         injectMatrixUniforms(transformer);
 
@@ -261,11 +265,12 @@ public class CompatShaderTransformer {
         final String versionDirective = "#version " + targetVersion + " core\n";
         final String preprocessor = separatedSource.preprocessor().trim();
         final String header = versionDirective + (preprocessor.isEmpty() ? "" : "\n" + preprocessor + "\n");
-        final StringBuilder result = new StringBuilder();
-        transformer.mutateTree(tree -> result.append(GlslTransformUtils.getFormattedShader(tree, header)));
+        // Below GLSL 1.30, print(header, version) prints floats without glsl-transformer's 'f' suffix, which 1.10 and
+        // 1.20 lack (never the case today: the output is at least the backend's minimum, 330).
+        final String printed = transformer.print(header, targetVersion);
 
         // Restore pre-parse renames
-        String output = GlslTransformUtils.restoreReservedWords(result.toString());
+        String output = GlslTransformUtils.restoreReservedWords(printed);
 
         // Core profile: attribute → in, varying → out (vertex) / in (fragment)
         output = fixupQualifiers(output, isFragment);
@@ -988,7 +993,7 @@ public class CompatShaderTransformer {
     /**
      * Inject matrix uniforms and rename compat builtins.
      */
-    private static void injectMatrixUniforms(Transformer transformer) {
+    private static void injectMatrixUniforms(ShaderAst transformer) {
         transformer.injectVariable("uniform mat4 actinium_ModelViewMatrix;");
         transformer.injectVariable("uniform mat4 actinium_ModelViewMatrixInverse;");
         transformer.injectVariable("uniform mat4 actinium_ProjectionMatrix;");
@@ -1010,7 +1015,7 @@ public class CompatShaderTransformer {
     /**
      * Transform fragment outputs for core profile.
      */
-    private static void transformFragmentOutputs(Transformer transformer) {
+    private static void transformFragmentOutputs(ShaderAst transformer) {
         if (transformer.containsCall("gl_FragColor")) {
             transformer.replaceExpression("gl_FragColor", "gl_FragData[0]");
         }
@@ -1029,7 +1034,7 @@ public class CompatShaderTransformer {
         }
     }
 
-    private static void transformFog(Transformer transformer, boolean isFragment, String source) {
+    private static void transformFog(ShaderAst transformer, boolean isFragment, String source) {
         // Vertex side is unconditional: fragment may read gl_FogFragCoord without vertex writing it
         transformer.rename("gl_FogFragCoord", "actinium_FogFragCoord");
         if (!isFragment) {
@@ -1055,7 +1060,7 @@ public class CompatShaderTransformer {
     /**
      * Replace removed FFP vertex attributes with explicit {@code in} declarations at core profile attribute locations.
      */
-    private static void transformVertexAttributes(Transformer transformer, String source) {
+    private static void transformVertexAttributes(ShaderAst transformer, String source) {
         if (source.contains("gl_Vertex") || source.contains("ftransform")) {
             transformer.injectVariable("layout(location = 0) in vec4 actinium_Vertex;");
             transformer.rename("gl_Vertex", "actinium_Vertex");

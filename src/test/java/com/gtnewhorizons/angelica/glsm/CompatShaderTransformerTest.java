@@ -1,16 +1,15 @@
 package com.gtnewhorizons.angelica.glsm;
 
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.Token;
+import net.coderbot.iris.pipeline.transform.GlslTokens;
+import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.taumc.glsl.ShaderParser;
-import org.taumc.glsl.grammar.GLSLLexer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -18,6 +17,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * GLSM's mod-shader transform, on glsl-transformer. Until Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md it
+ * ran on both engines ({@code -PglslEngine=taumc|douira}); its oracles have been library-neutral since Step 10: a
+ * transformed program must parse with {@link ShaderAst}, tokens
+ * are compared as {@link GlslTokens}, and preprocessor directives and line continuations are counted per line.
+ */
 class CompatShaderTransformerTest {
 
     @Test
@@ -37,15 +42,13 @@ class CompatShaderTransformerTest {
             """;
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
+        assertParses(transformed);
 
-        assertEquals(0, countTokens(transformed, GLSLLexer.PRECISION), transformed);
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
-        assertEquals(0, countTokens(transformed, GLSLLexer.IFDEF_DIRECTIVE), transformed);
-        assertEquals(0, countTokens(transformed, GLSLLexer.ENDIF_DIRECTIVE), transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.DEFINE_DIRECTIVE), transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.VERSION_DIRECTIVE), transformed);
+        assertEquals(0, GlslTokens.of(transformed).count("precision"), transformed);
+        assertEquals(0, directives(transformed, "ifdef"), transformed);
+        assertEquals(0, directives(transformed, "endif"), transformed);
+        assertEquals(1, directives(transformed, "define"), transformed);
+        assertEquals(1, directives(transformed, "version"), transformed);
         assertOrdered(transformed, "#version", "#define PI", "uniform float closeAlpha");
     }
 
@@ -67,15 +70,12 @@ class CompatShaderTransformerTest {
             """;
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.IFDEF_DIRECTIVE), transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.ELSE_DIRECTIVE), transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.ENDIF_DIRECTIVE), transformed);
-        assertEquals(4, countTokens(transformed, GLSLLexer.DEFINE_DIRECTIVE), transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.MACRO_ESC_NEWLINE), transformed);
+        assertParses(transformed);
+        assertEquals(1, directives(transformed, "ifdef"), transformed);
+        assertEquals(1, directives(transformed, "else"), transformed);
+        assertEquals(1, directives(transformed, "endif"), transformed);
+        assertEquals(4, directives(transformed, "define"), transformed);
+        assertEquals(1, lineContinuations(transformed), transformed);
         assertOrdered(
             transformed,
             "#define USE_BLUE",
@@ -100,13 +100,10 @@ class CompatShaderTransformerTest {
             """;
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
-        assertEquals(0, countTokens(transformed, GLSLLexer.PRECISION), transformed);
-        assertEquals(0, countTokens(transformed, GLSLLexer.IFDEF_DIRECTIVE), transformed);
-        assertEquals(0, countTokens(transformed, GLSLLexer.ENDIF_DIRECTIVE), transformed);
+        assertParses(transformed);
+        assertEquals(0, GlslTokens.of(transformed).count("precision"), transformed);
+        assertEquals(0, directives(transformed, "ifdef"), transformed);
+        assertEquals(0, directives(transformed, "endif"), transformed);
     }
 
     @Test
@@ -174,11 +171,8 @@ class CompatShaderTransformerTest {
             """;
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.DEFINE_DIRECTIVE), transformed);
+        assertParses(transformed);
+        assertEquals(1, directives(transformed, "define"), transformed);
         assertOrdered(transformed, "#version", "#define ACTIVE_PORTAL_COLOR", "void main");
     }
 
@@ -196,11 +190,8 @@ class CompatShaderTransformerTest {
             """;
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
-        assertEquals(1, countTokens(transformed, GLSLLexer.MACRO_ESC_NEWLINE), transformed);
+        assertParses(transformed);
+        assertEquals(1, lineContinuations(transformed), transformed);
         assertOrdered(
             transformed,
             "#version 330 core",
@@ -276,10 +267,7 @@ class CompatShaderTransformerTest {
             """.replace("\n", "\r\n");
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
+        assertParses(transformed);
         assertFalse(transformed.contains("<missing"), transformed);
 
         // textureCube is renamed to the core texture() builtin before parsing; the grammar
@@ -309,10 +297,7 @@ class CompatShaderTransformerTest {
             """.replace("\n", "\r\n");
 
         String transformed = CompatShaderTransformer.transform(source, false);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
+        assertParses(transformed);
         assertFalse(transformed.contains("<missing"), transformed);
 
         assertTrue(hasIdentifier(transformed, "actinium_ProjectionMatrix"), transformed);
@@ -346,10 +331,7 @@ class CompatShaderTransformerTest {
             + functionName + "(" + samplerName + ", " + argument + ");\n}\n";
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
+        assertParses(transformed);
         assertFalse(hasIdentifier(transformed, functionName), transformed);
         assertCall(transformed, "texture", samplerName);
     }
@@ -378,10 +360,7 @@ class CompatShaderTransformerTest {
         String source = "#version 110\n\nvoid main() {\n    vec4 c = textureCube(cubemap, vec3(0.0));\n}\n";
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
+        assertParses(transformed);
         assertTrue(transformed.contains("#version 330 core"), transformed);
         assertFalse(hasIdentifier(transformed, "textureCube"), transformed);
         assertCall(transformed, "texture", "cubemap");
@@ -399,10 +378,7 @@ class CompatShaderTransformerTest {
             """;
 
         String transformed = CompatShaderTransformer.transform(source, true);
-        ShaderInspection inspection = inspectShader(transformed);
-
-        assertEquals(0, inspection.preprocessorSyntaxErrors, transformed);
-        assertEquals(0, inspection.shaderSyntaxErrors, transformed);
+        assertParses(transformed);
         assertFalse(hasIdentifier(transformed, "shadow1D"), transformed);
         assertFalse(hasIdentifier(transformed, "shadow2DProj"), transformed);
         // Legacy shadow lookups return vec4; the core texture/textureProj equivalents return
@@ -411,15 +387,41 @@ class CompatShaderTransformerTest {
         assertTrue(Pattern.compile("vec4\\s*\\(\\s*textureProj\\s*\\(").matcher(transformed).find(), transformed);
     }
 
-    /** Identifier-level check: comments preserved in the preamble must not trip the assertions. */
-    private static boolean hasIdentifier(String source, String name) {
-        GLSLLexer lexer = new GLSLLexer(CharStreams.fromString(source));
-        for (Token token = lexer.nextToken(); token.getType() != Token.EOF; token = lexer.nextToken()) {
-            if (token.getType() == GLSLLexer.IDENTIFIER && name.equals(token.getText())) {
-                return true;
+    @Test
+    void preprocessorDirectivesInTheParsedTextAreDroppedNotFatal() {
+        // The mod shader's directives are separated or evaluated before the parse, so the parsed body has none; if one
+        // ever survives, ShaderAst's channel filter must drop it (and list it), never throw (Step 10, S7b's filter).
+        String body = """
+            #define A 1
+            #undef A
+            #if 0
+            #elif 1
+            #else
+            #endif
+            #ifdef B
+            #endif
+            #ifndef C
+            #endif
+            #line 12
+            #pragma optimize(on)
+            #
+            void main() {
+                gl_FragColor = vec4(1.0);
             }
-        }
-        return false;
+            """;
+
+        ShaderAst ast = ShaderAst.parse(body, 330);
+
+        assertEquals(13, ast.droppedDirectives().size(), String.valueOf(ast.droppedDirectives()));
+        assertTrue(GlslTokens.contains(ast.printBody(), "gl_FragColor = vec4 ( 1.0 ) ;"), ast.printBody());
+    }
+
+    /**
+     * Identifier-level check: comments preserved in the preamble must not trip the assertions, and a preprocessor line
+     * is one {@link GlslTokens} token, so a name inside a directive does not count.
+     */
+    private static boolean hasIdentifier(String source, String name) {
+        return GlslTokens.contains(source, name);
     }
 
     private static String resource(String name) {
@@ -433,20 +435,41 @@ class CompatShaderTransformerTest {
         }
     }
 
-    private static int countTokens(String source, int tokenType) {
-        GLSLLexer lexer = new GLSLLexer(CharStreams.fromString(source));
+    private static final Pattern DIRECTIVE_TOKEN = Pattern.compile("^#\\s*(\\w+)");
+    private static final Pattern LINE_CONTINUATION = Pattern.compile("\\\\\\R");
+
+    /** How many {@code #<name>} directives the program has, outside comments. */
+    private static int directives(String source, String name) {
         int count = 0;
-        for (Token token = lexer.nextToken(); token.getType() != Token.EOF; token = lexer.nextToken()) {
-            if (token.getType() == tokenType) {
+        for (String token : GlslTokens.of(source).tokens()) {
+            final Matcher directive = DIRECTIVE_TOKEN.matcher(token);
+            if (directive.find() && directive.group(1).equals(name)) {
                 count++;
             }
         }
         return count;
     }
 
-    private static ShaderInspection inspectShader(String source) {
-        ShaderParser.ParsedShader shader = ShaderParser.parseShader(source);
-        return new ShaderInspection(shader.preParser().getNumberOfSyntaxErrors(), shader.parser().getNumberOfSyntaxErrors());
+    /** How many backslash-newline line continuations the text has. */
+    private static int lineContinuations(String source) {
+        final Matcher matcher = LINE_CONTINUATION.matcher(source);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * The transformed program parses as GLSL: {@link ShaderAst#parse(String)} throws {@link ShaderAst.SyntaxException}
+     * where TauMC's parsers counted syntax errors. Directives are dropped by the parse, as TauMC's parser ignored them.
+     */
+    private static void assertParses(String source) {
+        try {
+            ShaderAst.parse(source);
+        } catch (ShaderAst.SyntaxException e) {
+            throw new AssertionError("does not parse: " + e.getMessage() + "\n" + source, e);
+        }
     }
 
     private static void assertCall(String source, String functionName, String firstArgument) {
@@ -465,9 +488,4 @@ class CompatShaderTransformerTest {
             previousOffset = offset;
         }
     }
-
-    private record ShaderInspection(
-        int preprocessorSyntaxErrors,
-        int shaderSyntaxErrors
-    ) {}
 }

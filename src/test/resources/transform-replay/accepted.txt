@@ -1,0 +1,138 @@
+# Differences TransformCorpusReplayTest tolerates between the recorded TauMC output and a replay
+# (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5). One entry per line:
+#
+#   <case glob> | <stage> | <reason>
+#
+# <case glob> matches the case's path under the corpus directory (for example bsl/00012-COMPOSITE-1a2b3c4d) or its
+# directory name alone; '*' matches within one path segment, '**' across segments, '?' one character. <stage> is
+# vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases), error-succeeded or
+# error-threw (a case recorded with outcome=error, TauMC threw, whose replay succeeds, or throws something else; the
+# replay's output is written to build/reports/transform-replay/<case>.error.diff; an entry accepts only the outcome it
+# names, so a replay that starts to throw is not accepted by an entry written for one that succeeded), threw (a case
+# recorded with an output whose replay throws; Step 7b) or '*' (any output stage, not the three outcomes); any other
+# stage fails the test. Every entry needs a reason a reader can
+# check; an entry without one fails the test. When an engine other than taumc replays, an entry whose case glob matches
+# a replayed case but that tolerated no difference in that run is stale and fails the test too (Step 7), so an entry
+# must go when its difference goes; entries for cases the run did not replay (another corpus, a filtered kind) are not
+# judged.
+#
+# Step 2 (2026-09-28): empty. The TauMC engine replays its own recordings identically.
+#
+# Step 8 (2026-09-29): the new engine is the default, and :test replays the committed mini-corpus
+# (src/test/resources/transform-corpus) on it without -PglslCorpusDir. Every entry below was reviewed: each names a
+# mini-corpus case that exists, each tolerated a difference in that replay (accepted entries in scope=9 used=9
+# stale=0), each test it cites exists, and the compile claims were checked again with glslangValidator 16.4.0 on both
+# engines' outputs (report S08-flip-default.md, "accepted.txt review"). No pack corpus case needs an entry.
+
+# Step 5 (2026-09-28): COMPOSITE and COMPUTE on the glsl-transformer engine. The 36 COMPOSITE pack cases and the six
+# COMPOSITE/COMPUTE mini-corpus cases that TauMC transformed replay identically (five at Step 5,
+# composite-extension-placement added by its verification follow-up); no COMPOSITE or COMPUTE input has an
+# adaptive-shadow-bounds PCF helper, so nothing here is "S7 pending".
+
+# TauMC threw java.lang.IndexOutOfBoundsException: Index: -1, Size: 23 from Transformer.injectVariable in
+# transformGrouped: the vertex shader has no ftransform() call, so removeUnusedFunctions removed the injected
+# iris_ftransform, which was TauMC's variable anchor. ShaderAst fixes a removed anchor again (S3/S4 deviation) and the
+# new engine declares and initializes the missing out (out vec3 viewDir; viewDir = vec3(0.0f);), valid GLSL, checked
+# by ShaderTransformerTest.theGroupedCaseTauMCCouldNotTransform.
+transform-grouped-330-undeclared | error-succeeded | old engine threw (removed injection anchor); the new engine transforms it, checked by ShaderTransformerTest
+
+# Step 6 (2026-09-28): ATTRIBUTES and CELERITAS_TERRAIN on the glsl-transformer engine.
+#
+# TauMC threw java.lang.IndexOutOfBoundsException: Index: -1, Size: 30 from Transformer.injectVariable in
+# replaceMidTexCoord: the vertex shader declares gl_MultiTexCoord3 and not mc_midTexCoord, so patchMultiTexCoord3
+# renames it and injects 'attribute vec4 mc_midTexCoord;', which becomes TauMC's variable anchor (TauMC moves the anchor
+# to each declaration it injects); replaceMidTexCoord's removeVariable removes that injected declaration (the last in
+# TauMC's cache order), and its next injectVariable finds no anchor. Before that, TauMC's replaceExpression had missed
+# the renamed references (its by-text cache still knew them as gl_MultiTexCoord3; S3 remark 3). The new engine applies
+# the verbs as documented (the references become iris_MidTex; a removed anchor is fixed again) and transforms the case.
+# Until Step 7b its output declared mc_midTexCoord twice (in vec2 injected, in vec4 renamed); since Step 7b the new
+# engine's patchMultiTexCoord3 injects no declaration when the shader declared gl_MultiTexCoord3 itself, so the output
+# declares it once (in vec2) and compiles (glslangValidator). Checked by ShaderTransformerTest.theMultiTexCoord3Case.
+celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it into a program that declares mc_midTexCoord once (Step 7b), checked by ShaderTransformerTest
+
+# Step 7 (2026-09-28): DH_TERRAIN, DH_GENERIC and adaptive shadow bounds on the glsl-transformer engine. The 53
+# "S7 pending" entries of Step 6 (51 BSL fragment stages, and the mini-corpus's shadow-bounds and
+# shadow-bounds-instrumented) are gone: those stages replay identically now. No DH case differs (the mini-corpus's
+# dh-terrain and dh-generic, and the three DH programs recorded from Complementary Reimagined with Distant Horizons
+# under run/transform-corpus-dh/).
+#
+# Both DH transformers rename gl_MultiTexCoord2 (OptiFine's lightmap alias) to gl_MultiTexCoord1 and then replace
+# gl_MultiTexCoord1 with the DH light coordinate. TauMC's replaceExpression misses the renamed references (its by-text
+# cache still knows them as gl_MultiTexCoord2; S3 remark 3), so its output keeps gl_MultiTexCoord1, which a core-profile
+# program does not declare; the new engine replaces them as the transformer means. The vertex stage differs in that one
+# statement. No recorded pack input uses gl_MultiTexCoord2 in a DH program. Checked by
+# ShaderTransformerTest.dhMultiTexCoord2Alias.
+dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by ShaderTransformerTest
+
+# Step 7b (2026-09-29): pre-flip hardening (report S7b-hardening.md). Nine mini-corpus cases, TauMC outputs recorded
+# with -PglslReplayEngine=taumc -PglslReplayRecord=true. Three replay identically on the new engine:
+# composite-extension-all (#extension all : warn), composite-extension-in-function and
+# composite-extension-before-version, which glsl-transformer's grammar rejected until the new engine took #extension
+# lines out of the text before the parse (ShaderAst.ExtensionLines); its output is TauMC's (same header, same body).
+# The other six differ on purpose:
+#
+# gl_MultiTexCoord3 (OptiFine's alias of mc_midTexCoord), handled as Iris 26.1's CommonTransformer.patchMultiTexCoord3
+# does, fixed for a declared gl_MultiTexCoord3 (transformer/CommonTransformer.patchMultiTexCoord3): TauMC patched only a
+# declared gl_MultiTexCoord3 and then declared mc_midTexCoord twice (attributes-multitexcoord3-declared: glslangValidator
+# "'mc_midTexCoord' : redefinition"), and left the built-in, which a core profile does not have, in the program
+# (attributes-multitexcoord3-builtin, celeritas-terrain-multitexcoord3-builtin: "'gl_MultiTexCoord3' : undeclared
+# identifier"). The new engine renames every gl_MultiTexCoord3 to mc_midTexCoord and declares it once; its three vertex
+# outputs compile (glslangValidator). Checked by ShaderTransformerTest.multiTexCoord3Shapes.
+attributes-multitexcoord3-declared | vertex | Step 7b: TauMC declared mc_midTexCoord twice (renamed gl_MultiTexCoord3 and injected); the new engine keeps the renamed declaration only, checked by ShaderTransformerTest
+attributes-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads mc_midTexCoord and declares it (Iris 26.1), checked by ShaderTransformerTest
+celeritas-terrain-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads it through iris_MidTex from Celeritas's mc_midTexCoord (Iris 26.1), checked by ShaderTransformerTest
+#
+# patch as an identifier: TauMC's lexer reads patch as a keyword at every version, so its output for a program that
+# names a variable patch is broken GLSL ('<missing ';'>' text in it; glslangValidator "syntax error, unexpected
+# UNIFORM" and "unexpected PATCH"). glsl-transformer's lexer is version-aware: at 330 patch is an identifier and the new
+# engine's output compiles; at 420 (hoisted by imageLoad) patch is a keyword and the new engine throws a syntax error,
+# where TauMC's output would not have compiled either. Checked by ShaderTransformerTest.patchAsAnIdentifier.
+composite-patch-identifier | fragment | Step 7b: TauMC's output is broken GLSL (patch lexed as a keyword); the new engine's compiles, checked by ShaderTransformerTest
+composite-patch-hoisted | threw | Step 7b: at 420 patch is a keyword; the new engine throws a syntax error where TauMC emitted broken GLSL that no compiler accepts, checked by ShaderTransformerTest
+#
+# texture2DRect, textureCube, texture1D and texture2DArray under #version 330 core: GlslTransformUtils.TEXTURE_RENAMES
+# lacks them, so neither engine renames them. TauMC's grammar lexes them as keywords and its output is broken GLSL; the
+# new engine keeps the non-core calls, which a core profile does not have (glslangValidator: "'texture2DRect' :
+# undeclared identifier" for TauMC's output; it aborts on an assertion for the new engine's). A behaviour change for both
+# engines, left to the maintainer (report S7b, Open questions); ShaderTransformerTest.legacyTextureCallsKeepTheirNames
+# pins the new engine's output.
+composite-legacy-textures | fragment | Step 7b: TauMC's output is broken GLSL (the legacy texture functions lexed as keywords); the new engine keeps the non-core calls (not renamed by either engine; open question), pinned by ShaderTransformerTest
+
+# Step 12 (2026-09-29): the demonstrated port (report S12-payoff.md). transformer/CompatibilityTransformer takes Iris
+# 26.1's empty-declaration removal (transformEach) and Iris 26.1's transformGrouped without translation, with two
+# Demonica fixes (an unsigned out is initialized with 0u; the declarations are visited in document order). No pack corpus
+# case changes (run/transform-corpus 424, run/transform-corpus-dh 140, run/transform-corpus-s7-taumc 175, all identical).
+# The five transform-each-*/transform-grouped-* cases below were written in Step 12, after TauMC was gone: their
+# reference is out.douira.*, the glsl-transformer engine's output recorded before the port. Compile checks with
+# glslangValidator 16.4.0 (each stage, then the stages linked) are in the report.
+#
+# Iris 26.1 transformEach: a ';' at file scope is removed. glslangValidator rejects it at 330 ("'extraneous semicolon' :
+# not supported for this version") in the output before the port, and accepts the output after it.
+transform-each-empty-declaration | * | Step 12: Iris 26.1's transformEach removes empty external declarations (';' at file scope, not valid before GLSL 4.60)
+#
+# Iris 26.1 transformGrouped, declaration order: a missing out is injected before every declaration and each
+# initialization is prepended to main, visiting the next stage's in declarations in document order; TauMC injected at
+# its variable anchor in HashMap order. The same declarations and statements (ShaderTransformerTest.dhPrograms).
+transform-grouped | vertex | Step 12: Iris 26.1's transformGrouped injects the missing out viewDir before the declarations (TauMC: at its variable anchor); same lines
+dh-terrain-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines, checked by ShaderTransformerTest.dhPrograms
+dh-generic-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines, checked by ShaderTransformerTest.dhPrograms
+transform-grouped-geometry | vertex | Step 12: Iris 26.1's transformGrouped injects the missing out vColor (read by the geometry stage) before the declarations; same lines
+#
+# Iris 26.1 transformGrouped, the pipeline: Iris pairs vertex with tessellation control, tessellation control with
+# evaluation, evaluation (or geometry) with fragment; TauMC's pipeline had no tessellation stages and paired the vertex
+# stage with the fragment stage, declaring and initializing in the vertex stage the fragment inputs uv and normal that
+# the tessellation evaluation stage writes, and leaving the tessellation control input vNormal unwritten.
+transform-grouped-tessellation | vertex | Step 12: Iris 26.1's transformGrouped pairs the tessellation stages: the vertex stage gets the out vNormal the control stage reads, not the fragment stage's uv and normal
+#
+# Iris 26.1 transformGrouped, type mismatches: an out whose type differs from the next stage's in (same dimensionality)
+# is renamed to iris_template_<name>, kept as a global of the old type, and the out takes the in's type and is assigned
+# at the end of main with a cast; a two-member declaration is split. TauMC left the mismatch, a link error
+# (glslangValidator: "Types must match"); the output after the port links.
+transform-grouped-type-mismatch | vertex | Step 12: Iris 26.1's transformGrouped casts the vec3 out tint to the fragment stage's vec4 (link error before)
+#
+# Iris 26.1 transformGrouped, arrays: an array type (out vec3[2] pair) is skipped, as before. An array declarator is
+# not an array to Iris's matcher: out vec3 w[2] against in vec4 w[2] gets the cast patch with a scalar global
+# (iris_template_w[0] = ... does not compile), where TauMC left a link error, and the unassigned out float lit[2] gets
+# lit = 0.0, as TauMC's lit = 0.0f; neither program compiled before the port, neither does after it (report, Open
+# questions).
+transform-grouped-arrays | vertex | Step 12: Iris 26.1's transformGrouped casts the array declarator w as a scalar (does not compile; TauMC's output did not link either); array types skipped as before

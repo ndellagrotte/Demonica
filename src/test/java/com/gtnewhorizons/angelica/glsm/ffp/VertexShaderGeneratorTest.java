@@ -1,18 +1,25 @@
 package com.gtnewhorizons.angelica.glsm.ffp;
 
-import com.gtnewhorizons.angelica.glsm.GlslTransformUtils;
-import org.antlr.v4.runtime.tree.ParseTreeWalker;
+import io.github.douira.glsl_transformer.ast.node.abstract_node.ASTNode;
+import io.github.douira.glsl_transformer.ast.node.declaration.DeclarationMember;
+import io.github.douira.glsl_transformer.ast.node.expression.Expression;
+import io.github.douira.glsl_transformer.ast.node.expression.binary.BinaryExpression;
+import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier.StorageType;
+import io.github.douira.glsl_transformer.ast.traversal.ASTVoidVisitor;
+import net.coderbot.iris.pipeline.transform.GlslTokens;
+import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import org.junit.jupiter.api.Test;
-import org.taumc.glsl.ShaderParser;
-import org.taumc.glsl.Transformer;
-import org.taumc.glsl.grammar.GLSLLexer;
-import org.taumc.glsl.grammar.GLSLParser;
-import org.taumc.glsl.grammar.GLSLParserBaseListener;
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VertexShaderGeneratorTest {
@@ -92,54 +99,31 @@ class VertexShaderGeneratorTest {
         final long packed = (1L << BIT_UNIT3_TEX) | (1L << BIT_HAS_VERTEX_TEX3);
         VertexKey key = VertexKey.fromPacked(packed);
         String shader = VertexShaderGenerator.generate(key);
-        Transformer transformer = new Transformer(ShaderParser.parseShader(shader).full());
-        Map<String, GLSLParser.Single_declarationContext> inputs = transformer.findQualifiers(GLSLLexer.IN);
+        ShaderAst ast = ShaderAst.parse(shader);
+        Map<String, ShaderAst.QualifiedDeclaration> inputs = ast.findQualifiers(StorageType.IN);
 
-        assertEquals("vec4", typeOf(inputs.get("a_TexCoord3")));
+        assertVec4(inputs, "a_TexCoord3", shader);
     }
 
     @Test
     void primaryTextureAttributeAcceptsCompleteHomogeneousCoordinates() {
         VertexKey key = VertexKey.fromPacked(1L << BIT_HAS_VERTEX_TEX);
         String shader = VertexShaderGenerator.generate(key);
-        Transformer transformer = new Transformer(ShaderParser.parseShader(shader).full());
-        Map<String, GLSLParser.Single_declarationContext> inputs = transformer.findQualifiers(GLSLLexer.IN);
-        TexCoordAssignmentListener assignment = inspectTexCoordAssignment(transformer);
+        ShaderAst ast = ShaderAst.parse(shader);
+        Map<String, ShaderAst.QualifiedDeclaration> inputs = ast.findQualifiers(StorageType.IN);
+        List<BinaryExpression> assignments = assignmentsTo(ast, "v_TexCoord0");
 
-        assertEquals("vec4", typeOf(inputs.get("a_TexCoord0")));
-        assertEquals(1, assignment.assignments);
-        assertEquals("a_TexCoord0", assignment.source);
+        assertVec4(inputs, "a_TexCoord0", shader);
+        assertEquals(1, assignments.size(), shader);
+        assertEquals(List.of("a_TexCoord0"), GlslTokens.of(ShaderAst.text(assignments.get(0).getRight())).tokens(), shader);
+        assertTrue(GlslTokens.contains(shader, "v_TexCoord0 = a_TexCoord0 ;"), shader);
 
-        StringBuilder formatted = new StringBuilder();
-        transformer.mutateTree(tree -> formatted.append(
-            GlslTransformUtils.getFormattedShader(tree, "#version 330 core\n")
-        ));
-        ShaderParser.parseShader(formatted.toString()).full();
-    }
-
-    private static TexCoordAssignmentListener inspectTexCoordAssignment(Transformer transformer) {
-        TexCoordAssignmentListener listener = new TexCoordAssignmentListener();
-        transformer.mutateTree(tree -> ParseTreeWalker.DEFAULT.walk(listener, tree));
-        return listener;
-    }
-
-    private static String typeOf(GLSLParser.Single_declarationContext declaration) {
-        return declaration.fully_specified_type().type_specifier().type_specifier_nonarray().getText();
-    }
-
-    private static final class TexCoordAssignmentListener extends GLSLParserBaseListener {
-        private int assignments;
-        private String source;
-
-        @Override
-        public void enterAssignment_expression(GLSLParser.Assignment_expressionContext context) {
-            if (context.assignment_operator() == null || !"v_TexCoord0".equals(context.unary_expression().getText())) {
-                return;
-            }
-
-            assignments++;
-            source = context.assignment_expression().getText();
-        }
+        // The program survives a print and a second parse, which fails on any syntax error.
+        String printed = ast.print("#version 330 core\n");
+        ShaderAst reparsed = ShaderAst.parse(printed);
+        assertVec4(reparsed.findQualifiers(StorageType.IN), "a_TexCoord0", printed);
+        assertEquals(1, assignmentsTo(reparsed, "v_TexCoord0").size(), printed);
+        assertTrue(GlslTokens.contains(printed, "v_TexCoord0 = a_TexCoord0 ;"), printed);
     }
 
     @Test
@@ -149,52 +133,58 @@ class VertexShaderGeneratorTest {
             | ((long) VertexKey.TG_EYE_LINEAR << BIT_TEXGEN_T)
             | ((long) VertexKey.TG_EYE_LINEAR << BIT_TEXGEN_R);
         final String shader = VertexShaderGenerator.generate(VertexKey.fromPacked(packed));
-        final Transformer transformer = new Transformer(ShaderParser.parseShader(shader).full());
-        final Map<String, GLSLParser.Single_declarationContext> uniforms = transformer.findQualifiers(GLSLLexer.UNIFORM);
-        final TexGenInitListener texGen = inspectTexGenInit(transformer);
+        final ShaderAst ast = ShaderAst.parse(shader);
+        final Map<String, ShaderAst.QualifiedDeclaration> uniforms = ast.findQualifiers(StorageType.UNIFORM);
 
-        assertEquals("vec4", typeOf(uniforms.get("u_TexGenEyePlaneS")));
-        assertEquals("vec4", typeOf(uniforms.get("u_TexGenEyePlaneT")));
-        assertEquals("vec4", typeOf(uniforms.get("u_TexGenEyePlaneR")));
+        assertVec4(uniforms, "u_TexGenEyePlaneS", shader);
+        assertVec4(uniforms, "u_TexGenEyePlaneT", shader);
+        assertVec4(uniforms, "u_TexGenEyePlaneR", shader);
 
         // Every eye plane must be consumed by the single vec4 constructor. The previous
         // per-component writes to a pre-initialized texGenCoord let NVIDIA's driver
         // dead-code-eliminate u_TexGenEyePlaneS, collapsing BPR's end-portal starfield
         // into stripes.
-        assertEquals(0, texGen.componentWrites);
-        assertEquals(1, texGen.initializers);
-        assertTrue(texGen.initializer.startsWith("vec4("));
-        assertTrue(texGen.initializer.contains("dot(eyePos,u_TexGenEyePlaneS)"));
-        assertTrue(texGen.initializer.contains("dot(eyePos,u_TexGenEyePlaneT)"));
-        assertTrue(texGen.initializer.contains("dot(eyePos,u_TexGenEyePlaneR)"));
+        assertFalse(ast.hasAssignment("texGenCoord."), shader);
+        final List<DeclarationMember> initialized = new ArrayList<>();
+        ast.root.nodeIndex.getStream(DeclarationMember.class)
+            .filter(member -> "texGenCoord".equals(member.getName().getName()) && member.getInitializer() != null)
+            .forEach(initialized::add);
+        assertEquals(1, initialized.size(), shader);
+        final GlslTokens initializer = GlslTokens.of(ShaderAst.text(initialized.get(0).getInitializer()));
+        assertEquals(List.of("vec4", "("), initializer.tokens().subList(0, 2), initializer.text());
+        assertTrue(initializer.contains("dot ( eyePos , u_TexGenEyePlaneS )"), initializer.text());
+        assertTrue(initializer.contains("dot ( eyePos , u_TexGenEyePlaneT )"), initializer.text());
+        assertTrue(initializer.contains("dot ( eyePos , u_TexGenEyePlaneR )"), initializer.text());
     }
 
-    private static TexGenInitListener inspectTexGenInit(Transformer transformer) {
-        TexGenInitListener listener = new TexGenInitListener();
-        transformer.mutateTree(tree -> ParseTreeWalker.DEFAULT.walk(listener, tree));
-        return listener;
+    /** A declaration named {@code name} with the storage qualifier queried, of the plain type {@code vec4}. */
+    private static void assertVec4(Map<String, ShaderAst.QualifiedDeclaration> declarations, String name, String shader) {
+        final ShaderAst.QualifiedDeclaration declaration = declarations.get(name);
+        assertNotNull(declaration, name + " not declared in\n" + shader);
+        assertEquals("vec4", declaration.typeName(), shader);
+        assertNull(declaration.arraySpecifierText(), shader);
+        assertNull(declaration.member().getArraySpecifier(), shader);
     }
 
-    private static final class TexGenInitListener extends GLSLParserBaseListener {
-        private int componentWrites;
-        private int initializers;
-        private String initializer = "";
+    private static final Set<Expression.ExpressionType> ASSIGNMENTS = EnumSet.of(Expression.ExpressionType.ASSIGNMENT,
+        Expression.ExpressionType.MULTIPLICATION_ASSIGNMENT, Expression.ExpressionType.DIVISION_ASSIGNMENT,
+        Expression.ExpressionType.MODULO_ASSIGNMENT, Expression.ExpressionType.ADDITION_ASSIGNMENT,
+        Expression.ExpressionType.SUBTRACTION_ASSIGNMENT, Expression.ExpressionType.LEFT_SHIFT_ASSIGNMENT,
+        Expression.ExpressionType.RIGHT_SHIFT_ASSIGNMENT, Expression.ExpressionType.BITWISE_AND_ASSIGNMENT,
+        Expression.ExpressionType.BITWISE_XOR_ASSIGNMENT, Expression.ExpressionType.BITWISE_OR_ASSIGNMENT);
 
-        @Override
-        public void enterAssignment_expression(GLSLParser.Assignment_expressionContext context) {
-            if (context.assignment_operator() != null && context.unary_expression().getText().startsWith("texGenCoord.")) {
-                componentWrites++;
+    /** Every assignment ({@code =}, {@code +=}, ...) whose left side is exactly the identifier {@code name}. */
+    private static List<BinaryExpression> assignmentsTo(ShaderAst ast, String name) {
+        final List<BinaryExpression> found = new ArrayList<>();
+        new ASTVoidVisitor() {
+            @Override
+            public void visitVoid(ASTNode node) {
+                if (node instanceof BinaryExpression binary && ASSIGNMENTS.contains(binary.getExpressionType())
+                    && GlslTokens.of(ShaderAst.text(binary.getLeft())).tokens().equals(List.of(name))) {
+                    found.add(binary);
+                }
             }
-        }
-
-        @Override
-        public void enterSingle_declaration(GLSLParser.Single_declarationContext context) {
-            final GLSLParser.Typeless_declarationContext decl = context.typeless_declaration();
-            if (decl != null && decl.IDENTIFIER() != null && "texGenCoord".equals(decl.IDENTIFIER().getText())
-                && decl.initializer() != null) {
-                initializers++;
-                initializer = decl.initializer().getText();
-            }
-        }
+        }.visit(ast.tree);
+        return found;
     }
 }

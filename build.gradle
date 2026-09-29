@@ -233,7 +233,7 @@ def diagnosticsJar = tasks.register('diagnosticsJar', Jar) {
         expand(version: project.version.toString())
     }
     // The license texts and notices, as in the mod jar (THIRD_PARTY_NOTICES.md, "In the jars").
-    from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
+    from files('LICENSE', 'LICENSE-GPL-3.0.txt', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 
     manifest {
         attributes(
@@ -399,10 +399,13 @@ dependencies {
 
     compileOnly project(':shader')
 
-    contain('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
+    // AGPL-3.0 (THIRD_PARTY_NOTICES.md). Not transitive: its POM brings the full ANTLR tool; antlr4-runtime below is
+    // the only ANTLR the jar needs, pinned to 4.13.1, the version glsl-transformer's generated parser checks and its POM
+    // names (Step 11; glsm/build.gradle has the same coordinate).
+    contain('io.github.douira:glsl-transformer:3.0.0-pre3') {
         transitive = false
     }
-    contain 'org.antlr:antlr4-runtime:4.13.2'
+    contain 'org.antlr:antlr4-runtime:4.13.1'
     contain('org.anarres:jcpp:1.4.14') {
         transitive = false
     }
@@ -571,7 +574,7 @@ tasks.named('sourcesJar').configure {
         from(libraryProject.sourceSets.main.allSource)
     }
     // The license texts and notices, as in the mod jar.
-    from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
+    from files('LICENSE', 'LICENSE-GPL-3.0.txt', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 }
 
 jar {
@@ -584,7 +587,7 @@ jar {
     }
 
     // The license texts and the notices a binary copy must carry (THIRD_PARTY_NOTICES.md, "In the jars").
-    from files('LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
+    from files('LICENSE', 'LICENSE-GPL-3.0.txt', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 
     doFirst {
         manifest {
@@ -629,6 +632,24 @@ test {
     inputs.dir('docs/celeritas/patches').withPropertyName('patchDrafts').withPathSensitivity(PathSensitivity.RELATIVE)
     useJUnitPlatform()
     workingDir = testRunDirectory.asFile
+    // TransformCorpusReplayTest (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5): the forked test JVM gets the
+    // replay settings as system properties. Without -PglslCorpusDir the test replays the committed mini-corpus
+    // (src/test/resources/transform-corpus, Step 8); -PglslCorpusDir=<abs> replays another;
+    // -PglslReplayPatches=COMPOSITE,COMPUTE,...,COMPAT, -PglslReplayRecord=true and -PglslReplayThreads=N refine it.
+    def glslCorpusDir = project.findProperty('glslCorpusDir') ?: ''
+    systemProperty 'demonica.glsl.corpus.dir', glslCorpusDir
+    systemProperty 'demonica.glsl.replay.patches', project.findProperty('glslReplayPatches') ?: ''
+    systemProperty 'demonica.glsl.replay.record', project.findProperty('glslReplayRecord') ?: 'false'
+    systemProperty 'demonica.glsl.replay.threads', project.findProperty('glslReplayThreads') ?: '0'
+    if (glslCorpusDir) {
+        // The corpus is read from outside the task's inputs, and record mode writes into it: never up to date, never
+        // from the build cache. The replay prints its summary to standard out.
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+        testLogging {
+            showStandardStreams = true
+        }
+    }
     javaLauncher = javaToolchains.launcherFor {
         languageVersion = JavaLanguageVersion.of(25)
     }
@@ -793,6 +814,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'mcmod.info',
                 // The license texts and notices (THIRD_PARTY_NOTICES.md, "In the jars").
                 'LICENSE',
+                'LICENSE-GPL-3.0.txt',
                 'LICENSE-LGPL-3.0.txt',
                 'THIRD_PARTY_NOTICES.md',
                 'META-INF/demonica_at.cfg',
@@ -901,11 +923,12 @@ def verifyDiagnosticsJar = tasks.register('verifyDiagnosticsJar') {
                 ~/^META-INF\/services\/net\.coderbot\.iris\.debug\.DiagnosticsProvider$/,
                 ~/^mcmod\.info$/, ~/^mixins\.demonica\.diagnostics\.json$/,
                 ~/^mixins\.demonica\.diagnostics-refmap\.json$/,
-                ~/^LICENSE$/, ~/^LICENSE-LGPL-3\.0\.txt$/, ~/^THIRD_PARTY_NOTICES\.md$/
+                ~/^LICENSE$/, ~/^LICENSE-GPL-3\.0\.txt$/, ~/^LICENSE-LGPL-3\.0\.txt$/, ~/^THIRD_PARTY_NOTICES\.md$/
             ]
             names.findAll { name -> !allowed.any { name =~ it } }.each { problems << "unexpected entry ${it}" }
             def required = [
-                'mcmod.info', config, refmap, 'LICENSE', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md',
+                'mcmod.info', config, refmap, 'LICENSE', 'LICENSE-GPL-3.0.txt', 'LICENSE-LGPL-3.0.txt',
+                'THIRD_PARTY_NOTICES.md',
                 'com/demonica/diagnostics/DiagnosticsCoremod.class',
                 'com/demonica/diagnostics/DemonicaDiagnosticsMod.class',
                 'com/demonica/diagnostics/DemonicaDiagnosticsProvider.class',

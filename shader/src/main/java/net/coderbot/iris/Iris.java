@@ -20,8 +20,8 @@ import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
 import net.coderbot.iris.pipeline.FixedFunctionWorldRenderingPipeline;
 import net.coderbot.iris.pipeline.PipelineManager;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
-import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.pipeline.transform.TransformPatcher;
+import net.coderbot.iris.pipeline.transform.VersionNegotiation;
 import net.coderbot.iris.shaderpack.DimensionId;
 import net.coderbot.iris.shaderpack.OptionalBoolean;
 import net.coderbot.iris.shaderpack.ProgramSet;
@@ -650,7 +650,7 @@ public class Iris {
         }
 
         ShaderTransformExecutor.warmup();
-        ShaderTransformer.init();
+        VersionNegotiation.init();
         PBRTextureManager.INSTANCE.init();
         runtimeGlInitialized = true;
     }

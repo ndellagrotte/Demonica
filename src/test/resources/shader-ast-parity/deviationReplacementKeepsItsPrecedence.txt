@@ -1,0 +1,10 @@
+==== taumc
+
+uniform float x , c ; 
+out float y ; 
+void main ( ) { 
+	 y = a + b * c ; 
+	y += a . x ; 
+	y = - a ; 
+} 
+

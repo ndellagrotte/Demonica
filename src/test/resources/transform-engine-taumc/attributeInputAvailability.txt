@@ -1,0 +1,800 @@
+==== ATTRIBUTES geometry=false inputs=000 58d96bdb7276
+---- VERTEX 2442
+#version 330 core
+
+uniform vec4 iris_ColorModulator ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	vec2 lm2 = vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) . xy ; 
+	glcolor = iris_ColorModulator ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=001 5e1e4f4a7016
+---- VERTEX 2443
+#version 330 core
+
+layout ( location = 1 ) in vec4 iris_Color ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	vec2 lm2 = vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) . xy ; 
+	glcolor = iris_Color ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=010 464ea8f2ac45
+---- VERTEX 2412
+#version 330 core
+
+uniform vec4 iris_ColorModulator ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * iris_MultiTexCoord1 ) . xy ; 
+	vec2 lm2 = iris_MultiTexCoord1 . xy ; 
+	glcolor = iris_ColorModulator ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=011 a04d42f7a068
+---- VERTEX 2413
+#version 330 core
+
+layout ( location = 1 ) in vec4 iris_Color ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * iris_MultiTexCoord1 ) . xy ; 
+	vec2 lm2 = iris_MultiTexCoord1 . xy ; 
+	glcolor = iris_Color ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=100 c247b151cf92
+---- VERTEX 2427
+#version 330 core
+
+uniform vec4 iris_ColorModulator ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * iris_MultiTexCoord0 ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	vec2 lm2 = vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) . xy ; 
+	glcolor = iris_ColorModulator ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=101 375868e50dd9
+---- VERTEX 2428
+#version 330 core
+
+layout ( location = 1 ) in vec4 iris_Color ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * iris_MultiTexCoord0 ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) ) . xy ; 
+	vec2 lm2 = vec4 ( 240.0 , 240.0 , 0.0 , 1.0 ) . xy ; 
+	glcolor = iris_Color ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=110 9268a0df1458
+---- VERTEX 2397
+#version 330 core
+
+uniform vec4 iris_ColorModulator ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * iris_MultiTexCoord0 ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * iris_MultiTexCoord1 ) . xy ; 
+	vec2 lm2 = iris_MultiTexCoord1 . xy ; 
+	glcolor = iris_ColorModulator ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+
+==== ATTRIBUTES geometry=false inputs=111 10f266c34303
+---- VERTEX 2398
+#version 330 core
+
+layout ( location = 1 ) in vec4 iris_Color ; 
+layout ( location = 4 ) in vec3 iris_Normal ; 
+layout ( location = 3 ) in vec4 iris_MultiTexCoord1 ; 
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 entityColor ; 
+uniform int entityId ; 
+uniform vec4 actinium_ClipPlane [ 8 ] ; 
+uniform bool actinium_ClipPlanesEnabled ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec4 mc_Entity ; 
+out vec2 texcoord ; 
+out vec2 lmcoord ; 
+out vec4 glcolor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+vec4 iris_ftransform ( ) { 
+	 return ( iris_ProjectionMatrix * iris_ModelViewMatrix ) * iris_Vertex ; 
+} 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	texcoord = ( iris_TextureMatrix * iris_MultiTexCoord0 ) . xy ; 
+	lmcoord = ( iris_LightmapTextureMatrix * iris_MultiTexCoord1 ) . xy ; 
+	vec2 lm2 = iris_MultiTexCoord1 . xy ; 
+	glcolor = iris_Color ; 
+	gl_Position = iris_ftransform ( ) + vec4 ( lm2 , iris_Normal . xy ) * 0.0 ; 
+	if ( entityId == 1 ) glcolor = entityColor ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 2 ] = dot ( actinium_ClipPlane [ 2 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 3 ] = dot ( actinium_ClipPlane [ 3 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 4 ] = dot ( actinium_ClipPlane [ 4 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 5 ] = dot ( actinium_ClipPlane [ 5 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 6 ] = dot ( actinium_ClipPlane [ 6 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 7 ] = dot ( actinium_ClipPlane [ 7 ] , _cp_ep ) ; 
+} } } 
+
+---- FRAGMENT 1055
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+uniform float iris_currentAlphaTest ; 
+layout ( location = 0 ) out vec4 iris_FragData0 ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+in vec2 texcoord ; 
+in vec4 glcolor ; 
+uniform sampler2D gtexture ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FragData0 = texture ( gtexture , texcoord ) * glcolor ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+

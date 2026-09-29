@@ -1,0 +1,24 @@
+# glsl-transformer Step 2 (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): records the shaders mods submit through
+# GLSM's CompatShaderTransformer, without a shader pack. Run through capture.sh, which adds -PwithCompatMods and
+# -Dangelica.dumpShaders=true (run/client/compat_shaders/ names each shader's caller).
+pack off
+wait 20
+world corpus 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 6000
+cmd /weather clear
+cmd /gamemode creative
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+stats
+shot corpus-compat-0-world
+screen inventory
+wait 20
+shot corpus-compat-1-inventory hud
+screen close
+wait 10
+stats
+exit

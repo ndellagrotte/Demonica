@@ -6,7 +6,6 @@ plugins {
 
 repositories {
     mavenCentral()
-    maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
 }
 
 sourceSets {
@@ -20,10 +19,14 @@ sourceSets {
 }
 
 dependencies {
-    implementation('org.taumc:glsl-transformation-lib:0.2.0-32.g7dd88a4-GTNH') {
+    // glsl-transformer (AGPL-3.0; docs/glsl-transformer_adoption), which replaced TauMC's glsl-transformation-lib in
+    // Step 11. Its POM declares the full ANTLR tool in compile scope; only the runtime is needed, at 4.13.1, the version
+    // its generated lexer and parser check (RuntimeMetaData.checkVersion("4.13.1", ...)) and its POM names. The
+    // same coordinate is in the root build's contain list.
+    implementation('io.github.douira:glsl-transformer:3.0.0-pre3') {
         transitive = false
     }
-    implementation 'org.antlr:antlr4-runtime:4.13.2'
+    implementation 'org.antlr:antlr4-runtime:4.13.1'
 }
 
 tasks.named('jar', Jar) {

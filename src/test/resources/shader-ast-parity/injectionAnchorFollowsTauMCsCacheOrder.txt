@@ -1,0 +1,45 @@
+==== a const prepended to main does not count before the program's qualifiers
+
+precision highp float ; 
+uniform float iris_r ; 
+float helper ( float x ) { 
+	 return x * 2.0 ; 
+} 
+uniform float scale ; 
+out vec4 fragColor ; 
+void main ( ) { 
+	 const float iris_c = 1.0 ; 
+	fragColor = vec4 ( helper ( scale ) ) ; 
+} 
+
+==== a function injected first anchors everything
+
+uniform float iris_q ; 
+uniform float iris_r ; 
+float iris_f ( ) { 
+	 return 1.0 ; 
+} 
+void main ( ) { 
+	 const float k = 1.0 ; 
+	gl_FragDepth = k ; 
+} 
+
+==== a qualified declaration injected as a function does not anchor before the program's own qualifier
+
+uniform float iris_q ; 
+uniform float iris_r ; 
+void main ( ) { 
+	 const float k = 1.0 ; 
+	gl_FragDepth = k ; 
+} 
+
+==== with no qualifier of its own, the injected one is the first
+
+vec4 g ; 
+vec4 iris_s ; 
+uniform float iris_r ; 
+uniform float iris_q ; 
+void main ( ) { 
+	 g = vec4 ( 1.0 ) ; 
+} 
+

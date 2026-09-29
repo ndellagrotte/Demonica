@@ -1,0 +1,367 @@
+==== a second declarator and a flat declaration
+
+in vec3 position ; 
+in vec4 vaColor ; 
+out float mat , recolor ; 
+flat out float isMoon ; 
+out vec3 normals [ 2 ] ; 
+out vec3 [ 2 ] tangents ; 
+out vec2 texCoord ; 
+out vec4 tintOut ; 
+layout ( location = 3 ) out vec4 extra ; 
+uniform mat4 mvp ; 
+void main ( ) { 
+	 isMoon = 0.0f ; 
+	recolor = 0.0f ; 
+	mat = 1.0 ; 
+	texCoord = position . xy ; 
+	tintOut = vaColor ; 
+	normals [ 0 ] = position ; 
+	gl_Position = mvp * vec4 ( position , 1.0 ) ; 
+} 
+
+==== an array on the type initializes its element type, as in TauMC
+
+in vec3 position ; 
+in vec4 vaColor ; 
+out float mat , recolor ; 
+flat out float isMoon ; 
+out vec3 normals [ 2 ] ; 
+out vec3 [ 2 ] tangents ; 
+out vec2 texCoord ; 
+out vec4 tintOut ; 
+layout ( location = 3 ) out vec4 extra ; 
+uniform mat4 mvp ; 
+void main ( ) { 
+	 tangents = vec3 ( 0.0f ) ; 
+	mat = 1.0 ; 
+	texCoord = position . xy ; 
+	tintOut = vaColor ; 
+	normals [ 0 ] = position ; 
+	gl_Position = mvp * vec4 ( position , 1.0 ) ; 
+} 
+
+==== b
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 b_out = false ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== bv
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 bv_out = bvec2 ( false ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== f
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 f_out = 0.0f ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== i
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 i_out = 0 ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== iv
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 iv_out = ivec2 ( 0 ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== m
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 m_out = mat3 ( 0.0f ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== m22
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 m22_out = mat2x2 ( 0.0f ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== m23
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 m23_out = mat2x3 ( 0.0f ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== m4
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 m4_out = mat4 ( 0.0f ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== s
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 o = vec4 ( 1.0 ) ; 
+} 
+
+==== u
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 u_out = 0u ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== uv
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 uv_out = uvec4 ( 0u ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+
+==== v3
+
+in float f ; 
+in vec3 v3 ; 
+in int i ; 
+in ivec2 iv ; 
+in uint u ; 
+in uvec4 uv ; 
+in bool b ; 
+in bvec2 bv ; 
+in mat3 m ; 
+in mat2x2 m22 ; 
+in mat2x3 m23 ; 
+in mat4 m4 ; 
+struct S { 
+	 float a ; 
+} 
+; 
+in S s ; 
+out vec4 o ; 
+void main ( ) { 
+	 v3_out = vec3 ( 0.0f ) ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+

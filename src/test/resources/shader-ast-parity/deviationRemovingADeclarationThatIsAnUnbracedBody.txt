@@ -1,0 +1,12 @@
+==== taumc
+
+uniform bool c ; 
+out vec4 o ; 
+void main ( ) { 
+	 float y = 0.0 ; 
+	if ( c ) y = 2.0 ; 
+	for ( int i = 0 ; 
+	i < 2 ; 
+	i ++ ) o = vec4 ( y ) ; 
+} 
+

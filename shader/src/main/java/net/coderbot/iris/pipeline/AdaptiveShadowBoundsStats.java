@@ -63,6 +63,23 @@ public final class AdaptiveShadowBoundsStats {
         }
     }
 
+    /** Headless only: an enabled instance at {@code binding} that owns no GL buffer. */
+    private AdaptiveShadowBoundsStats(int binding) {
+        this.binding = binding;
+        this.enabled = true;
+        this.readback = null;
+        this.zeroes = null;
+    }
+
+    /**
+     * Makes shader transforms see instrumentation on at {@code binding} (or off, for a negative binding) without an
+     * OpenGL context, for replaying recorded transforms. Never call it in a running client: the instance it activates
+     * has no counter buffer to read.
+     */
+    public static void activateForTesting(int binding) {
+        active = binding < 0 ? DISABLED : new AdaptiveShadowBoundsStats(binding);
+    }
+
     /**
      * Creates the per-pipeline counter buffer, reserving the highest free SSBO binding.
      *

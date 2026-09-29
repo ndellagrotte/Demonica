@@ -1,0 +1,473 @@
+==== after injections (collisions in the map follow TauMC's cache order)
+o0 | out float
+ | outfloat | float | -
+o1 | out float
+ | outfloat | float | -
+o2 | out float
+ | outfloat | float | -
+o3 | out vec4
+ | outvec4 | vec4 | -
+o4 | out float
+ | outfloat | float | -
+o5 | out float
+ | outfloat | float | -
+iris_FrontColor | out vec4
+ | outvec4 | vec4 | -
+o6 | out float
+ | outfloat | float | -
+o7 | out float
+ | outfloat | float | -
+o8 | out float
+ | outfloat | float | -
+o9 | out float
+ | outfloat | float | -
+o11 | out float
+ | outfloat | float | -
+o10 | out float
+ | outfloat | float | -
+o13 | out float
+ | outfloat | float | -
+qa | out vec4
+ | outvec4 | vec4 | -
+o12 | out float
+ | outfloat | float | -
+pa | out vec4
+ | outvec4 | vec4 | -
+iris_FogFragCoord | out vec4
+ | outvec4 | vec4 | -
+==== source 0, ATTRIBUTE
+mc_Entity | attribute vec4
+ | attributevec4 | vec4 | -
+mc_midTexCoord | attribute vec2
+ | attributevec2 | vec2 | -
+==== source 0, CENTROID
+
+==== source 0, CONST
+PI | const float
+ | constfloat | float | -
+==== source 0, IN
+
+==== source 0, OUT
+
+==== source 0, UNIFORM
+frameTimeCounter | uniform float
+ | uniformfloat | float | -
+chunkOffset | uniform vec3
+ | uniformvec3 | vec3 | -
+lights | uniform Light
+ | uniformLight | Light | -
+==== source 0, VARYING
+texcoord | varying vec2
+ | varyingvec2 | vec2 | -
+color | varying vec4
+ | varyingvec4 | vec4 | -
+tint | varying vec4
+ | varyingvec4 | vec4 | -
+==== source 1, ATTRIBUTE
+
+==== source 1, CENTROID
+
+==== source 1, CONST
+
+==== source 1, IN
+
+==== source 1, OUT
+
+==== source 1, UNIFORM
+shadow | uniform sampler2DShadow
+ | uniformsampler2DShadow | sampler2DShadow | -
+texture | uniform sampler2D
+ | uniformsampler2D | sampler2D | -
+lightmap | uniform sampler2D
+ | uniformsampler2D | sampler2D | -
+==== source 1, VARYING
+texcoord | varying vec2
+ | varyingvec2 | vec2 | -
+glcolor | varying vec4
+ | varyingvec4 | vec4 | -
+lmcoord | varying vec2
+ | varyingvec2 | vec2 | -
+==== source 10, ATTRIBUTE
+
+==== source 10, CENTROID
+
+==== source 10, CONST
+
+==== source 10, IN
+
+==== source 10, OUT
+fragColor | out vec4
+ | outvec4 | vec4 | -
+==== source 10, UNIFORM
+
+==== source 10, VARYING
+
+==== source 11, ATTRIBUTE
+
+==== source 11, CENTROID
+
+==== source 11, CONST
+shadowMapResolution | const int
+ | constint | int | -
+==== source 11, IN
+worldPos | in vec3
+ | invec3 | vec3 | -
+==== source 11, OUT
+fragColor | out vec4
+ | outvec4 | vec4 | -
+==== source 11, UNIFORM
+shadowtex0 | uniform sampler2D
+ | uniformsampler2D | sampler2D | -
+shadowtex1 | uniform sampler2DShadow
+ | uniformsampler2DShadow | sampler2DShadow | -
+==== source 11, VARYING
+
+==== source 12, ATTRIBUTE
+
+==== source 12, CENTROID
+
+==== source 12, CONST
+
+==== source 12, IN
+vaColor | in vec4
+ | invec4 | vec4 | -
+position | in vec3
+ | invec3 | vec3 | -
+==== source 12, OUT
+tintOut | out vec4
+ | outvec4 | vec4 | -
+mat | out float
+ | outfloat | float | -
+recolor | out float
+ | outfloat | float | -
+extra | layout ( location = 3 ) out vec4
+ | layout(location=3)outvec4 | vec4 | -
+texCoord | out vec2
+ | outvec2 | vec2 | -
+tangents | out vec3 [ 2 ]
+ | outvec3[2] | vec3 | [2]
+normals | out vec3
+ | outvec3 | vec3 | -
+isMoon | flat out float
+ | flatoutfloat | float | -
+==== source 12, UNIFORM
+mvp | uniform mat4
+ | uniformmat4 | mat4 | -
+==== source 12, VARYING
+
+==== source 13, ATTRIBUTE
+
+==== source 13, CENTROID
+
+==== source 13, CONST
+
+==== source 13, IN
+mat | in float
+ | infloat | float | -
+tbn | in mat3
+ | inmat3 | mat3 | -
+a | in float
+ | infloat | float | -
+b | in float
+ | infloat | float | -
+color | in vec4
+ | invec4 | vec4 | -
+texCoord | in vec2
+ | invec2 | vec2 | -
+cell | in ivec2
+ | inivec2 | ivec2 | -
+gl_SecondaryColor | in vec4
+ | invec4 | vec4 | -
+isMoon | flat in float
+ | flatinfloat | float | -
+tint | in vec4
+ | invec4 | vec4 | -
+recolor | in float
+ | infloat | float | -
+extra | layout ( location = 3 ) in vec4
+ | layout(location=3)invec4 | vec4 | -
+tangents | in vec3 [ 2 ]
+ | invec3[2] | vec3 | [2]
+unusedIn | in vec3
+ | invec3 | vec3 | -
+id | flat in uint
+ | flatinuint | uint | -
+normals | in vec3
+ | invec3 | vec3 | -
+==== source 13, OUT
+fragColor | out vec4
+ | outvec4 | vec4 | -
+==== source 13, UNIFORM
+
+==== source 13, VARYING
+
+==== source 14, ATTRIBUTE
+
+==== source 14, CENTROID
+
+==== source 14, CONST
+
+==== source 14, IN
+uv | in uvec4
+ | inuvec4 | uvec4 | -
+b | in bool
+ | inbool | bool | -
+f | in float
+ | infloat | float | -
+m4 | in mat4
+ | inmat4 | mat4 | -
+i | in int
+ | inint | int | -
+m22 | in mat2
+ | inmat2 | mat2x2 | -
+iv | in ivec2
+ | inivec2 | ivec2 | -
+m | in mat3
+ | inmat3 | mat3 | -
+m23 | in mat2x3
+ | inmat2x3 | mat2x3 | -
+s | in S
+ | inS | S | -
+bv | in bvec2
+ | inbvec2 | bvec2 | -
+u | in uint
+ | inuint | uint | -
+v3 | in vec3
+ | invec3 | vec3 | -
+==== source 14, OUT
+o | out vec4
+ | outvec4 | vec4 | -
+==== source 14, UNIFORM
+
+==== source 14, VARYING
+
+==== source 15, ATTRIBUTE
+
+==== source 15, CENTROID
+cv | centroid out vec2
+ | centroidoutvec2 | vec2 | -
+==== source 15, CONST
+K | const float
+ | constfloat | float | -
+local | const float
+ | constfloat | float | -
+==== source 15, IN
+gl_Thing | in vec3
+ | invec3 | vec3 | -
+==== source 15, OUT
+mat | out float
+ | outfloat | float | -
+c | layout ( location = 0 ) out vec4
+ | layout(location=0)outvec4 | vec4 | -
+cv | centroid out vec2
+ | centroidoutvec2 | vec2 | -
+v | out vec3
+ | outvec3 | vec3 | -
+recolor | out float
+ | outfloat | float | -
+w | out vec3 [ 2 ]
+ | outvec3[2] | vec3 | [2]
+==== source 15, UNIFORM
+light | uniform struct Light {
+vec3 p ;
+}
+ | uniformstructLight{vec3p;} | structLight{vec3p;} | -
+==== source 15, VARYING
+
+==== source 2, ATTRIBUTE
+
+==== source 2, CENTROID
+
+==== source 2, CONST
+
+==== source 2, IN
+
+==== source 2, OUT
+
+==== source 2, UNIFORM
+gcolor | uniform sampler2D
+ | uniformsampler2D | sampler2D | -
+worldpos | uniform vec3
+ | uniformvec3 | vec3 | -
+centerDepthSmooth | uniform float
+ | uniformfloat | float | -
+==== source 2, VARYING
+texcoord | varying vec4
+ | varyingvec4 | vec4 | -
+==== source 3, ATTRIBUTE
+
+==== source 3, CENTROID
+
+==== source 3, CONST
+
+==== source 3, IN
+texcoord | in vec2
+ | invec2 | vec2 | -
+color | in vec4
+ | invec4 | vec4 | -
+==== source 3, OUT
+a | out float
+ | outfloat | float | -
+b | out float
+ | outfloat | float | -
+outColor0 | layout ( location = 0 ) out vec4
+ | layout(location=0)outvec4 | vec4 | -
+==== source 3, UNIFORM
+volume | uniform isampler3D
+ | uniformisampler3D | isampler3D | -
+rect | uniform sampler2DRect
+ | uniformsampler2DRect | sampler2DRect | -
+frameCounter | uniform uint
+ | uniformuint | uint | -
+atlasSize | uniform ivec2
+ | uniformivec2 | ivec2 | -
+gcolor | uniform sampler2D
+ | uniformsampler2D | sampler2D | -
+gradient | uniform sampler1D
+ | uniformsampler1D | sampler1D | -
+rotation | uniform mat2
+ | uniformmat2 | mat2x2 | -
+fogColor | uniform vec3
+ | uniformvec3 | vec3 | -
+entityId | uniform int
+ | uniformint | int | -
+noisetex | uniform usampler2D
+ | uniformusampler2D | usampler2D | -
+hand | uniform bool
+ | uniformbool | bool | -
+==== source 3, VARYING
+
+==== source 4, ATTRIBUTE
+
+==== source 4, CENTROID
+
+==== source 4, CONST
+
+==== source 4, IN
+color | in vec4
+ | invec4 | vec4 | -
+==== source 4, OUT
+fragColor | out vec4
+ | outvec4 | vec4 | -
+==== source 4, UNIFORM
+material | uniform Material
+ | uniformMaterial | Material | -
+==== source 4, VARYING
+
+==== source 5, ATTRIBUTE
+
+==== source 5, CENTROID
+
+==== source 5, CONST
+
+==== source 5, IN
+
+==== source 5, OUT
+
+==== source 5, UNIFORM
+gbufferModelView | uniform mat4
+ | uniformmat4 | mat4 | -
+viewWidth | uniform float
+ | uniformfloat | float | -
+gbufferProjection | uniform mat4
+ | uniformmat4 | mat4 | -
+viewHeight | uniform float
+ | uniformfloat | float | -
+worldpos | uniform vec3
+ | uniformvec3 | vec3 | -
+==== source 5, VARYING
+texcoord | varying vec4
+ | varyingvec4 | vec4 | -
+==== source 6, ATTRIBUTE
+
+==== source 6, CENTROID
+
+==== source 6, CONST
+
+==== source 6, IN
+
+==== source 6, OUT
+fragColor | out vec4
+ | outvec4 | vec4 | -
+==== source 6, UNIFORM
+scale | uniform float
+ | uniformfloat | float | -
+==== source 6, VARYING
+
+==== source 7, ATTRIBUTE
+
+==== source 7, CENTROID
+
+==== source 7, CONST
+PAIR_SIZE | const int
+ | constint | int | -
+==== source 7, IN
+
+==== source 7, OUT
+c | out vec4
+ | outvec4 | vec4 | -
+==== source 7, UNIFORM
+a | uniform vec2
+ | uniformvec2 | vec2 | -
+b | uniform vec2
+ | uniformvec2 | vec2 | -
+==== source 7, VARYING
+
+==== source 8, ATTRIBUTE
+
+==== source 8, CENTROID
+
+==== source 8, CONST
+
+==== source 8, IN
+
+==== source 8, OUT
+
+==== source 8, UNIFORM
+shadowtex0 | uniform sampler2DShadow
+ | uniformsampler2DShadow | sampler2DShadow | -
+shadowtex1 | uniform sampler2DShadow
+ | uniformsampler2DShadow | sampler2DShadow | -
+shadow1d | uniform sampler1DShadow
+ | uniformsampler1DShadow | sampler1DShadow | -
+==== source 8, VARYING
+shadowPos | varying vec4
+ | varyingvec4 | vec4 | -
+==== source 9, ATTRIBUTE
+
+==== source 9, CENTROID
+
+==== source 9, CONST
+q | const float
+ | constfloat | float | -
+r | const float
+ | constfloat | float | -
+u | const float
+ | constfloat | float | -
+e | const float
+ | constfloat | float | -
+v | const float
+ | constfloat | float | -
+x | const float
+ | constfloat | float | -
+h | const float
+ | constfloat | float | -
+y | const highp float
+ | consthighpfloat | float | -
+z | const float
+ | constfloat | float | -
+k | const float
+ | constfloat | float | -
+t0 | const float
+ | constfloat | float | -
+early | const float
+ | constfloat | float | -
+==== source 9, IN
+
+==== source 9, OUT
+fragColor | out vec4
+ | outvec4 | vec4 | -
+==== source 9, UNIFORM
+
+==== source 9, VARYING
+

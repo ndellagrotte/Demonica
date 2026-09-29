@@ -37,10 +37,12 @@ class TransformPatcherTest {
         Map<PatchShaderType, String> patched = TransformPatcher.patchComposite(vertex, null, fragment);
 
         assertNotNull(patched);
-        assertTrue(patched.get(PatchShaderType.VERTEX).contains("void main"));
+        // Compared as GlslTokens, so that either engine's printer passes (Step 8; raw substrings encoded its spacing).
+        String patchedVertex = patched.get(PatchShaderType.VERTEX);
+        assertTrue(GlslTokens.contains(patchedVertex, "void main"), patchedVertex);
         String patchedFragment = patched.get(PatchShaderType.FRAGMENT);
-        assertTrue(patchedFragment.contains("out vec4 iris_FragData0"), patchedFragment);
-        assertTrue(patchedFragment.contains("iris_FragData0 = vec4"), patchedFragment);
+        assertTrue(GlslTokens.contains(patchedFragment, "out vec4 iris_FragData0"), patchedFragment);
+        assertTrue(GlslTokens.contains(patchedFragment, "iris_FragData0 = vec4"), patchedFragment);
     }
 
     @Test
@@ -72,9 +74,10 @@ class TransformPatcherTest {
         assertNotNull(patched);
         String patchedVertex = patched.get(PatchShaderType.VERTEX);
         assertTrue(patchedVertex.startsWith("#version 330 core"), patchedVertex);
-        // The legacy read must be redirected so it compiles on core profile.
-        assertTrue(patchedVertex.replaceAll("\\s+", " ").contains("color = iris_FrontColor ;"), patchedVertex);
-        assertTrue(patchedVertex.replaceAll("\\s+", " ").contains("iris_FrontColor = vec4 ( 1.0 ) ;"), patchedVertex);
+        // The legacy read must be redirected so it compiles on core profile. Compared as GlslTokens, so that either
+        // engine's printer passes (Step 7b; the assertions had TauMC's token spacing).
+        assertTrue(GlslTokens.contains(patchedVertex, "color = iris_FrontColor ;"), patchedVertex);
+        assertTrue(GlslTokens.contains(patchedVertex, "iris_FrontColor = vec4 ( 1.0 ) ;"), patchedVertex);
     }
 
     @Test
@@ -104,7 +107,7 @@ class TransformPatcherTest {
         String patchedVertex = patched.get(PatchShaderType.VERTEX);
         // The terrain read must be mapped to the baked vertex color, not the composite
         // white front-color.
-        assertTrue(patchedVertex.replaceAll("\\s+", " ").contains("color = _vert_color ;"), patchedVertex);
-        assertFalse(patchedVertex.replaceAll("\\s+", " ").contains("color = iris_FrontColor"), patchedVertex);
+        assertTrue(GlslTokens.contains(patchedVertex, "color = _vert_color ;"), patchedVertex);
+        assertFalse(GlslTokens.contains(patchedVertex, "color = iris_FrontColor"), patchedVertex);
     }
 }

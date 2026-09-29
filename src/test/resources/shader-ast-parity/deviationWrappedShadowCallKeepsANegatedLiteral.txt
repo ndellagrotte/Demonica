@@ -1,0 +1,9 @@
+==== taumc
+
+uniform sampler2DShadow s ; 
+in vec3 p ; 
+out vec4 o ; 
+void main ( ) { 
+	 o = vec4 ( vec4 ( shadow2D ( s , vec3 ( p . xy , p . z -- 0.001 vec4 ( shadow2D ( s , vec3 ( p . xy , p . z -- 0.001 . r ) ; 
+} 
+

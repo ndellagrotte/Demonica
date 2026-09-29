@@ -158,7 +158,8 @@ is environmental, it is excluded with the reason recorded.
   until the license was settled (below), so it was not part of the
   `resources` scope. Decided with 0.1.0: the file is gone, and the jar carries
   the root `LICENSE`, `LICENSE-LGPL-3.0.txt` and `THIRD_PARTY_NOTICES.md`
-  (see [License](#license)).
+  (see [License](#license), which records the move to four files on
+  2026-09-28).
 - **The next sync**: Actinium `d3fb124c` and `653c862b` (the MC_VERSION
   rewrite and per-buffer blend), followed by the seven Angelica cherry-picks.
 
@@ -170,7 +171,10 @@ Before anything was published beyond `mavenLocal`, that needed a decision:
 either GPL-3.0 for the combined work, or permission to relicense.
 
 Decided on 2026-09-24, with the 0.1.0 release: GPL-3.0 for the combined work.
-The root `LICENSE` is the GPL-3.0 text, Angelica's file is
-`LICENSE-LGPL-3.0.txt`, and the mod jar carries both with
+The root `LICENSE` was the GPL-3.0 text, Angelica's file is
+`LICENSE-LGPL-3.0.txt`, and the mod jar carried both with
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). See
-[`FORK.md`](FORK.md#license).
+[`FORK.md`](FORK.md#license). On 2026-09-28 Demonica's own code moved to
+AGPL-3.0: the root `LICENSE` is now the AGPL-3.0 text, the GPL-3.0 text is
+`LICENSE-GPL-3.0.txt`, and the jars carry four files
+([decision record](glsl-transformer_adoption/DECISION.md)).

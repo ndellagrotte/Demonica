@@ -1,0 +1,9 @@
+==== taumc
+
+out vec4 c ; 
+void main ( ) { 
+	 float b = 1.0 ; 
+	b = 2.0 ; 
+	c = vec4 ( b ) ; 
+} 
+

@@ -1,0 +1,163 @@
+==== a declaration statement
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec4 iris_tmp = vec4 ( 0.0 ) ; 
+	vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== append a compound statement (the clip planes)
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+	{ 
+	 if ( actinium_ClipPlanesEnabled ) { 
+	 vec4 _cp_ep = iris_ModelViewMatrix * iris_Vertex ; 
+	gl_ClipDistance [ 0 ] = dot ( actinium_ClipPlane [ 0 ] , _cp_ep ) ; 
+	gl_ClipDistance [ 1 ] = dot ( actinium_ClipPlane [ 1 ] , _cp_ep ) ; 
+} } } 
+
+==== append a discard
+
+uniform sampler2D texture ; 
+uniform sampler2D lightmap ; 
+uniform sampler2DShadow shadow ; 
+varying vec2 texcoord ; 
+varying vec2 lmcoord ; 
+varying vec4 glcolor ; 
+void main ( ) { 
+	 vec4 color = texture2D ( texture , texcoord ) * glcolor ; 
+	color *= texture2D ( lightmap , lmcoord ) ; 
+	color . rgb *= shadow2D ( shadow , vec3 ( texcoord , 0.5 ) ) . r ; 
+	color += texture2DLod ( lightmap , lmcoord , 0.0 ) * 0.0 ; 
+	gl_FragData [ 0 ] = color ; 
+	gl_FragData [ 1 ] = vec4 ( lmcoord , 0.0 , 1.0 ) ; 
+	if ( iris_FragData0 . a <= iris_currentAlphaTest ) discard ; 
+} 
+
+==== append after a trailing return
+
+out vec4 c ; 
+void main ( ) { 
+	 c = vec4 ( 1.0 ) ; 
+	return ; 
+	c . a = 0.5 ; 
+} 
+
+==== no main: nothing happens
+
+float helper ( ) { 
+	 return 1.0 ; 
+} 
+
+==== prepend an assignment
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 iris_FogFragCoord = 0.0f ; 
+	float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== prepend twice (the second lands first)
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 _celeritas_init ( ) ; 
+	iris_FrontColor = vec4 ( 1.0 ) ; 
+	vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+a = albedo . a * luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+

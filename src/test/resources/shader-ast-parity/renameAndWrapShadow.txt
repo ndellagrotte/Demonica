@@ -1,0 +1,201 @@
+==== CommonTransformer's two renames
+
+uniform sampler2DShadow shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+uniform sampler1DShadow shadow1d ; 
+varying vec4 shadowPos ; 
+float weight ( float v ) { 
+	 return v * 0.5 ; 
+} 
+float pcf ( vec3 p ) { 
+	 float s = vec4 ( texture ( shadowtex0 , p ) ) . r ; 
+	s += vec4 ( texture ( shadowtex1 , p + vec3 ( 0.001 , 0.0 , 0.0 ) ) ) . x * 0.25 ; 
+	return s ; 
+} 
+void main ( ) { 
+	 float lit = shadow2DProj ( shadowtex0 , shadowPos ) . r ; 
+	lit *= weight ( vec4 ( texture ( shadowtex1 , shadowPos . xyz ) ) . r ) ; 
+	lit += pcf ( shadowPos . xyz ) + vec4 ( textureLod ( shadowtex0 , shadowPos . xyz , 0.0 ) ) . r ; 
+	lit += shadow1D ( shadow1d , shadowPos . xyz ) . r + shadow1DProj ( shadow1d , shadowPos ) . r + shadow1DLod ( shadow1d , shadowPos . xyz , 1.0 ) . r ; 
+	vec4 nested = vec4 ( texture ( shadowtex0 , vec3 ( texture ( shadowtex1 , shadowPos . xyz ) . r ) ) ) ; 
+	vec4 whole = vec4 ( texture ( shadowtex0 , shadowPos . xyz ) ) ; 
+	gl_FragColor = vec4 ( lit ) * nested * whole * max ( shadow2DProj ( shadowtex1 , shadowPos ) , vec4 ( 0.1 ) ) ; 
+} 
+
+==== CompatShaderTransformer's six renames
+
+uniform sampler2DShadow shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+uniform sampler1DShadow shadow1d ; 
+varying vec4 shadowPos ; 
+float weight ( float v ) { 
+	 return v * 0.5 ; 
+} 
+float pcf ( vec3 p ) { 
+	 float s = vec4 ( texture ( shadowtex0 , p ) ) . r ; 
+	s += vec4 ( texture ( shadowtex1 , p + vec3 ( 0.001 , 0.0 , 0.0 ) ) ) . x * 0.25 ; 
+	return s ; 
+} 
+void main ( ) { 
+	 float lit = vec4 ( textureProj ( shadowtex0 , shadowPos ) ) . r ; 
+	lit *= weight ( vec4 ( texture ( shadowtex1 , shadowPos . xyz ) ) . r ) ; 
+	lit += pcf ( shadowPos . xyz ) + vec4 ( textureLod ( shadowtex0 , shadowPos . xyz , 0.0 ) ) . r ; 
+	lit += vec4 ( texture ( shadow1d , shadowPos . xyz ) ) . r + vec4 ( textureProj ( shadow1d , shadowPos ) ) . r + vec4 ( textureLod ( shadow1d , shadowPos . xyz , 1.0 ) ) . r ; 
+	vec4 nested = vec4 ( texture ( shadowtex0 , vec3 ( texture ( shadowtex1 , shadowPos . xyz ) . r ) ) ) ; 
+	vec4 whole = vec4 ( texture ( shadowtex0 , shadowPos . xyz ) ) ; 
+	gl_FragColor = vec4 ( lit ) * nested * whole * max ( vec4 ( textureProj ( shadowtex1 , shadowPos ) ) , vec4 ( 0.1 ) ) ; 
+} 
+
+==== a 120 gbuffers shader's shadow2D(...).r in a compound assignment
+
+uniform sampler2D texture ; 
+uniform sampler2D lightmap ; 
+uniform sampler2DShadow shadow ; 
+varying vec2 texcoord ; 
+varying vec2 lmcoord ; 
+varying vec4 glcolor ; 
+void main ( ) { 
+	 vec4 color = texture2D ( texture , texcoord ) * glcolor ; 
+	color *= texture2D ( lightmap , lmcoord ) ; 
+	color . rgb *= vec4 ( texture ( shadow , vec3 ( texcoord , 0.5 ) ) ) . r ; 
+	color += texture2DLod ( lightmap , lmcoord , 0.0 ) * 0.0 ; 
+	gl_FragData [ 0 ] = color ; 
+	gl_FragData [ 1 ] = vec4 ( lmcoord , 0.0 , 1.0 ) ; 
+} 
+
+==== a program without shadow calls is left alone
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+a = albedo . a * luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+
+==== a second rename's wrappers in TauMC's cache order, as removeConstAssignment sees them
+
+uniform sampler2DShadow s ; 
+out vec4 o ; 
+float f ( const vec3 x ) { 
+	 float a = vec4 ( texture ( s , vec3 ( vec4 ( textureLod ( s , x , 0.0 ) ) . r ) ) ) . r ; 
+	const float b = vec4 ( textureLod ( s , vec3 ( a ) , 0.0 ) ) . r ; 
+	return b ; 
+} 
+void main ( ) { 
+	 o = vec4 ( f ( vec3 ( 0.5 ) ) ) ; 
+} 
+
+==== a user function of the name: its calls are wrapped, its prototype renamed
+
+uniform sampler2D s ; 
+varying vec3 p ; 
+vec4 textureLod ( sampler2D t , vec3 q , float l ) { 
+	 return texture2DLod ( t , q . xy , l ) ; 
+} 
+void main ( ) { 
+	 gl_FragColor = vec4 ( textureLod ( s , p , 0.0 ) ) . rrrr ; 
+} 
+
+==== after an injection and a replacement (added nodes are wrapped too)
+
+uniform sampler2DShadow shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+uniform sampler1DShadow shadow1d ; 
+varying vec4 shadowPos ; 
+float iris_s ( vec3 q ) { 
+	 return vec4 ( texture ( shadowtex0 , q ) ) . r ; 
+} 
+float weight ( float v ) { 
+	 return v * 0.5 ; 
+} 
+float pcf ( vec3 p ) { 
+	 float s = vec4 ( texture ( shadowtex0 , p ) ) . r ; 
+	s += vec4 ( texture ( shadowtex1 , p + vec3 ( 0.001 , 0.0 , 0.0 ) ) ) . x * 0.25 ; 
+	return s ; 
+} 
+void main ( ) { 
+	 float lit = vec4 ( textureProj ( shadowtex0 , shadowPos ) ) . r ; 
+	lit *= weight ( vec4 ( texture ( shadowtex1 , shadowPos . xyz ) ) . r ) ; 
+	lit += pcf ( shadowPos . xyz ) + vec4 ( textureLod ( shadowtex0 , shadowPos . xyz , 0.0 ) ) . r ; 
+	lit += vec4 ( texture ( shadow1d , shadowPos . xyz ) ) . r + vec4 ( textureProj ( shadow1d , shadowPos ) ) . r + vec4 ( textureLod ( shadow1d , shadowPos . xyz , 1.0 ) ) . r ; 
+	vec4 nested = vec4 ( texture ( shadowtex0 , vec3 ( texture ( shadowtex1 , shadowPos . xyz ) . r ) ) ) ; 
+	vec4 whole = vec4 ( texture ( shadowtex0 , shadowPos . xyz ) ) ; 
+	gl_FragColor = vec4 ( lit ) * nested * vec4 ( texture ( shadowtex1 , shadowPos . xyz ) ) * max ( vec4 ( textureProj ( shadowtex1 , shadowPos ) ) , vec4 ( 0.1 ) ) ; 
+} 
+
+==== shadow2DProj(s, p).r alone
+
+uniform sampler2DShadow shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+uniform sampler1DShadow shadow1d ; 
+varying vec4 shadowPos ; 
+float weight ( float v ) { 
+	 return v * 0.5 ; 
+} 
+float pcf ( vec3 p ) { 
+	 float s = shadow2D ( shadowtex0 , p ) . r ; 
+	s += shadow2D ( shadowtex1 , p + vec3 ( 0.001 , 0.0 , 0.0 ) ) . x * 0.25 ; 
+	return s ; 
+} 
+void main ( ) { 
+	 float lit = vec4 ( textureProj ( shadowtex0 , shadowPos ) ) . r ; 
+	lit *= weight ( shadow2D ( shadowtex1 , shadowPos . xyz ) . r ) ; 
+	lit += pcf ( shadowPos . xyz ) + shadow2DLod ( shadowtex0 , shadowPos . xyz , 0.0 ) . r ; 
+	lit += shadow1D ( shadow1d , shadowPos . xyz ) . r + shadow1DProj ( shadow1d , shadowPos ) . r + shadow1DLod ( shadow1d , shadowPos . xyz , 1.0 ) . r ; 
+	vec4 nested = shadow2D ( shadowtex0 , vec3 ( shadow2D ( shadowtex1 , shadowPos . xyz ) . r ) ) ; 
+	vec4 whole = shadow2D ( shadowtex0 , shadowPos . xyz ) ; 
+	gl_FragColor = vec4 ( lit ) * nested * whole * max ( vec4 ( textureProj ( shadowtex1 , shadowPos ) ) , vec4 ( 0.1 ) ) ; 
+} 
+
+==== the nested call: only the outer one is wrapped
+
+uniform sampler2DShadow shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+uniform sampler1DShadow shadow1d ; 
+varying vec4 shadowPos ; 
+float weight ( float v ) { 
+	 return v * 0.5 ; 
+} 
+float pcf ( vec3 p ) { 
+	 float s = vec4 ( texture ( shadowtex0 , p ) ) . r ; 
+	s += vec4 ( texture ( shadowtex1 , p + vec3 ( 0.001 , 0.0 , 0.0 ) ) ) . x * 0.25 ; 
+	return s ; 
+} 
+void main ( ) { 
+	 float lit = shadow2DProj ( shadowtex0 , shadowPos ) . r ; 
+	lit *= weight ( vec4 ( texture ( shadowtex1 , shadowPos . xyz ) ) . r ) ; 
+	lit += pcf ( shadowPos . xyz ) + shadow2DLod ( shadowtex0 , shadowPos . xyz , 0.0 ) . r ; 
+	lit += shadow1D ( shadow1d , shadowPos . xyz ) . r + shadow1DProj ( shadow1d , shadowPos ) . r + shadow1DLod ( shadow1d , shadowPos . xyz , 1.0 ) . r ; 
+	vec4 nested = vec4 ( texture ( shadowtex0 , vec3 ( texture ( shadowtex1 , shadowPos . xyz ) . r ) ) ) ; 
+	vec4 whole = vec4 ( texture ( shadowtex0 , shadowPos . xyz ) ) ; 
+	gl_FragColor = vec4 ( lit ) * nested * whole * max ( shadow2DProj ( shadowtex1 , shadowPos ) , vec4 ( 0.1 ) ) ; 
+} 
+
