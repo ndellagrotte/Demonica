@@ -635,7 +635,8 @@ test {
     useJUnitPlatform()
     workingDir = testRunDirectory.asFile
     // TransformCorpusReplayTest (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5): the forked test JVM gets the
-    // replay settings as system properties. -PglslCorpusDir=<abs> turns the replay on; -PglslReplayEngine=taumc|douira,
+    // replay settings as system properties. Without -PglslCorpusDir the test replays the committed mini-corpus
+    // (src/test/resources/transform-corpus, Step 8); -PglslCorpusDir=<abs> replays another; -PglslReplayEngine=taumc|douira,
     // -PglslReplayPatches=COMPOSITE,COMPUTE,...,COMPAT, -PglslReplayRecord=true and -PglslReplayThreads=N refine it.
     def glslCorpusDir = project.findProperty('glslCorpusDir') ?: ''
     systemProperty 'demonica.glsl.corpus.dir', glslCorpusDir
@@ -643,8 +644,8 @@ test {
     systemProperty 'demonica.glsl.replay.patches', project.findProperty('glslReplayPatches') ?: ''
     systemProperty 'demonica.glsl.replay.record', project.findProperty('glslReplayRecord') ?: 'false'
     systemProperty 'demonica.glsl.replay.threads', project.findProperty('glslReplayThreads') ?: '0'
-    // -PglslEngine=taumc|douira: the engine TransformPatcher uses in the test JVM (demonica.glsl.engine, default taumc),
-    // for running the pipeline tests on the new engine (Step 5: TransformPatcherCacheTest).
+    // -PglslEngine=taumc|douira: the engine TransformPatcher uses in the test JVM (demonica.glsl.engine; default douira
+    // since Step 8), for running the pipeline tests on either engine (Step 5: TransformPatcherCacheTest).
     if (project.findProperty('glslEngine')) {
         systemProperty 'demonica.glsl.engine', project.findProperty('glslEngine')
     }

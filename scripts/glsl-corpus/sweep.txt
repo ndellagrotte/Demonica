@@ -1,0 +1,71 @@
+# glsl-transformer Step 8 (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): a cp4-shaped sweep of the three packs,
+# switched mid-game at the corpus camera, then each pack loaded a second time, which the transform cache serves
+# (BSL, Complementary Reimagined and I Like Vanilla need about 390 of its 400 entries, and Iris clears it only after
+# 120 s without a transform). Run with -PdevProps=demonica.glsmPerfDebug=true[,demonica.glsl.engine=...] and read the
+# phases with scripts/glsl-corpus/transform-times.py --phases <log>: each "log" step starts a phase. The first BSL
+# frame repeats bsl.txt's corpus-bsl-1-pack (same steps before it); the others follow other packs.
+pack off
+wait 20
+world sweep 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 6000
+cmd /weather clear
+cmd /gamemode spectator
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+shot sweep-0-nopack
+log first BSL
+pack BSL_v10.1.8.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot sweep-1-bsl
+log first Complementary
+pack ComplementaryReimagined_r5.9.3.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot sweep-2-complementary
+log first I Like Vanilla
+pack I Like Vanilla v1.4.4.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot sweep-3-ilikevanilla
+log off
+pack off
+wait 20
+chunks 1200
+wait 60
+shot sweep-4-off
+log cached BSL
+pack BSL_v10.1.8.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot sweep-5-bsl-cached
+log cached Complementary
+pack ComplementaryReimagined_r5.9.3.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot sweep-6-complementary-cached
+log cached I Like Vanilla
+pack I Like Vanilla v1.4.4.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot sweep-7-ilikevanilla-cached
+log end
+pack off
+wait 20
+exit

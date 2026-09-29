@@ -2,6 +2,7 @@
 """Summarizes the shader transform times of dev-client logs (docs/glsl-transformer_adoption/reports/S7b-hardening.md).
 
     scripts/glsl-corpus/transform-times.py run/timing-bsl-douira-1.out [more logs]
+    scripts/glsl-corpus/transform-times.py --phases run/s8-sweep-douira.out [more logs]
 
 Reads the "[ShaderTransformCache] ... miss transformMs=N" lines that -Ddemonica.glsmPerfDebug=true logs for each cache
 miss (the transform on its Shader-Transform thread, from the call to the result) and prints, per log: the engine the
@@ -9,6 +10,10 @@ log names, the number of transforms, the median, the 90th percentile and the sum
 first 30 transforms against the rest (warm-up). For the glsl-transformer engine it also sums the
 "[AstShaderTransformer] ... timing" lines: the ANTLR parses, the AST builds, and the waits for and holds of
 ShaderAst.BUILD_LOCK.
+
+With --phases (Step 8), each log is also split at the dev harness's "Dev marker: <text>" lines (a script's "log" steps)
+and every phase is summarized on its own: transforms (cache misses), cache hits, median, p90 and sum, so one run that
+loads a pack twice gives its first load and its cached reload.
 """
 import re
 import statistics
@@ -16,6 +21,8 @@ import sys
 
 MISS = re.compile(r"\[ShaderTransformCache\] \w+ miss transformMs=([0-9.]+)")
 ENGINE = re.compile(r"GLSL transform engine: (\w+)")
+HIT = re.compile(r"\[ShaderTransformCache\] \w+ hit cacheSize=")
+MARKER = re.compile(r"Dev marker: (.*)")
 TIMING = re.compile(r"\[AstShaderTransformer\] \w+ timing totalMs=([0-9.]+) parseMs=([0-9.]+) buildMs=([0-9.]+) "
                     r"lockWaitMs=([0-9.]+) lockHeldMs=([0-9.]+) locks=(\d+) contended=(\d+)")
 
@@ -52,8 +59,36 @@ def summarize(path):
               f"medianLockWaitMs={statistics.median(row[3] for row in rows):.2f}")
 
 
+def summarize_phases(path):
+    phases = [["(before the first marker)", [], 0]]
+    with open(path, errors="replace") as log:
+        for line in log:
+            marker = MARKER.search(line)
+            if marker:
+                phases.append([marker.group(1).strip(), [], 0])
+                continue
+            miss = MISS.search(line)
+            if miss:
+                phases[-1][1].append(float(miss.group(1)))
+            elif HIT.search(line):
+                phases[-1][2] += 1
+    for name, times, hits in phases:
+        if not times and not hits:
+            continue
+        line = f"    phase '{name}': transforms={len(times)} hits={hits}"
+        if times:
+            line += (f" medianMs={statistics.median(times):.1f} p90Ms={percentile(times, 0.9):.1f}"
+                     f" sumMs={sum(times):.1f}")
+        print(line)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    arguments = sys.argv[1:]
+    phases = "--phases" in arguments
+    arguments = [argument for argument in arguments if argument != "--phases"]
+    if not arguments:
         sys.exit(__doc__)
-    for argument in sys.argv[1:]:
+    for argument in arguments:
         summarize(argument)
+        if phases:
+            summarize_phases(argument)

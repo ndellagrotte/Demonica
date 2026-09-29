@@ -17,6 +17,12 @@
 # judged.
 #
 # Step 2 (2026-09-28): empty. The TauMC engine replays its own recordings identically.
+#
+# Step 8 (2026-09-29): the new engine is the default, and :test replays the committed mini-corpus
+# (src/test/resources/transform-corpus) on it without -PglslCorpusDir. Every entry below was reviewed: each names a
+# mini-corpus case that exists, each tolerated a difference in that replay (accepted entries in scope=9 used=9
+# stale=0), each test it cites exists, and the compile claims were checked again with glslangValidator 16.4.0 on both
+# engines' outputs (report S08-flip-default.md, "accepted.txt review"). No pack corpus case needs an entry.
 
 # Step 5 (2026-09-28): COMPOSITE and COMPUTE on the glsl-transformer engine. The 36 COMPOSITE pack cases and the six
 # COMPOSITE/COMPUTE mini-corpus cases that TauMC transformed replay identically (five at Step 5,
@@ -57,6 +63,7 @@ celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed i
 # statement. No recorded pack input uses gl_MultiTexCoord2 in a DH program. Checked by
 # AstShaderTransformerTest.dhMultiTexCoord2Alias.
 dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by AstShaderTransformerTest
+
 # Step 7b (2026-09-29): pre-flip hardening (report S7b-hardening.md). Nine mini-corpus cases, TauMC outputs recorded
 # with -PglslReplayEngine=taumc -PglslReplayRecord=true. Three replay identically on the new engine:
 # composite-extension-all (#extension all : warn), composite-extension-in-function and

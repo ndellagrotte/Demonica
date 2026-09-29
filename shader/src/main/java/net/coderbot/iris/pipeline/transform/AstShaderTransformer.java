@@ -32,8 +32,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The transform engine on douira's glsl-transformer, selected with {@code -Ddemonica.glsl.engine=douira}
- * ({@link TransformPatcher#engine()}). It took over from {@link ShaderTransformer} one patch kind at a time
+ * The transform engine on douira's glsl-transformer, the default since Step 8 ({@link TransformPatcher#engine()};
+ * {@code -Ddemonica.glsl.engine=taumc} selects the old engine until Step 11). It took over from {@link ShaderTransformer} one patch kind at a time
  * (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): COMPOSITE and COMPUTE (Step 5), ATTRIBUTES and CELERITAS_TERRAIN
  * (Step 6), DH_TERRAIN and DH_GENERIC (Step 7), so every {@link Patch} is transformed here, adaptive shadow bounds
  * included ({@code transformer/CommonTransformer}).

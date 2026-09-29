@@ -1,5 +1,6 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
+import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
 import io.github.douira.glsl_transformer.GLSLLexer;
 import io.github.douira.glsl_transformer.GLSLParser.TranslationUnitContext;
 import io.github.douira.glsl_transformer.ast.node.Identifier;
@@ -130,7 +131,8 @@ public final class ShaderAst {
      * Reentrant. Step 5 measured holding it around a whole transform instead: slower under concurrency, no faster
      * alone (docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md). Step 7b took the programs' ANTLR
      * parses out of it: in game, eight {@code Shader-Transform} threads spent most of a transform waiting for it
-     * (docs/glsl-transformer_adoption/reports/S7b-hardening.md). {@link Timing} counts the waits.
+     * (docs/glsl-transformer_adoption/reports/S7b-hardening.md). {@link Timing} counts the waits, only while
+     * {@code -Ddemonica.glsmPerfDebug=true} (Step 8).
      */
     public static final ReentrantLock BUILD_LOCK = new ReentrantLock();
 
@@ -229,7 +231,7 @@ public final class ShaderAst {
         final DirectiveFilter filter = new DirectiveFilter();
         final Root root = ROOT_SUPPLIER.get();
         final Version version = lexerVersion != null ? lexerVersion : DEFAULT_LEXER_VERSION;
-        final Timing timing = Timing.CURRENT.get();
+        final Timing timing = Timing.current();
         final TranslationUnit tree;
         final List<String> dropped;
         final List<TypeToken> typeTokens;
@@ -237,15 +239,19 @@ public final class ShaderAst {
             // The ANTLR parse (lexing, the channel filter, the parse tree) touches no glsl-transformer build state, so
             // it runs outside BUILD_LOCK on a parser of its own (Step 7b; ASTParser.parseTranslationUnit does the same
             // two calls, parse then build, on its shared parser). Only the AST build holds the lock.
-            final long parseStart = System.nanoTime();
+            final long parseStart = timing != null ? System.nanoTime() : 0;
             final TranslationUnitContext parsed = newProgramParser(filter, version).parse(text, ParseShape.TRANSLATION_UNIT);
-            timing.parseNanos += System.nanoTime() - parseStart;
+            if (timing != null) {
+                timing.parseNanos += System.nanoTime() - parseStart;
+            }
             final long acquired = lockBuild(timing);
-            final long buildStart = System.nanoTime();
+            final long buildStart = timing != null ? System.nanoTime() : 0;
             try {
                 tree = ASTBuilder.buildSubtree(root, parsed, ParseShape.TRANSLATION_UNIT.visitMethod);
             } finally {
-                timing.programBuildNanos += System.nanoTime() - buildStart;
+                if (timing != null) {
+                    timing.programBuildNanos += System.nanoTime() - buildStart;
+                }
                 unlockBuild(timing, acquired);
             }
             dropped = new ArrayList<>(filter.dropped.values());
@@ -589,7 +595,7 @@ public final class ShaderAst {
      * parsed at another version since. Every verb of this class that parses goes through here.
      */
     public <N> N build(Supplier<N> build) {
-        final Timing timing = Timing.CURRENT.get();
+        final Timing timing = Timing.current();
         final long acquired = lockBuild(timing);
         try {
             t.getLexer().version = lexerVersion;
@@ -601,10 +607,10 @@ public final class ShaderAst {
 
     /**
      * Takes {@link #BUILD_LOCK} and counts the wait in {@code timing}. Returns when the lock was acquired, or -1 for a
-     * reentrant acquisition, which is neither waited for nor counted.
+     * reentrant acquisition or a null {@code timing} (perf debug off), which are neither timed nor counted.
      */
     private static long lockBuild(Timing timing) {
-        if (BUILD_LOCK.isHeldByCurrentThread()) {
+        if (timing == null || BUILD_LOCK.isHeldByCurrentThread()) {
             BUILD_LOCK.lock();
             return -1;
         }
@@ -620,7 +626,7 @@ public final class ShaderAst {
     }
 
     private static void unlockBuild(Timing timing, long acquired) {
-        if (acquired >= 0) {
+        if (timing != null && acquired >= 0) {
             timing.lockHeldNanos += System.nanoTime() - acquired;
         }
         BUILD_LOCK.unlock();
@@ -630,7 +636,9 @@ public final class ShaderAst {
      * Where the current thread's parse and build time went since {@link #start()}, for the transform timing that
      * {@code -Ddemonica.glsmPerfDebug=true} logs (Step 7b): the ANTLR parses of programs (outside the lock), the AST
      * builds of programs, and the waits for and holds of {@link #BUILD_LOCK} (program builds and every verb's snippet).
-     * Per thread; counting costs two {@code nanoTime} calls per lock acquisition.
+     * Per thread; counting costs a {@code ThreadLocal} lookup and two {@code nanoTime} calls per lock acquisition, so it
+     * runs only while {@link GLSMPerfDebug#isEnabled()} (Step 8: without perf debug, a lock acquisition costs one
+     * volatile read more than the bare lock, and the counts stay zero).
      */
     public static final class Timing {
         private static final ThreadLocal<Timing> CURRENT = ThreadLocal.withInitial(Timing::new);
@@ -643,6 +651,11 @@ public final class ShaderAst {
         private int contended;
 
         private Timing() {
+        }
+
+        /** The current thread's timing while perf debug is on, else null (nothing is counted). */
+        static Timing current() {
+            return GLSMPerfDebug.isEnabled() ? CURRENT.get() : null;
         }
 
         /** Resets and returns the current thread's timing. */

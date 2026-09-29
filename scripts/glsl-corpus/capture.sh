@@ -6,7 +6,8 @@
 #   scripts/glsl-corpus/capture.sh bsl|complementary|vanilla|compat [more Gradle arguments]
 #   GLSL_ENGINE=douira scripts/glsl-corpus/capture.sh bsl|complementary|vanilla|compat [more Gradle arguments]
 #
-# GLSL_ENGINE (Step 6) selects the transform engine (demonica.glsl.engine; default taumc). Another engine than taumc
+# GLSL_ENGINE (Step 6) selects the transform engine (default taumc here, the reference corpus's engine; the script
+# always passes demonica.glsl.engine, since Step 8 made douira the mod's default). Another engine than taumc
 # records into run/transform-corpus-<engine>/<name>/ with its log in run/corpus-<name>-<engine>.out, so the TauMC
 # corpus the replay compares against is never replaced; its frames are copied to run/engine-screenshots/<engine>/.
 #
@@ -54,10 +55,7 @@ if [ -n "${GLSL_CORPUS_ROOT:-}" ]; then
     frames=$root/run/engine-screenshots/$tag
 fi
 rm -rf "$corpus"
-props="demonica.glsl.corpus=$corpus,demonica.glsmPerfDebug=true"
-if [ "$engine" != taumc ]; then
-    props="$props,demonica.glsl.engine=$engine"
-fi
+props="demonica.glsl.corpus=$corpus,demonica.glsmPerfDebug=true,demonica.glsl.engine=$engine"
 extra=()
 if [ "$name" = compat ]; then
     extra+=(-PwithCompatMods)

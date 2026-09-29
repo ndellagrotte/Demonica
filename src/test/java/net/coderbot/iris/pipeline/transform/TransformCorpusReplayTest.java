@@ -49,14 +49,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /**
  * Replays a recorded transform corpus through one engine and compares every stage with the recorded TauMC output
  * ({@code out.taumc.<stage>.glsl}) as {@link GlslTokens} (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5).
  *
- * <p>Skipped unless a corpus is configured. The root {@code test {}} block forwards the Gradle properties:
- * {@code -PglslCorpusDir=<abs>} (searched recursively for {@code case.properties}), {@code -PglslReplayEngine=taumc|douira}
+ * <p>Without a configured corpus it replays the committed mini-corpus, {@code src/test/resources/transform-corpus}, on
+ * the default engine, so every {@code :test} and {@code check} guards the transform output against its recorded TauMC
+ * snapshot (Step 8; record mode needs an explicit corpus). The root {@code test {}} block forwards the Gradle
+ * properties: {@code -PglslCorpusDir=<abs>} (another corpus, searched recursively for {@code case.properties}),
+ * {@code -PglslReplayEngine=taumc|douira}
  * (default: the engine {@code demonica.glsl.engine} selects), {@code -PglslReplayPatches=COMPOSITE,COMPUTE,...}
  * (patch kinds to replay, {@code COMPAT} for GLSM's mod-shader cases; default all) and {@code -PglslReplayRecord=true}
  * (write {@code out.<engine>.<stage>.glsl} instead of comparing) and {@code -PglslReplayThreads=N} (after the replay,
@@ -146,8 +148,7 @@ class TransformCorpusReplayTest {
      */
     @Test
     void acceptedEntriesThatTolerateNothingAreStale(@TempDir Path reports) throws IOException {
-        final Path mini = Paths.get(System.getProperty("demonica.projectRoot", "."), "src", "test", "resources",
-            "transform-corpus");
+        final Path mini = miniCorpus();
         final List<AcceptedDiff> entries = parseAccepted("composite-330 | fragment | dead: this case replays identically\n"
             + "transform-grouped-330-undeclared | error-succeeded | old engine threw; the new engine transforms it\n"
             + "shadow-bounds | fragment | not replayed in this run, so not judged\n");
@@ -172,8 +173,7 @@ class TransformCorpusReplayTest {
     @Test
     void replayCorpus() throws IOException {
         final String dirValue = System.getProperty(CORPUS_DIR_PROPERTY, "").trim();
-        assumeFalse(dirValue.isEmpty(), "no transform corpus configured (-PglslCorpusDir)");
-        final Path corpus = Paths.get(dirValue).toAbsolutePath().normalize();
+        final Path corpus = (dirValue.isEmpty() ? miniCorpus() : Paths.get(dirValue)).toAbsolutePath().normalize();
         assertTrue(Files.isDirectory(corpus), "corpus directory does not exist: " + corpus);
 
         final String engineValue = System.getProperty(ENGINE_PROPERTY, "").trim().toLowerCase(Locale.ROOT);
@@ -181,6 +181,9 @@ class TransformCorpusReplayTest {
         assertTrue(engine.equals("taumc") || engine.equals("douira"), "unknown replay engine: " + engine);
         final Set<String> patches = parsePatches(System.getProperty(PATCHES_PROPERTY, ""));
         final boolean record = Boolean.parseBoolean(System.getProperty(RECORD_PROPERTY, "false"));
+        // The committed snapshot is written only on purpose, with the corpus named explicitly.
+        assertFalse(record && dirValue.isEmpty(), "record mode needs -PglslCorpusDir (the default mini-corpus is not "
+            + "recorded into)");
         final int threads = Integer.parseInt(System.getProperty(THREADS_PROPERTY, "0").trim().isEmpty() ? "0"
             : System.getProperty(THREADS_PROPERTY, "0").trim());
         final List<AcceptedDiff> accepted = readAccepted();
@@ -245,6 +248,11 @@ class TransformCorpusReplayTest {
             assertTrue(stale.isEmpty(), "stale accepted.txt entries (they tolerated no difference): "
                 + stale.stream().map(AcceptedDiff::source).toList());
         }
+    }
+
+    /** The committed mini-corpus, replayed when no corpus is configured (Step 8). */
+    static Path miniCorpus() {
+        return Paths.get(System.getProperty("demonica.projectRoot", "."), "src", "test", "resources", "transform-corpus");
     }
 
     enum Outcome { IDENTICAL, ACCEPTED, FAILING, UNSUPPORTED, RECORDED }

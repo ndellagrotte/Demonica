@@ -41,6 +41,13 @@ public class TransformPatcher {
         Engine(String id) {
             this.id = id;
         }
+
+        /**
+         * The engine used when {@code demonica.glsl.engine} is unset or unknown: glsl-transformer since Step 8 (exit
+         * point A of the adoption plan). {@code -Ddemonica.glsl.engine=taumc} selects the old engine until Step 11
+         * removes it.
+         */
+        public static final Engine DEFAULT = DOUIRA;
     }
 
     // Resolved and logged once, when a transform first needs it (the holder class initializes on first access).
@@ -48,7 +55,7 @@ public class TransformPatcher {
         static final Engine ENGINE = resolveEngine();
 
         private static Engine resolveEngine() {
-            final String value = System.getProperty(ENGINE_PROPERTY, Engine.TAUMC.id).trim().toLowerCase(Locale.ROOT);
+            final String value = System.getProperty(ENGINE_PROPERTY, Engine.DEFAULT.id).trim().toLowerCase(Locale.ROOT);
             Engine resolved = null;
             for (Engine candidate : Engine.values()) {
                 if (candidate.id.equals(value)) {
@@ -60,15 +67,18 @@ public class TransformPatcher {
                 // Concatenated: IrisLogging has no warn(String, Object...), so '{}' arguments would bind to
                 // warn(Object...) and log the array's identity instead of the message.
                 Iris.logger.warn("[TransformPatcher] Unknown GLSL transform engine '" + value + "' in "
-                    + ENGINE_PROPERTY + "; using " + Engine.TAUMC.id);
-                resolved = Engine.TAUMC;
+                    + ENGINE_PROPERTY + "; using " + Engine.DEFAULT.id);
+                resolved = Engine.DEFAULT;
             }
             Iris.logger.info("[TransformPatcher] GLSL transform engine: {} ({})", resolved.id, ENGINE_PROPERTY);
             return resolved;
         }
     }
 
-    /** The engine every transform in this JVM uses, from {@value #ENGINE_PROPERTY} (default {@code taumc}). */
+    /**
+     * The engine every transform in this JVM uses, from {@value #ENGINE_PROPERTY} (default {@link Engine#DEFAULT},
+     * {@code douira}).
+     */
     public static Engine engine() {
         return EngineHolder.ENGINE;
     }
