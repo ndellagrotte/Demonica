@@ -148,6 +148,10 @@ $ ./gradlew runClient -PdevScript=@scripts/cp4.txt > run/s11-cp4.out 2>&1; grep 
 0
 0            (debug.log of the same run: 0 and 6; BUILD SUCCESSFUL in 1m 5s, five pack switches loaded: true)
 ```
+*Correction (2026-09-29, Step 12):* the cp4 run made five pack switches, and four of them loaded a pack: `run/s11-cp4.out`
+logs `Dev shader pack: BSL_v10.1.8.zip (loaded: true)`, `ComplementaryReimagined_r5.9.3.zip (loaded: true)`,
+`I Like Vanilla v1.4.4.zip (loaded: true)`, `(off) (loaded: false)` (the script's `pack off`, which loads nothing) and
+`BSL_v10.1.8.zip (loaded: true)`. No switch failed.
 
 Replays (the recorded TauMC outputs stay the reference; `-PglslReplayThreads=8`; `run/s11-replay-<corpus>.out`, each
 `BUILD SUCCESSFUL`, each `replay: accepted entries in scope=0 used=0 stale=0`):

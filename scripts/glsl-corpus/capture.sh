@@ -6,8 +6,9 @@
 #
 #   scripts/glsl-corpus/capture.sh bsl|complementary|vanilla|compat [more Gradle arguments]
 #
-# The reference corpora the replay compares against, run/transform-corpus/<name>/ and run/transform-corpus-dh/, hold
-# TauMC's recorded outputs (out.taumc.*). TauMC's engine was removed in Step 11, so they can no longer be re-recorded:
+# The reference corpora the replay compares against, run/transform-corpus/<name>/, run/transform-corpus-dh/ and
+# run/transform-corpus-s7-taumc/ (S7's TauMC BSL corpus; protected since Step 12), hold TauMC's recorded outputs
+# (out.taumc.*). TauMC's engine was removed in Step 11, so they can no longer be re-recorded:
 # this script never writes into them (until Step 11 it recorded TauMC into run/transform-corpus/<name>/ by default,
 # and GLSL_ENGINE chose the engine).
 #
@@ -43,7 +44,7 @@ if [ -n "${GLSL_CORPUS_ROOT:-}" ]; then
     corpus_root=${corpus_root%/}
     tag=$(basename "$corpus_root")
     case "$tag" in
-        transform-corpus|transform-corpus-dh|transform-corpus-taumc|transform-corpus-douira)
+        transform-corpus|transform-corpus-dh|transform-corpus-taumc|transform-corpus-s7-taumc|transform-corpus-douira)
             echo "GLSL_CORPUS_ROOT must not be a default or reference corpus root ($tag)" >&2; exit 2 ;;
     esac
     corpus=$corpus_root/$name
