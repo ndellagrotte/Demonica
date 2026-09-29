@@ -30,6 +30,6 @@ plugins {
 
 rootProject.name = 'Demonica'
 
-// GLSM and the Iris tree (shader) are merged into the Demonica mod jar. GTNHLib comes from S8TNLib, a separate mod
-// (build.gradle). diagnostics is the code of the companion jar, Demonica-diagnostics-<version>.jar.
+// GLSM and the Iris tree (shader) are merged into the Demonica mod jar. So is GTNHLib, from S8TNLib's latest
+// release (build.gradle). diagnostics is the code of the companion jar, Demonica-diagnostics-<version>.jar.
 include 'glsm', 'shader', 'diagnostics'

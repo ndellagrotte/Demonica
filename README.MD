@@ -8,18 +8,15 @@ the role of [Actinium](https://github.com/DHJComical/Actinium), from which it
 forked at `4a19c959` ([`docs/FORK.md`](docs/FORK.md)); unlike Actinium, it
 carries no copy of the terrain renderer.
 
-**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested), and two mods:
+**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested), and Celeritas's
+1.12.2 mod, the build pinned in [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md):
+upstream commit `9b661b70`, as published by the Celeritas auto-build (the
+release asset `01-celeritas-forge-mc12.2-2.5.0-dev.jar` or the Maven jar; both
+are accepted). GTNHLib's classes, from
+[S8TNLib](https://github.com/ndellagrotte/S8TNLib), are part of Demonica's jar.
 
-- Celeritas's 1.12.2 mod, the build pinned in
-  [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md): upstream commit
-  `9b661b70`, as published by the Celeritas auto-build (the release asset
-  `01-celeritas-forge-mc12.2-2.5.0-dev.jar` or the Maven jar; both are
-  accepted).
-- [S8TNLib](https://github.com/ndellagrotte/S8TNLib) 0.3.0 or later, which
-  brings GTNHLib's classes.
-
-Demonica does not run next to Actinium, and does nothing without Celeritas or
-S8TNLib, so that the game can tell you which is missing.
+Demonica does not run next to Actinium, and does nothing without Celeritas, so
+that the game can tell you it is missing.
 
 ## What it does
 
@@ -44,9 +41,9 @@ shader pack screen say why
 
 Download `Demonica-<version>.jar` from the
 [releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
-`mods/`, next to the Celeritas jar named above and `s8tnlib-<version>.jar`
-from [S8TNLib's releases](https://github.com/ndellagrotte/S8TNLib/releases),
-0.3.0 or later. Without either mod, Forge lists what is missing.
+`mods/`, next to the Celeritas jar named above. Without Celeritas, Forge says
+it is missing. Demonica 0.3.0 to 0.5.0 needed `s8tnlib-<version>.jar` beside
+them; it can go now (Demonica logs a warning while it is there).
 
 Demonica runs on Cleanroom's own OpenGL context. `advanced.opengl_profile`
 (Video Settings → Advanced → OpenGL Profile) selects a core context instead,
@@ -55,19 +52,23 @@ which macOS gets automatically.
 ## Building
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
-1.12.2/Cleanroom workspace through Unimined, downloads the pinned Celeritas
-from `maven.outlands.top` and the pinned S8TNLib from its GitHub release.
-`verifyCeleritasPin` and `verifyS8tnlibPin` check both jars' SHA-256.
+1.12.2/Cleanroom workspace through Unimined and downloads the pinned Celeritas
+from `maven.outlands.top`, which `verifyCeleritasPin` checks by SHA-256. GTNHLib
+comes from the latest release of S8TNLib: every build asks GitHub's API which
+release that is (`GITHUB_TOKEN`, when set, authenticates the call), downloads
+its jar and merges its classes into the mod jar. The jar's manifest records
+`S8TNLib-Version` and `S8TNLib-Commit`. Offline, or when GitHub cannot be
+reached, the build uses the last answer, cached in
+`.gradle/demonica/s8tnlib-latest`.
 
 ```sh
-./gradlew build      # compile, test, and check the pins and the mod jar
-./gradlew runClient  # dev client with Celeritas, S8TNLib and Demonica
+./gradlew build      # compile, test, and check the pin and the mod jar
+./gradlew runClient  # dev client with Celeritas and Demonica
 ```
 
 To try an S8TNLib build that has no release yet, pass its `build/libs` with
-`-Ps8tnlibDir=<dir>`; the S8TNLib pin is then only reported. The build looks
-for the version in `s8tnlib_version`, so a snapshot also needs
-`-Ps8tnlib_version=<version>`, such as `0.4.0-SNAPSHOT`.
+`-Ps8tnlibDir=<dir>`; the version is that of the `s8tnlib-<version>.jar` there
+(`-Ps8tnlibVersion=<version>` chooses one when there are several).
 
 The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
 normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<version>.jar`.
@@ -80,7 +81,6 @@ normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<ver
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for |
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
-| `-PwithoutS8tnlib` | leave S8TNLib out, likewise |
 | `-PwithoutDiagnostics` | leave the diagnostics jar out, as a player without it runs |
 | `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |
 
@@ -127,7 +127,7 @@ Angelica's and Iris's is LGPL-3.0 ([`LICENSE-LGPL-3.0.txt`](LICENSE-LGPL-3.0.txt
 Angelica's license file), and Actinium's is GPL-3.0
 ([`LICENSE-GPL-3.0.txt`](LICENSE-GPL-3.0.txt)); section 13 of GPL-3.0 and of
 AGPL-3.0 lets these parts be combined with Demonica's AGPL-3.0 code in one work. The contained glsl-transformer
-library is AGPL-3.0. S8TNLib, installed separately, is GPL-3.0. The MIT- and
+library is AGPL-3.0. GTNHLib, from S8TNLib, is GPL-3.0 and part of the mod jar. The MIT- and
 BSD-licensed parts keep their notices. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 has the details, and the mod jar and the diagnostics jar carry all four files.
 The reasons are in [the decision record](docs/glsl-transformer_adoption/DECISION.md).

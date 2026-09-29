@@ -93,6 +93,10 @@ at Checkpoint 3.
   0.3.0 it is a separate, coremod-flagged mod jar, which dev runs load from
   the extrapath as they load Celeritas, and `verifyRunClasspath` still keeps
   it off the app classpath ([`../FORK.md`](../FORK.md#gtnhlib)).
+- *Note, 2026-09-29:* it travels with the mod again (0.6.0): its GTNHLib
+  classes are merged into the mod classes, which dev runs load from the
+  extrapath, and `verifyRunClasspath` keeps S8TNLib's jar off both the app
+  classpath and the extrapath.
 - `-Dmixin.env.ignoreConstraints` is not needed.
 - Only the client run is enabled. Celeritas's coremod registers client-only
   mixin targets, and `runServer` is not used.

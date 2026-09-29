@@ -42,10 +42,9 @@ same classes, and Actinium carries a second renderer.
 
 ## GTNHLib
 
-GTNHLib is not in this repository. It comes from
-[S8TNLib](https://github.com/ndellagrotte/S8TNLib), a separate mod that
-players install next to Celeritas and Demonica (mod id `s8tnlib`). S8TNLib
-ports GTNHLib to 1.12.2 on Cleanroom and keeps the files Demonica reaches.
+GTNHLib is not in this repository. The mod jar merges the GTNHLib classes of
+[S8TNLib](https://github.com/ndellagrotte/S8TNLib)'s jar, which ports GTNHLib
+to 1.12.2 on Cleanroom and keeps the files Demonica reaches.
 Up to S8TNLib's `v0.1.1`, its 60 files were byte-identical to `GTNHLib/` at
 `61fa479d` (S8TNLib's tag `demonica-syncline/61fa479d`), which is what
 `GTNHLib/` held when it was removed here. From `v0.2.0` on, S8TNLib changes
@@ -53,32 +52,45 @@ on its own: 0.2.0 fixed the `PointerBuffer` path of `bytebuf`, dropped its
 Java 8 branches, freed a thread's capture buffers once the thread ends, and
 no longer carried the two moved types. 0.3.0 drops `bytebuf` for LWJGL's own
 `org.lwjgl.system` (Cleanroom 0.6.12 ships LWJGL 3.4.1), which Demonica now
-imports directly, and makes the jar a mod, so 47 files remain. Up to 0.2.0
-Demonica merged S8TNLib's jar into its own.
+imports directly, and makes the jar a mod, so 47 files remain. From
+Demonica 0.3.0 to 0.5.0 players installed S8TNLib as a separate mod, pinned
+by its jar's SHA-256; since 0.6.0 its GTNHLib classes are merged into
+Demonica's jar again, as they were up to 0.2.0.
 
-- **The pin.** `gradle.properties` names the release (`s8tnlib_version`)
-  and the SHA-256 of its jar (`s8tnlib_sha256`). The build downloads
-  `s8tnlib-<version>.jar` from the release's assets, and
-  `verifyS8tnlibPin` checks the hash. To move the pin, release S8TNLib (its
-  CI attaches the jar to the release), then set both properties and build.
-  `-Ps8tnlibDir=<dir>` takes the jar from a local directory instead, such
-  as S8TNLib's `build/libs`, and only reports the hash.
-- **Loading.** S8TNLib's jar is a coremod-flagged mod: its manifest names a
-  loading plugin that does nothing, which is what makes Cleanroom put the
-  jar on the `LaunchClassLoader` while coremods load. Demonica's coremod
-  code needs its classes then (`GLSMRedirector`, `MixinTessellator`,
-  `AngelicaLateTweaker`). `MixinEarly` registers nothing unless
-  `Environment` finds S8TNLib, and `@Mod` declares
-  `required-after:s8tnlib@[0.3.0,)`, so a missing S8TNLib is FML's
-  missing-mods screen. `-PwithoutS8tnlib` shows it in a dev run.
-- **Dev runs** load Unimined's MCP remap of the jar through
-  `-Dcrl.dev.extrapath`, like Celeritas's, and never from the dev client's
-  class path: `verifyRunClasspath` checks that, and
+- **The latest release, unpinned.** Each build asks GitHub's API for
+  S8TNLib's latest release (`releases/latest`, which skips drafts and
+  prereleases; `GITHUB_TOKEN`, when set, authenticates the call) and
+  downloads `s8tnlib-<version>.jar` and its sources jar from the release's
+  assets. The answer is cached in `.gradle/demonica/s8tnlib-latest`, which
+  `--offline` builds and builds that cannot reach GitHub use. So a build
+  takes a new S8TNLib release as soon as it is published, and two builds of
+  one commit can differ: the mod jar's manifest records `S8TNLib-Version`
+  and `S8TNLib-Commit` (the commit S8TNLib's jar was built from), and
+  `verifyDistributedJar` requires both. `-Ps8tnlibDir=<dir>` takes the jar
+  from a local directory instead, such as S8TNLib's `build/libs`, with the
+  version of the `s8tnlib-<version>.jar` there (`-Ps8tnlibVersion=<version>`
+  chooses one when there are several).
+- **Merging.** The merge takes Unimined's MCP remap of the release jar (it
+  is `modCompileOnly`), so the classes join `:glsm`'s and `:shader`'s in
+  `mergeEmbeddedLibraryClasses`, dev runs see them in MCP names, and
+  `remapJar` maps them to SRG with the rest. It leaves out what makes
+  S8TNLib a mod of its own: `com/s8tnlib/**` (its `@Mod` and no-op
+  coremod), its `mcmod.info`, manifest, `LICENSE` and notices. Demonica's
+  coremod needs GTNHLib's classes while coremods load (`GLSMRedirector`,
+  `MixinTessellator`, `AngelicaLateTweaker`), which being in Demonica's own
+  jar guarantees.
+- **A leftover S8TNLib jar.** A player coming from 0.3.0 to 0.5.0 may still
+  have `s8tnlib-<version>.jar` in `mods/`. It is harmless while its GTNHLib
+  classes match Demonica's, and wrong once they differ, so `MixinEarly` logs
+  a warning naming it (`Environment.staleS8tnlibJar`, which looks for
+  S8TNLib's `@Mod` class).
+- **Dev runs** load the merged classes through `-Dcrl.dev.extrapath` with
+  the rest of the mod classes. S8TNLib's jar is on neither the dev client's
+  class path nor the extrapath: `verifyRunClasspath` checks that, and
   [`celeritas/SPIKE.md`](celeritas/SPIKE.md) ("Dev class loading") says why.
-  `verifyDistributedJar` keeps GTNHLib's classes out of the mod jar.
-- A change to GTNHLib is made in S8TNLib, released there, and then pinned
-  here. S8TNLib's `docs/HOST_CONTRACT.md` lists what Demonica supplies to
-  it.
+- A change to GTNHLib is made in S8TNLib and released there; the next
+  Demonica build picks it up. S8TNLib's `docs/HOST_CONTRACT.md` lists what
+  Demonica supplies to it.
 - Two of the 60 served only Demonica, and are Demonica's own since the pin
   moved to 0.2.0, with only their package lines changed: `compat/Mods` is
   `com.demonica.compat.Mods` in `:shader`, and `util/font/IFontParameters`

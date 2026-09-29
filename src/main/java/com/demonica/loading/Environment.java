@@ -12,15 +12,16 @@ import java.util.zip.ZipFile;
 
 /**
  * What the coremod can learn about the installed mods before any of them is loaded. It looks for class files and
- * never loads a class, so no Celeritas, S8TNLib or Actinium class is initialized, or cached untransformed, this early.
+ * never loads a class, so no Celeritas or Actinium class is initialized, or cached untransformed, this early.
  *
  * <p>FML adds a coremod jar to the class path only when it reaches that jar, in file name order, so a mod whose jar
  * comes after Demonica's is not on the class path yet when Demonica's coremod starts. The mods folder is searched too.
  */
 public final class Environment {
     private static final String CELERITAS_MARKER = "org/taumc/celeritas/CeleritasVintage.class";
-    // GLSMRedirector's own dependency on S8TNLib, so its absence is what would break the coremod.
-    private static final String S8TNLIB_MARKER = "com/gtnewhorizon/gtnhlib/asm/ClassConstantPoolParser.class";
+    // S8TNLib's @Mod: a separate S8TNLib jar has it, and Demonica's jar, which merges only S8TNLib's GTNHLib classes,
+    // never does.
+    private static final String S8TNLIB_MOD_MARKER = "com/s8tnlib/S8TNLib.class";
     private static final String ACTINIUM_MARKER = "com/dhj/actinium/Actinium.class";
 
     private static Boolean actiniumPresent;
@@ -33,9 +34,13 @@ public final class Environment {
         return celeritasJar() != null || hasResource(CELERITAS_MARKER);
     }
 
-    /** Whether the S8TNLib mod, which brings GTNHLib's classes, is installed. */
-    public static boolean isS8tnlibPresent() {
-        return hasResource(S8TNLIB_MARKER) || modsFolderJarContaining(S8TNLIB_MARKER) != null;
+    /**
+     * A separate S8TNLib jar left in the mods folder from Demonica 0.3.0 to 0.5.0, which required it as a mod of its own.
+     * Demonica carries GTNHLib itself again, so that jar only adds a second copy of the same classes. Null if there is
+     * none.
+     */
+    public static @Nullable File staleS8tnlibJar() {
+        return modsFolderJarContaining(S8TNLIB_MOD_MARKER);
     }
 
     /**

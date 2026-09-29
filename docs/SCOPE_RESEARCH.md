@@ -81,7 +81,9 @@ The ten findings, by leverage:
    Its `bytebuf` package, 55% of the library, backports LWJGL 3 memory
    utilities that Cleanroom's LWJGL 3 already provides.
    *Done on `feat/s8tnlib-mod` (0.3.0-SNAPSHOT, S8TNLib 0.3.0) as a separate
-   required mod, and `bytebuf` is gone: see 3.7.*
+   required mod, and `bytebuf` is gone: see 3.7.* *Since 0.6.0 (2026-09-29)
+   S8TNLib's GTNHLib classes are bundled in the mod jar again, from its latest
+   release, unpinned; see 3.7.*
 10. **The toolchain is current but has avoidable dependencies**: a Unimined fork
     on a third-party Maven although upstream Unimined 1.4.2 lists Cleanroom
     support and the same DSL calls; Lombok in 65 files; a Jabel stub; mixin
@@ -645,6 +647,15 @@ member Demonica used has an identical public counterpart in LWJGL 3.4.1, checked
 with `javap`. S8TNLib keeps 47 files, 4,750 lines. The `cel/` copies and
 `PostProcessingBridge` are still there.
 
+**Status (2026-09-29, `feat/bundle-s8tnlib`, 0.6.0-SNAPSHOT).** S8TNLib is no
+longer a separate mod for players: the build takes its latest published GitHub
+release (asked of GitHub's API at configuration time, no version or hash pin),
+and `mergeEmbeddedLibraryClasses` merges the MCP remap's GTNHLib classes into the
+mod, leaving out S8TNLib's `@Mod`, coremod and metadata. The mod jar's manifest
+records `S8TNLib-Version` and `S8TNLib-Commit`. `verifyS8tnlibPin`,
+`required-after:s8tnlib` and `-PwithoutS8tnlib` are gone; a leftover S8TNLib jar
+in `mods/` only gets a warning. The `bytebuf` removal stays.
+
 ### 3.8 Build and toolchain
 
 - **Unimined fork.** `1.4.36-kappa` from `maven.arcseekers.com`. Upstream
@@ -835,7 +846,9 @@ lines out of the release jar.
 **H. Fold S8TNLib back, or make it a normal dependency.** *Done as a normal
 dependency on `feat/s8tnlib-mod`: a separate required mod, resolved from its
 GitHub release and pinned by SHA-256; `bytebuf` and
-`com.mitchej123.lwjgl.MemoryStack` are gone. See 3.7's Status.* With one host,
+`com.mitchej123.lwjgl.MemoryStack` are gone. See 3.7's Status.* *Folded back
+since 0.6.0 (2026-09-29): its GTNHLib classes are in the mod jar again, taken
+from the latest release without a pin; see 3.7's second Status.* With one host,
 the cheapest honest arrangement is a git submodule plus `includeBuild`: the
 submodule SHA is the pin, no publishing, no manifest check, CI needs only
 `submodules: true`. If S8TNLib is meant to serve other Cleanroom mods, publish
@@ -963,7 +976,7 @@ on both profiles. See 3.2's second Status for what the measurement needs.*
 | 3. Guard to version gate | B | 3,000 plus 1,000 test lines and the ledger coupling | Done: a SHA-256 gate that keeps only S15 on a foreign Celeritas; the injection audit stays and is fatal in dev (see 3.1) |
 | 4. Performance features out | D and the three compat entries that were really its own | 4,700 in main sources (the draw path, `GuiGlStateBoundary` and two compat entries stay) | Done: deleted, no sibling mod |
 | 5. Core profile optional | E, then measurement | 0; nothing became cold (3.2) | Done: compatibility by default on Windows and Linux, core on macOS. Feeds 4.4, but the measurement needs a GLSM pass-through mode or a static inventory instead (3.2's second Status) |
-| 6. S8TNLib | H | 7,000 in the library; the CI double build | Done: a separate required mod from S8TNLib's GitHub releases, pinned by SHA-256; `bytebuf` gone (5,699 lines); the `cel/` copies and `PostProcessingBridge` remain |
+| 6. S8TNLib | H | 7,000 in the library; the CI double build | Done: a separate required mod from S8TNLib's GitHub releases, pinned by SHA-256; `bytebuf` gone (5,699 lines); the `cel/` copies and `PostProcessingBridge` remain. Since 0.6.0 (2026-09-29) bundled in the mod jar again from the latest release, unpinned |
 | 7. Toolchain | Unimined 1.4.2 trial, Lombok removal, formatter for `com.demonica`, CI jobs | 0 | Any time; Lombok removal touches 65 files, so after phase 1 to avoid conflicts |
 
 After phases 1 through 6 the jar is roughly 85,000 to 90,000 lines: the Iris
