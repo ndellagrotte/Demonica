@@ -418,7 +418,8 @@ public final class ShaderAst {
         /**
          * Where the directive or line comment starting at {@code start} ends: at its line break ({@code \n},
          * {@code \r\n} or a lone {@code \r}), which a backslash right before it continues; in a directive
-         * ({@code directive}), a block comment may span lines. The line break itself is not part of it.
+         * ({@code directive}), a block comment may span lines, and a line comment ends it at the line comment's own
+         * line break (a {@code /*} inside the line comment starts nothing). The line break itself is not part of it.
          */
         private static int lineEnd(String source, int start, boolean directive) {
             final int length = source.length();
@@ -429,6 +430,10 @@ public final class ShaderAst {
                     i += source.charAt(i + 1) == '\r' && i + 2 < length && source.charAt(i + 2) == '\n' ? 3 : 2;
                 } else if (c == '\n' || c == '\r') {
                     return i;
+                } else if (directive && c == '/' && i + 1 < length && source.charAt(i + 1) == '/') {
+                    // A line comment ends the directive at its own line break: a "/*" inside it starts nothing
+                    // (Step 7b verification follow-up; before, that "/*" blanked the program text after the line).
+                    return lineEnd(source, i, false);
                 } else if (directive && c == '/' && i + 1 < length && source.charAt(i + 1) == '*') {
                     final int close = source.indexOf("*/", i + 2);
                     i = close < 0 ? length : close + 2;

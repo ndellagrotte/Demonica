@@ -372,6 +372,33 @@ class AstShaderTransformerTest {
         assertTrue(GlslTokens.contains(beforeVersion, "#extension GL_ARB_gpu_shader5 : enable"), beforeVersion);
     }
 
+    /**
+     * Step 7b verification follow-up: a line comment holding {@code /*} on an {@code #extension} line. The pre-pass
+     * ({@code ShaderAst.ExtensionLines}) read the {@code /*} as the start of a block comment and blanked the text after
+     * it with the line, up to the next block comment's end or to the end of the source: in the leading directive block
+     * the program lost its declarations and {@code main} without an error, in a function body the parse failed at
+     * {@code <EOF>}. TauMC's engine, and glsl-transformer's own parse, read the line comment to its line break. The
+     * mini-corpus case {@code composite-extension-line-comment} (the leading block in the fragment shader, a function
+     * body in the vertex shader), and the leading block with a later block comment.
+     */
+    @Test
+    void extensionLineWithALineCommentHoldingABlockCommentStart() throws IOException {
+        final String vertex = resource("/transform-corpus/composite-extension-line-comment/in.vertex.glsl");
+        final String fragment = resource("/transform-corpus/composite-extension-line-comment/in.fragment.glsl");
+        final Map<PatchShaderType, String> output = douira(vertex, fragment);
+        assertSameProgram(taumc(vertex, fragment), output);
+        final String fragmentOutput = output.get(PatchShaderType.FRAGMENT);
+        assertTrue(GlslTokens.contains(fragmentOutput, "#extension GL_ARB_gpu_shader5 : enable"), fragmentOutput);
+        assertTrue(GlslTokens.contains(fragmentOutput, "uniform sampler2D colortex0 ;"), fragmentOutput);
+        assertTrue(GlslTokens.contains(fragmentOutput, "outColor = texture ( colortex0 , texcoord ) ;"), fragmentOutput);
+        assertTrue(GlslTokens.contains(output.get(PatchShaderType.VERTEX), "texcoord = iris_MultiTexCoord0 . xy ;"),
+            output.get(PatchShaderType.VERTEX));
+
+        final String laterBlockComment = fragment.replace("in vec2 texcoord;\n", "in vec2 texcoord;\n/* a comment */\n");
+        assertFalse(laterBlockComment.equals(fragment));
+        assertSameProgram(taumc(vertex, laterBlockComment), douira(vertex, laterBlockComment));
+    }
+
     /** glsl-transformer's own parse of a program, without {@code ShaderAst}'s text pre-pass; throws on a syntax error. */
     private static Object rawGlslTransformerParse(String source) {
         final io.github.douira.glsl_transformer.ast.transform.ASTParser parser = new io.github.douira.glsl_transformer.ast.transform.ASTParser();

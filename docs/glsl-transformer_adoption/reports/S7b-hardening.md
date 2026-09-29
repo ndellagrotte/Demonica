@@ -209,7 +209,7 @@ TauMC lexer against the scan on 103 directive and line-end shapes (`run/s7b-scan
 
 `scripts/glsl-corpus/timing.sh <pack> <engine> final-<run>`: the pack's corpus script (`scripts/glsl-corpus/bsl.txt`:
 overworld, Nether, overworld; `complementary.txt`: overworld), `-Ddemonica.glsmPerfDebug=true`, no recorder, default
-OpenGL profile, the runs interleaved (TauMC, new, TauMC, new) in one session between 01:17 and 01:21 UTC. Per
+OpenGL profile, the runs interleaved (TauMC, new, TauMC, new) in one session between 01:16 and 01:21 UTC (the first run started at 21:16:21 local time). Per
 `[ShaderTransformCache] ... miss transformMs=` line (a transform on its `Shader-Transform` thread, call to result):
 
 | Engine | Pack | Run | Transforms | Median ms | p90 ms | Sum ms |
@@ -382,8 +382,11 @@ questions 2.
    that the Appendix C tests are green on both engines, as "Done when" asks; the other Step 8 test ports are left.
 3. The replayer has a new accepted stage, `threw` (a case recorded with an output whose replay throws). Without it
    `composite-patch-hoisted` could only fail; the stage is checked like the others and `*` does not cover it.
-4. `patchMultiTexCoord3` is Iris 26.1's with two differences: no second declaration when the shader declared
-   `gl_MultiTexCoord3`, and `mc_midTexCoord` tested for a declaration (TauMC) rather than any use (Iris).
+4. `patchMultiTexCoord3` is Iris 26.1's with four differences, each following TauMC (the parity rule): no second
+   declaration when the shader declared `gl_MultiTexCoord3`; `mc_midTexCoord` tested for a declaration (TauMC) rather
+   than any use (Iris); the declaration placed through TauMC's `injectVariable` anchor, not Iris's
+   `BEFORE_DECLARATIONS`; and ATTRIBUTES injecting `in vec4 mc_midTexCoord;` where Iris writes `attribute vec4`
+   (the last two listed by the verification follow-up; before, only the javadoc named them).
 5. Timing runs through a new `scripts/glsl-corpus/timing.sh` (no recorder), not `capture.sh`; one `capture.sh` run on
    the final code for Item 5 and the frames. `ShaderAst.Timing` and the `[AstShaderTransformer] ... timing` log line
    stay in main code (perf debug only), for Step 8's load-time measurements.
@@ -430,9 +433,98 @@ questions 2.
 - `accepted.txt` has nine entries, each with a checkable reason; six are this step's intended changes (Residual
   diffs). Accepted stages are now `vertex`, `geometry`, `tess_control`, `tess_eval`, `fragment`, `compute`, `compat`,
   `error-succeeded`, `error-threw`, `threw`, `*`.
-- The mini-corpus has 30 cases.
+- The mini-corpus has 31 cases (30 at `307d84ce`; the verification follow-up added `composite-extension-line-comment`).
 - `capture.sh` exits 3 and names the frames when a run does not write every frame of its script; it no longer copies
   stale frames.
 - `ShaderAst.parse` no longer puts `#extension` nodes in the tree: `extensionDirectives()` comes from the text
   (`ExtensionLines`). GLSM's `CompatShaderTransformer` (Step 10) separates its own preamble first, as S5 noted.
 - New-engine BSL recording on the final code: `run/transform-corpus-s7b-douira/bsl/` (175 cases, all `outcome=ok`).
+
+## Verification follow-up
+
+Independent verification of `307d84ce` found one blocking issue and eight remarks. Fixed in the commit
+`glsl-transformer: S7b fix extension line comments` (on top of `33916dfc`); the status stays done.
+
+### Blocking: `ExtensionLines` deleted program text after `#extension X : enable // a /* b`
+
+Confirmed and fixed. `ExtensionLines.lineEnd`, in directive mode, took every `/*` for a block comment, one inside a
+`//` comment included, and scanned to the next `*/` or to the end of the source; `ExtensionLines.of` then blanked all of
+it with the directive. Now a `//` in a directive ends the directive at that comment's own line break (which a backslash
+still continues), before any `/*` is looked at (`ShaderAst.java`, `lineEnd`; its javadoc says so).
+
+Tests added (the earlier fix agent had written them before it was interrupted; kept as they were):
+
+- `ShaderAstExtensionLinesTest` (new, 5 tests): the line comment with `/*` in the leading block, the same before a later
+  `/* ... */`, in a function body (the program then parses and keeps `main`'s body), a block comment on the directive
+  line still spanning two lines, and a backslash-continued line comment. Each asserts the exact blanked text.
+- `AstShaderTransformerTest.extensionLineWithALineCommentHoldingABlockCommentStart`: the new mini-corpus case against
+  TauMC (`assertSameProgram`), plus the fragment with a later block comment.
+- Mini-corpus case `composite-extension-line-comment` (COMPOSITE; the fragment has the comment in the leading block,
+  the vertex shader in `main`), TauMC outputs recorded.
+
+On the unfixed `ShaderAst.java` (`git show HEAD:...`, `run/s7b-fix-prefix-check.out`) five of the six new tests fail:
+`25 tests completed, 5 failed`, `BUILD FAILED`; `aBlockCommentOnTheLineStillSpansLines` passes there too, as it
+should (it guards the block-comment path the fix keeps).
+
+The verifier's probes, rebuilt in the scratchpad (`p-a`: the comment in the leading block; `p-b`: the same with a
+later `/* x */`; `p-c`: the comment inside `main`), recorded on both engines with `-PglslReplayRecord=true`
+(`run/s7b-fix-probe-{douira,taumc}.out`, `recorded=3` each): every output of both engines, vertex and fragment, has no
+`ERROR` from `glslangValidator`, and the new engine's fragments keep `uniform sampler2D colortex0;` and `main`. (A
+negative control, an undeclared identifier, printed `ERROR: 0:2: 'x' : undeclared identifier`; glslangValidator exits
+0 either way here, so the check greps for `ERROR`.)
+
+Re-run after the fix:
+```
+Appendix C tests, -PglslEngine=douira (run/s7b-fix-appc-douira.out): BUILD SUCCESSFUL, classes 18 tests 519 skipped 3 failures 0 errors 0
+Appendix C tests, default taumc     (run/s7b-fix-appc-taumc.out):  BUILD SUCCESSFUL, classes 18 tests 519 skipped 3 failures 0 errors 0
+replay: engine=douira corpus=.../src/test/resources/transform-corpus cases=31 identical=18 (byte-identical 0) accepted=9 failing=0 unsupported=4 recorded=0 filtered=0
+replay: concurrent engine=douira threads=8 cases=24 groups=2 sequentialMs=40.1 concurrentWallMs=16.6 concurrentCallMs=111.4 differing=0
+replay: engine=taumc corpus=.../src/test/resources/transform-corpus cases=31 identical=31 (byte-identical 31) accepted=0 failing=0 unsupported=0 recorded=0 filtered=0
+replay: engine=douira corpus=.../run/transform-corpus cases=424 identical=387 (byte-identical 0) accepted=0 failing=0 unsupported=37 recorded=0 filtered=0
+replay: concurrent engine=douira threads=8 cases=387 groups=2 sequentialMs=7760.2 concurrentWallMs=1632.6 concurrentCallMs=12924.3 differing=0
+replay: engine=douira corpus=.../run/transform-corpus-dh cases=140 identical=118 (byte-identical 0) accepted=0 failing=0 unsupported=22 recorded=0 filtered=0
+replay: concurrent engine=douira threads=8 cases=118 groups=2 sequentialMs=4196.2 concurrentWallMs=837.4 concurrentCallMs=6443.6 differing=0
+tvfr-parity: corpus=.../src/test/resources/transform-corpus vertexOutputs=24 differing=0
+./gradlew build (run/s7b-fix-build.out, 03:19:05 to 03:19:18): BUILD SUCCESSFUL in 12s, 134 classes, 1,054 tests, 0 failures, 5 skipped; the seven verify* tasks ran
+```
+Replay logs `run/s7b-fix-replay-{mini-douira,mini-taumc,transform-corpus-douira,transform-corpus-dh-douira}.out`,
+TVFR `run/s7b-fix-tvfr-mini.out`. The new case is identical (tokens) on the new engine with no accepted entry
+(`identical` 17 to 18, `accepted` 9 unchanged). 1,054 = 1,048 + the six new tests. The TauMC replays of the two pack
+corpora were not re-run: the change is in `ShaderAst`, which only the new engine uses. No dev client was run for the
+fix: no recorded pack has a `/*` inside a line comment on a directive line (verifier), so an in-game run would not
+exercise it.
+
+Residual diffs, addition:
+
+| Case | Stage | Classification | Action |
+|---|---|---|---|
+| mini-corpus `composite-extension-line-comment` | vertex, fragment | identical (tokens) | none |
+
+### Remarks
+
+1. Evidence mislabel: `run/s7b-tvfr-transform-corpus.out` holds the mini-corpus run (`vertexOutputs=23`), not the
+   `run/transform-corpus` one, so "Commands run" cites the wrong file for `vertexOutputs=387 differing=0`. The verifier
+   reproduced 387 on `run/transform-corpus`; the claim stands, the file for it is not in `run/`. Not re-run here (the
+   fix does not touch TauMC's lexer or the scanner). The mini-corpus is now `vertexOutputs=24 differing=0`.
+2. `capture.sh`: fixed. The summary line now comes after the missing-frame check and prints both, `exit <script
+   status> (client <client status>)`, and a missing shot's older copy is removed from the frame directory
+   (`run/engine-screenshots/<tag>/`) instead of staying next to the fresh frames. Checked with a stub `gradlew` in the
+   scratchpad (not a client run): one of two shots written gives `exit 3 (client 0)`, script exit 3, and the stale
+   `b.png` removed from the frame directory; both written gives `exit 0 (client 0)`; a failing client that writes none
+   gives `exit 1 (client 1)`.
+3. `patchMultiTexCoord3`'s other two differences from Iris 26.1 (TauMC's `injectVariable` anchor; `in vec4
+   mc_midTexCoord;` rather than `attribute vec4`): added to Deviation 4 above. Both follow TauMC, per the parity rule.
+4. `ShaderAst.Timing` counts every `BUILD_LOCK` acquisition even without perf debug: not changed. The cost is a
+   `ThreadLocal` get and two `nanoTime` calls per acquisition (about 10k per pack); gating it would thread the perf
+   flag into `ShaderAst`. Step 8 can gate it if its load-time measurements show it.
+5. Every `Shader-Transform` worker logs as `Shader-Transform-0` (`Iris.java:178` reads the pool index before the
+   thread is registered): existing code, not changed; the "eight threads" is the pool size, not a log observation.
+6. Table 1's time span: corrected above to 01:16 to 01:21 UTC.
+7. An `#extension` line continued with a backslash (`#extension GL_ARB_gpu_shader5 \` then ` : enable`): TauMC throws
+   and the new engine transforms it. Reproduced in the scratchpad (`run/s7b-fix-probe2-{taumc,douira}.out`): TauMC
+   `IndexOutOfBoundsException: Index: -1, Size: 36 ... at org.taumc.glsl.Transformer.injectFunction`, the new engine
+   writes `#extension GL_ARB_gpu_shader5 : enable` in the header and its fragment output has no glslangValidator
+   `ERROR`. An improvement of this step's pre-pass, now documented; not a mini-corpus case, since TauMC has no output
+   to record.
+8. Still broken on both engines, not a regression, unchanged: mini case `attributes` (Open question 3) and
+   `composite-legacy-textures` (Open question 2, Item 6).

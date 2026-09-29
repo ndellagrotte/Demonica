@@ -17,7 +17,8 @@
 #
 # The frames are the script's `shot <name>` steps. Only frames written during this run count (Step 7b): a frame that is
 # missing or older than the run's start (a run that stopped before its `shot` step leaves the previous run's file) is
-# named on stderr, nothing stale is copied, and the script exits 3 if the client itself exited 0.
+# named on stderr, nothing stale is copied (and its copy from an earlier run is removed from the frame directory), and
+# the script exits 3 if the client itself exited 0. The summary line prints the script's exit status and the client's.
 #
 # One client at a time, and no other Gradle build while it runs. The corpus is third-party shader code: it stays
 # under run/, which git ignores.
@@ -84,15 +85,22 @@ for shot in "${shots[@]}"; do
         missing+=("$shot")
     fi
 done
-if [ -n "$frames" ] && [ ${#fresh[@]} -gt 0 ]; then
+if [ -n "$frames" ]; then
     mkdir -p "$frames"
-    cp "${fresh[@]}" "$frames/"
+    # A missing shot's copy from an earlier run must not sit next to this run's frames.
+    for shot in "${missing[@]}"; do
+        rm -f "$frames/$shot.png"
+    done
+    if [ ${#fresh[@]} -gt 0 ]; then
+        cp "${fresh[@]}" "$frames/"
+    fi
 fi
-echo "capture $name ($engine): exit $status, $(find "$corpus" -name case.properties 2>/dev/null | wc -l) cases in $corpus, log $log, frames ${#fresh[@]} of ${#shots[@]}"
+client=$status
 if [ ${#missing[@]} -gt 0 ]; then
     echo "capture $name: MISSING frames (not written by this run): ${missing[*]}" >&2
     if [ "$status" -eq 0 ]; then
         status=3
     fi
 fi
+echo "capture $name ($engine): exit $status (client $client), $(find "$corpus" -name case.properties 2>/dev/null | wc -l) cases in $corpus, log $log, frames ${#fresh[@]} of ${#shots[@]}"
 exit $status
