@@ -54,7 +54,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Replays a recorded transform corpus through the transform engine (glsl-transformer, recorded as {@code douira}) and
  * compares every stage with the recorded reference output of TauMC's engine ({@code out.taumc.<stage>.glsl}) as
  * {@link GlslTokens} (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.5). The TauMC engine and its library were
- * removed in Step 11; its recorded outputs stay the reference.
+ * removed in Step 11; its recorded outputs stay the reference. A case written after Step 11 has no TauMC output; its
+ * reference is the glsl-transformer engine's output recorded when the case was added ({@code out.douira.<stage>.glsl},
+ * {@link #LATER_REFERENCE_ENGINE}; Step 12), and a case with both is compared with TauMC's.
  *
  * <p>Without a configured corpus it replays the committed mini-corpus, {@code src/test/resources/transform-corpus}, so
  * every {@code :test} and {@code check} guards the transform output against its recorded TauMC snapshot (Step 8;
@@ -99,6 +101,11 @@ class TransformCorpusReplayTest {
     static final String THREADS_PROPERTY = "demonica.glsl.replay.threads";
     /** The engine whose recorded outputs are the reference: TauMC's, removed in Step 11. */
     static final String REFERENCE_ENGINE = "taumc";
+    /**
+     * The reference of a case that has no {@link #REFERENCE_ENGINE} output: the glsl-transformer engine's output,
+     * recorded (record mode) when the case was written, after TauMC was gone (Step 12).
+     */
+    static final String LATER_REFERENCE_ENGINE = TransformCorpus.ENGINE;
     private static final String ACCEPTED_RESOURCE = "/transform-replay/accepted.txt";
 
     @AfterAll
@@ -509,21 +516,18 @@ class TransformCorpusReplayTest {
             }
 
             final Set<String> stages = new LinkedHashSet<>(actual.keySet());
-            final Map<String, String> expected = new LinkedHashMap<>();
-            try (Stream<Path> files = Files.list(caseDir)) {
-                final Pattern reference = Pattern.compile("out\\." + REFERENCE_ENGINE + "(?:\\.(\\w+))?\\.glsl");
-                for (Path file : (Iterable<Path>) files.sorted()::iterator) {
-                    final var matcher = reference.matcher(file.getFileName().toString());
-                    if (matcher.matches()) {
-                        final String stage = matcher.group(1) == null ? "" : matcher.group(1);
-                        expected.put(stage, Files.readString(file, StandardCharsets.UTF_8));
-                        stages.add(stage);
-                    }
-                }
+            String referenceEngine = REFERENCE_ENGINE;
+            Map<String, String> expected = readOutputs(caseDir, referenceEngine);
+            if (expected.isEmpty()) {
+                // Step 12: a case written after TauMC was gone has the glsl-transformer engine's recorded output.
+                referenceEngine = LATER_REFERENCE_ENGINE;
+                expected = readOutputs(caseDir, referenceEngine);
             }
             if (expected.isEmpty()) {
-                return new Result(Outcome.FAILING, false, name + ": no " + REFERENCE_ENGINE + " output recorded");
+                return new Result(Outcome.FAILING, false, name + ": no " + REFERENCE_ENGINE + " or "
+                    + LATER_REFERENCE_ENGINE + " output recorded");
             }
+            stages.addAll(expected.keySet());
 
             boolean byteIdentical = true;
             boolean anyAccepted = false;
@@ -545,7 +549,7 @@ class TransformCorpusReplayTest {
                 final String reportName = name.replace('/', '_') + "." + stageLabel + ".diff";
                 Files.createDirectories(reports);
                 Files.writeString(reports.resolve(reportName), "# " + name + " " + stageLabel + ": "
-                    + REFERENCE_ENGINE + " (-) against " + engine + " (+)\n" + diff, StandardCharsets.UTF_8);
+                    + referenceEngine + " (-) against " + engine + " (+)\n" + diff, StandardCharsets.UTF_8);
                 final AcceptedDiff tolerated = accepted.stream().filter(a -> a.matches(name, stageLabel)).findFirst()
                     .orElse(null);
                 if (tolerated != null) {
@@ -631,6 +635,21 @@ class TransformCorpusReplayTest {
             }
             return map;
         }
+    }
+
+    /** The recorded outputs {@code out.<engine>[.<stage>].glsl} of a case, by stage ({@code ""} for the compat domain). */
+    static Map<String, String> readOutputs(Path caseDir, String engine) throws IOException {
+        final Map<String, String> outputs = new LinkedHashMap<>();
+        final Pattern reference = Pattern.compile("out\\." + Pattern.quote(engine) + "(?:\\.(\\w+))?\\.glsl");
+        try (Stream<Path> files = Files.list(caseDir)) {
+            for (Path file : (Iterable<Path>) files.sorted()::iterator) {
+                final var matcher = reference.matcher(file.getFileName().toString());
+                if (matcher.matches()) {
+                    outputs.put(matcher.group(1) == null ? "" : matcher.group(1), Files.readString(file, StandardCharsets.UTF_8));
+                }
+            }
+        }
+        return outputs;
     }
 
     static String outputName(String engine, String stage) {

@@ -97,3 +97,42 @@ composite-patch-hoisted | threw | Step 7b: at 420 patch is a keyword; the new en
 # engines, left to the maintainer (report S7b, Open questions); ShaderTransformerTest.legacyTextureCallsKeepTheirNames
 # pins the new engine's output.
 composite-legacy-textures | fragment | Step 7b: TauMC's output is broken GLSL (the legacy texture functions lexed as keywords); the new engine keeps the non-core calls (not renamed by either engine; open question), pinned by ShaderTransformerTest
+
+# Step 12 (2026-09-29): the demonstrated port (report S12-payoff.md). transformer/CompatibilityTransformer takes Iris
+# 26.1's empty-declaration removal (transformEach) and Iris 26.1's transformGrouped without translation, with two
+# Demonica fixes (an unsigned out is initialized with 0u; the declarations are visited in document order). No pack corpus
+# case changes (run/transform-corpus 424, run/transform-corpus-dh 140, run/transform-corpus-s7-taumc 175, all identical).
+# The five transform-each-*/transform-grouped-* cases below were written in Step 12, after TauMC was gone: their
+# reference is out.douira.*, the glsl-transformer engine's output recorded before the port. Compile checks with
+# glslangValidator 16.4.0 (each stage, then the stages linked) are in the report.
+#
+# Iris 26.1 transformEach: a ';' at file scope is removed. glslangValidator rejects it at 330 ("'extraneous semicolon' :
+# not supported for this version") in the output before the port, and accepts the output after it.
+transform-each-empty-declaration | * | Step 12: Iris 26.1's transformEach removes empty external declarations (';' at file scope, not valid before GLSL 4.60)
+#
+# Iris 26.1 transformGrouped, declaration order: a missing out is injected before every declaration and each
+# initialization is prepended to main, visiting the next stage's in declarations in document order; TauMC injected at
+# its variable anchor in HashMap order. The same declarations and statements (ShaderTransformerTest.dhPrograms).
+transform-grouped | vertex | Step 12: Iris 26.1's transformGrouped injects the missing out viewDir before the declarations (TauMC: at its variable anchor); same lines
+dh-terrain-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines, checked by ShaderTransformerTest.dhPrograms
+dh-generic-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines, checked by ShaderTransformerTest.dhPrograms
+transform-grouped-geometry | vertex | Step 12: Iris 26.1's transformGrouped injects the missing out vColor (read by the geometry stage) before the declarations; same lines
+#
+# Iris 26.1 transformGrouped, the pipeline: Iris pairs vertex with tessellation control, tessellation control with
+# evaluation, evaluation (or geometry) with fragment; TauMC's pipeline had no tessellation stages and paired the vertex
+# stage with the fragment stage, declaring and initializing in the vertex stage the fragment inputs uv and normal that
+# the tessellation evaluation stage writes, and leaving the tessellation control input vNormal unwritten.
+transform-grouped-tessellation | vertex | Step 12: Iris 26.1's transformGrouped pairs the tessellation stages: the vertex stage gets the out vNormal the control stage reads, not the fragment stage's uv and normal
+#
+# Iris 26.1 transformGrouped, type mismatches: an out whose type differs from the next stage's in (same dimensionality)
+# is renamed to iris_template_<name>, kept as a global of the old type, and the out takes the in's type and is assigned
+# at the end of main with a cast; a two-member declaration is split. TauMC left the mismatch, a link error
+# (glslangValidator: "Types must match"); the output after the port links.
+transform-grouped-type-mismatch | vertex | Step 12: Iris 26.1's transformGrouped casts the vec3 out tint to the fragment stage's vec4 (link error before)
+#
+# Iris 26.1 transformGrouped, arrays: an array type (out vec3[2] pair) is skipped, as before. An array declarator is
+# not an array to Iris's matcher: out vec3 w[2] against in vec4 w[2] gets the cast patch with a scalar global
+# (iris_template_w[0] = ... does not compile), where TauMC left a link error, and the unassigned out float lit[2] gets
+# lit = 0.0, as TauMC's lit = 0.0f; neither program compiled before the port, neither does after it (report, Open
+# questions).
+transform-grouped-arrays | vertex | Step 12: Iris 26.1's transformGrouped casts the array declarator w as a scalar (does not compile; TauMC's output did not link either); array types skipped as before

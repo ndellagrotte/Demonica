@@ -4,6 +4,7 @@ import com.gtnewhorizons.angelica.glsm.GlslTransformUtils;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifier;
 import io.github.douira.glsl_transformer.util.Type;
+import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -1395,12 +1396,66 @@ class ShaderAstSnapshotTest {
     }
 
     /**
-     * The glsl-transformer engine's {@code transformGrouped}
-     * ({@link net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer#transformGrouped}), which
-     * Step 5 lifted from this class, where Step 4 wrote it against {@link ShaderAst} line for line from TauMC's.
+     * TauMC's {@code transformGrouped} written on {@link ShaderAst}'s verbs, line for line: Step 4 wrote it here, Step 5
+     * lifted it into {@code transformer/CompatibilityTransformer.transformGrouped}, and Step 12 replaced it there with
+     * Iris 26.1's and moved it back, so that the verbs it uses ({@link ShaderAst#findQualifiers} in TauMC's
+     * {@code HashMap} order, {@code containsCall}, {@code injectVariable}, {@code hasAssignment}, {@code initialize})
+     * are still checked against TauMC's frozen outputs ({@link #transformGroupedWrittenOnShaderAst}). The engine's
+     * method is compared with the same outputs in {@link #irisTransformGroupedAgainstTauMc}.
      */
     static void transformGrouped(Map<PatchShaderType, ShaderAst> trees) {
-        net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer.transformGrouped(trees, null);
+        final ShaderType[] pipeline = {ShaderType.VERTEX, ShaderType.GEOMETRY, ShaderType.FRAGMENT};
+        ShaderType prevType = null;
+        for (ShaderType type : pipeline) {
+            final PatchShaderType[] patchTypes = PatchShaderType.fromGlShaderType(type);
+            boolean hasAny = false;
+            for (PatchShaderType currentType : patchTypes) {
+                if (trees.get(currentType) != null) {
+                    hasAny = true;
+                }
+            }
+            if (!hasAny) {
+                continue;
+            }
+            if (prevType == null) {
+                prevType = type;
+                continue;
+            }
+            final ShaderAst prev = trees.get(PatchShaderType.fromGlShaderType(prevType)[0]);
+            final Map<String, ShaderAst.QualifiedDeclaration> outDec = prev.findQualifiers(StorageQualifier.StorageType.OUT);
+            for (PatchShaderType currentType : patchTypes) {
+                final ShaderAst current = trees.get(currentType);
+                if (current == null) {
+                    continue;
+                }
+                final Map<String, ShaderAst.QualifiedDeclaration> inDec = current.findQualifiers(StorageQualifier.StorageType.IN);
+                for (String in : inDec.keySet()) {
+                    if (in.startsWith("gl_")) {
+                        continue;
+                    }
+                    if (!outDec.containsKey(in)) {
+                        if (!current.containsCall(in)) {
+                            continue;
+                        }
+                        final String outDeclaration = inDec.get(in).typeText() + " " + in + ";";
+                        prev.injectVariable(outDeclaration.replaceFirst("\\bin\\b", "out"));
+                        if (!prev.hasAssignment(in)) {
+                            prev.initialize(inDec.get(in), in);
+                        }
+                    } else {
+                        if (outDec.get(in).arraySpecifierText() != null) {
+                            continue;
+                        }
+                        if (inDec.get(in).typeName().equals(outDec.get(in).typeName())) {
+                            if (!prev.hasAssignment(in)) {
+                                prev.initialize(inDec.get(in), in);
+                            }
+                        }
+                    }
+                }
+            }
+            prevType = type;
+        }
     }
 
     /** TauMC's transformGrouped output (snapshot) and {@link #transformGrouped}'s on the same stages, printed. */
@@ -1413,8 +1468,8 @@ class ShaderAstSnapshotTest {
         return printed;
     }
 
-    @TestFactory
-    Stream<DynamicTest> transformGroupedWrittenOnShaderAst() {
+    /** The stage groups of {@link #transformGroupedWrittenOnShaderAst}, whose TauMC outputs are frozen. */
+    static Map<String, Map<PatchShaderType, String>> groupedCases() {
         final String geometry = """
             #version 330 core
             layout(triangles) in;
@@ -1442,6 +1497,12 @@ class ShaderAstSnapshotTest {
         cases.put("square matrices spelled alike: both initialized", Map.of(
             PatchShaderType.VERTEX, "#version 330 core\nin vec3 pos;\nout mat2x2 m;\nout mat3 k;\nvoid main() { gl_Position = vec4(pos, 1.0); }\n",
             PatchShaderType.FRAGMENT, "#version 330 core\nin mat2x2 m;\nin mat3 k;\nout vec4 frag;\nvoid main() { frag = vec4(m[0], k[0].xy); }\n"));
+        return cases;
+    }
+
+    @TestFactory
+    Stream<DynamicTest> transformGroupedWrittenOnShaderAst() {
+        final Map<String, Map<PatchShaderType, String>> cases = groupedCases();
         final List<DynamicTest> tests = new ArrayList<>();
         cases.forEach((name, stages) -> tests.add(DynamicTest.dynamicTest(name, () -> {
             final Map<PatchShaderType, String[]> printed = groupedOnBoth(name, stages);
@@ -1457,6 +1518,55 @@ class ShaderAstSnapshotTest {
                 "TauMC changed the vertex stage");
         })));
         return tests.stream();
+    }
+
+    /**
+     * Named deviations (Step 12): the engine's {@code transformGrouped} is Iris 26.1's
+     * ({@link net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer#transformGrouped}), not TauMC's.
+     * On the stage groups of {@link #transformGroupedWrittenOnShaderAst} its output has the lines of TauMC's frozen
+     * output in another order (Iris injects a missing {@code out} before every declaration and prepends each
+     * initialization, visiting the next stage's {@code in} declarations in document order; TauMC injected at its
+     * variable anchor in {@code HashMap} order), plus these initializations and no other difference:
+     * <ul>
+     * <li>a missing {@code out} is always initialized; TauMC initialized it only when no assignment's left side started
+     * with its name, so {@code tintOut = ...} counted for {@code tint} and the 120 vertex stage's own assignments to its
+     * {@code varying}s counted for the {@code out}s injected next to them;</li>
+     * <li>types compare as glsl-transformer's {@code Type}, so {@code mat2x2} pairs with {@code mat2} and
+     * {@code mat3x3} with {@code mat3}, and the unassigned outputs are initialized; TauMC compared the spelling.</li>
+     * </ul>
+     * An unsigned output is initialized with {@code 0u}, as TauMC did (Demonica's fix to Iris's {@code 0}).
+     */
+    @TestFactory
+    Stream<DynamicTest> irisTransformGroupedAgainstTauMc() {
+        final Map<String, Map<PatchShaderType, List<String>>> added = new LinkedHashMap<>();
+        added.put("vertex and fragment", Map.of(PatchShaderType.VERTEX, List.of("tint = vec4 ( 0.0 ) ;")));
+        added.put("fixtures: 330 fragment after the 120 vertex",
+            Map.of(PatchShaderType.VERTEX, List.of("color = vec4 ( 0.0 ) ;", "texcoord = vec2 ( 0.0 ) ;")));
+        added.put("square matrices spelled differently: nothing initialized",
+            Map.of(PatchShaderType.VERTEX, List.of("k = mat3 ( 0.0 ) ;", "m = mat2 ( 0.0 ) ;")));
+        final List<DynamicTest> tests = new ArrayList<>();
+        groupedCases().forEach((name, stages) -> tests.add(DynamicTest.dynamicTest(name, () -> {
+            final Map<PatchShaderType, ShaderAst> engine = new java.util.EnumMap<>(PatchShaderType.class);
+            stages.forEach((stage, source) -> engine.put(stage, ShaderAst.parse(source)));
+            net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer.transformGrouped(engine, null);
+            for (PatchShaderType stage : new TreeSet<>(stages.keySet())) {
+                final List<String> taumc = sortedLines(SNAPSHOTS.get("transformGroupedWrittenOnShaderAst", name + " / " + stage));
+                final List<String> iris = sortedLines(engine.get(stage).printBody());
+                final List<String> onlyIris = new ArrayList<>(iris);
+                taumc.forEach(onlyIris::remove);
+                final List<String> onlyTauMc = new ArrayList<>(taumc);
+                iris.forEach(onlyTauMc::remove);
+                assertEquals(List.of(), onlyTauMc, stage + ": lines of TauMC's output that Iris's transformGrouped does not write");
+                assertEquals(added.getOrDefault(name, Map.of()).getOrDefault(stage, List.of()), onlyIris,
+                    stage + ": lines only Iris's transformGrouped writes");
+            }
+        })));
+        return tests.stream();
+    }
+
+    /** The lines of {@link GlslTokens#text()}, stripped and sorted. */
+    static List<String> sortedLines(String glsl) {
+        return GlslTokens.of(glsl).text().lines().map(String::strip).filter(line -> !line.isEmpty()).sorted().toList();
     }
 
     static void replaceFunction(ShaderAst ast, String name, int overload, java.util.function.UnaryOperator<String> patch) {

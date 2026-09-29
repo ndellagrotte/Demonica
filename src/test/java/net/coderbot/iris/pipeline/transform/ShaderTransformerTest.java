@@ -323,8 +323,12 @@ class ShaderTransformerTest {
     }
 
     /**
-     * {@code transformGrouped} compares types as spelled, as TauMC did (S4 verification): an {@code out mat2x2} does not
-     * pair with an {@code in mat2}, so the unassigned outputs are left alone; spelled alike, they are initialized.
+     * Named deviation (Step 12): {@code transformGrouped} is Iris 26.1's, which compares glsl-transformer's
+     * {@code Type}, so an {@code out mat2x2} pairs with an {@code in mat2} (they are one type in GLSL) and the unassigned
+     * outputs are initialized; TauMC compared the types as spelled (S4 verification) and left them alone. Spelled
+     * alike, both engines initialize both; Iris's order is its own (it prepends each initialization in the order the
+     * fragment stage declares its inputs), so the programs have the same lines. The method keeps its Step 8 name, under
+     * which TauMC's outputs are frozen ({@code transform-engine-taumc/groupedTypesCompareAsSpelled.txt}).
      */
     @Test
     void groupedTypesCompareAsSpelled() {
@@ -333,15 +337,26 @@ class ShaderTransformerTest {
         final String alike = "#version 330 core\nin mat2x2 m;\nin mat3 k;\nout vec4 frag;\nvoid main() { frag = vec4(m[0], k[0].xy); }\n";
 
         final Map<PatchShaderType, String> apart = douira(vertex, differently);
-        assertSameProgram(taumc(vertex, differently), apart);
-        assertFalse(GlslTokens.contains(apart.get(PatchShaderType.VERTEX), "m = mat2 ( 0.0 ) ;"));
-        assertFalse(GlslTokens.contains(apart.get(PatchShaderType.VERTEX), "k = mat3 ( 0.0 ) ;"));
+        final Map<PatchShaderType, String> taumcApart = taumc(vertex, differently);
+        assertFalse(GlslTokens.contains(taumcApart.get(PatchShaderType.VERTEX), "m = mat2 ( 0.0 ) ;"));
+        assertFalse(GlslTokens.contains(taumcApart.get(PatchShaderType.VERTEX), "k = mat3 ( 0.0 ) ;"));
+        assertEquals(GlslTokens.of(taumcApart.get(PatchShaderType.FRAGMENT)), GlslTokens.of(apart.get(PatchShaderType.FRAGMENT)));
+        assertTrue(GlslTokens.contains(apart.get(PatchShaderType.VERTEX), "void main ( ) { k = mat3 ( 0.0 ) ; m = mat2 ( 0.0 ) ;"),
+            apart.get(PatchShaderType.VERTEX));
+        final String withInitializations = GlslTokens.of(taumcApart.get(PatchShaderType.VERTEX)).text()
+            .replace("void main ( ) {", "void main ( ) {\nk = mat3 ( 0.0 ) ;\nm = mat2 ( 0.0 ) ;");
+        assertEquals(sortedLines(withInitializations), sortedLines(apart.get(PatchShaderType.VERTEX)));
 
         final Map<PatchShaderType, String> paired = douira(vertex, alike);
-        assertSameProgram(taumc(vertex, alike), paired);
-        assertTrue(GlslTokens.contains(paired.get(PatchShaderType.VERTEX), "k = mat3 ( 0.0 ) ; m = mat2 ( 0.0 ) ;")
-                || GlslTokens.contains(paired.get(PatchShaderType.VERTEX), "m = mat2 ( 0.0 ) ; k = mat3 ( 0.0 ) ;"),
+        final Map<PatchShaderType, String> taumcPaired = taumc(vertex, alike);
+        taumcPaired.forEach((stage, text) -> assertEquals(sortedLines(text), sortedLines(paired.get(stage)), stage.name()));
+        assertTrue(GlslTokens.contains(paired.get(PatchShaderType.VERTEX), "void main ( ) { k = mat3 ( 0.0 ) ; m = mat2 ( 0.0 ) ;"),
             paired.get(PatchShaderType.VERTEX));
+    }
+
+    /** The lines of {@link GlslTokens#text()}, stripped and sorted: a program compared without its order. */
+    static List<String> sortedLines(String glsl) {
+        return GlslTokens.of(glsl).text().lines().map(String::strip).filter(line -> !line.isEmpty()).sorted().toList();
     }
 
     /** The header: {@code #version N core}, then the extension lines in source order, {@code require} included. */
@@ -615,7 +630,16 @@ class ShaderTransformerTest {
                 final DHParameters parameters = new DHParameters(patch, null);
                 final Map<PatchShaderType, String> now = ShaderTransformer.transform(vertex, withGeometry, null, null, fragment,
                     parameters);
-                assertSameProgram(old, now);
+                if (withGeometry == null) {
+                    assertSameProgram(old, now);
+                } else {
+                    // Named deviation (Step 12): Iris 26.1's transformGrouped declares and initializes the geometry
+                    // stage's missing outputs in the order the fragment stage declares its inputs; TauMC's in HashMap
+                    // order. The same lines otherwise.
+                    assertEquals(old.keySet(), now.keySet());
+                    old.forEach((stage, text) -> assertEquals(stage == PatchShaderType.GEOMETRY ? sortedLines(text) : GlslTokens.of(text).text(),
+                        stage == PatchShaderType.GEOMETRY ? sortedLines(now.get(stage)) : GlslTokens.of(now.get(stage)).text(), stage.name()));
+                }
                 assertNull(parameters.type);
 
                 final String outVertex = now.get(PatchShaderType.VERTEX);
