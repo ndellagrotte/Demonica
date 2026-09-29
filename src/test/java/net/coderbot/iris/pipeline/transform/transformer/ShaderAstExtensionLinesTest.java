@@ -68,15 +68,41 @@ class ShaderAstExtensionLinesTest {
     }
 
     /**
-     * A line comment ends the directive at its line break, which a backslash continues, as the pre-pass reads a line
-     * comment anywhere else in the source.
+     * A line comment ends the directive at its line break, and a backslash before that line break continues nothing:
+     * the next line is program text, as glsl-transformer's lexer ({@code '//' NO_NEWLINE*}) and TauMC's engine read it
+     * and as GLSL before 4.20 has it (Step 7b verification follow-up 2; before, the next line was blanked with the
+     * directive, and a declaration or statement on it silently disappeared).
      */
     @Test
-    void aContinuedLineCommentEndsAtTheNextLineBreak() {
-        final String source = "#version 330 core\n" + EXTENSION + " // c /* \\\ncontinued\nuniform float u;\n"
-            + "void main() { }\n";
+    void aContinuedLineCommentDoesNotTakeTheNextLine() {
+        final String source = "#version 330 core\n" + EXTENSION + " // c /* \\\nuniform float u;\n"
+            + "out vec4 color;\nvoid main() { color = vec4(u); }\n";
         final ShaderAst.ExtensionLines lines = ShaderAst.ExtensionLines.of(source);
-        assertEquals(blanked(blanked(source, 1), 2), lines.text());
+        assertEquals(blanked(source, 1), lines.text());
         assertEquals(List.of(EXTENSION), lines.leading());
+        final String printed = ShaderAst.parse(source).print("#version 330 core");
+        assertTrue(GlslTokens.contains(printed, "uniform float u ;"), printed);
+    }
+
+    /** The same in a function body: the statement on the next line stays in {@code main}. */
+    @Test
+    void aContinuedLineCommentInAFunctionBodyKeepsTheNextStatement() {
+        final String source = "#version 330 core\nout vec4 color;\nvoid main() {\n    color = vec4(0.0);\n" + EXTENSION
+            + " // c \\\n    color = vec4(1.0);\n}\n";
+        final ShaderAst.ExtensionLines lines = ShaderAst.ExtensionLines.of(source);
+        assertEquals(blanked(source, 4), lines.text());
+        assertEquals(List.of(EXTENSION), lines.later());
+        final String printed = ShaderAst.parse(source).print("#version 330 core");
+        assertTrue(GlslTokens.contains(printed, "color = vec4 ( 0.0 ) ; color = vec4 ( 1.0 ) ; }"), printed);
+    }
+
+    /** A backslash-continued line comment before an {@code #extension} line does not hide the directive. */
+    @Test
+    void aContinuedLineCommentBeforeAnExtensionLineEndsAtItsLineBreak() {
+        final String source = "#version 330 core\nout vec4 color;\nvoid main() {\n    // c \\\n" + EXTENSION
+            + "\n    color = vec4(1.0);\n}\n";
+        final ShaderAst.ExtensionLines lines = ShaderAst.ExtensionLines.of(source);
+        assertEquals(blanked(source, 4), lines.text());
+        assertEquals(List.of(EXTENSION), lines.later());
     }
 }

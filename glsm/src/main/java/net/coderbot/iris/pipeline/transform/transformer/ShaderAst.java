@@ -352,7 +352,8 @@ public final class ShaderAst {
      * docs/glsl-transformer_adoption/ADOPTION_PLAN.md, report S7b-hardening.md), with the text that is parsed instead:
      * each directive line blanked (its characters but the line breaks become spaces, so line numbers stay). The lines
      * are found by text, outside comments, where a line's first non-blank character is {@code #} followed by
-     * {@code extension}; a backslash before the line break continues one. A line whose name and behavior do not read
+     * {@code extension}; a backslash before the line break continues one, but not a line comment on it (which ends at
+     * its line break, as in glsl-transformer's lexer). A line whose name and behavior do not read
      * as {@code #extension NAME [: BEHAVIOR]} stays in the text for the parser to judge.
      *
      * <p>{@link #leading()} are those of the leading directive block ({@link #leadingExtensionCount}), formatted as
@@ -387,9 +388,9 @@ public final class ShaderAst {
                     i = close < 0 ? length : close + 2;
                     lineStart = false;
                 } else if (c == '/' && i + 1 < length && source.charAt(i + 1) == '/') {
-                    i = lineEnd(source, i, false);
+                    i = lineCommentEnd(source, i);
                 } else if (c == '#' && lineStart) {
-                    final int end = lineEnd(source, i, true);
+                    final int end = directiveEnd(source, i);
                     if (EXTENSION_LINE.matcher(source).region(i, end).lookingAt()) {
                         final java.util.regex.Matcher parts = EXTENSION_PARTS.matcher(withoutCommentsAndContinuations(source, i, end));
                         if (parts.matches()) {
@@ -416,12 +417,13 @@ public final class ShaderAst {
         }
 
         /**
-         * Where the directive or line comment starting at {@code start} ends: at its line break ({@code \n},
-         * {@code \r\n} or a lone {@code \r}), which a backslash right before it continues; in a directive
-         * ({@code directive}), a block comment may span lines, and a line comment ends it at the line comment's own
-         * line break (a {@code /*} inside the line comment starts nothing). The line break itself is not part of it.
+         * Where the directive starting at {@code start} ends: at its line break ({@code \n}, {@code \r\n} or a lone
+         * {@code \r}), which a backslash right before it continues; a block comment in it may span lines, and a line
+         * comment in it ends it at the line comment's own line break ({@link #lineCommentEnd}: a {@code /*} inside the
+         * line comment starts nothing, and a backslash at its end continues nothing). The line break itself is not
+         * part of it.
          */
-        private static int lineEnd(String source, int start, boolean directive) {
+        private static int directiveEnd(String source, int start) {
             final int length = source.length();
             int i = start;
             while (i < length) {
@@ -430,11 +432,11 @@ public final class ShaderAst {
                     i += source.charAt(i + 1) == '\r' && i + 2 < length && source.charAt(i + 2) == '\n' ? 3 : 2;
                 } else if (c == '\n' || c == '\r') {
                     return i;
-                } else if (directive && c == '/' && i + 1 < length && source.charAt(i + 1) == '/') {
+                } else if (c == '/' && i + 1 < length && source.charAt(i + 1) == '/') {
                     // A line comment ends the directive at its own line break: a "/*" inside it starts nothing
                     // (Step 7b verification follow-up; before, that "/*" blanked the program text after the line).
-                    return lineEnd(source, i, false);
-                } else if (directive && c == '/' && i + 1 < length && source.charAt(i + 1) == '*') {
+                    return lineCommentEnd(source, i);
+                } else if (c == '/' && i + 1 < length && source.charAt(i + 1) == '*') {
                     final int close = source.indexOf("*/", i + 2);
                     i = close < 0 ? length : close + 2;
                 } else {
@@ -442,6 +444,25 @@ public final class ShaderAst {
                 }
             }
             return length;
+        }
+
+        /**
+         * Where the line comment starting at {@code start} ends: at the first {@code \n} or {@code \r}, which is not
+         * part of it. A backslash before that line break does not continue the comment, as in glsl-transformer's lexer
+         * ({@code LINE_COMMENT_frag: '//' NO_NEWLINE*}), which parses the text this pre-pass leaves; the TauMC engine
+         * keeps the next line too (mini-corpus case {@code composite-extension-continued-comment}), and GLSL has no line
+         * continuation before 4.20 (glslangValidator on a {@code #version 330} input warns "used at end of comment, but
+         * this version does not provide line continuation" and keeps the next line as code). Step 7b verification
+         * follow-up 2: before, a {@code // c \} on an {@code #extension} line blanked the next line, a statement or
+         * declaration, with it.
+         */
+        private static int lineCommentEnd(String source, int start) {
+            final int length = source.length();
+            int i = start;
+            while (i < length && source.charAt(i) != '\n' && source.charAt(i) != '\r') {
+                i++;
+            }
+            return i;
         }
 
         /** The directive's text with its comments replaced by a space and its continuations joined. */

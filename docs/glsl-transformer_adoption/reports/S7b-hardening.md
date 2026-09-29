@@ -27,7 +27,9 @@ dev-client logs print local time, UTC-4).
 | Commit | Subject |
 |---|---|
 | `307d84ce` | glsl-transformer: S7b pre-flip hardening |
-| the commit that adds this page | glsl-transformer: S7b report and status |
+| `33916dfc` | glsl-transformer: S7b report and status |
+| `658bf2cf` | glsl-transformer: S7b fix extension line comments (verification follow-up) |
+| the commit that adds "Verification follow-up 2" | glsl-transformer: S7b fix continued line comments on extension lines |
 
 ## What changed
 
@@ -339,7 +341,10 @@ script exits 3 if the client exited 0. Run against what it guards: the vanilla c
 writes no frame (`-PdevScript=@<scratch>/noshot.txt`, which Gradle takes over the script's own), while
 `run/client/screenshots/corpus-vanilla-{0-nopack,1-pack}.png` from 19:31 local time existed:
 - the new script (`run/s7b-capture-missing.out`): `exit=3`, `frames 0 of 2`, `capture vanilla: MISSING frames (not
-  written by this run): corpus-vanilla-0-nopack corpus-vanilla-1-pack`, no frame directory created;
+  written by this run): corpus-vanilla-0-nopack corpus-vanilla-1-pack`, no frame directory created. That is the script
+  as committed in `307d84ce`, which made the frame directory only when a frame was fresh; since `658bf2cf`
+  (verification follow-up, Remark 2) it runs `mkdir -p` whenever a frame directory is set, removes a missing shot's
+  older copy from it, and prints `exit 3 (client 0)`;
 - the committed script (a temporary copy of `874a7137`'s, deleted after; `run/s7b-capture-missing-old.out`): `exit=0`
   and both stale frames copied (`cmp`: identical to the 19:31 files);
 - a normal BSL run on the new engine (`run/s7b-capture-bsl.out`): `exit=0`, `175 cases`, `frames 4 of 4`.
@@ -450,13 +455,14 @@ Independent verification of `307d84ce` found one blocking issue and eight remark
 Confirmed and fixed. `ExtensionLines.lineEnd`, in directive mode, took every `/*` for a block comment, one inside a
 `//` comment included, and scanned to the next `*/` or to the end of the source; `ExtensionLines.of` then blanked all of
 it with the directive. Now a `//` in a directive ends the directive at that comment's own line break (which a backslash
-still continues), before any `/*` is looked at (`ShaderAst.java`, `lineEnd`; its javadoc says so).
+still continues; no longer since follow-up 2), before any `/*` is looked at (`ShaderAst.java`, `lineEnd`; its javadoc says so).
 
 Tests added (the earlier fix agent had written them before it was interrupted; kept as they were):
 
 - `ShaderAstExtensionLinesTest` (new, 5 tests): the line comment with `/*` in the leading block, the same before a later
   `/* ... */`, in a function body (the program then parses and keeps `main`'s body), a block comment on the directive
-  line still spanning two lines, and a backslash-continued line comment. Each asserts the exact blanked text.
+  line still spanning two lines, and a backslash-continued line comment (that test asserted the deletion of the next line; follow-up 2
+  replaces it). Each asserts the exact blanked text.
 - `AstShaderTransformerTest.extensionLineWithALineCommentHoldingABlockCommentStart`: the new mini-corpus case against
   TauMC (`assertSameProgram`), plus the fragment with a later block comment.
 - Mini-corpus case `composite-extension-line-comment` (COMPOSITE; the fragment has the comment in the leading block,
@@ -470,8 +476,9 @@ The verifier's probes, rebuilt in the scratchpad (`p-a`: the comment in the lead
 later `/* x */`; `p-c`: the comment inside `main`), recorded on both engines with `-PglslReplayRecord=true`
 (`run/s7b-fix-probe-{douira,taumc}.out`, `recorded=3` each): every output of both engines, vertex and fragment, has no
 `ERROR` from `glslangValidator`, and the new engine's fragments keep `uniform sampler2D colortex0;` and `main`. (A
-negative control, an undeclared identifier, printed `ERROR: 0:2: 'x' : undeclared identifier`; glslangValidator exits
-0 either way here, so the check greps for `ERROR`.)
+negative control, an undeclared identifier, printed `ERROR: 0:2: 'x' : undeclared identifier`; the check grepped for
+`ERROR`. Follow-up 2 corrects the claim this sentence made here, that glslangValidator exits 0 either way: 16.4.0
+exits 2 on a compile error, `run/s7b-fix2-glslang.out`.)
 
 Re-run after the fix:
 ```
@@ -528,3 +535,81 @@ Residual diffs, addition:
    to record.
 8. Still broken on both engines, not a regression, unchanged: mini case `attributes` (Open question 3) and
    `composite-legacy-textures` (Open question 2, Item 6).
+
+## Verification follow-up 2
+
+A second independent verification of `658bf2cf` found one blocking issue and two report inaccuracies. Fixed in the
+commit `glsl-transformer: S7b fix continued line comments on extension lines` (on top of `658bf2cf`); the status stays
+done.
+
+### Blocking: a backslash at the end of a line comment on an `#extension` line blanked the next line
+
+Confirmed and fixed. `ExtensionLines.lineEnd` read a backslash before the line break as a continuation in a line
+comment too, so `#extension GL_ARB_gpu_shader5 : enable // c \` blanked the next line with the directive: a declaration
+in the leading block (`uniform float u;`, then "'u' : undeclared identifier" wherever it is used) or a statement in
+`main` (`outColor = texture(colortex0, texcoord);` silently gone). GLSL has no line continuation before 4.20,
+glsl-transformer's lexer ends a line comment at the line break (`LINE_COMMENT_frag: '//' NO_NEWLINE*`, every mode), and
+the TauMC engine keeps the next line. The fix matches glsl-transformer's lexer, since it parses the text the pre-pass
+leaves: `lineEnd` is split into `directiveEnd` (backslash continuation, block comments across lines, as before) and
+`lineCommentEnd` (the first `\n` or `\r`, no continuation), which both the directive's `//` and a `//` outside
+directives now use (the latter also kept a `// c \` from hiding an `#extension` on the next line). No version-dependent
+rule: at 420 and above glsl-transformer's lexer still keeps the next line, so continuing there would blank text the
+parser reads as code. The class javadoc names the rule.
+
+Tests: `ShaderAstExtensionLinesTest.aContinuedLineCommentEndsAtTheNextLineBreak` (which asserted the deletion) is
+replaced by `aContinuedLineCommentDoesNotTakeTheNextLine` (leading block: only the directive line blanked, the parse
+keeps `uniform float u ;`), `aContinuedLineCommentInAFunctionBodyKeepsTheNextStatement` (only the directive blanked,
+`main` keeps both statements) and `aContinuedLineCommentBeforeAnExtensionLineEndsAtItsLineBreak` (a `// c \` line
+before an `#extension` in `main`: the directive is still found and blanked). Mini-corpus case
+`composite-extension-continued-comment` (COMPOSITE; both stages have both shapes, `// c \` in the leading block before
+`uniform float u;` and in `main` before a statement using `u`; vertex at `#version 120`, fragment at `#version 330
+core`), TauMC outputs recorded with `-PglslReplayEngine=taumc -PglslReplayRecord=true` into a scratch copy
+(`run/s7b-fix2-record.out`, `recorded=1`) and the two `out.taumc.*` files copied in. TauMC keeps `uniform float u ;`
+and the statement in both stages.
+
+On the unfixed `ShaderAst.java` (`git show HEAD:...`, then the fix restored): the three new tests fail
+(`run/s7b-fix2-unit-unfixed.out`: `7 tests completed, 3 failed`, `BUILD FAILED`), and the new case fails the replay
+(`run/s7b-fix2-replay-newcase-unfixed-douira.out`: `failing=1`, `FAILING composite-extension-continued-comment [vertex,
+fragment]`); the new engine's unfixed outputs (`run/s7b-fix2-probe-unfixed-douira.out`, record mode) have no
+`uniform float u` and end `main` at `outColor = vec4(0.0f);` / `texcoord = vec2(0.0f);`.
+
+glslangValidator 16.4.0 (`run/s7b-fix2-glslang.out`; `-S vert|frag`, exit status read, not only `ERROR` lines): TauMC's
+two outputs, the new engine's two fixed outputs (`run/s7b-fix2-probe-fixed-douira.out`, which keep the declaration and
+both statements) and its two unfixed outputs all exit 0 with no `ERROR` (the unfixed ones compile only because the use
+of `u` went with its declaration). The input fragment at `#version 330 core` exits 0 with `WARNING: 0:2: 'line
+continuation' : used at end of comment, but this version does not provide line continuation` (and the same at 0:9). A
+negative control (`vec4(x)`, `x` undeclared) prints `ERROR: 0:3: 'x' : undeclared identifier` and exits 2.
+
+Re-run after the fix (all with `--rerun`, one Gradle process at a time; counts from `build/test-results/test/*.xml`):
+```
+Appendix C tests, default taumc     (run/s7b-fix2-appc-taumc.out):  BUILD SUCCESSFUL, classes 18 tests 521 skipped 3 failures 0 errors 0, GLSL transform engine: taumc
+Appendix C tests, -PglslEngine=douira (run/s7b-fix2-appc-douira.out): BUILD SUCCESSFUL, classes 18 tests 521 skipped 3 failures 0 errors 0, GLSL transform engine: douira
+replay: engine=douira corpus=.../src/test/resources/transform-corpus cases=32 identical=19 (byte-identical 0) accepted=9 failing=0 unsupported=4 recorded=0 filtered=0
+replay: accepted entries in scope=9 used=9 stale=0
+replay: concurrent engine=douira threads=8 cases=25 groups=2 sequentialMs=36.6 concurrentWallMs=17.8 concurrentCallMs=123.2 differing=0
+replay: engine=douira corpus=.../run/transform-corpus cases=424 identical=387 (byte-identical 0) accepted=0 failing=0 unsupported=37 recorded=0 filtered=0
+replay: accepted entries in scope=0 used=0 stale=0
+replay: concurrent engine=douira threads=8 cases=387 groups=2 sequentialMs=8102.1 concurrentWallMs=1611.2 concurrentCallMs=12800.6 differing=0
+replay: engine=douira corpus=.../run/transform-corpus-dh cases=140 identical=118 (byte-identical 0) accepted=0 failing=0 unsupported=22 recorded=0 filtered=0
+replay: accepted entries in scope=0 used=0 stale=0
+replay: concurrent engine=douira threads=8 cases=118 groups=2 sequentialMs=4222.7 concurrentWallMs=854.4 concurrentCallMs=6468.6 differing=0
+replay: engine=taumc corpus=.../src/test/resources/transform-corpus cases=32 identical=32 (byte-identical 32) accepted=0 failing=0 unsupported=0 recorded=0 filtered=0
+tvfr-parity: corpus=.../src/test/resources/transform-corpus vertexOutputs=25 differing=0
+```
+Every run `BUILD SUCCESSFUL`. Replay logs `run/s7b-fix2-replay-{mini,transform-corpus,transform-corpus-dh}-douira.out`
+and `run/s7b-fix2-replay-mini-taumc.out`, TVFR `run/s7b-fix2-tvfr-mini.out`. 521 = 519 + 3 new tests - the replaced
+one. The new case is identical (tokens) on the new engine with no accepted entry (`identical` 18 to 19, `accepted` 9
+unchanged). Skipped: `./gradlew build` (the Appendix C runs compiled and ran the changed classes; the fix touches no
+build logic), the TauMC replays of the two pack corpora (the change is in `ShaderAst`, which only the new engine uses),
+and a dev client (no recorded pack has a backslash after a line comment on an `#extension` line: `grep -rlE
+'^[[:space:]]*#[[:space:]]*extension.*//.*\\$'` over `run/transform-corpus*` finds none;
+over the mini-corpus it finds the new case's two inputs).
+
+Report corrections: the follow-up's parenthesis that glslangValidator "exits 0 either way" is corrected above (16.4.0
+exits 2 on a compile error); Item 5's "no frame directory created" now says it describes the `307d84ce` script.
+
+Residual diffs, addition:
+
+| Case | Stage | Classification | Action |
+|---|---|---|---|
+| mini-corpus `composite-extension-continued-comment` | vertex, fragment | identical (tokens) | none |
