@@ -3,9 +3,9 @@
  * Celeritas mod (docs/FORK.md, docs/celeritas/PIN.md).
  *
  * The root project holds the mod: com.demonica.* and Actinium's com.gtnewhorizons.angelica.* glue, derived from
- * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar. GTNHLib comes from S8TNLib, a separate
- * mod that players install next to Celeritas (docs/FORK.md); like Celeritas, its release jar is pinned by SHA-256 in
- * gradle.properties. The distributed jar is the SRG-remapped output of `remapJar`; verifyDistributedJar checks it.
+ * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar, and so is GTNHLib, from the latest
+ * release of S8TNLib (docs/FORK.md; not pinned: the jar's manifest records the version and commit that went in). The
+ * distributed jar is the SRG-remapped output of `remapJar`; verifyDistributedJar checks it.
  *
  * :diagnostics is the companion jar, Demonica-diagnostics-<version>.jar (remapDiagnosticsJar): the GL debug logs, the
  * flight recorder and the dev harness, which the mod jar reaches only through no-op facades. Dev runs load it unless
@@ -41,6 +41,10 @@ configurations {
     compileOnly.extendsFrom(modCompileOnly)
     modRuntimeOnly
     runtimeOnly.extendsFrom(modRuntimeOnly)
+    // S8TNLib's sources jar, which sourcesJar merges. Nothing compiles against it.
+    s8tnlibSources {
+        transitive = false
+    }
 }
 
 def embeddedLibraryProjects = [
@@ -60,8 +64,18 @@ ext.sharedMinecraftCompileClasspath = {
     })
 }
 
-// The subprojects' classes and resources become part of the mod's own output, so the jar and the dev runs see one
-// mod, as in production.
+// S8TNLib's jar in MCP names: Unimined's remap of the release jar (modCompileOnly below), which is what the compile
+// classpath resolves to, so it merges like the subprojects' outputs and remapJar maps it to SRG with the rest.
+def s8tnlibJar = configurations.compileClasspath.filter {
+    it.name ==~ /s8tnlib-.*\.jar/ && !it.name.endsWith('-sources.jar')
+}
+
+// What Demonica takes from S8TNLib's jars: GTNHLib, without the parts that make S8TNLib a mod of its own (its @Mod and
+// coremod, mcmod.info and manifest) or that would clash with Demonica's own license files.
+def s8tnlibExcludes = ['META-INF/**', 'com/s8tnlib/**', 'mcmod.info', 'LICENSE', 'THIRD_PARTY_NOTICES.md']
+
+// The subprojects' classes and resources, and S8TNLib's GTNHLib classes, become part of the mod's own output, so the
+// jar and the dev runs see one mod, as in production.
 def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', Sync) {
     duplicatesStrategy = DuplicatesStrategy.FAIL
     dependsOn embeddedLibraryProjects.collect { it.tasks.named('classes') }
@@ -69,6 +83,9 @@ def mergeEmbeddedLibraryClasses = tasks.register('mergeEmbeddedLibraryClasses', 
 
     embeddedLibraryProjects.each { libraryProject ->
         from(libraryProject.sourceSets.main.output)
+    }
+    from({ s8tnlibJar.collect { zipTree(it) } }) {
+        exclude s8tnlibExcludes
     }
 }
 
@@ -162,6 +179,69 @@ subprojects {
 }
 
 def s8tnlibDir = project.findProperty('s8tnlibDir')
+def s8tnlibLatestRelease = 'https://api.github.com/repos/ndellagrotte/S8TNLib/releases/latest'
+
+/*
+ * S8TNLib's version: its latest published GitHub release (drafts and prereleases are not "latest"), asked of GitHub's
+ * API while the build is configured. The answer is cached in .gradle/demonica/s8tnlib-latest, which --offline builds
+ * and builds that cannot reach GitHub fall back to. GITHUB_TOKEN, when set (CI), authenticates the call. With
+ * -Ps8tnlibDir=<dir>, the version is that of the s8tnlib-<version>.jar in the directory, or -Ps8tnlibVersion=<version>
+ * when it holds several.
+ */
+def resolveS8tnlibVersion = {
+    if (s8tnlibDir != null) {
+        def versions = (file(s8tnlibDir).listFiles() ?: []).findAll { !it.name.endsWith('-sources.jar') }
+            .collect { (it.name =~ /^s8tnlib-(.+)\.jar$/).with { it.matches() ? it.group(1) : null } }
+            .findAll().sort()
+        def chosen = project.findProperty('s8tnlibVersion')?.toString()
+        if (chosen != null ? !versions.contains(chosen) : versions.size() != 1) {
+            throw new GradleException("-Ps8tnlibDir=${s8tnlibDir} has s8tnlib-<version>.jar for ${versions ?: 'no version'}" +
+                (chosen != null ? ", not ${chosen}." : "; pass -Ps8tnlibVersion=<version> to choose one."))
+        }
+        def version = chosen ?: versions[0]
+        logger.lifecycle("S8TNLib: ${version} from ${s8tnlibDir}")
+        return version
+    }
+    def cache = file("${rootDir}/.gradle/demonica/s8tnlib-latest")
+    def fromCache = { String reason ->
+        def cached = cache.isFile() ? cache.text.trim() : ''
+        if (cached.isEmpty()) {
+            throw new GradleException("Cannot find S8TNLib's latest release (${reason}), and no earlier answer is " +
+                "cached in ${cache}. Build once with access to ${s8tnlibLatestRelease}, or pass -Ps8tnlibDir=<dir>.")
+        }
+        logger.warn("S8TNLib: latest release v${cached}, from the cache (${reason})")
+        return cached
+    }
+    if (gradle.startParameter.offline) {
+        return fromCache('--offline')
+    }
+    try {
+        def connection = (HttpURLConnection) URI.create(s8tnlibLatestRelease).toURL().openConnection()
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        connection.setRequestProperty('Accept', 'application/vnd.github+json')
+        connection.setRequestProperty('User-Agent', 'Demonica-build')
+        def token = System.getenv('GITHUB_TOKEN')
+        if (token) {
+            connection.setRequestProperty('Authorization', "Bearer ${token}")
+        }
+        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            return fromCache("${s8tnlibLatestRelease} answered HTTP ${connection.responseCode}")
+        }
+        def tag = connection.inputStream.withCloseable { new groovy.json.JsonSlurper().parse(it).tag_name }?.toString()
+        def version = tag?.replaceFirst(/^v/, '')
+        if (!(version ==~ /[0-9][0-9A-Za-z.+-]*/)) {
+            throw new GradleException("S8TNLib's latest release has the tag ${tag}, which is not v<version>.")
+        }
+        cache.parentFile.mkdirs()
+        cache.text = "${version}\n"
+        logger.lifecycle("S8TNLib: latest release v${version}")
+        return version
+    } catch (IOException e) {
+        return fromCache(e.toString())
+    }
+}
+ext.s8tnlibVersion = resolveS8tnlibVersion()
 
 repositories {
     // Celeritas's 1.12.2 mod, built from upstream commits by kappa-maintainer/Celeritas-auto-build
@@ -177,8 +257,8 @@ repositories {
             includeModule('org.embeddedt', 'celeritas-forge-mc12.2')
         }
     }
-    // S8TNLib's mod jar, from the assets of its GitHub release v<version> (docs/FORK.md). -Ps8tnlibDir=<dir> takes
-    // it from a local directory instead, such as S8TNLib's build/libs, to test a build that has no release yet.
+    // S8TNLib's jar and sources jar, from the assets of its GitHub release v<version> (docs/FORK.md). -Ps8tnlibDir=<dir>
+    // takes them from a local directory instead, such as S8TNLib's build/libs, to test a build that has no release yet.
     exclusiveContent {
         forRepository {
             ivy {
@@ -269,11 +349,11 @@ unimined.minecraft {
         all {
             args += ['--username', 'Developer', '--width', '1280', '--height', '720']
             workingDir = file('run/client')
-            // Mod classes, including the merged GLSM and Iris outputs, stay off the JavaExec classpath (the app class
-            // loader) and reach Cleanroom through -Dcrl.dev.extrapath, as in production where the mod jar is not on
-            // java.class.path (docs/celeritas/SPIKE.md). Unimined moves only the directories that exist at
-            // configuration time, so this does it for all of them. The mod jars (Celeritas, S8TNLib) are on the
-            // extrapath already; verifyRunClasspath keeps S8TNLib's off the class path.
+            // Mod classes, including the merged S8TNLib, GLSM and Iris outputs, stay off the JavaExec classpath (the app
+            // class loader) and reach Cleanroom through -Dcrl.dev.extrapath, as in production where the mod jar is not
+            // on java.class.path (docs/celeritas/SPIKE.md). Unimined moves only the directories that exist at
+            // configuration time, so this does it for all of them. Celeritas's jar is on the extrapath already;
+            // verifyRunClasspath keeps S8TNLib's jar off both.
             def originalRunClasspath = classpath
             classpath = files(provider {
                 def rawModuleOutputs = sourceSets.main.output.files
@@ -287,10 +367,6 @@ unimined.minecraft {
             if (project.findProperty('withoutCeleritas') != null) {
                 // -PwithoutCeleritas: check what a player sees when Celeritas is missing.
                 extraPaths.removeIf { it.contains('celeritas-forge-mc12.2') }
-            }
-            if (project.findProperty('withoutS8tnlib') != null) {
-                // -PwithoutS8tnlib: check what a player sees when S8TNLib is missing.
-                extraPaths.removeIf { new File(it).name ==~ /s8tnlib-.*\.jar/ }
             }
             // The diagnostics jar's classes, loaded like the mod's own. -PwithoutDiagnostics: run what a player has
             // without the companion jar.
@@ -462,10 +538,11 @@ dependencies {
     // The pinned upstream Celeritas mod (gradle.properties, docs/celeritas/PIN.md).
     modCompileOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
     modRuntimeOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
-    // GTNHLib, from the pinned S8TNLib mod (gradle.properties, docs/FORK.md). :glsm and :shader compile against it
-    // through the root project's compile classpath.
-    modCompileOnly "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}"
-    modRuntimeOnly "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}"
+    // GTNHLib, from the latest S8TNLib release (s8tnlibVersion, docs/FORK.md). :glsm and :shader compile against it
+    // through the root project's compile classpath; mergeEmbeddedLibraryClasses puts its classes into the mod, so it is
+    // never a runtime dependency of its own.
+    modCompileOnly "com.s8tnlib:s8tnlib:${s8tnlibVersion}"
+    s8tnlibSources "com.s8tnlib:s8tnlib:${s8tnlibVersion}:sources"
 
     // -PwithCompatMods: the dev client also loads mods that Demonica has compat for, to check that the compat applies
     // (MixinLate's configs, C1, the fast renderer's gates). The heaviest (HBM, GregTech, Thaumcraft) are left out, and
@@ -573,6 +650,9 @@ tasks.named('sourcesJar').configure {
     embeddedLibraryProjects.each { libraryProject ->
         from(libraryProject.sourceSets.main.allSource)
     }
+    from({ configurations.s8tnlibSources.collect { zipTree(it) } }) {
+        exclude s8tnlibExcludes
+    }
     // The license texts and notices, as in the mod jar.
     from files('LICENSE', 'LICENSE-GPL-3.0.txt', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
 }
@@ -581,6 +661,8 @@ jar {
     duplicatesStrategy = DuplicatesStrategy.FAIL
     // The manifest is written in doFirst; declare the inputs or the build cache can restore a stale one.
     inputs.property('version', project.version.toString())
+    inputs.property('s8tnlibVersion', s8tnlibVersion)
+    inputs.files(s8tnlibJar).withPropertyName('s8tnlibJar')
 
     into('/') {
         from configurations.contain
@@ -600,7 +682,12 @@ jar {
                 'ForceLoadAsMod': 'true',
                 'FMLAT': 'demonica_at.cfg',
                 'ContainedDeps': configurations.contain.collect { it.name }.join(' '),
-                'NonModDeps': 'true'
+                'NonModDeps': 'true',
+                // The S8TNLib release whose GTNHLib classes are merged in, and the commit it was built from.
+                'S8TNLib-Version': s8tnlibVersion,
+                'S8TNLib-Commit': new java.util.jar.JarFile(s8tnlibJar.singleFile).withCloseable {
+                    it.manifest?.mainAttributes?.getValue('S8TNLib-Commit') ?: 'unknown'
+                }
             )
         }
     }
@@ -667,8 +754,7 @@ def celeritasCoordinate = "org.embeddedt:celeritas-forge-mc12.2:${property('cele
  * ("2.4.0-dev") is the same for every upstream dev build, and a release asset could be replaced. Registers a task that
  * resolves the coordinate and checks the jar against the comma-separated SHA-256 list in gradle.properties.
  */
-def registerPinCheck = { String taskName, String label, String coordinate, String pinsProperty, String doc,
-                         String skipReason ->
+def registerPinCheck = { String taskName, String label, String coordinate, String pinsProperty, String doc ->
     def pins = property(pinsProperty).toString().split(',')*.trim() as Set
     tasks.register(taskName) {
         group = 'verification'
@@ -679,15 +765,10 @@ def registerPinCheck = { String taskName, String label, String coordinate, Strin
         }
         inputs.files(pinnedJar)
         inputs.property('pinned', pins)
-        inputs.property('skipReason', skipReason ?: '')
 
         doLast {
             def jar = pinnedJar.singleFile
             def digest = java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString()
-            if (skipReason != null) {
-                logger.warn("${label} pin NOT checked (${skipReason}): ${jar.name} ${digest}")
-                return
-            }
             if (!(digest in pins)) {
                 throw new GradleException("${jar.name} has SHA-256 ${digest}, which is not pinned in gradle.properties " +
                     "(${pinsProperty} = ${pins.join(', ')}). See ${doc} for how to move the pin.")
@@ -698,10 +779,7 @@ def registerPinCheck = { String taskName, String label, String coordinate, Strin
 }
 
 def verifyCeleritasPin = registerPinCheck('verifyCeleritasPin', 'Celeritas', celeritasCoordinate, 'celeritas_sha256',
-    'docs/celeritas/PIN.md', null)
-def verifyS8tnlibPin = registerPinCheck('verifyS8tnlibPin', 'S8TNLib',
-    "com.s8tnlib:s8tnlib:${property('s8tnlib_version')}", 's8tnlib_sha256', 'docs/FORK.md',
-    s8tnlibDir != null ? "-Ps8tnlibDir=${s8tnlibDir}" : null)
+    'docs/celeritas/PIN.md')
 
 def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
     group = 'verification'
@@ -740,14 +818,15 @@ def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
 }
 
 /**
- * The dev client loads S8TNLib's mod jar (Unimined's MCP remap) and the diagnostics classes through
- * -Dcrl.dev.extrapath, as it does Celeritas. Neither may also be on runClient's class path, where the app class loader
+ * The dev client loads S8TNLib's GTNHLib classes from the merged mod classes, and the diagnostics classes from their
+ * own directory, through -Dcrl.dev.extrapath. Neither may also be on runClient's class path, where the app class loader
  * would load them and a call from the LaunchClassLoader would fail with a LinkageError (docs/celeritas/SPIKE.md,
- * "Dev class loading").
+ * "Dev class loading"), and S8TNLib's jar must not be on the extrapath either, next to the merged copy.
  */
 def verifyRunClasspath = tasks.register('verifyRunClasspath') {
     group = 'verification'
-    description = 'Checks that no S8TNLib jar and no diagnostics output is on runClient\'s class path.'
+    description = 'Checks that no S8TNLib jar is on runClient\'s class path or extrapath, and no diagnostics output ' +
+        'on its class path.'
 
     def runClient = tasks.named('runClient', JavaExec).get()
     def diagnosticsOutputs = diagnosticsProject.sourceSets.main.output
@@ -757,17 +836,24 @@ def verifyRunClasspath = tasks.register('verifyRunClasspath') {
         def isS8tnlibJar = { String path -> new File(path).name ==~ /s8tnlib-.*\.jar/ }
         def diagnosticsPaths = (diagnosticsOutputs.files*.path + diagnosticsDev.get().asFile.path) as Set
         def problems = runClient.classpath.files*.path.findAll { isS8tnlibJar(it) || diagnosticsPaths.contains(it) }
+            .collect { "on the class path: ${it}" }
+        def extraPathArgument = '-Dcrl.dev.extrapath='
+        runClient.allJvmArgs.findAll { it.startsWith(extraPathArgument) }.each { argument ->
+            argument.substring(extraPathArgument.length()).tokenize(File.pathSeparator).findAll(isS8tnlibJar).each {
+                problems << "in -Dcrl.dev.extrapath: ${it}"
+            }
+        }
         if (!problems.isEmpty()) {
-            throw new GradleException("runClient must load S8TNLib and the diagnostics only through " +
-                "-Dcrl.dev.extrapath, but its class path has:\n - ${problems.join('\n - ')}")
+            throw new GradleException("runClient must get S8TNLib's classes only from the merged mod classes, and the " +
+                "diagnostics only through -Dcrl.dev.extrapath:\n - ${problems.join('\n - ')}")
         }
     }
 }
 
 /**
  * The distributed (remapped) jar: a mod on upstream Celeritas that vendors no renderer. It must carry the mod, its
- * configs, its license files and contained libraries, and must never carry Celeritas, a renamed copy of it, JOML,
- * S8TNLib's GTNHLib classes (players install S8TNLib), or anything that would replace or shadow upstream's classes,
+ * configs, S8TNLib's GTNHLib classes, its license files and contained libraries, and must never carry Celeritas, a
+ * renamed copy of it, JOML, S8TNLib's own mod classes, or anything that would replace or shadow upstream's classes,
  * services or assets.
  */
 def verifyDistributedJar = tasks.register('verifyDistributedJar') {
@@ -792,7 +878,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
             def names = jar.entries().findAll { !it.directory }.collect { it.name } as Set
             def forbidden = [
                 ~/^org\/embeddedt\//, ~/^org\/taumc\//, ~/^dhj\//, ~/^com\/dhj\//, ~/^grondag\//, ~/^org\/joml\//,
-                ~/^com\/gtnewhorizon\/gtnhlib\//, ~/^com\/s8tnlib\//,
+                // S8TNLib's @Mod and coremod: only its GTNHLib classes are merged in (mergeEmbeddedLibraryClasses).
+                ~/^com\/s8tnlib\//,
                 ~/^assets\/celeritas\//, ~/^assets\/sodium\//,
                 ~/^META-INF\/services\/org\.embeddedt\./,
                 // The diagnostics live in the companion jar (verifyDiagnosticsJar).
@@ -822,6 +909,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'com/demonica/mixins/MixinEarly.class',
                 'net/coderbot/iris/Iris.class',
                 'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
+                'com/gtnewhorizon/gtnhlib/asm/ClassConstantPoolParser.class',
                 // The no-op side of the diagnostics, which finds the companion jar.
                 'net/coderbot/iris/debug/Diagnostics.class',
                 'net/coderbot/iris/debug/DiagnosticsProvider.class',
@@ -857,6 +945,11 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                     problems << "manifest ${key} is ${manifest.getValue(key)}, expected ${value}"
                 }
             }
+            ['S8TNLib-Version', 'S8TNLib-Commit'].each { key ->
+                if (!manifest.getValue(key)) {
+                    problems << "manifest has no ${key}"
+                }
+            }
             def contained = (manifest.getValue('ContainedDeps') ?: '').tokenize(' ') as Set
             if (contained != (containedJars.get() as Set)) {
                 problems << "manifest ContainedDeps is ${contained}, expected ${containedJars.get()}"
@@ -864,7 +957,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
 
             def metadata = new groovy.json.JsonSlurper().parse(jar.getInputStream(jar.getEntry('mcmod.info')))
             def mod = metadata[0]
-            def requiredMods = ['celeritas', 's8tnlib']
+            def requiredMods = ['celeritas']
             if (mod.modid != 'demonica' || !(mod.dependencies as List).containsAll(requiredMods)
                     || !(mod.requiredMods as List).containsAll(requiredMods)) {
                 problems << "mcmod.info must declare modid demonica and require ${requiredMods.join(' and ')}: ${mod}"
@@ -1007,7 +1100,6 @@ tasks.named('check').configure {
     dependsOn verifyDiagnosticsJar
     dependsOn verifyDiagnosticsRemap
     dependsOn verifyCeleritasPin
-    dependsOn verifyS8tnlibPin
     dependsOn verifyModuleBoundaries
     dependsOn verifyRunClasspath
     dependsOn verifyDistributedJar

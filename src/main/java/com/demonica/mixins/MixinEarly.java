@@ -14,16 +14,17 @@ import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import zone.rong.mixinbooter.IEarlyMixinLoader;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Demonica's coremod. It registers the GL redirector, the class transformers in {@code loading.fml.transformers} and
- * the early mixin configs, but only when upstream Celeritas and S8TNLib are installed and Actinium is not: without
- * either mod, FML's missing-mods screen must be what the player sees, and with Actinium, the {@code @Mod} reports the
- * conflict ({@link com.demonica.Demonica}). It never loads a Celeritas or S8TNLib class: S8TNLib's jar may reach the
- * class loader after this coremod is constructed.
+ * the early mixin configs, but only when upstream Celeritas is installed and Actinium is not: without Celeritas, FML's
+ * missing-mods screen must be what the player sees, and with Actinium, the {@code @Mod} reports the conflict
+ * ({@link com.demonica.Demonica}). It never loads a Celeritas class: Celeritas's jar may reach the class loader after
+ * this coremod is constructed.
  */
 @IFMLLoadingPlugin.Name("Demonica")
 @IFMLLoadingPlugin.MCVersion("1.12.2")
@@ -49,20 +50,20 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
 
     static {
         boolean celeritas = Environment.isCeleritasPresent();
-        boolean s8tnlib = Environment.isS8tnlibPresent();
         boolean actinium = Environment.isActiniumPresent();
         if (actinium) {
             LOGGER.error("Actinium is installed. Demonica replaces it and cannot run next to it; Demonica stays inactive. "
                 + "Remove one of the two mods.");
-        } else {
-            if (!celeritas) {
-                LOGGER.error("Celeritas is not installed. Demonica needs it; Demonica stays inactive until it is added.");
-            }
-            if (!s8tnlib) {
-                LOGGER.error("S8TNLib is not installed. Demonica needs it; Demonica stays inactive until it is added.");
-            }
+        } else if (!celeritas) {
+            LOGGER.error("Celeritas is not installed. Demonica needs it; Demonica stays inactive until it is added.");
         }
-        ACTIVE = celeritas && s8tnlib && !actinium;
+        ACTIVE = celeritas && !actinium;
+        File staleS8tnlib = Environment.staleS8tnlibJar();
+        if (staleS8tnlib != null) {
+            // Harmless while its GTNHLib classes are the ones Demonica carries, wrong once they differ.
+            LOGGER.warn("{} can be removed from the mods folder: Demonica carries S8TNLib's GTNHLib itself again, and "
+                + "that jar only adds a second copy of the same classes.", staleS8tnlib.getName());
+        }
 
         // Iris.enabled is a static final read from this bridge, so it must be in place before Iris is initialized.
         IrisDebugOptions.setBridge(new DemonicaIrisBridge());
