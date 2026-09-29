@@ -12,8 +12,8 @@ carries no copy of the terrain renderer.
 
 - Celeritas's 1.12.2 mod, the build pinned in
   [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md): upstream commit
-  `06999aab`, as published by the Celeritas auto-build (the release asset
-  `01-celeritas-forge-mc12.2-2.4.0-dev.jar` or the Maven jar; both are
+  `9b661b70`, as published by the Celeritas auto-build (the release asset
+  `01-celeritas-forge-mc12.2-2.5.0-dev.jar` or the Maven jar; both are
   accepted).
 - [S8TNLib](https://github.com/ndellagrotte/S8TNLib) 0.3.0 or later, which
   brings GTNHLib's classes.

@@ -25,8 +25,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * The version gate on the installed Celeritas (docs/celeritas/LEDGER.md, "The guard"). Every upstream dev build calls
- * itself {@code 2.4.0-dev}, so the jar's SHA-256 is its only identity. If it is one of the builds this Demonica was made
+ * The version gate on the installed Celeritas (docs/celeritas/LEDGER.md, "The guard"). Every upstream dev build of a
+ * release calls itself by the same version string ({@code 2.5.0-dev} at this pin), so the jar's SHA-256 is its only identity. If it is one of the builds this Demonica was made
  * for ({@link #RESOURCE}), every quarantine patch applies. Otherwise shaders are off, with the reason on the shader pack
  * screen, and only the {@link PatchGroup#BASE} group applies, whose injectors each stand alone. The decision is made
  * once, before Mixin applies any quarantine mixin; this never loads a Celeritas class.

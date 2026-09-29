@@ -3,7 +3,7 @@
 One draft per quarantine patch in [`../LEDGER.md`](../LEDGER.md). Each says what
 upstream Celeritas would need to change for Demonica to drop the patch. **None
 has been sent**; proposing them is the maintainer's decision. Line references
-are to upstream commit `06999aabc2`, the pin.
+are to upstream commit `9b661b70`, the pin.
 
 ## Most patches are one missing API
 

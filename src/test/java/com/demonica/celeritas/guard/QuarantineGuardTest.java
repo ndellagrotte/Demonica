@@ -29,11 +29,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * shaders off and applies only the BASE group, and the pin the build writes is the one gradle.properties names.
  */
 class QuarantineGuardTest {
-    private static final String PINNED = "1579bd31efdcc8832b29540173a455fcfb0ad2566c2f10b2f01fc20b679e8c92";
+    private static final String PINNED = "5bf123a6da6190f6e061cd3fd069a2bddcbf6ebf57894381b6c888c06a94f982";
     private static final String DEV = "0c2b9b77a756af2b2f4a8bec25a1e8e4d483cd9dedd180d5168ebe1c10dbb423";
     private static final String FOREIGN = "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffff0000000011111111";
-    private static final QuarantineGuard.Pin PIN = new QuarantineGuard.Pin("06999aabc2ea41a772ea3d0888c88a9e72d09f02",
-        "2.4.0-autobuild.06999aab", Set.of(PINNED), DEV);
+    private static final QuarantineGuard.Pin PIN = new QuarantineGuard.Pin("9b661b70ecaf84c39052e8fbc51c875ba37e739d",
+        "2.5.0-autobuild.9b661b70", Set.of(PINNED), DEV);
     private static final String TERRAIN_MIXIN = "com.demonica.mixin.celeritas.seam.CeleritasWorldRendererMixin";
     private static final String FOG_MIXIN = "com.demonica.mixin.celeritas.seam.GLStateManagerFogServiceMixin";
     private static final QuarantineGuard.GroupLookup GROUPS =
@@ -56,7 +56,7 @@ class QuarantineGuardTest {
         assertFalse(verdict.shadersAllowed());
         assertNotNull(verdict.shaderReason());
         assertTrue(verdict.shaderReason().contains("celeritas-newer.jar"), verdict.shaderReason());
-        assertTrue(verdict.shaderReason().contains("06999aab"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("9b661b70"), verdict.shaderReason());
         assertFalse(verdict.shouldApply(TERRAIN_MIXIN, GROUPS));
         assertTrue(verdict.shouldApply(FOG_MIXIN, GROUPS));
         assertFalse(verdict.shouldApply(FOG_MIXIN, mixin -> null), "a mixin whose group cannot be read must not apply");

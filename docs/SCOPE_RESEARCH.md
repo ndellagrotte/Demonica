@@ -295,6 +295,11 @@ the injector. Prism `prod-smoke-test` with the 0.5.0-SNAPSHOT jars: the release
 asset (`4dd4b35d`) is the pin, all 19 at n of n, BSL with shadows; a copy of it
 with one added zip entry is rejected in the same way as in dev.
 
+**Pin moved (2026-09-29, `feat/celeritas-2.5.0`).** The pin is now `9b661b70`
+(2.5.0), which contains the change set above. The table held: one patch, S4,
+needed a source change (it read the removed `ChunkShaderFogComponent.FOG_SERVICE`
+and now shadows `getFogService()`); every other injector found its target.
+
 ### 3.2 GLSM, the redirector and the core profile
 
 GLSM exists in Angelica because 1.7.10 has no `GlStateManager` and mods call
