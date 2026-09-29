@@ -13,6 +13,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S5 orchestrator, COMPOSITE and COMPUTE | done | `8b7b3489`, `448264f5` (report); verification fix `c9b2eeb2` | 2026-09-28 | [S05-orchestrator-composite.md](reports/S05-orchestrator-composite.md) |
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | done | `09e53d27`, `78534be0` (report), `0eb8356c` (status); report fixes `0c9b9579`, `a9de9aa2` | 2026-09-28 | [S06-attributes-terrain.md](reports/S06-attributes-terrain.md) |
 | S7 DH and AdaptiveShadowBounds | done | `3f835a76`; report and status in the commit that adds the report | 2026-09-28 | [S07-dh-shadow-bounds.md](reports/S07-dh-shadow-bounds.md) |
+| S7b pre-flip hardening (added by the orchestrator) | done | `307d84ce`; report and status in the commit that adds the report | 2026-09-29 | [S7b-hardening.md](reports/S7b-hardening.md) |
 | S8 flip the default, port the tests, full run (exit point A) | not started | | | |
 | S9 GLSM subtractions and utilities | not started | | | |
 | S10 `CompatShaderTransformer` | not started | | | |
@@ -37,7 +38,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 - Transform corpus: recorded with `-Ddemonica.glsl.corpus=<dir>` (`glsm/.../debug/TransformCorpus`,
   `transform/corpus/TransformCorpusRecorder`); the pack corpora are local, `run/transform-corpus/{bsl,complementary,
   vanilla,compat}/` (424 cases), re-recorded with `scripts/glsl-corpus/capture.sh <name>`; the committed mini-corpus
-  is `src/test/resources/transform-corpus/` (21 cases; S5's verification follow-up added
+  is `src/test/resources/transform-corpus/` (21 cases at S7, 30 since S7b; S5's verification follow-up added
   `composite-extension-placement`, S6 `celeritas-terrain-multitexcoord3`, a recorded TauMC error, S7
   `dh-terrain-legacy`, `dh-generic-legacy`, `dh-terrain-multitexcoord2`).
   `GLSL_ENGINE=douira scripts/glsl-corpus/capture.sh <name>` (S6) runs a pack on the new engine and records into
@@ -82,7 +83,8 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   (hoisting, stage minimum, negotiation; `ShaderTransformer.init()`, `versionHoistingState()` and
   `resetVersionHoistingForTesting()` delegate to it) and `transform/CompatibilityPatches` (pack text patches).
 - `ShaderAst` (S5): one parser shared by every program, guarded by `BUILD_LOCK` (measured faster than a parser per call
-  and than a lock around the whole transform; S5 report). Code that builds nodes through `t`/`tree`/`root` must run
+  and than a lock around the whole transform; S5 report). *(S7b: only the verbs' snippets use it now; a program's ANTLR
+  parse runs on a parser of its own outside the lock, and only its AST build holds the lock.)* Code that builds nodes through `t`/`tree`/`root` must run
   inside `ast.build(() -> ...)`, which holds the lock and restores the program's lexer version. The parser's snippet
   AST cache is keyed on the snippet's text and rule, not on the lexer version (S5 verification; `newParser` javadoc).
   `findQualifiers(...).typeName()` is the type as spelled in the source (`mat2x2` is not `mat2`), as TauMC compared it.
@@ -118,3 +120,18 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   (S7 report).
 - `TerrainVertexFormatRequirements` (S6) scans identifiers without ANTLR; `TerrainVertexFormatScanParityTest` keeps
   TauMC's lexer as its oracle until Step 11.
+- S7b (pre-flip hardening, S7b report): in game the new engine's median per transform equals TauMC's (BSL 20.4 against
+  20.7 ms, Complementary Reimagined 67.9 against 69.8 ms, two runs each); before, the programs' parses queued on
+  `BUILD_LOCK` (BSL 41.6 against 19.8 ms). With `-Ddemonica.glsmPerfDebug=true` each new-engine transform logs
+  `[AstShaderTransformer] <kind> timing totalMs=.. parseMs=.. buildMs=.. lockWaitMs=.. lockHeldMs=.. locks=..
+  contended=..` (`ShaderAst.Timing`). `scripts/glsl-corpus/timing.sh <pack> <engine> <tag>` times one pack load
+  without the recorder (log `run/timing-<pack>-<engine>-<tag>.out`); `scripts/glsl-corpus/transform-times.py <log>...`
+  summarizes any perf-debug log (transforms, median, p90, sum, first 30 against the rest, lock sums). `ShaderAst` takes
+  `#extension` lines out of the text before the parse (`ExtensionLines`), so `#extension all : warn`, an `#extension`
+  in a function body and one before `#version` transform as with TauMC; `patch` as an identifier at 400 and above still
+  throws (TauMC's output was broken GLSL). `gl_MultiTexCoord3` in ATTRIBUTES and CELERITAS_TERRAIN vertex shaders is
+  handled as Iris 26.1 does, with one declaration of `mc_midTexCoord` (`transformer/CommonTransformer.patchMultiTexCoord3`).
+  `capture.sh` copies only frames the run wrote and exits 3 when one is missing. The replay's accepted stages add
+  `threw` (a recorded output whose replay throws). `accepted.txt` has nine entries. `TransformPatcherTest` compares as
+  `GlslTokens` and is green on both engines. Legacy `texture2DRect`/`textureCube`/`texture1D`/`texture2DArray` calls
+  stay unrenamed on both engines (open question for the maintainer).
