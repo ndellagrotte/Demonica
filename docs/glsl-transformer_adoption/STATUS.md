@@ -14,8 +14,8 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | done | `09e53d27`, `78534be0` (report), `0eb8356c` (status); report fixes `0c9b9579`, `a9de9aa2` | 2026-09-28 | [S06-attributes-terrain.md](reports/S06-attributes-terrain.md) |
 | S7 DH and AdaptiveShadowBounds | done | `3f835a76`; report and status in the commit that adds the report | 2026-09-28 | [S07-dh-shadow-bounds.md](reports/S07-dh-shadow-bounds.md) |
 | S7b pre-flip hardening (added by the orchestrator) | done | `307d84ce`; report and status `33916dfc`; verification fixes `658bf2cf` and `glsl-transformer: S7b fix continued line comments on extension lines` | 2026-09-29 | [S7b-hardening.md](reports/S7b-hardening.md) |
-| S8 flip the default, port the tests, full run (exit point A) | done; **exit point A reached** | `72190445`; report and status `392f4dd3`; verification fix `glsl-transformer: S8 fix TransformPatcherTest token assertions` | 2026-09-29 | [S08-flip-default.md](reports/S08-flip-default.md) |
-| S9 GLSM subtractions and utilities | not started | | | |
+| S8 flip the default, port the tests, full run (exit point A) | done; **exit point A reached** | `72190445`; report and status `392f4dd3`; verification fix `02f161d6` | 2026-09-29 | [S08-flip-default.md](reports/S08-flip-default.md) |
+| S9 GLSM subtractions and utilities | done | `21eb3764`; report and status in the commit that adds the report | 2026-09-29 | [S09-glsm-subtractions.md](reports/S09-glsm-subtractions.md) |
 | S10 `CompatShaderTransformer` | not started | | | |
 | S11 remove TauMC, release checks (exit point B) | not started | | | |
 | S12 optional payoff | not started | | | |
@@ -151,3 +151,9 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   engine's median per transform against TauMC's in one session: BSL 17.7 against 19.2 ms, Complementary 76.5 against
   73.8, I Like Vanilla 46.3 against 41.6 (two runs each for I Like Vanilla, one for the others); a cached reload transforms nothing on either engine. Full
   `:test`: 1,065 tests, 0 failures, 4 skipped. The mini-corpus has 32 cases; `accepted.txt` nine entries, reviewed.
+- S9 (S9 report): `ShaderTransformPostProcessor`, `GLSMHooks.postTransformProcessor`, `glsm.shader.ShaderType` and
+  `GlslTransformUtils.parseFullQuiet`/`parsePreQuiet` are gone; `glsm.shader.UniformType` stays (`PerFrameUniformBlock`).
+  `GlslTransformUtils` imports no TauMC class; its `getFormattedShader` is `@Deprecated` until Step 11 (callers: the old
+  engine's `ShaderTransformer` and `AdaptiveShadowBoundsTransformer`, GLSM's `CompatShaderTransformer`, TauMC-oracle
+  tests; the list is in the S9 report). `glsm/ffp/VertexShaderGeneratorTest` runs on `ShaderAst` and `GlslTokens`, no
+  TauMC. Full `:test`: 1,065 tests, 0 failures, 4 skipped; mini-corpus replay unchanged.
