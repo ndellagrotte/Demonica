@@ -1,0 +1,47 @@
+==== 120 vertex
+mc_Entity = true
+color = true
+tint = true
+PI = true
+lights = true
+wave = true
+shade = true
+main = true
+offset = true
+x = false
+c = false
+Light = false
+position = false
+gl_Vertex = false
+gl_TexCoord = false
+ftransform = false
+nothing = false
+
+==== 330 fragment
+a = true
+b = true
+luma = true
+fogColorAt = true
+fogColor = true
+i = true
+weights = true
+albedo = true
+texture = false
+location = false
+
+==== names in blocks, structs and prototypes
+Material = false
+color = true
+roughness = false
+material = true
+Block = false
+blockColor = false
+Named = false
+named = false
+namedColor = false
+tint = true
+scaled = true
+x = false
+color2 = true
+local = true
+

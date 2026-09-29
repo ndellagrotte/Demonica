@@ -1,0 +1,2 @@
+==== injectFunction
+!throws java.lang.IndexOutOfBoundsException: Index: -1, Size: 2

@@ -1,0 +1,165 @@
+==== a declared uniform array: the declaration stays
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( iris_lights0 . position * iris_lights1 . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== a declared uniform array: the declaration stays / indices
+[0, 1]
+==== a matrix column index
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + iris_gbufferModelView3 . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== a matrix column index / indices
+[3]
+==== a name with no array access
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== a name with no array access / indices
+[]
+==== gl_FragData with two indices
+
+uniform sampler2D texture ; 
+uniform sampler2D lightmap ; 
+uniform sampler2DShadow shadow ; 
+varying vec2 texcoord ; 
+varying vec2 lmcoord ; 
+varying vec4 glcolor ; 
+void main ( ) { 
+	 vec4 color = texture2D ( texture , texcoord ) * glcolor ; 
+	color *= texture2D ( lightmap , lmcoord ) ; 
+	color . rgb *= shadow2D ( shadow , vec3 ( texcoord , 0.5 ) ) . r ; 
+	color += texture2DLod ( lightmap , lmcoord , 0.0 ) * 0.0 ; 
+	iris_FragData0 = color ; 
+	iris_FragData1 = vec4 ( lmcoord , 0.0 , 1.0 ) ; 
+} 
+
+==== gl_FragData with two indices / indices
+[0, 1]
+==== gl_TexCoord, also with a swizzle after the index
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	actinium_TexCoord0 = gl_MultiTexCoord0 ; 
+	actinium_TexCoord1 . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== gl_TexCoord, also with a swizzle after the index / indices
+[0, 1]
+==== gl_TextureMatrix inside a product
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = iris_TextureMatrix0 * gl_MultiTexCoord0 ; 
+	texcoord += iris_TextureMatrix1 * gl_MultiTexCoord1 + iris_TextureMatrix2 * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== gl_TextureMatrix inside a product / indices
+[0, 1, 2]

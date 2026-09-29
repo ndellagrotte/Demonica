@@ -324,7 +324,7 @@ final class ShaderAstCorpusDifferential {
         Throwable adapterError = null;
         for (Map.Entry<PatchShaderType, String> stage : group.stages().entrySet()) {
             try {
-                final String unchangedTauMC = ShaderAstParityTest.viaTauMC(stage.getValue(), t -> { });
+                final String unchangedTauMC = ShaderAstParityTest.printTauMC(stage.getValue(), t -> { });
                 if (!GlslTokens.diff(unchangedTauMC, ShaderAstParityTest.viaShaderAst(stage.getValue(), a -> { })).isEmpty()) {
                     summary.count(verb, Outcome.BASELINE_DIFFERS);
                     return;
@@ -370,7 +370,7 @@ final class ShaderAstCorpusDifferential {
                 if (!diff.isEmpty()) {
                     diffs.append(stage).append(":\n").append(diff).append('\n');
                 }
-                changed |= !GlslTokens.of(taumc.get(stage)).equals(GlslTokens.of(ShaderAstParityTest.viaTauMC(group.stages().get(stage), t -> { })));
+                changed |= !GlslTokens.of(taumc.get(stage)).equals(GlslTokens.of(ShaderAstParityTest.printTauMC(group.stages().get(stage), t -> { })));
             }
             if (changed) {
                 summary.effective(verb);
@@ -393,7 +393,7 @@ final class ShaderAstCorpusDifferential {
         Throwable taumcError = null;
         Throwable adapterError = null;
         try {
-            taumc = ShaderAstParityTest.viaTauMC(text, application.taumc());
+            taumc = ShaderAstParityTest.printTauMC(text, application.taumc());
         } catch (Throwable e) {
             taumcError = e;
         }

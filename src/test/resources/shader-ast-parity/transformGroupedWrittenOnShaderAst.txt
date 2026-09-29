@@ -1,0 +1,258 @@
+==== 120 varyings (no in or out: nothing to pair) / FRAGMENT
+
+varying vec2 lm ; 
+varying vec4 missing ; 
+void main ( ) { 
+	 gl_FragColor = missing * lm . x ; 
+} 
+
+==== 120 varyings (no in or out: nothing to pair) / VERTEX
+
+varying vec2 lm ; 
+void main ( ) { 
+	 gl_Position = ftransform ( ) ; 
+} 
+
+==== fixtures: 330 fragment after the 120 vertex / FRAGMENT
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+a = albedo . a * luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+
+==== fixtures: 330 fragment after the 120 vertex / VERTEX
+
+out vec4 color ; 
+out vec2 texcoord ; 
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== square matrices spelled alike: both initialized / FRAGMENT
+
+in mat2x2 m ; 
+in mat3 k ; 
+out vec4 frag ; 
+void main ( ) { 
+	 frag = vec4 ( m [ 0 ] , k [ 0 ] . xy ) ; 
+} 
+
+==== square matrices spelled alike: both initialized / VERTEX
+
+in vec3 pos ; 
+out mat2x2 m ; 
+out mat3 k ; 
+void main ( ) { 
+	 m = mat2x2 ( 0.0f ) ; 
+	k = mat3 ( 0.0f ) ; 
+	gl_Position = vec4 ( pos , 1.0 ) ; 
+} 
+
+==== square matrices spelled differently: nothing initialized / FRAGMENT
+
+in mat2 m ; 
+in mat3x3 k ; 
+out vec4 frag ; 
+void main ( ) { 
+	 frag = vec4 ( m [ 0 ] , k [ 0 ] . xy ) ; 
+} 
+
+==== square matrices spelled differently: nothing initialized / VERTEX
+
+in vec3 pos ; 
+out mat2x2 m ; 
+out mat3 k ; 
+void main ( ) { 
+	 gl_Position = vec4 ( pos , 1.0 ) ; 
+} 
+
+==== vertex and fragment / FRAGMENT
+
+in float mat , recolor ; 
+flat in float isMoon ; 
+in vec3 normals [ 2 ] ; 
+in vec3 [ 2 ] tangents ; 
+in vec2 texCoord ; 
+in vec4 tint ; 
+in vec4 color ; 
+in vec3 unusedIn ; 
+in ivec2 cell ; 
+flat in uint id ; 
+in mat3 tbn ; 
+in vec4 gl_SecondaryColor ; 
+layout ( location = 3 ) in vec4 extra ; 
+in float a , b ; 
+out vec4 fragColor ; 
+void main ( ) { 
+	 fragColor = color * mat * recolor * isMoon + vec4 ( normals [ 0 ] + tangents [ 1 ] , 1.0 ) + vec4 ( texCoord , float ( cell . x ) , float ( id ) ) + tint + vec4 ( tbn [ 0 ] , a ) + gl_SecondaryColor + extra ; 
+} 
+
+==== vertex and fragment / VERTEX
+
+flat out uint id ; 
+out vec4 tint ; 
+out ivec2 cell ; 
+out vec4 color ; 
+out float a ; 
+out mat3 tbn ; 
+in vec3 position ; 
+in vec4 vaColor ; 
+out float mat , recolor ; 
+flat out float isMoon ; 
+out vec3 normals [ 2 ] ; 
+out vec3 [ 2 ] tangents ; 
+out vec2 texCoord ; 
+out vec4 tintOut ; 
+layout ( location = 3 ) out vec4 extra ; 
+uniform mat4 mvp ; 
+void main ( ) { 
+	 id = 0u ; 
+	extra = vec4 ( 0.0f ) ; 
+	recolor = 0.0f ; 
+	isMoon = 0.0f ; 
+	cell = ivec2 ( 0 ) ; 
+	color = vec4 ( 0.0f ) ; 
+	a = 0.0f ; 
+	tbn = mat3 ( 0.0f ) ; 
+	mat = 1.0 ; 
+	texCoord = position . xy ; 
+	tintOut = vaColor ; 
+	normals [ 0 ] = position ; 
+	gl_Position = mvp * vec4 ( position , 1.0 ) ; 
+} 
+
+==== vertex, geometry and fragment / FRAGMENT
+
+in float mat , recolor ; 
+flat in float isMoon ; 
+in vec3 normals [ 2 ] ; 
+in vec3 [ 2 ] tangents ; 
+in vec2 texCoord ; 
+in vec4 tint ; 
+in vec4 color ; 
+in vec3 unusedIn ; 
+in ivec2 cell ; 
+flat in uint id ; 
+in mat3 tbn ; 
+in vec4 gl_SecondaryColor ; 
+layout ( location = 3 ) in vec4 extra ; 
+in float a , b ; 
+out vec4 fragColor ; 
+void main ( ) { 
+	 fragColor = color * mat * recolor * isMoon + vec4 ( normals [ 0 ] + tangents [ 1 ] , 1.0 ) + vec4 ( texCoord , float ( cell . x ) , float ( id ) ) + tint + vec4 ( tbn [ 0 ] , a ) + gl_SecondaryColor + extra ; 
+} 
+
+==== vertex, geometry and fragment / GEOMETRY
+
+out vec3 normals ; 
+flat out uint id ; 
+out vec3 [ 2 ] tangents ; 
+layout ( location = 3 ) out vec4 extra ; 
+out float recolor ; 
+out vec4 tint ; 
+flat out float isMoon ; 
+out ivec2 cell ; 
+out float a ; 
+out mat3 tbn ; 
+layout ( triangles ) in ; 
+layout ( triangle_strip , max_vertices = 3 ) out ; 
+in vec2 texCoord [ ] ; 
+in vec4 color [ ] ; 
+out vec2 texCoord ; 
+out vec4 color ; 
+out float mat ; 
+void main ( ) { 
+	 normals = vec3 ( 0.0f ) ; 
+	id = 0u ; 
+	tangents = vec3 ( 0.0f ) ; 
+	extra = vec4 ( 0.0f ) ; 
+	recolor = 0.0f ; 
+	tint = vec4 ( 0.0f ) ; 
+	isMoon = 0.0f ; 
+	cell = ivec2 ( 0 ) ; 
+	a = 0.0f ; 
+	tbn = mat3 ( 0.0f ) ; 
+	mat = 0.0f ; 
+	texCoord = texCoord [ 0 ] ; 
+	color = color [ 0 ] ; 
+	EmitVertex ( ) ; 
+} 
+
+==== vertex, geometry and fragment / VERTEX
+
+out vec4 color ; 
+in vec3 position ; 
+in vec4 vaColor ; 
+out float mat , recolor ; 
+flat out float isMoon ; 
+out vec3 normals [ 2 ] ; 
+out vec3 [ 2 ] tangents ; 
+out vec2 texCoord ; 
+out vec4 tintOut ; 
+layout ( location = 3 ) out vec4 extra ; 
+uniform mat4 mvp ; 
+void main ( ) { 
+	 color = vec4 ( 0.0f ) ; 
+	mat = 1.0 ; 
+	texCoord = position . xy ; 
+	tintOut = vaColor ; 
+	normals [ 0 ] = position ; 
+	gl_Position = mvp * vec4 ( position , 1.0 ) ; 
+} 
+

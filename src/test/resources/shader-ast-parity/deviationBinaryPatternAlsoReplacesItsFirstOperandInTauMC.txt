@@ -1,0 +1,10 @@
+==== taumc
+
+uniform vec3 colorSample ; 
+uniform float mult ; 
+out vec3 c ; 
+void main ( ) { 
+	 c = iris_product ; 
+	c = max ( c , iris_product ) ; 
+} 
+

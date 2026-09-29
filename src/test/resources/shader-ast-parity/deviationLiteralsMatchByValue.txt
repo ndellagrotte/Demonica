@@ -1,0 +1,8 @@
+==== taumc
+
+uniform vec3 p ; 
+out vec4 o ; 
+void main ( ) { 
+	 o = vec4 ( p , 0. ) ; 
+} 
+

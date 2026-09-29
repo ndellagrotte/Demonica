@@ -1,0 +1,23 @@
+==== taumc
+
+struct S { 
+	 float a ; 
+} 
+; 
+uniform float u ; 
+out vec4 o ; 
+void main ( ) { 
+	 S t = S2 ( u ) ; 
+	S both [ 2 ] = S2 [ 2 ] ( t , t ) ; 
+	o = vec4 ( both [ 1 ] . a ) ; 
+} 
+
+==== taumcLength
+
+uniform float arr [ 4 ] ; 
+out vec4 o ; 
+void main ( ) { 
+	 float len = 1.0 ; 
+	o = vec4 ( float ( arr . len ( ) ) + len ) ; 
+} 
+

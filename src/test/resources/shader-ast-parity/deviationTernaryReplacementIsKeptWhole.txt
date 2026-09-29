@@ -1,0 +1,8 @@
+==== taumc
+
+uniform float x , c , u ; 
+out float y ; 
+void main ( ) { 
+	 y = ! ( x > u > 0.0 ) ? x : u > 0.0 ; 
+} 
+

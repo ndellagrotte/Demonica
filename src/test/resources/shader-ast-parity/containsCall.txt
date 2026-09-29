@@ -1,0 +1,51 @@
+==== 120 fragment (texture2D left out: see deviationTexture2DIsAnIdentifier)
+texture = true
+shadow2D = true
+texture2DLod = true
+gl_FragData = true
+gl_FragColor = false
+
+==== 120 vertex
+ftransform = true
+wave = true
+shade = true
+sin = true
+gl_Vertex = true
+gl_TexCoord = true
+position = true
+strength = true
+xy = true
+texcoord = true
+mc_Entity = false
+chunkOffset = false
+c = true
+x = true
+Light = false
+nothing = false
+
+==== 330 fragment
+texture = true
+gcolor = true
+luma = true
+fogColorAt = true
+float = false
+vec4 = false
+i = true
+weights = true
+rgb = true
+location = false
+outColor0 = true
+
+==== names in blocks, structs and prototypes
+color = true
+roughness = true
+material = true
+blockColor = true
+namedColor = true
+named = true
+tint = true
+scaled = true
+Material = false
+local = true
+r = true
+

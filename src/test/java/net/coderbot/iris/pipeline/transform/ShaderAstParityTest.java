@@ -6,9 +6,11 @@ import io.github.douira.glsl_transformer.ast.node.type.qualifier.StorageQualifie
 import io.github.douira.glsl_transformer.util.Type;
 import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.TestInfo;
 import org.taumc.glsl.ShaderParser;
 import org.taumc.glsl.ShaderPrinter;
 import org.taumc.glsl.Transformer;
@@ -28,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -220,17 +223,58 @@ class ShaderAstParityTest {
     static void restoreGlobalState() {
         ShaderTransformer.resetVersionHoistingForTesting();
         RenderSystem.initializeGlslCapabilityForTesting(460, false, false);
+        if (TauMcSnapshots.recording()) {
+            SNAPSHOTS.writeRecorded();
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------
+    // Step 11: TauMC's answers, recorded into src/test/resources/shader-ast-parity/ with
+    // -Ddemonica.taumc.snapshots.record=true, otherwise compared with those files (ShaderAstSnapshotTest's oracle).
+
+    static final TauMcSnapshots SNAPSHOTS = new TauMcSnapshots("shader-ast-parity");
+    private static String method;
+
+    @BeforeEach
+    void rememberMethod(TestInfo info) {
+        method = info.getTestMethod().orElseThrow().getName();
+    }
+
+    /** TauMC's answer {@code key} of the running test method: recorded, or compared with its snapshot; a throw is rethrown. */
+    static String taumc(String key, Supplier<String> answer) {
+        String value;
+        RuntimeException thrown = null;
+        try {
+            value = answer.get();
+        } catch (RuntimeException e) {
+            thrown = e;
+            value = TauMcSnapshots.thrown(e);
+        }
+        if (TauMcSnapshots.recording()) {
+            SNAPSHOTS.record(method, key, value);
+        } else {
+            assertEquals(SNAPSHOTS.get(method, key), value, "TauMC's answer against its snapshot: " + method + " / " + key);
+        }
+        if (thrown != null) {
+            throw thrown;
+        }
+        return value;
     }
 
     // ---------------------------------------------------------------------------------------------------------------
     // Harness
 
-    static String viaTauMC(String source, Consumer<Transformer> verb) {
+    static String printTauMC(String source, Consumer<Transformer> verb) {
         final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
         verb.accept(transformer);
         final StringBuilder printed = new StringBuilder();
         transformer.mutateTree(tree -> printed.append(GlslTransformUtils.getFormattedShader(tree, "")));
         return printed.toString();
+    }
+
+    /** TauMC's printed program after {@code verb}, as the snapshot {@code key}. */
+    static String viaTauMC(String key, String source, Consumer<Transformer> verb) {
+        return taumc(key, () -> printTauMC(source, verb));
     }
 
     static String viaShaderAst(String source, Consumer<ShaderAst> verb) {
@@ -239,8 +283,8 @@ class ShaderAstParityTest {
         return ast.printBody();
     }
 
-    static void assertParity(String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
-        final String expected = viaTauMC(source, taumc);
+    static void assertParity(String key, String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
+        final String expected = viaTauMC(key, source, taumc);
         final String actual = viaShaderAst(source, adapter);
         final String diff = GlslTokens.diff(expected, actual);
         assertTrue(diff.isEmpty(), () -> "TauMC and ShaderAst differ (- TauMC, + ShaderAst):\n" + diff
@@ -248,15 +292,21 @@ class ShaderAstParityTest {
     }
 
     static DynamicTest parity(String name, String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
-        return DynamicTest.dynamicTest(name, () -> assertParity(source, taumc, adapter));
+        return DynamicTest.dynamicTest(name, () -> assertParity(name, source, taumc, adapter));
     }
 
-    /** {@link #parity}, and TauMC's verb must have changed the program (a case that two no-ops would pass is useless). */
+    /**
+     * {@link #parity}, and TauMC's verb must have changed the program (a case that two no-ops would pass is useless).
+     * Step 11: TauMC's unchanged program must equal ShaderAst's, so the snapshot test can compare with the latter.
+     */
     static DynamicTest changingParity(String name, String source, Consumer<Transformer> taumc, Consumer<ShaderAst> adapter) {
         return DynamicTest.dynamicTest(name, () -> {
-            assertFalse(GlslTokens.of(viaTauMC(source, taumc)).equals(GlslTokens.of(viaTauMC(source, t -> { }))),
+            final String unchanged = printTauMC(source, t -> { });
+            assertTrue(GlslTokens.of(unchanged).equals(GlslTokens.of(viaShaderAst(source, a -> { }))),
+                "TauMC's and ShaderAst's unchanged programs differ");
+            assertFalse(GlslTokens.of(viaTauMC(name, source, taumc)).equals(GlslTokens.of(unchanged)),
                 "TauMC's verb left the program unchanged");
-            assertParity(source, taumc, adapter);
+            assertParity(name, source, taumc, adapter);
         });
     }
 
@@ -264,15 +314,16 @@ class ShaderAstParityTest {
                                    BiFunction<Transformer, String, Object> taumc,
                                    BiFunction<ShaderAst, String, Object> adapter) {
         return DynamicTest.dynamicTest(name, () -> {
-            final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
+            final String expected = taumc(name, () -> {
+                final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
+                final StringBuilder answers = new StringBuilder();
+                names.forEach(n -> answers.append(n).append(" = ").append(taumc.apply(transformer, n)).append('\n'));
+                return answers.toString();
+            });
             final ShaderAst ast = ShaderAst.parse(source);
-            final Map<String, Object> expected = new LinkedHashMap<>();
-            final Map<String, Object> actual = new LinkedHashMap<>();
-            for (String n : names) {
-                expected.put(n, taumc.apply(transformer, n));
-                actual.put(n, adapter.apply(ast, n));
-            }
-            assertEquals(expected, actual);
+            final StringBuilder actual = new StringBuilder();
+            names.forEach(n -> actual.append(n).append(" = ").append(adapter.apply(ast, n)).append('\n'));
+            assertEquals(expected, actual.toString());
         });
     }
 
@@ -420,7 +471,8 @@ class ShaderAstParityTest {
         final List<DynamicTest> tests = new ArrayList<>();
         rows.forEach((name, row) -> tests.add(DynamicTest.dynamicTest(name, () -> {
             final String source = (String) row[0];
-            final List<String> taumc = taumcHeaderExtensions(source);
+            final List<String> taumc = List.of(taumc(name, () -> String.join("\n", taumcHeaderExtensions(source))).split("\n", -1))
+                .stream().filter(line -> !line.isEmpty()).toList();
             assertEquals(row[1], taumc.size(), () -> "TauMC's header: " + taumc);
             final ShaderAst ast = ShaderAst.parse(source);
             assertEquals(taumc, ast.extensionDirectives());
@@ -442,7 +494,7 @@ class ShaderAstParityTest {
     void deviationACommentOnADirectiveLine() {
         final String source = "#version 330 core\n#extension GL_ARB_shader_texture_lod : enable /* c */\n"
             + "#extension GL_EXT_gpu_shader4 : require\nuniform float u;\nvoid main() { }\n";
-        assertEquals(List.of("#extension GL_ARB_shader_texture_lod : enable"), taumcHeaderExtensions(source));
+        assertEquals("#extension GL_ARB_shader_texture_lod : enable", taumc("header", () -> String.join("\n", taumcHeaderExtensions(source))));
         assertEquals(List.of("#extension GL_ARB_shader_texture_lod : enable", "#extension GL_EXT_gpu_shader4 : require"),
             ShaderAst.parse(source).extensionDirectives());
     }
@@ -596,7 +648,7 @@ class ShaderAstParityTest {
     void deviationInjectFunctionWithoutAnyFunction() {
         // TauMC anchors on the first function definition; without one, List.add(-1, ...) throws. ShaderAst appends.
         final String source = "#version 330 core\nuniform float a;\n";
-        assertThrows(IndexOutOfBoundsException.class, () -> viaTauMC(source, t -> t.injectFunction("float iris_f() { return a; }")));
+        assertThrows(IndexOutOfBoundsException.class, () -> viaTauMC("injectFunction", source, t -> t.injectFunction("float iris_f() { return a; }")));
         final String printed = viaShaderAst(source, a -> a.injectFunction("float iris_f() { return a; }"));
         assertTrue(GlslTokens.contains(printed, "uniform float a ; float iris_f ( ) { return a ; }"), printed);
     }
@@ -671,15 +723,15 @@ class ShaderAstParityTest {
         return DynamicTest.dynamicTest(name, () -> {
             final Set<Integer> foundTauMC = new TreeSet<>();
             final Set<Integer> foundAst = new TreeSet<>();
-            assertParity(source, t -> t.renameArray(oldName, newName, foundTauMC), a -> a.renameArray(oldName, newName, foundAst));
-            assertEquals(foundTauMC, foundAst, "indices found");
+            assertParity(name, source, t -> t.renameArray(oldName, newName, foundTauMC), a -> a.renameArray(oldName, newName, foundAst));
+            assertEquals(taumc(name + " / indices", foundTauMC::toString), foundAst.toString(), "indices found");
         });
     }
 
     @Test
     void renameArrayWithANonLiteralIndexThrowsLikeTauMC() {
         // TauMC reads the index with Integer.parseInt of its text; weights[i] throws NumberFormatException.
-        assertThrows(NumberFormatException.class, () -> viaTauMC(FRAGMENT_330, t -> t.renameArray("weights", "w", new TreeSet<>())));
+        assertThrows(NumberFormatException.class, () -> viaTauMC("renameArray", FRAGMENT_330, t -> t.renameArray("weights", "w", new TreeSet<>())));
         assertThrows(NumberFormatException.class, () -> viaShaderAst(FRAGMENT_330, a -> a.renameArray("weights", "w", new TreeSet<>())));
     }
 
@@ -688,8 +740,8 @@ class ShaderAstParityTest {
         // TauMC's Integer.parseInt("+1") succeeds; it records 1 and writes the token 'a+1', which reads as 'a + 1'.
         final String source = "#version 330 core\nuniform float arr[4];\nout vec4 o;\nvoid main() { o = vec4(arr[+1]); }\n";
         final Set<Integer> found = new TreeSet<>();
-        final String taumc = viaTauMC(source, t -> t.renameArray("arr", "a", found));
-        assertEquals(Set.of(1), found);
+        final String taumc = viaTauMC("taumc", source, t -> t.renameArray("arr", "a", found));
+        assertEquals("[1]", taumc("found", found::toString));
         assertTrue(GlslTokens.contains(taumc, "o = vec4 ( a + 1 ) ;"), taumc);
         assertThrows(NumberFormatException.class, () -> viaShaderAst(source, a -> a.renameArray("arr", "a", new TreeSet<>())));
     }
@@ -768,7 +820,7 @@ class ShaderAstParityTest {
         final String source = "#version 330 core\nuniform float x, c;\nout float y;\nvoid main() { y = x * c; y += x.x; y = -x; }\n";
         // TauMC splices the text: 'a + b * c' changes the meaning, and in postfix position (after '.' or under a unary
         // operator) it keeps only 'a'.
-        final String taumc = viaTauMC(source, t -> t.replaceExpression("x", "a + b"));
+        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("x", "a + b"));
         assertTrue(GlslTokens.contains(taumc, "y = a + b * c ;"), taumc);
         assertTrue(GlslTokens.contains(taumc, "y += a . x ;"), taumc);
         assertTrue(GlslTokens.contains(taumc, "y = - a ;"), taumc);
@@ -782,7 +834,7 @@ class ShaderAstParityTest {
     void deviationTernaryReplacementIsKeptWhole() {
         final String source = "#version 330 core\nuniform float x, c, u;\nout float y;\nvoid main() { y = !(x > c) ? x : c; }\n";
         // TauMC's binary pass reparses the replacement as a binary expression, which drops '? 1.0 : 2.0'.
-        final String taumc = viaTauMC(source, t -> t.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
+        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
         assertTrue(GlslTokens.contains(taumc, "y = ! ( x > u > 0.0 ) ? x : u > 0.0 ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("c", "u > 0.0 ? 1.0 : 2.0"));
         assertTrue(GlslTokens.contains(adapter, "y = ! ( x > ( u > 0.0 ? 1.0 : 2.0 ) ) ? x : u > 0.0 ? 1.0 : 2.0 ;"), adapter);
@@ -792,7 +844,7 @@ class ShaderAstParityTest {
     void deviationSelfReferentialReplacementAppliesOnce() {
         final String source = "#version 330 core\nuniform float v;\nout float y;\nfloat f(float x) { return x; }\nvoid main() { y = f(f(v)); }\n";
         // TauMC's postfix pass finds the pattern again inside what its binary pass inserted and replaces it a second time.
-        final String taumc = viaTauMC(source, t -> t.replaceExpression("f(v)", "f(f(v))"));
+        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("f(v)", "f(f(v))"));
         assertTrue(GlslTokens.contains(taumc, "y = f ( f ( f ( f ( v ) ) ) ) ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("f(v)", "f(f(v))"));
         assertTrue(GlslTokens.contains(adapter, "y = f ( f ( f ( v ) ) ) ;"), adapter);
@@ -805,13 +857,13 @@ class ShaderAstParityTest {
         // renameFunctionCall and renameArray do not update, so the second replaceExpression misses the 'a' that was 'c'.
         // Production shape: CELERITAS_TERRAIN renames gl_MultiTexCoord3 to mc_midTexCoord (patchMultiTexCoord3), then
         // replaces mc_midTexCoord.
-        final String taumc = viaTauMC(source, t -> { t.replaceExpression("a", "b"); t.rename("c", "a"); t.replaceExpression("a", "d"); });
+        final String taumc = viaTauMC("taumc", source, t -> { t.replaceExpression("a", "b"); t.rename("c", "a"); t.replaceExpression("a", "d"); });
         assertTrue(GlslTokens.contains(taumc, "y = b + a ;"), taumc);
         final String adapter = viaShaderAst(source, a -> { a.replaceExpression("a", "b"); a.rename("c", "a"); a.replaceExpression("a", "d"); });
         assertTrue(GlslTokens.contains(adapter, "y = b + d ;"), adapter);
 
         // The stale cache also still finds a renamed node under its old name.
-        final String taumcOld = viaTauMC(source, t -> { t.replaceExpression("a", "b"); t.rename("c", "e"); t.replaceExpression("c", "d"); });
+        final String taumcOld = viaTauMC("taumcOld", source, t -> { t.replaceExpression("a", "b"); t.rename("c", "e"); t.replaceExpression("c", "d"); });
         assertTrue(GlslTokens.contains(taumcOld, "y = b + d ;"), taumcOld);
         final String adapterOld = viaShaderAst(source, a -> { a.replaceExpression("a", "b"); a.rename("c", "e"); a.replaceExpression("c", "d"); });
         assertTrue(GlslTokens.contains(adapterOld, "y = b + e ;"), adapterOld);
@@ -824,7 +876,7 @@ class ShaderAstParityTest {
         // expression (they are names, accesses and calls), so production output never showed this.
         final String source = "#version 330 core\nuniform vec3 colorSample;\nuniform float mult;\nout vec3 c;\n"
             + "void main() { c = colorSample * mult; c = max(c, colorSample); }\n";
-        final String taumc = viaTauMC(source, t -> t.replaceExpression("colorSample * mult", "iris_product"));
+        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("colorSample * mult", "iris_product"));
         assertTrue(GlslTokens.contains(taumc, "c = iris_product ; c = max ( c , iris_product ) ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("colorSample * mult", "iris_product"));
         assertTrue(GlslTokens.contains(adapter, "c = iris_product ; c = max ( c , colorSample ) ;"), adapter);
@@ -833,7 +885,7 @@ class ShaderAstParityTest {
     @Test
     void deviationLiteralsMatchByValue() {
         final String source = "#version 330 core\nuniform vec3 p;\nout vec4 o;\nvoid main() { o = vec4(p, 0.); }\n";
-        final String taumc = viaTauMC(source, t -> t.replaceExpression("vec4(p, 0.0)", "vec4(1.0)"));
+        final String taumc = viaTauMC("taumc", source, t -> t.replaceExpression("vec4(p, 0.0)", "vec4(1.0)"));
         assertTrue(GlslTokens.contains(taumc, "o = vec4 ( p , 0.0 ) ;"), "TauMC matches the spelling only: " + taumc);
         final String adapter = viaShaderAst(source, a -> a.replaceExpression("vec4(p, 0.0)", "vec4(1.0)"));
         assertTrue(GlslTokens.contains(adapter, "o = vec4 ( 1.0 ) ;"), adapter);
@@ -865,8 +917,8 @@ class ShaderAstParityTest {
     @Test
     void deviationEmptyMainGetsTheStatement() {
         final String source = "#version 330 core\nvoid main() {}\n";
-        assertThrows(NullPointerException.class, () -> viaTauMC(source, t -> t.prependMain("float x = 1.0;")));
-        assertThrows(NullPointerException.class, () -> viaTauMC(source, t -> t.appendMain("float x = 1.0;")));
+        assertThrows(NullPointerException.class, () -> viaTauMC("prependMain", source, t -> t.prependMain("float x = 1.0;")));
+        assertThrows(NullPointerException.class, () -> viaTauMC("appendMain", source, t -> t.appendMain("float x = 1.0;")));
         final String printed = viaShaderAst(source, a -> { a.prependMain("float x = 1.0;"); a.appendMain("float y = 2.0;"); });
         assertTrue(GlslTokens.contains(printed, "void main ( ) { float x = 1.0 ; float y = 2.0 ; }"), printed);
     }
@@ -898,7 +950,7 @@ class ShaderAstParityTest {
     void deviationRemovingAnInitializedFirstDeclarator() {
         final String source = "#version 330 core\nout vec4 c;\nvoid main() { float a = 1.0, b; b = 2.0; c = vec4(b); }\n";
         // TauMC writes the second declarator's text into the first one's name and keeps the first one's initializer.
-        final String taumc = viaTauMC(source, t -> t.removeVariable("a"));
+        final String taumc = viaTauMC("taumc", source, t -> t.removeVariable("a"));
         assertTrue(GlslTokens.contains(taumc, "float b = 1.0 ;"), taumc);
         final String adapter = viaShaderAst(source, a -> a.removeVariable("a"));
         assertTrue(GlslTokens.contains(adapter, "float b ;"), adapter);
@@ -909,7 +961,7 @@ class ShaderAstParityTest {
         final String source = "#version 330 core\nout vec4 c;\nvoid main() { float s = 0.0; for (int i = 0; i < 4; i++) { s += 1.0; } c = vec4(s); }\n";
         // Both outputs leave 'i' undeclared. TauMC drops the declaration with its ';', which is not GLSL; ShaderAst
         // empties the initializer and keeps the loop.
-        final String taumc = viaTauMC(source, t -> t.removeVariable("i"));
+        final String taumc = viaTauMC("taumc", source, t -> t.removeVariable("i"));
         assertTrue(GlslTokens.contains(taumc, "for ( i < 4 ; i ++ ) {"), taumc);
         final String adapter = viaShaderAst(source, a -> a.removeVariable("i"));
         assertTrue(GlslTokens.contains(adapter, "for ( ; i < 4 ; i ++ ) { s += 1.0 ; }"), adapter);
@@ -927,12 +979,16 @@ class ShaderAstParityTest {
             + "void main() { vec2 w = vec2(1.0); o = vec4(w, f(), 1.0); }\n";
         return Stream.of(
             DynamicTest.dynamicTest("findType finds the local, which TauMC scanned before the injected uniform", () -> {
-                final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
-                transformer.injectVariable("uniform float w;");
-                assertEquals(GLSLLexer.VEC2, transformer.findType("w"));
+                final String taumc = taumc("findType finds the local, which TauMC scanned before the injected uniform", () -> {
+                    final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
+                    transformer.injectVariable("uniform float w;");
+                    return taumcTypeKeyword(transformer.findType("w"));
+                });
+                assertEquals("vec2", taumc);
                 final ShaderAst ast = ShaderAst.parse(source);
                 ast.injectVariable("uniform float w;");
                 assertTrue(ast.findType("w").is(Type.F32VEC2), () -> ast.findType("w").keyword());
+                assertEquals(taumc, adapterTypeKeyword(ast.findType("w")));
             }),
             parity("removeVariable removes the injected uniform, the last TauMC scanned", source,
                 t -> { t.injectVariable("uniform float w;"); t.removeVariable("w"); },
@@ -1033,11 +1089,10 @@ class ShaderAstParityTest {
     void deviationTexture2DIsAnIdentifier() {
         // TauMC's lexer makes texture2D and texture3D keywords, so only renameFunctionCall sees them; containsCall and
         // rename never do. glsl-transformer lexes them as identifiers. No Demonica caller asks either verb about them.
-        final Transformer transformer = new Transformer(ShaderParser.parseShader(FRAGMENT_120).full());
-        assertFalse(transformer.containsCall("texture2D"));
+        assertEquals("false", taumc("containsCall", () -> String.valueOf(new Transformer(ShaderParser.parseShader(FRAGMENT_120).full()).containsCall("texture2D"))));
         assertTrue(ShaderAst.parse(FRAGMENT_120).containsCall("texture2D"));
 
-        final String taumc = viaTauMC(FRAGMENT_120, t -> t.rename("texture2D", "texture"));
+        final String taumc = viaTauMC("taumc", FRAGMENT_120, t -> t.rename("texture2D", "texture"));
         assertTrue(GlslTokens.contains(taumc, "vec4 color = texture2D ( texture , texcoord ) * glcolor ;"), taumc);
         final String adapter = viaShaderAst(FRAGMENT_120, a -> a.rename("texture2D", "texture"));
         assertTrue(GlslTokens.contains(adapter, "vec4 color = texture ( texture , texcoord ) * glcolor ;"), adapter);
@@ -1050,13 +1105,13 @@ class ShaderAstParityTest {
         // an identifier in TauMC and a node of its own in glsl-transformer.
         final String struct = "#version 330 core\nstruct S { float a; };\nuniform float u;\nout vec4 o;\n"
             + "void main() { S t = S(u); S both[2] = S[2](t, t); o = vec4(both[1].a); }\n";
-        final String taumc = viaTauMC(struct, t -> t.rename("S", "S2"));
+        final String taumc = viaTauMC("taumc", struct, t -> t.rename("S", "S2"));
         assertTrue(GlslTokens.contains(taumc, "S t = S2 ( u ) ; S both [ 2 ] = S2 [ 2 ] ( t , t ) ;"), taumc);
         final String adapter = viaShaderAst(struct, a -> a.rename("S", "S2"));
         assertTrue(GlslTokens.contains(adapter, "S t = S2 ( u ) ; S both [ 2 ] = S [ 2 ] ( t , t ) ;"), adapter);
 
         final String length = "#version 430\nuniform float arr[4];\nout vec4 o;\nvoid main() { float length = 1.0; o = vec4(float(arr.length()) + length); }\n";
-        final String taumcLength = viaTauMC(length, t -> t.rename("length", "len"));
+        final String taumcLength = viaTauMC("taumcLength", length, t -> t.rename("length", "len"));
         assertTrue(GlslTokens.contains(taumcLength, "o = vec4 ( float ( arr . len ( ) ) + len ) ;"), taumcLength);
         final String adapterLength = viaShaderAst(length, a -> a.rename("length", "len"));
         assertTrue(GlslTokens.contains(adapterLength, "o = vec4 ( float ( arr . length ( ) ) + len ) ;"), adapterLength);
@@ -1255,7 +1310,7 @@ class ShaderAstParityTest {
     void deviationWrappedShadowCallKeepsANegatedLiteral() {
         final String source = "#version 330 core\nuniform sampler2DShadow s;\nin vec3 p;\nout vec4 o;\n"
             + "void main() { o = vec4(shadow2D(s, vec3(p.xy, p.z - -0.001)).r); }\n";
-        final String taumc = viaTauMC(source, t -> t.renameAndWrapShadow("shadow2D", "texture"));
+        final String taumc = viaTauMC("taumc", source, t -> t.renameAndWrapShadow("shadow2D", "texture"));
         final String adapter = viaShaderAst(source, a -> a.renameAndWrapShadow("shadow2D", "texture"));
         assertTrue(GlslTokens.contains(taumc, "p . z -- 0.001"), taumc);
         assertTrue(GlslTokens.contains(adapter, "o = vec4 ( vec4 ( texture ( s , vec3 ( p . xy , p . z - - 0.001 ) ) ) . r ) ;"), adapter);
@@ -1426,10 +1481,12 @@ class ShaderAstParityTest {
         for (int i = 0; i < sources.size(); i++) {
             final String source = sources.get(i);
             for (Map.Entry<StorageQualifier.StorageType, Integer> type : STORAGE_TOKENS.entrySet()) {
-                tests.add(DynamicTest.dynamicTest("source " + i + ", " + type.getKey(), () -> {
-                    final Transformer transformer = new Transformer(ShaderParser.parseShader(source).full());
+                final String name = "source " + i + ", " + type.getKey();
+                tests.add(DynamicTest.dynamicTest(name, () -> {
+                    final String expected = taumc(name, () -> String.join("\n",
+                        taumcQualifiers(new Transformer(ShaderParser.parseShader(source).full()), type.getValue())));
                     final ShaderAst ast = ShaderAst.parse(source);
-                    assertEquals(taumcQualifiers(transformer, type.getValue()), adapterQualifiers(ast, type.getKey()));
+                    assertEquals(expected, String.join("\n", adapterQualifiers(ast, type.getKey())));
                 }));
             }
         }
@@ -1437,13 +1494,15 @@ class ShaderAstParityTest {
         final String many = "#version 330 core\n" + String.join("", java.util.stream.IntStream.range(0, 14)
             .mapToObj(i -> "out float o" + i + ";\n").toList()) + "void main() { }\n";
         tests.add(DynamicTest.dynamicTest("after injections (collisions in the map follow TauMC's cache order)", () -> {
-            final Transformer transformer = new Transformer(ShaderParser.parseShader(many).full());
+            final List<String> injected = List.of("pa", "iris_FogFragCoord", "iris_FrontColor", "qa", "o3");
+            final String expected = taumc("after injections (collisions in the map follow TauMC's cache order)", () -> {
+                final Transformer transformer = new Transformer(ShaderParser.parseShader(many).full());
+                injected.forEach(name -> transformer.injectVariable("out vec4 " + name + ";"));
+                return String.join("\n", taumcQualifiers(transformer, GLSLLexer.OUT));
+            });
             final ShaderAst ast = ShaderAst.parse(many);
-            for (String name : List.of("pa", "iris_FogFragCoord", "iris_FrontColor", "qa", "o3")) {
-                transformer.injectVariable("out vec4 " + name + ";");
-                ast.injectVariable("out vec4 " + name + ";");
-            }
-            assertEquals(taumcQualifiers(transformer, GLSLLexer.OUT), adapterQualifiers(ast, StorageQualifier.StorageType.OUT));
+            injected.forEach(name -> ast.injectVariable("out vec4 " + name + ";"));
+            assertEquals(expected, String.join("\n", adapterQualifiers(ast, StorageQualifier.StorageType.OUT)));
         }));
         return tests.stream();
     }
@@ -1508,7 +1567,7 @@ class ShaderAstParityTest {
     void deviationInitializeDoubles() {
         // TauMC writes 0.0d, which its own parser reads as 0.0 and an error (and a vector initializer as "v = ;").
         final String source = "#version 400 core\nin double d;\nin dvec2 dv;\nout vec4 o;\nvoid main() { o = vec4(1.0); }\n";
-        final String taumc = viaTauMC(source, t -> {
+        final String taumc = viaTauMC("taumc", source, t -> {
             t.initialize(t.findQualifiers(GLSLLexer.IN).get("d"), "d_out");
             t.initialize(t.findQualifiers(GLSLLexer.IN).get("dv"), "dv_out");
         });
@@ -1531,7 +1590,7 @@ class ShaderAstParityTest {
     }
 
     /** Runs TauMC's transformGrouped and {@link #transformGrouped} on the same stages; the printed stages, or the throw. */
-    static Map<PatchShaderType, String[]> groupedOnBoth(Map<PatchShaderType, String> stages) {
+    static Map<PatchShaderType, String[]> groupedOnBoth(String name, Map<PatchShaderType, String> stages) {
         final Map<PatchShaderType, Transformer> taumc = new java.util.EnumMap<>(PatchShaderType.class);
         final Map<PatchShaderType, ShaderAst> adapter = new java.util.EnumMap<>(PatchShaderType.class);
         stages.forEach((stage, source) -> {
@@ -1544,7 +1603,7 @@ class ShaderAstParityTest {
         stages.keySet().forEach(stage -> {
             final StringBuilder text = new StringBuilder();
             taumc.get(stage).mutateTree(tree -> text.append(GlslTransformUtils.getFormattedShader(tree, "")));
-            printed.put(stage, new String[]{text.toString(), adapter.get(stage).printBody()});
+            printed.put(stage, new String[]{taumc(name + " / " + stage, text::toString), adapter.get(stage).printBody()});
         });
         return printed;
     }
@@ -1580,14 +1639,16 @@ class ShaderAstParityTest {
             PatchShaderType.FRAGMENT, "#version 330 core\nin mat2x2 m;\nin mat3 k;\nout vec4 frag;\nvoid main() { frag = vec4(m[0], k[0].xy); }\n"));
         final List<DynamicTest> tests = new ArrayList<>();
         cases.forEach((name, stages) -> tests.add(DynamicTest.dynamicTest(name, () -> {
-            final Map<PatchShaderType, String[]> printed = groupedOnBoth(stages);
+            final Map<PatchShaderType, String[]> printed = groupedOnBoth(name, stages);
             printed.forEach((stage, both) -> {
                 final String diff = GlslTokens.diff(both[0], both[1]);
                 assertTrue(diff.isEmpty(), () -> stage + ": TauMC and ShaderAst differ (- TauMC, + ShaderAst):\n" + diff);
             });
             // Every case but the one without ins and outs and the differently spelled matrices changes the vertex stage.
-            final boolean changed = !GlslTokens.of(printed.get(PatchShaderType.VERTEX)[0])
-                .equals(GlslTokens.of(viaTauMC(stages.get(PatchShaderType.VERTEX), t -> { })));
+            final String unchanged = printTauMC(stages.get(PatchShaderType.VERTEX), t -> { });
+            assertTrue(GlslTokens.of(unchanged).equals(GlslTokens.of(viaShaderAst(stages.get(PatchShaderType.VERTEX), a -> { }))),
+                "TauMC's and ShaderAst's unchanged vertex programs differ");
+            final boolean changed = !GlslTokens.of(printed.get(PatchShaderType.VERTEX)[0]).equals(GlslTokens.of(unchanged));
             assertEquals(!name.startsWith("120 varyings") && !name.contains("spelled differently"), changed,
                 "TauMC changed the vertex stage");
         })));
@@ -1702,8 +1763,10 @@ class ShaderAstParityTest {
         sources.addAll(STEP4_FIXTURES);
         for (int i = 0; i < sources.size(); i++) {
             final String source = sources.get(i);
-            tests.add(DynamicTest.dynamicTest("source " + i, () -> assertEquals(
-                taumcFunctions(new Transformer(ShaderParser.parseShader(source).full())), adapterFunctions(ShaderAst.parse(source)))));
+            final String name = "source " + i;
+            tests.add(DynamicTest.dynamicTest(name, () -> assertEquals(
+                taumc(name, () -> String.join("\n", taumcFunctions(new Transformer(ShaderParser.parseShader(source).full())))),
+                String.join("\n", adapterFunctions(ShaderAst.parse(source))))));
         }
         return tests.stream();
     }
@@ -1770,7 +1833,7 @@ class ShaderAstParityTest {
         final String source = "#version 330 core\nuniform bool c;\nout vec4 o;\n"
             + "void main() { float y = 0.0; if (c) float x = 1.0; y = 2.0; for (int i = 0; i < 2; i++) float z = 3.0; o = vec4(y); }\n";
         // TauMC removes the declaration and leaves the if without a body, so 'y = 2.0;' becomes the body.
-        final String taumc = viaTauMC(source, t -> { t.removeVariable("x"); t.removeVariable("z"); });
+        final String taumc = viaTauMC("taumc", source, t -> { t.removeVariable("x"); t.removeVariable("z"); });
         assertTrue(GlslTokens.contains(taumc, "if ( c ) y = 2.0 ;"), taumc);
         // ShaderAst leaves an empty statement (S3 left a null body, and printing threw NullPointerException).
         final String adapter = viaShaderAst(source, a -> { a.removeVariable("x"); a.removeVariable("z"); });
@@ -1785,7 +1848,7 @@ class ShaderAstParityTest {
         // TauMC's grammar makes the length of arr.length() a variable_identifier; glsl-transformer has a
         // LengthAccessExpression without an identifier (the same gap as deviationRenameLeavesTypeNamesAndLength).
         final String source = "#version 430\nuniform float arr[4];\nout vec4 o;\nvoid main() { o = vec4(float(arr.length())); }\n";
-        assertTrue(new Transformer(ShaderParser.parseShader(source).full()).containsCall("length"));
+        assertEquals("true", taumc("containsCall", () -> String.valueOf(new Transformer(ShaderParser.parseShader(source).full()).containsCall("length"))));
         assertFalse(ShaderAst.parse(source).containsCall("length"));
     }
 

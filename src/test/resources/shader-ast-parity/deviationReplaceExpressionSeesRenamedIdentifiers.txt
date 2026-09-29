@@ -1,0 +1,16 @@
+==== taumc
+
+uniform float a , a ; 
+out float y ; 
+void main ( ) { 
+	 y = b + a ; 
+} 
+
+==== taumcOld
+
+uniform float a , e ; 
+out float y ; 
+void main ( ) { 
+	 y = b + d ; 
+} 
+

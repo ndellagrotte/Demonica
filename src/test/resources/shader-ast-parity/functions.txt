@@ -1,0 +1,249 @@
+==== source 0
+wave | float | [float x] | {
+return sin ( x * PI + frameTimeCounter ) ;
+}
+ | 000000000000
+shade | vec4 | [vec4 c, float wave] | {
+return c * wave ;
+}
+ | 00000000000000000
+main | void | [] | {
+float offset = wave ( gl_Vertex . x ) ;
+texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ;
+gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ;
+gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ;
+color = shade ( gl_Color , wave ( offset ) ) ;
+tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ;
+gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ;
+gl_Position = ftransform ( ) ;
+}
+ | 0000000
+==== source 1
+main | void | [] | {
+vec4 color = texture2D ( texture , texcoord ) * glcolor ;
+color *= texture2D ( lightmap , lmcoord ) ;
+color . rgb *= shadow2D ( shadow , vec3 ( texcoord , 0.5 ) ) . r ;
+color += texture2DLod ( lightmap , lmcoord , 0.0 ) * 0.0 ;
+gl_FragData [ 0 ] = color ;
+gl_FragData [ 1 ] = vec4 ( lmcoord , 0.0 , 1.0 ) ;
+}
+ | 0110000
+==== source 10
+helperOfHelper | float | [float x] | {
+return x * 2.0 ;
+}
+ | 000000000000
+unusedHelper | float | [float x] | {
+return helperOfHelper ( x ) ;
+}
+ | 000000000000
+used | float | [float x] | {
+return forward ( x ) ;
+}
+ | 000000000000
+forward | float | [float x] | {
+return x + 1.0 ;
+}
+ | 000000000000
+sharesALocalsName | float | [float x] | {
+return x ;
+}
+ | 000000000000
+overloaded | float | [float x] | {
+return x ;
+}
+ | 000000000000
+overloaded | float | [vec2 x] | {
+return x . x ;
+}
+ | 000000000000
+recursiveB | float | [float x] | {
+return recursiveA ( x ) ;
+}
+ | 000000000000
+recursiveA | float | [float x] | {
+return recursiveB ( x ) ;
+}
+ | 000000000000
+main | void | [] | {
+float sharesALocalsName = 1.0 ;
+fragColor = vec4 ( used ( sharesALocalsName ) + overloaded ( 2.0 ) ) ;
+}
+ | 0000000
+==== source 11
+texture2DShadow2x2 | float | [sampler2D shadowtex, vec3 shadowPos] | {
+vec2 texel = shadowPos . xy * shadowMapResolution ;
+return step ( shadowPos . z , texture ( shadowtex , texel / shadowMapResolution ) . r ) ;
+}
+ | 11001000000000000
+texture2DShadow2x2 | float | [sampler2DShadow shadowtex, vec3 shadowPos] | {
+return texture ( shadowtex , shadowPos ) ;
+}
+ | 01001000000000000
+SampleFilteredShadow | vec3 | [vec3 shadowPos, float offset, float bias] | {
+if ( abs ( shadowPos . x ) > 1.0 ) return vec3 ( 1.0 ) ;
+return vec3 ( texture ( shadowtex1 , shadowPos + vec3 ( offset , 0.0 , - bias ) ) ) ;
+}
+ | 0100100100000000000000
+lowered | highpfloat | [vec3 p, float w, vec3[2] q, float null] | {
+return p . x + w [ 0 ] + q [ 1 ] . x ;
+}
+ | 000000000000000000000000000
+main | void | [] | {
+fragColor = vec4 ( SampleFilteredShadow ( worldPos , 0.001 , 2.0E-4 ) * texture2DShadow2x2 ( shadowtex0 , worldPos ) * texture2DShadow2x2 ( shadowtex1 , worldPos ) * lowered ( worldPos , float [ 2 ] ( 1.0 , 2.0 ) , vec3 [ 2 ] ( worldPos , worldPos ) , 0.0 ) , 1.0 ) ;
+}
+ | 0100100
+==== source 12
+main | void | [] | {
+mat = 1.0 ;
+texCoord = position . xy ;
+tintOut = vaColor ;
+normals [ 0 ] = position ;
+gl_Position = mvp * vec4 ( position , 1.0 ) ;
+}
+ | 0000000
+==== source 13
+main | void | [] | {
+fragColor = color * mat * recolor * isMoon + vec4 ( normals [ 0 ] + tangents [ 1 ] , 1.0 ) + vec4 ( texCoord , float ( cell . x ) , float ( id ) ) + tint + vec4 ( tbn [ 0 ] , a ) + gl_SecondaryColor + extra ;
+}
+ | 0000000
+==== source 14
+main | void | [] | {
+o = vec4 ( 1.0 ) ;
+}
+ | 0000000
+==== source 2
+main | void | [] | {
+vec3 c = texture2D ( gcolor , texcoord . st ) . rgb ;
+c *= centerDepthSmooth * 0.5 + 0.5 ;
+gl_FragColor = vec4 ( c , 1.0 ) ;
+gl_FragColor . a = fract ( worldpos . y + 0.001 ) ;
+}
+ | 0100000
+==== source 3
+luma | float | [vec3 c] | {
+return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ;
+}
+ | 000000000000
+fogColorAt | vec3 | [vec3 fogColor] | {
+return fogColor * luma ( fogColor ) ;
+}
+ | 000000000000
+main | void | [] | {
+vec4 albedo = texture ( gcolor , texcoord ) * color ;
+float luma = luma ( albedo . rgb ) ;
+float weights [ 4 ] ;
+for ( int i = 0 ;
+i < 4 ;
+i ++ ) {
+weights [ i ] = float ( i ) * 0.25 ;
+albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ;
+}
+a = albedo . a * luma ;
+b = a * 0.5 ;
+outColor0 = vec4 ( albedo . rgb * a , b ) ;
+}
+ | 0100000
+==== source 4
+tint | vec4 | [vec4 color] | {
+return color * material . color ;
+}
+ | 000000000000
+main | void | [] | {
+vec4 color2 = color ;
+Material local = material ;
+fragColor = tint ( color2 ) + material . color * color . r + blockColor * blockScale + named . namedColor ;
+fragColor . xy *= scaled ( local . roughness ) ;
+}
+ | 0000000
+scaled | float | [float x] | {
+return x * 2.0 ;
+}
+ | 000000000000
+==== source 5
+toClipSpace3 | vec4 | [vec3 v] | {
+return gbufferProjection * vec4 ( v , 1.0 ) ;
+}
+ | 000000000000
+main | void | [] | {
+vec3 vertex = gl_Vertex . xyz ;
+texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ;
+texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ;
+vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ;
+gl_Position = vec4 ( worldpos , 0.0 ) ;
+gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ;
+gl_Position . x += ftransform ( ) . x ;
+}
+ | 0000000
+==== source 6
+helper | float | [float x] | {
+return x * 2.0 ;
+}
+ | 000000000000
+main | void | [] | {
+fragColor = vec4 ( helper ( scale ) ) ;
+}
+ | 0000000
+==== source 7
+main | void | [] | {
+vec2 pair [ 2 ] = vec2 [ PAIR_SIZE ] ( a , b ) ;
+c = vec4 ( pair [ 0 ] , vec2 [ PAIR_SIZE ] ( a , b ) [ 1 ] ) ;
+}
+ | 0000000
+==== source 8
+weight | float | [float v] | {
+return v * 0.5 ;
+}
+ | 000000000000
+pcf | float | [vec3 p] | {
+float s = shadow2D ( shadowtex0 , p ) . r ;
+s += shadow2D ( shadowtex1 , p + vec3 ( 0.001 , 0.0 , 0.0 ) ) . x * 0.25 ;
+return s ;
+}
+ | 001010000000
+main | void | [] | {
+float lit = shadow2DProj ( shadowtex0 , shadowPos ) . r ;
+lit *= weight ( shadow2D ( shadowtex1 , shadowPos . xyz ) . r ) ;
+lit += pcf ( shadowPos . xyz ) + shadow2DLod ( shadowtex0 , shadowPos . xyz , 0.0 ) . r ;
+lit += shadow1D ( shadow1d , shadowPos . xyz ) . r + shadow1DProj ( shadow1d , shadowPos ) . r + shadow1DLod ( shadow1d , shadowPos . xyz , 1.0 ) . r ;
+vec4 nested = shadow2D ( shadowtex0 , vec3 ( shadow2D ( shadowtex1 , shadowPos . xyz ) . r ) ) ;
+vec4 whole = shadow2D ( shadowtex0 , shadowPos . xyz ) ;
+gl_FragColor = vec4 ( lit ) * nested * whole * max ( shadow2DProj ( shadowtex1 , shadowPos ) , vec4 ( 0.1 ) ) ;
+}
+ | 0010100
+==== source 9
+scale | float | [float a, float b, float c, float d] | {
+const float x = a * 2.0 ;
+const highp float y = x + 1.0 ;
+float w = b ;
+const float z = w ;
+const float u = 1.0 , v = c ;
+const float e = 3.0 , h = a ;
+const float k = 4.0 ;
+return x + y + z + u + v + e + h + k + d ;
+}
+ | 000000000000000000000000000
+scale | float | [vec2 a] | {
+const float x = a . x ;
+return x ;
+}
+ | 000000000000
+other | vec3 | [vec3 p] | {
+const vec3 q = p * 2.0 ;
+const float r = length ( q ) ;
+float s [ 2 ] = float [ 2 ] ( r , r ) ;
+return q * s [ 1 ] ;
+}
+ | 000000000000
+field | vec4 | [float g, vec4 c] | {
+const float q = c . g ;
+const float early = t0 ;
+const float t0 = g ;
+return vec4 ( q + early + t0 ) ;
+}
+ | 00000000000000000
+main | void | [] | {
+const float x = 1.0 ;
+fragColor = vec4 ( scale ( 1.0 , 2.0 , 3.0 , 4.0 ) + scale ( vec2 ( x ) ) , other ( vec3 ( x ) ) ) + field ( x , vec4 ( x ) ) ;
+}
+ | 0000000

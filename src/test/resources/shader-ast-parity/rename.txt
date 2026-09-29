@@ -1,0 +1,387 @@
+==== a function name (prototype, forward declaration and calls)
+
+struct Material { 
+	 vec4 color ; 
+	float roughness ; 
+} 
+; 
+uniform Material material ; 
+uniform Block { 
+	 vec4 blockColor ; 
+	float blockScale ; 
+} 
+; 
+layout ( std140 ) uniform Named { 
+	 vec4 namedColor ; 
+} 
+named ; 
+in vec4 color ; 
+out vec4 fragColor ; 
+vec4 tint ( vec4 color ) { 
+	 return color * material . color ; 
+} 
+float iris_scaled ( float x ) ; 
+void main ( ) { 
+	 vec4 color2 = color ; 
+	Material local = material ; 
+	fragColor = tint ( color2 ) + material . color * color . r + blockColor * blockScale + named . namedColor ; 
+	fragColor . xy *= iris_scaled ( local . roughness ) ; 
+} 
+float iris_scaled ( float x ) { 
+	 return x * 2.0 ; 
+} 
+
+==== a function name that is also a local variable
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float iris_luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * iris_luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float iris_luma = iris_luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+a = albedo . a * iris_luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+
+==== a function name that is also a parameter name
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float iris_wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * iris_wave ; 
+} 
+void main ( ) { 
+	 float offset = iris_wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , iris_wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== a layout qualifier name and a loop variable
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int j = 0 ; 
+	j < 4 ; 
+	j ++ ) { 
+	 weights [ j ] = float ( j ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ j ] ; 
+} 
+a = albedo . a * luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+
+==== a multi-declarator varying
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , iris_tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	iris_tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== a swap through the map happens at once
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float b , a ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+b = albedo . b * luma ; 
+a = b * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * b , a ) ; } 
+
+==== a swizzle name
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . zw ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . zw = gl_MultiTexCoord1 . zw ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== a varying that is also a parameter and a struct field
+
+struct Material { 
+	 vec4 color ; 
+	float roughness ; 
+} 
+; 
+uniform Material material ; 
+uniform Block { 
+	 vec4 blockColor ; 
+	float blockScale ; 
+} 
+; 
+layout ( std140 ) uniform Named { 
+	 vec4 namedColor ; 
+} 
+named ; 
+in vec4 iris_color ; 
+out vec4 fragColor ; 
+vec4 tint ( vec4 color ) { 
+	 return iris_color * material . iris_color ; 
+} 
+float scaled ( float x ) ; 
+void main ( ) { 
+	 vec4 color2 = iris_color ; 
+	Material local = material ; 
+	fragColor = tint ( color2 ) + material . iris_color * iris_color . r + blockColor * blockScale + named . namedColor ; 
+	fragColor . xy *= scaled ( local . roughness ) ; 
+} 
+float scaled ( float x ) { 
+	 return x * 2.0 ; 
+} 
+
+==== gl_TexCoord (array references)
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	iris_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	iris_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== struct type, block, block member and block instance names
+
+struct Material { 
+	 vec4 color ; 
+	float roughness ; 
+} 
+; 
+uniform Material material ; 
+uniform Block { 
+	 vec4 blockColor ; 
+	float blockScale ; 
+} 
+; 
+layout ( std140 ) uniform Named { 
+	 vec4 namedColor ; 
+} 
+named ; 
+in vec4 color ; 
+out vec4 fragColor ; 
+vec4 tint ( vec4 color ) { 
+	 return color * material . color ; 
+} 
+float scaled ( float x ) ; 
+void main ( ) { 
+	 vec4 color2 = color ; 
+	Material local = material ; 
+	fragColor = tint ( color2 ) + material . color * color . r + bc2 * blockScale + n2 . nc2 ; 
+	fragColor . xy *= scaled ( local . roughness ) ; 
+} 
+float scaled ( float x ) { 
+	 return x * 2.0 ; 
+} 
+
+==== texture as a sampler name (CommonTransformer)
+
+uniform sampler2D gtexture ; 
+uniform sampler2D lightmap ; 
+uniform sampler2DShadow shadow ; 
+varying vec2 texcoord ; 
+varying vec2 lmcoord ; 
+varying vec4 glcolor ; 
+void main ( ) { 
+	 vec4 color = texture2D ( gtexture , texcoord ) * glcolor ; 
+	color *= texture2D ( lightmap , lmcoord ) ; 
+	color . rgb *= shadow2D ( shadow , vec3 ( texcoord , 0.5 ) ) . r ; 
+	color += texture2DLod ( lightmap , lmcoord , 0.0 ) * 0.0 ; 
+	gl_FragData [ 0 ] = color ; 
+	gl_FragData [ 1 ] = vec4 ( lmcoord , 0.0 , 1.0 ) ; 
+} 
+
+==== the matrix map of CoreTransformHelper
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( iris_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+

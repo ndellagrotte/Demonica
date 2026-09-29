@@ -1,0 +1,42 @@
+==== '# extension'
+#extension GL_ARB_shader_texture_lod : enable
+==== CRLF and a continued #define
+#extension GL_ARB_shader_texture_lod : enable
+==== CRLF line ends
+#extension GL_ARB_shader_texture_lod : enable
+#extension GL_EXT_gpu_shader4 : require
+==== a blank line before #version
+
+==== after a #define
+#extension GL_ARB_shader_texture_lod : enable
+==== after a #define continued over two lines
+#extension GL_ARB_shader_texture_lod : enable
+==== after a #pragma
+#extension GL_ARB_shader_texture_lod : enable
+==== after a blank line
+
+==== after a block comment
+
+==== after a declaration (the verifier's repro)
+
+==== after a default precision
+
+==== after a function
+
+==== after a line comment
+
+==== after an empty declaration
+
+==== directly after #version
+#extension GL_ARB_shader_texture_lod : enable
+==== indented
+
+==== one leading, one after a blank line
+#extension GL_ARB_shader_texture_lod : enable
+==== one leading, one after a declaration
+#extension GL_ARB_shader_texture_lod : enable
+==== trailing blanks on the #version line
+#extension GL_ARB_shader_texture_lod : enable
+==== two leading, require kept
+#extension GL_ARB_shader_texture_lod : enable
+#extension GL_EXT_gpu_shader4 : require

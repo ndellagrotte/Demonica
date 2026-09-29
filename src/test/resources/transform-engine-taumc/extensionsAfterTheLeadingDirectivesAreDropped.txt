@@ -1,0 +1,135 @@
+==== COMPOSITE 0eca58114fd3
+---- VERTEX 1004
+#version 330 core
+
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec3 vaPosition ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	gl_Position = vec4 ( vaPosition , 1.0 ) ; 
+} 
+
+---- FRAGMENT 898
+#version 330 core
+
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+uniform sampler2D colortex0 ; 
+layout ( location = 0 ) out vec4 outColor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 outColor = texture ( colortex0 , vec2 ( 0.5 ) ) ; 
+} 
+
+
+==== COMPOSITE bdb812b01ba6
+---- VERTEX 1004
+#version 330 core
+
+layout ( location = 2 ) in vec4 iris_MultiTexCoord0 ; 
+layout ( location = 0 ) in vec4 iris_Vertex ; 
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+out vec4 iris_FrontColor ; 
+out float iris_FogFragCoord ; 
+in vec3 vaPosition ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 iris_FrontColor = vec4 ( 1.0 ) ; 
+	iris_FogFragCoord = 0.0f ; 
+	gl_Position = vec4 ( vaPosition , 1.0 ) ; 
+} 
+
+---- FRAGMENT 944
+#version 330 core
+
+#extension GL_ARB_shader_texture_lod : enable
+uniform mat4 iris_TextureMatrix ; 
+uniform mat4 iris_LightmapTextureMatrix ; 
+uniform mat3 iris_NormalMatrix ; 
+uniform mat4 iris_ProjectionMatrixInverse ; 
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrixInverse ; 
+uniform mat4 iris_ModelViewMatrix ; 
+uniform vec4 iris_FogColor ; 
+uniform float iris_FogEnd ; 
+uniform float iris_FogStart ; 
+uniform float iris_FogDensity ; 
+in vec4 iris_FrontColor ; 
+in float iris_FogFragCoord ; 
+uniform sampler2D colortex0 ; 
+layout ( location = 0 ) out vec4 outColor ; 
+struct iris_FogParameters { 
+	 vec4 color ; 
+	float density ; 
+	float start ; 
+	float end ; 
+	float scale ; 
+} 
+; 
+iris_FogParameters iris_Fog = iris_FogParameters ( iris_FogColor , iris_FogDensity , iris_FogStart , iris_FogEnd , 1.0f / ( iris_FogEnd - iris_FogStart ) ) ; 
+void main ( ) { 
+	 outColor = texture ( colortex0 , vec2 ( 0.5 ) ) ; 
+} 
+
+

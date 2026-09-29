@@ -649,6 +649,10 @@ test {
     if (project.findProperty('glslEngine')) {
         systemProperty 'demonica.glsl.engine', project.findProperty('glslEngine')
     }
+    // Step 11 (temporary): -PtaumcSnapshotRecord=true records TauMC's answers for the frozen parity tests (TauMcSnapshots).
+    if (project.findProperty('taumcSnapshotRecord')) {
+        systemProperty 'demonica.taumc.snapshots.record', project.findProperty('taumcSnapshotRecord')
+    }
     if (glslCorpusDir) {
         // The corpus is read from outside the task's inputs, and record mode writes into it: never up to date, never
         // from the build cache. The replay prints its summary to standard out.

@@ -1,0 +1,382 @@
+==== Celeritas's constructor pattern on a one-argument constructor
+
+uniform vec4 worldpos ; 
+uniform mat4 gbufferModelView , iris_ProjectionMatrix ; 
+void main ( ) { 
+	 gl_Position = vec4 ( worldpos ) ; 
+} 
+
+==== a call pattern with fewer arguments than a call of the same overloaded name
+
+uniform float a , b ; 
+out vec4 o ; 
+float g ( float x ) { 
+	 return x ; 
+} 
+float g ( float x , float y ) { 
+	 return x + y ; 
+} 
+float f ( float x ) { 
+	 return x ; 
+} 
+float f ( float x , float y ) { 
+	 return x * y ; 
+} 
+void main ( ) { 
+	 o = vec4 ( iris_z , f ( a , b ) , f ( b ) , 0.0 ) ; 
+	o += vec4 ( f ( g ( a ) , b ) , f ( g ( a , b ) ) , 0.0 , 0.0 ) ; 
+} 
+
+==== a call pattern with more arguments than a call of the same overloaded name
+
+uniform float a , b ; 
+out vec4 o ; 
+float g ( float x ) { 
+	 return x ; 
+} 
+float g ( float x , float y ) { 
+	 return x + y ; 
+} 
+float f ( float x ) { 
+	 return x ; 
+} 
+float f ( float x , float y ) { 
+	 return x * y ; 
+} 
+void main ( ) { 
+	 o = vec4 ( f ( a ) , iris_z , f ( b ) , 0.0 ) ; 
+	o += vec4 ( f ( g ( a ) , b ) , f ( g ( a , b ) ) , 0.0 , 0.0 ) ; 
+} 
+
+==== a call with no arguments, also before a swizzle
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ( actinium_ProjectionMatrix * actinium_ModelViewMatrix * actinium_Vertex ) . x ; 
+} 
+
+==== a constructor call replaced by a product
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = iris_ProjectionMatrix * gbufferModelView * vec4 ( worldpos , 1.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== a literal inside a call pattern
+
+uniform sampler2D gcolor ; 
+uniform float centerDepthSmooth ; 
+uniform vec3 worldpos ; 
+varying vec4 texcoord ; 
+void main ( ) { 
+	 vec3 c = texture2D ( gcolor , texcoord . st ) . rgb ; 
+	c *= centerDepthSmooth * 0.5 + 0.5 ; 
+	gl_FragColor = vec4 ( c , 1.0 ) ; 
+	gl_FragColor . a = fract ( worldpos . y + 0.01 ) ; 
+} 
+
+==== a member access
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + actinium_SceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== a name that does not occur
+
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+a = albedo . a * luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+
+==== a nested call pattern against a call whose argument sits one level down
+
+uniform float a , b ; 
+out vec4 o ; 
+float g ( float x ) { 
+	 return x ; 
+} 
+float g ( float x , float y ) { 
+	 return x + y ; 
+} 
+float f ( float x ) { 
+	 return x ; 
+} 
+float f ( float x , float y ) { 
+	 return x * y ; 
+} 
+void main ( ) { 
+	 o = vec4 ( f ( a ) , f ( a , b ) , f ( b ) , 0.0 ) ; 
+	o += vec4 ( iris_z , f ( g ( a , b ) ) , 0.0 , 0.0 ) ; 
+} 
+
+==== a nested call pattern against a call whose argument sits one level up
+
+uniform float a , b ; 
+out vec4 o ; 
+float g ( float x ) { 
+	 return x ; 
+} 
+float g ( float x , float y ) { 
+	 return x + y ; 
+} 
+float f ( float x ) { 
+	 return x ; 
+} 
+float f ( float x , float y ) { 
+	 return x * y ; 
+} 
+void main ( ) { 
+	 o = vec4 ( f ( a ) , f ( a , b ) , f ( b ) , 0.0 ) ; 
+	o += vec4 ( f ( g ( a ) , b ) , iris_z , 0.0 , 0.0 ) ; 
+} 
+
+==== a nested call pattern whose longest identifier sits in an inner call
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = vertex ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== a parenthesized product
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * ( iris_ProjectionMatrix * iris_ModelViewMatrix ) [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== a varying assigned through a member
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	iris_TexCoord1 . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== an array access
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = mat4 ( 1.0 ) * gl_MultiTexCoord0 ; 
+	texcoord += gl_TextureMatrix [ 1 ] * gl_MultiTexCoord1 + gl_TextureMatrix [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== an array constructor whose longest name is its size
+
+const int PAIR_SIZE = 2 ; 
+uniform vec2 a , b ; 
+out vec4 c ; 
+void main ( ) { 
+	 vec2 pair [ 2 ] = iris_pair ; 
+	c = vec4 ( pair [ 0 ] , iris_pair [ 1 ] ) ; 
+} 
+
+==== an identifier that is also called, replaced by an identifier
+
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * iris_wave ; 
+} 
+void main ( ) { 
+	 float offset = iris_wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , iris_wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== an identifier with the rest of an array (a matrix array constructor)
+
+uniform mat4 gbufferModelView ; 
+uniform mat4 gbufferProjection ; 
+uniform vec3 worldpos ; 
+uniform float viewWidth , viewHeight ; 
+varying vec4 texcoord ; 
+vec4 toClipSpace3 ( vec3 v ) { 
+	 return gbufferProjection * vec4 ( v , 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec3 vertex = gl_Vertex . xyz ; 
+	texcoord = mat4 [ 8 ] ( iris_TextureMatrix , iris_LightmapTextureMatrix , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) ) [ 0 ] * gl_MultiTexCoord0 ; 
+	texcoord += mat4 [ 8 ] ( iris_TextureMatrix , iris_LightmapTextureMatrix , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) ) [ 1 ] * gl_MultiTexCoord1 + mat4 [ 8 ] ( iris_TextureMatrix , iris_LightmapTextureMatrix , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) , mat4 ( 1.0 ) ) [ 2 ] * gl_MultiTexCoord0 ; 
+	vec4 clip = toClipSpace3 ( mat3 ( gbufferModelView ) * vec3 ( vertex ) + gbufferModelView [ 3 ] . xyz ) ; 
+	gl_Position = vec4 ( worldpos , 0.0 ) ; 
+	gl_Position += clip * gl_ModelViewProjectionMatrix [ 0 ] [ 0 ] + gl_FrontLightModelProduct . sceneColor ; 
+	gl_Position . x += ftransform ( ) . x ; 
+} 
+
+==== centerDepthSmooth: references change, the declaration does not
+
+uniform sampler2D gcolor ; 
+uniform float centerDepthSmooth ; 
+uniform vec3 worldpos ; 
+varying vec4 texcoord ; 
+void main ( ) { 
+	 vec3 c = texture2D ( gcolor , texcoord . st ) . rgb ; 
+	c *= texture2D ( iris_centerDepthSmooth , vec2 ( 0.5 ) ) . r * 0.5 + 0.5 ; 
+	gl_FragColor = vec4 ( c , 1.0 ) ; 
+	gl_FragColor . a = fract ( worldpos . y + 0.001 ) ; 
+} 
+
+==== gl_FragColor, also as an assignment target with a swizzle
+
+uniform sampler2D gcolor ; 
+uniform float centerDepthSmooth ; 
+uniform vec3 worldpos ; 
+varying vec4 texcoord ; 
+void main ( ) { 
+	 vec3 c = texture2D ( gcolor , texcoord . st ) . rgb ; 
+	c *= centerDepthSmooth * 0.5 + 0.5 ; 
+	gl_FragData [ 0 ] = vec4 ( c , 1.0 ) ; 
+	gl_FragData [ 0 ] . a = fract ( worldpos . y + 0.001 ) ; 
+} 
+

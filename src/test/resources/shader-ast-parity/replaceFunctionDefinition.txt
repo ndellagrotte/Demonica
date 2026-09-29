@@ -1,0 +1,113 @@
+==== SampleFilteredShadow with the instrumented guard, then the stats buffer
+
+layout ( binding = 95 ) uniform atomic_uint iris_calls ; 
+uniform sampler2D shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+const int shadowMapResolution = 2048 ; 
+in vec3 worldPos ; 
+out vec4 fragColor ; 
+float texture2DShadow2x2 ( sampler2D shadowtex , vec3 shadowPos ) { 
+	 vec2 texel = shadowPos . xy * shadowMapResolution ; 
+	return step ( shadowPos . z , texture ( shadowtex , texel / shadowMapResolution ) . r ) ; 
+} 
+float texture2DShadow2x2 ( sampler2DShadow shadowtex , vec3 shadowPos ) { 
+	 return texture ( shadowtex , shadowPos ) ; 
+} 
+vec3 SampleFilteredShadow ( vec3 shadowPos , float offset , float bias ) { 
+	 atomicCounterIncrement ( iris_calls ) ; 
+	if ( ! ( shadowPos . x > 0.0 ) ) { 
+	 return vec3 ( 1.0 ) ; 
+} 
+if ( abs ( shadowPos . x ) > 1.0 ) return vec3 ( 1.0 ) ; 
+return vec3 ( texture ( shadowtex1 , shadowPos + vec3 ( offset , 0.0 , - bias ) ) ) ; } 
+highp float lowered ( in highp vec3 p , float w [ 2 ] , vec3 [ 2 ] q , float ) { 
+	 return p . x + w [ 0 ] + q [ 1 ] . x ; 
+} 
+void main ( ) { 
+	 fragColor = vec4 ( SampleFilteredShadow ( worldPos , 0.001 , 0.0002 ) * texture2DShadow2x2 ( shadowtex0 , worldPos ) * texture2DShadow2x2 ( shadowtex1 , worldPos ) * lowered ( worldPos , float [ 2 ] ( 1.0 , 2.0 ) , vec3 [ 2 ] ( worldPos , worldPos ) , 0.0 ) , 1.0 ) ; 
+} 
+
+==== the anchor function replaced after an injection: the anchor stays with it
+
+precision highp float ; 
+uniform float iris_after ; 
+uniform float iris_before ; 
+float helper ( float x ) { 
+	 x += 1.0 ; 
+	return x * 2.0 ; 
+} 
+uniform float scale ; 
+out vec4 fragColor ; 
+float iris_f ( ) { 
+	 return 1.0 ; 
+} 
+void main ( ) { 
+	 fragColor = vec4 ( helper ( scale ) ) ; 
+} 
+
+==== the first function replaced before the first injection: TauMC's anchor moves on
+
+precision highp float ; 
+float helper ( float x ) { 
+	 x += 1.0 ; 
+	return x * 2.0 ; 
+} 
+uniform float iris_after ; 
+uniform float scale ; 
+out vec4 fragColor ; 
+void main ( ) { 
+	 fragColor = vec4 ( helper ( scale ) ) ; 
+} 
+
+==== the sampler2D overload of texture2DShadow2x2
+
+uniform sampler2D shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+const int shadowMapResolution = 2048 ; 
+in vec3 worldPos ; 
+out vec4 fragColor ; 
+float texture2DShadow2x2 ( sampler2D shadowtex , vec3 shadowPos ) { 
+	 if ( ! ( shadowPos . x > 1.5 / shadowMapResolution && shadowPos . z < 1.0 ) ) return 1.0 ; 
+	vec2 texel = shadowPos . xy * shadowMapResolution ; 
+	return step ( shadowPos . z , texture ( shadowtex , texel / shadowMapResolution ) . r ) ; 
+} 
+float texture2DShadow2x2 ( sampler2DShadow shadowtex , vec3 shadowPos ) { 
+	 return texture ( shadowtex , shadowPos ) ; 
+} 
+vec3 SampleFilteredShadow ( vec3 shadowPos , float offset , float bias ) { 
+	 if ( abs ( shadowPos . x ) > 1.0 ) return vec3 ( 1.0 ) ; 
+	return vec3 ( texture ( shadowtex1 , shadowPos + vec3 ( offset , 0.0 , - bias ) ) ) ; 
+} 
+highp float lowered ( in highp vec3 p , float w [ 2 ] , vec3 [ 2 ] q , float ) { 
+	 return p . x + w [ 0 ] + q [ 1 ] . x ; 
+} 
+void main ( ) { 
+	 fragColor = vec4 ( SampleFilteredShadow ( worldPos , 0.001 , 0.0002 ) * texture2DShadow2x2 ( shadowtex0 , worldPos ) * texture2DShadow2x2 ( shadowtex1 , worldPos ) * lowered ( worldPos , float [ 2 ] ( 1.0 , 2.0 ) , vec3 [ 2 ] ( worldPos , worldPos ) , 0.0 ) , 1.0 ) ; 
+} 
+
+==== the sampler2DShadow overload of texture2DShadow2x2
+
+uniform sampler2D shadowtex0 ; 
+uniform sampler2DShadow shadowtex1 ; 
+const int shadowMapResolution = 2048 ; 
+in vec3 worldPos ; 
+out vec4 fragColor ; 
+float texture2DShadow2x2 ( sampler2D shadowtex , vec3 shadowPos ) { 
+	 vec2 texel = shadowPos . xy * shadowMapResolution ; 
+	return step ( shadowPos . z , texture ( shadowtex , texel / shadowMapResolution ) . r ) ; 
+} 
+float texture2DShadow2x2 ( sampler2DShadow shadowtex , vec3 shadowPos ) { 
+	 if ( ! ( shadowPos . x > 1.5 / shadowMapResolution && shadowPos . z < 1.0 ) ) return 1.0 ; 
+	return texture ( shadowtex , shadowPos ) ; 
+} 
+vec3 SampleFilteredShadow ( vec3 shadowPos , float offset , float bias ) { 
+	 if ( abs ( shadowPos . x ) > 1.0 ) return vec3 ( 1.0 ) ; 
+	return vec3 ( texture ( shadowtex1 , shadowPos + vec3 ( offset , 0.0 , - bias ) ) ) ; 
+} 
+highp float lowered ( in highp vec3 p , float w [ 2 ] , vec3 [ 2 ] q , float ) { 
+	 return p . x + w [ 0 ] + q [ 1 ] . x ; 
+} 
+void main ( ) { 
+	 fragColor = vec4 ( SampleFilteredShadow ( worldPos , 0.001 , 0.0002 ) * texture2DShadow2x2 ( shadowtex0 , worldPos ) * texture2DShadow2x2 ( shadowtex1 , worldPos ) * lowered ( worldPos , float [ 2 ] ( 1.0 , 2.0 ) , vec3 [ 2 ] ( worldPos , worldPos ) , 0.0 ) , 1.0 ) ; 
+} 
+

@@ -1,0 +1,11 @@
+==== taumc
+
+in double d ; 
+in dvec2 dv ; 
+out vec4 o ; 
+void main ( ) { 
+	 dv_out = dvec2 ( 0.0 d dv_out = dvec2 ( 0.0 d ) ; 
+	d_out = 0.0 d d_out = 0.0 d ; 
+	o = vec4 ( 1.0 ) ; 
+} 
+

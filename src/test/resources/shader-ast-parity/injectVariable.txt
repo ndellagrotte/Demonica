@@ -1,0 +1,206 @@
+==== a compute layout declaration is a qualified declaration (its qualifier has no parent in glsl-transformer)
+
+invariant gl_Position ; 
+vec4 iris_g0 ; 
+uniform float iris_u0 ; 
+layout ( local_size_x = 8 , local_size_y = 8 ) in ; 
+layout ( rgba16f ) uniform image2D img ; 
+void main ( ) { 
+	 imageStore ( img , ivec2 ( 0 ) , vec4 ( 1.0 ) ) ; 
+} 
+
+==== a function before the first qualified declaration is the anchor
+
+precision highp float ; 
+uniform float iris_FogDensity ; 
+float helper ( float x ) { 
+	 return x * 2.0 ; 
+} 
+uniform float scale ; 
+out vec4 fragColor ; 
+void main ( ) { 
+	 fragColor = vec4 ( helper ( scale ) ) ; 
+} 
+
+==== after an injected function, variables go before it
+
+uniform sampler2D texture ; 
+uniform sampler2D lightmap ; 
+uniform sampler2DShadow shadow ; 
+varying vec2 texcoord ; 
+varying vec2 lmcoord ; 
+varying vec4 glcolor ; 
+uniform float iris_v ; 
+uniform float iris_u ; 
+vec4 iris_f ( ) { 
+	 return vec4 ( 1.0 ) ; 
+} 
+void main ( ) { 
+	 vec4 color = texture2D ( texture , texcoord ) * glcolor ; 
+	color *= texture2D ( lightmap , lmcoord ) ; 
+	color . rgb *= shadow2D ( shadow , vec3 ( texcoord , 0.5 ) ) . r ; 
+	color += texture2DLod ( lightmap , lmcoord , 0.0 ) * 0.0 ; 
+	gl_FragData [ 0 ] = color ; 
+	gl_FragData [ 1 ] = vec4 ( lmcoord , 0.0 , 1.0 ) ; 
+} 
+
+==== an unqualified global before the first uniform stays first
+
+vec3 sunVec ; 
+uniform vec4 iris_FogColor ; 
+const int steps = 4 ; 
+uniform float rainStrength ; 
+void main ( ) { 
+	 gl_FragColor = vec4 ( sunVec * rainStrength , float ( steps ) ) ; 
+} 
+
+==== const counts as a storage qualifier
+
+struct Material { 
+	 vec4 color ; 
+	float roughness ; 
+} 
+; 
+float iris_Plain ; 
+uniform float iris_U ; 
+const float iris_Pi = 3.14159 ; 
+uniform Material material ; 
+uniform Block { 
+	 vec4 blockColor ; 
+	float blockScale ; 
+} 
+; 
+layout ( std140 ) uniform Named { 
+	 vec4 namedColor ; 
+} 
+named ; 
+in vec4 color ; 
+out vec4 fragColor ; 
+vec4 tint ( vec4 color ) { 
+	 return color * material . color ; 
+} 
+float scaled ( float x ) ; 
+void main ( ) { 
+	 vec4 color2 = color ; 
+	Material local = material ; 
+	fragColor = tint ( color2 ) + material . color * color . r + blockColor * blockScale + named . namedColor ; 
+	fragColor . xy *= scaled ( local . roughness ) ; 
+} 
+float scaled ( float x ) { 
+	 return x * 2.0 ; 
+} 
+
+==== layout outputs and a uniform into a 330 fragment shader
+
+uniform float iris_currentAlphaTest ; 
+layout ( location = 1 ) out vec4 iris_FragData1 ; 
+in vec2 texcoord ; 
+in vec4 color ; 
+uniform sampler2D gcolor ; 
+uniform usampler2D noisetex ; 
+uniform isampler3D volume ; 
+uniform sampler1D gradient ; 
+uniform sampler2DRect rect ; 
+uniform uint frameCounter ; 
+uniform ivec2 atlasSize ; 
+uniform int entityId ; 
+uniform bool hand ; 
+uniform mat2x2 rotation ; 
+uniform vec3 fogColor ; 
+layout ( location = 0 ) out vec4 outColor0 ; 
+out float a , b ; 
+float luma ( vec3 c ) { 
+	 return dot ( c , vec3 ( 0.2126 , 0.7152 , 0.0722 ) ) ; 
+} 
+vec3 fogColorAt ( vec3 fogColor ) { 
+	 return fogColor * luma ( fogColor ) ; 
+} 
+void main ( ) { 
+	 vec4 albedo = texture ( gcolor , texcoord ) * color ; 
+	float luma = luma ( albedo . rgb ) ; 
+	float weights [ 4 ] ; 
+	for ( int i = 0 ; 
+	i < 4 ; 
+	i ++ ) { 
+	 weights [ i ] = float ( i ) * 0.25 ; 
+	albedo . rgb += fogColorAt ( fogColor ) * weights [ i ] ; 
+} 
+a = albedo . a * luma ; 
+b = a * 0.5 ; 
+outColor0 = vec4 ( albedo . rgb * a , b ) ; } 
+
+==== no qualified declaration and no function: nothing is inserted
+
+vec4 a ; 
+float b ; 
+
+==== two uniforms into a 120 vertex shader (the second lands first)
+
+uniform mat4 iris_ProjectionMatrix ; 
+uniform mat4 iris_ModelViewMatrix ; 
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
+==== unqualified, then qualified (only the qualified one moves the anchor)
+
+vec4 iris_LightTexCoord ; 
+vec2 iris_Other ; 
+in vec3 iris_Normal ; 
+uniform vec3 u_RegionOffset ; 
+attribute vec4 mc_Entity ; 
+attribute vec2 mc_midTexCoord ; 
+varying vec2 texcoord ; 
+varying vec4 color , tint ; 
+uniform float frameTimeCounter ; 
+uniform vec3 chunkOffset ; 
+const float PI = 3.14159 ; 
+struct Light { 
+	 vec3 position ; 
+	float strength ; 
+} 
+; 
+uniform Light lights [ 2 ] ; 
+float wave ( float x ) { 
+	 return sin ( x * PI + frameTimeCounter ) ; 
+} 
+vec4 shade ( vec4 c , float wave ) { 
+	 return c * wave ; 
+} 
+void main ( ) { 
+	 float offset = wave ( gl_Vertex . x ) ; 
+	texcoord = ( gl_TextureMatrix [ 0 ] * gl_MultiTexCoord0 ) . xy ; 
+	gl_TexCoord [ 0 ] = gl_MultiTexCoord0 ; 
+	gl_TexCoord [ 1 ] . xy = gl_MultiTexCoord1 . xy ; 
+	color = shade ( gl_Color , wave ( offset ) ) ; 
+	tint = vec4 ( lights [ 0 ] . position * lights [ 1 ] . strength , 1.0 ) ; 
+	gl_FogFragCoord = length ( ( gl_ModelViewMatrix * gl_Vertex ) . xyz ) ; 
+	gl_Position = ftransform ( ) ; 
+} 
+
