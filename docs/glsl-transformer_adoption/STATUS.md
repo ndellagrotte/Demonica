@@ -18,7 +18,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S9 GLSM subtractions and utilities | done | `21eb3764`; report and status in the commit that adds the report | 2026-09-29 | [S09-glsm-subtractions.md](reports/S09-glsm-subtractions.md) |
 | S10 `CompatShaderTransformer` | done | `65b3efed`; report and status `f00339e3` | 2026-09-29 | [S10-compat-shader-transformer.md](reports/S10-compat-shader-transformer.md) |
 | S11 remove TauMC, release checks (exit point B) | done; **exit point B reached** | `d5493289` (S10 status corrections), `0a3a108a` (TauMC snapshots), `06895328` (removal); report and status in the commit that adds the report | 2026-09-29 | [S11-remove-taumc.md](reports/S11-remove-taumc.md) |
-| S12 optional payoff | not started | | | |
+| S12 optional payoff | done | `32551715` (port), `aaf9c73f` (guide, `capture.sh`, S11 correction); report and status in the commit that adds the report | 2026-09-29 | [S12-payoff.md](reports/S12-payoff.md) |
 
 ## Facts every step needs
 
@@ -196,3 +196,14 @@ argument.
   FML injects every jar in `mods/1.12.2/` (dev `run/client/mods/1.12.2/`, and Prism instances) into the class path;
   S11 removed the stale `glsl-transformation-lib` copies, while an `antlr4-runtime-4.13.2.jar` from 0.4.0 stays next to
   4.13.1 (S11 report, Open questions).
+- S12 (S12 report): `transformer/CompatibilityTransformer` runs Iris 26.1's empty-declaration removal (in
+  `transformEach`, after the TauMC-parity verbs) and Iris 26.1's whole `transformGrouped` (vertex, both tessellation
+  stages, geometry, fragment; type-mismatch casts; array types skipped), copied into the nested class `Upstream` and run
+  inside `ast.build(...)`, with two `// Demonica:` fixes (unsigned outputs get `0u`; declarations visited in document
+  order, since glsl-transformer's unordered node index iterates in identity-hash order). No pack corpus case changes.
+  The replay compares a case without `out.taumc.*` with its `out.douira.*` (new cases, recorded before a change). The
+  mini-corpus has 44 cases (`:test` replay `identical=27 accepted=17 failing=0`); `accepted.txt` 17 entries. How to
+  port the next Iris change: [`PORTING_GUIDE.md`](PORTING_GUIDE.md). The reserved-word passes stay (`replaceTexture` is
+  semantic; `sample` at 400+ does not parse without `renameReservedWords`). `capture.sh` also refuses
+  `transform-corpus-s7-taumc`. The dev client's stale `antlr4-runtime-4.13.2.jar` is deleted. Full `:test`: 1,061
+  tests, 0 failures, 2 skipped.
