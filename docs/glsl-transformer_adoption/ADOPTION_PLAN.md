@@ -2,6 +2,8 @@
 
 Date: 2026-09-25. Tree: `dev` at `8e19cb75` (0.3.0-SNAPSHOT). Status: **Draft, not started.**
 
+Completed on 2026-09-29 (exit point B), commit `06895328` on `feat/glsl-transformer`: TauMC's library, the old engine and the engine switch are gone, and the jar contains glsl-transformer, ANTLR's runtime 4.13.1 and jcpp only. Step 12 (optional payoff) remains. Progress and the step reports: [`STATUS.md`](STATUS.md); Step 11's report: [`reports/S11-remove-taumc.md`](reports/S11-remove-taumc.md).
+
 Revalidated 2026-09-28 against `dev` at `94665262` (0.5.0-SNAPSHOT): the line numbers in the briefs and in Appendix A were re-measured there. Where the earlier text is kept for the record, the correction is marked *(2026-09-28)*.
 
 The file inventory (Appendix A) and the byte counts in the briefs were measured at `11b6c618` earlier the same day; none of the transform, GLSM or test files it lists changed between the two commits (the commits in between removed Reese's Sodium Options and Actinium's performance features). *(2026-09-28)* The transform and test files are still unchanged at `94665262`; in GLSM, `df08c785` (`feat/drop-dead-code`, merged as `a80d94d5`) deleted the three SPIR-V files and trimmed `CompatShaderTransformer` to 1,211 lines. The build-file and notice line numbers were re-checked at `94665262`.

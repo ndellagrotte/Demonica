@@ -17,12 +17,17 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S8 flip the default, port the tests, full run (exit point A) | done; **exit point A reached** | `72190445`; report and status `392f4dd3`; verification fix `02f161d6` | 2026-09-29 | [S08-flip-default.md](reports/S08-flip-default.md) |
 | S9 GLSM subtractions and utilities | done | `21eb3764`; report and status in the commit that adds the report | 2026-09-29 | [S09-glsm-subtractions.md](reports/S09-glsm-subtractions.md) |
 | S10 `CompatShaderTransformer` | done | `65b3efed`; report and status `f00339e3` | 2026-09-29 | [S10-compat-shader-transformer.md](reports/S10-compat-shader-transformer.md) |
-| S11 remove TauMC, release checks (exit point B) | not started | | | |
+| S11 remove TauMC, release checks (exit point B) | done; **exit point B reached** | `d5493289` (S10 status corrections), `0a3a108a` (TauMC snapshots), `06895328` (removal); report and status in the commit that adds the report | 2026-09-29 | [S11-remove-taumc.md](reports/S11-remove-taumc.md) |
 | S12 optional payoff | not started | | | |
 
 ## Facts every step needs
 
-- Engine switch: system property `demonica.glsl.engine` (`douira`, the default since S8, `GlslTransformEngine.DEFAULT`
+Facts are dated by the step that wrote them. Since S11 there is one engine: the S11 bullet at the end supersedes what
+earlier bullets say about the engine switch, `AstShaderTransformer`, `ShaderAstParityTest`,
+`TerrainVertexFormatScanParityTest`, `GLSL_ENGINE`, `-PglslEngine`/`-PglslReplayEngine` and `timing.sh`'s engine
+argument.
+
+- Engine switch (until S11; gone since): system property `demonica.glsl.engine` (`douira`, the default since S8, `GlslTransformEngine.DEFAULT`
   since S10, before that `TransformPatcher.Engine.DEFAULT`; or `taumc` until Step 11), read once by
   `TransformPatcher.engine()` and logged at first use as
   `[TransformPatcher] GLSL transform engine: <id> (demonica.glsl.engine)`. An unknown value logs a WARN,
@@ -170,3 +175,24 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   330). The mini-corpus has 39 cases (11 compat; `:test` replay `identical=30 accepted=9 failing=0 unsupported=0`).
   `scripts/glsl-corpus/compat-bsl.txt` loads BSL with `-PwithCompatMods`. Full `:test`: 1,073 tests, 0 failures, 4
   skipped.
+- S11 (exit point B, S11 report): TauMC's `org.taumc:glsl-transformation-lib` is gone from both build files, the jar
+  and every source, build file and script (`grep -rn "org.taumc.glsl" --include=*.java --include=*.gradle --include=*.py`
+  finds nothing). The engine switch is gone: no `demonica.glsl.engine`, no `GlslTransformEngine`, no
+  `TransformPatcher.engine()`/`CompatShaderTransformer.engine()`, no engine log line; `CompatShaderTransformer` calls
+  `ShaderAst` directly. `AstShaderTransformer` is now `transform/ShaderTransformer` (its perf-debug line is
+  `[ShaderTransformer] <kind> timing ...`; `transform-times.py` reads both spellings). The recorder writes
+  `engine=douira` and `out.douira.*` (`TransformCorpus.ENGINE`). The jar's `ContainedDeps` are exactly
+  `glsl-transformer-3.0.0-pre3.jar antlr4-runtime-4.13.1.jar jcpp-1.4.14.jar`; `antlr4-runtime` is pinned to 4.13.1 in
+  both build files (the version glsl-transformer's generated parser checks and its POM names). TauMC's answers are
+  frozen test data: `src/test/resources/shader-ast-parity/` (409 entries, read by `ShaderAstSnapshotTest`, formerly
+  `ShaderAstParityTest`) and `src/test/resources/transform-engine-taumc/` (58 whole-engine outputs, read by
+  `ShaderTransformerTest`, formerly `AstShaderTransformerTest`), through `TauMcSnapshots`; they cannot be re-recorded.
+  `TerrainVertexFormatScanTest` (formerly `...ParityTest`) has TauMC's counts in its rows. The recorded
+  `out.taumc.*` files of `run/transform-corpus`, `run/transform-corpus-dh`, `run/transform-corpus-s7-taumc` and the
+  committed mini-corpus stay the replay's reference (`TransformCorpusReplayTest.REFERENCE_ENGINE`); the replay has no
+  engine choice. `capture.sh` records only into `run/transform-corpus-douira/<name>/` (or `GLSL_CORPUS_ROOT`, which may
+  not be a reference root) and refuses `GLSL_ENGINE` other than `douira`; `timing.sh <pack> <tag>` takes no engine and
+  logs `run/timing-<pack>-douira-<tag>.out`. Full `:test`: 1,049 tests, 0 failures, 2 skipped. Stale extracted jars:
+  FML injects every jar in `mods/1.12.2/` (dev `run/client/mods/1.12.2/`, and Prism instances) into the class path;
+  S11 removed the stale `glsl-transformation-lib` copies, while an `antlr4-runtime-4.13.2.jar` from 0.4.0 stays next to
+  4.13.1 (S11 report, Open questions).

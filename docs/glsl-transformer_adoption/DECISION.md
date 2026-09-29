@@ -5,6 +5,10 @@ Decided by the maintainer on 2026-09-25. Carried out on 2026-09-28, in Step 1 of
 before the library could reach a jar anyone distributes. This is a record of
 the reasoning, not legal advice.
 
+Done on 2026-09-29: Step 11 (commit `06895328`) removed TauMC's
+glsl-transformation-lib, so the migration this record decided is complete on
+the branch (exit point B); Step 12 is optional.
+
 ## The three decisions
 
 | Decision | Choice |
@@ -89,8 +93,8 @@ elsewhere, which keeps its license:
   Canvas: `shader/.../iris/gl/shader/{ProgramCreator, GlShader, ShaderType}.java`,
   `shader/.../iris/shaderpack/preprocessor/{JcppProcessor, PropertiesPreprocessor}.java`,
   `shader/.../iris/vertices/NormI8.java` and `glsm/.../glsm/shader/ShaderType.java`.
-- The contained libraries (glsl-transformer AGPL-3.0, glsl-transformation-lib,
-  ANTLR's runtime BSD-3-Clause, jcpp Apache-2.0) and the separately installed
+- The contained libraries (glsl-transformer AGPL-3.0, ANTLR's runtime
+  BSD-3-Clause, jcpp Apache-2.0; glsl-transformation-lib until Step 11) and the separately installed
   mods (Celeritas LGPL-3.0, S8TNLib GPL-3.0), as
   [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) lists them.
 
