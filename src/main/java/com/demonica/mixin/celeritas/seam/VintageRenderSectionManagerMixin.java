@@ -3,9 +3,10 @@ package com.demonica.mixin.celeritas.seam;
 import com.demonica.celeritas.guard.Patch;
 import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderTerrain;
+import org.embeddedt.embeddium.impl.render.chunk.fog.FogService;
 import org.embeddedt.embeddium.impl.render.chunk.shader.ChunkFogMode;
-import org.embeddedt.embeddium.impl.render.chunk.shader.ChunkShaderFogComponent;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -19,9 +20,12 @@ import org.taumc.celeritas.impl.render.terrain.VintageRenderSectionManager;
 @Patch(value = "S4", group = PatchGroup.DEGRADE)
 @Mixin(value = VintageRenderSectionManager.class, remap = false, priority = 1100)
 public abstract class VintageRenderSectionManagerMixin {
+    @Shadow
+    public abstract FogService getFogService();
+
     @Inject(method = "useFogOcclusion", at = @At("HEAD"), cancellable = true)
     private void demonica$noFogOcclusionWithoutVanillaFog(CallbackInfoReturnable<Boolean> cir) {
-        if (ShaderTerrain.isPackActive() && ChunkShaderFogComponent.FOG_SERVICE.getFogMode() == ChunkFogMode.NONE) {
+        if (ShaderTerrain.isPackActive() && this.getFogService().getFogMode() == ChunkFogMode.NONE) {
             cir.setReturnValue(false);
         }
     }

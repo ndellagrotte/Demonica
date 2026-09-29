@@ -10,28 +10,28 @@ it.
 | | |
 |---|---|
 | Upstream | https://git.taumc.org/embeddedt/celeritas, branch `stonecutter` |
-| Commit | `06999aabc2ea41a772ea3d0888c88a9e72d09f02` (also Actinium's last sync base) |
-| Built by | [kappa-maintainer/Celeritas-auto-build](https://github.com/kappa-maintainer/Celeritas-auto-build), release `commit-06999aabc2ea41a772ea3d0888c88a9e72d09f02-20260922T020003` |
-| Maven | `org.embeddedt:celeritas-forge-mc12.2:2.4.0-autobuild.06999aab` on `https://maven.outlands.top/releases` |
-| SHA-256, Maven jar | `1579bd31efdcc8832b29540173a455fcfb0ad2566c2f10b2f01fc20b679e8c92` |
-| SHA-256, release asset `01-celeritas-forge-mc12.2-2.4.0-dev.jar` | `4dd4b35dbcb42a29fcf43b1e751eb1be24869ce1d28b1e463e1a7384cedf11f2` |
-| Version string inside the jar | `2.4.0-dev` (the same for every upstream dev build) |
+| Commit | `9b661b70ecaf84c39052e8fbc51c875ba37e739d` |
+| Built by | [kappa-maintainer/Celeritas-auto-build](https://github.com/kappa-maintainer/Celeritas-auto-build), release `commit-9b661b70ecaf84c39052e8fbc51c875ba37e739d-20260926T020851` |
+| Maven | `org.embeddedt:celeritas-forge-mc12.2:2.5.0-autobuild.9b661b70` on `https://maven.outlands.top/releases` |
+| SHA-256, Maven jar | `5bf123a6da6190f6e061cd3fd069a2bddcbf6ebf57894381b6c888c06a94f982` |
+| SHA-256, release asset `01-celeritas-forge-mc12.2-2.5.0-dev.jar` | `80f07935d86d364fd9b80297f4bc87d47f3a49209f589091b554a7332b56a909` |
+| Version string inside the jar | `2.5.0-dev` (the same for every upstream dev build of 2.5.0) |
 
 `gradle.properties` holds the same values (`celeritas_sha`, `celeritas_version`,
 `celeritas_sha256`).
 
 **Two hashes, one build.** The auto-build publishes the release assets and the
 Maven artifact from two Gradle invocations with different version strings. The
-two jars have the same 711 entries, byte for byte, except `META-INF/MANIFEST.MF`,
-whose `Class-Path` line names the version (`common-2.4.0-dev-…` against
-`common-2.4.0-autobuild.06999aab-…`). FML ignores that line, and no jar it names
+two jars have the same 708 files, byte for byte, except `META-INF/MANIFEST.MF`,
+whose `Class-Path` line names the version (`common-2.5.0-dev-…` against
+`common-2.5.0-autobuild.9b661b70-…`). FML ignores that line, and no jar it names
 exists. Users are likely to install the release asset, so both hashes are
 accepted.
 
-**Provenance, checked on 2026-09-23.**
-- The release's sources jar (`03-…-sources.jar`) and the Maven `-sources.jar` are
-  identical, and their Java files match `forge122/src/main/java` of a fresh clone
-  of upstream at `06999aab` exactly.
+**Provenance, checked on 2026-09-29.**
+- The Maven `-sources.jar`'s Java files match `forge122/src/main/java` of a clone
+  of upstream at `9b661b70` file for file. (At the previous pin, `06999aab`, the
+  release's sources jar was also checked and was identical to the Maven one.)
 - The auto-build's workflow (`.github/workflows/build.yaml` in that repository)
   clones upstream at `HEAD`, checks the commit, and runs
   `./gradlew -Pceleritas_target_versions=1.12.2 :forge122:packageJar`: an
@@ -52,8 +52,9 @@ accepted.
   `org.taumc.celeritas.mixin`, and none can be switched off individually.
 - `META-INF/celeritas_at.cfg` (SRG names) is its access transformer.
   `META-INF/celeritas.accesswidener` is a Fabric leftover that Forge ignores.
-- `META-INF/services` registers upstream's `GLStateManagerFogService`, a render
-  visuals service and a chunk shader texture service.
+- No `META-INF/services`: since 2.5.0 upstream loads no service by `ServiceLoader`.
+  The fog service is the singleton `GLStateManagerFogService.INSTANCE`, which
+  `VintageRenderSectionManager.getFogService()` returns.
 
 ## In Demonica's build
 

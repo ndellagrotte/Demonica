@@ -74,7 +74,8 @@ Two assignments differ from the plan:
 ## The guard
 
 Demonica is built for one Celeritas build ([`PIN.md`](PIN.md)), but a player can
-install another, and every upstream dev build calls itself `2.4.0-dev`: the jar's
+install another, and every upstream dev build of a release calls itself by the same
+version string (`2.5.0-dev` at this pin): the jar's
 SHA-256 is its only identity.
 
 **The pin.** The build writes `META-INF/demonica/celeritas-pin` into the mod jar
@@ -146,6 +147,17 @@ injector found its target in 0 of 1 methods, and the game runs on. The bytecode
 exported with `-PmixinExport` shows S16's injection in
 `DefaultChunkRenderer.render`, S8's `@ModifyArg` before `drawChunkLayer`, and
 I2's `@ModifyVariable` at the head of both searches.
+
+Verified on 2026-09-29 at pin `9b661b70` (2.5.0, `feat/celeritas-2.5.0`). Only S4
+changed: upstream removed `ChunkShaderFogComponent.FOG_SERVICE`, so the mixin shadows
+`getFogService()`. Dev client (`gate-accepted.txt`): the remap accepted by
+`dev_sha256`, all 19 mixins applied with 46 of 46 injectors, fog at the render
+distance without a pack, the pack list through the Shader Packs tab, BSL with
+terrain shadows (199 shadow sections). With `pinsOnly` (`gate-rejected.txt`): 18
+mixins not applied, S15 at 7 of 7, fog right, `ShadersUnavailableScreen` naming
+`9b661b70`. Prism `prod-smoke-test` with the 0.6.0-SNAPSHOT jars and the release
+asset (`80f07935`, renamed to sort after Demonica): accepted as the pin, 19 mixins
+with 46 of 46 injectors, BSL with terrain shadows.
 
 *Superseded by the version gate (2026-09-27, `feat/version-gate`); kept as the
 record of the drills.* Checkpoint 10 (run/client/scripts/guard-*.txt, each run with its
