@@ -37,10 +37,12 @@ class TransformPatcherTest {
         Map<PatchShaderType, String> patched = TransformPatcher.patchComposite(vertex, null, fragment);
 
         assertNotNull(patched);
-        assertTrue(patched.get(PatchShaderType.VERTEX).contains("void main"));
+        // Compared as GlslTokens, so that either engine's printer passes (Step 8; raw substrings encoded its spacing).
+        String patchedVertex = patched.get(PatchShaderType.VERTEX);
+        assertTrue(GlslTokens.contains(patchedVertex, "void main"), patchedVertex);
         String patchedFragment = patched.get(PatchShaderType.FRAGMENT);
-        assertTrue(patchedFragment.contains("out vec4 iris_FragData0"), patchedFragment);
-        assertTrue(patchedFragment.contains("iris_FragData0 = vec4"), patchedFragment);
+        assertTrue(GlslTokens.contains(patchedFragment, "out vec4 iris_FragData0"), patchedFragment);
+        assertTrue(GlslTokens.contains(patchedFragment, "iris_FragData0 = vec4"), patchedFragment);
     }
 
     @Test

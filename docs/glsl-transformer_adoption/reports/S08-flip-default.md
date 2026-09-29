@@ -29,6 +29,7 @@ Added by the orchestrator: a production-shaped smoke test through the Prism inst
 |---|---|
 | `72190445` | glsl-transformer: S8 flip the default engine to glsl-transformer |
 | the commit that adds this page | glsl-transformer: S8 report and status |
+| the commit that adds "Verification follow-up" | glsl-transformer: S8 fix TransformPatcherTest token assertions |
 
 ## What changed
 
@@ -54,7 +55,9 @@ Tests:
   `vertex = vertex ;` once and no `toClipSpace3 ( mat3 ( gbufferModelView )`. Each output is parsed again.
 - The TauMC `CompatibilityTransformerTest` and `CeleritasTransformerTest` stay unchanged and keep testing the TauMC
   classes until Step 11 (brief: "Delete nothing yet"), as S7 did with `AdaptiveShadowBoundsTransformerTest`.
-  `TransformPatcherTest` was ported by S7b; `CompatibilityTransformerCaveSkyholeTest`, `TransformPatcherCacheTest` and
+  `TransformPatcherTest`: S7b ported its `replaceAll` assertions; the three raw `contains` assertions of
+  `compositePatchUpgradesLegacyFragmentOutput` went through `GlslTokens.contains` only in the S8 verification fix
+  (Verification follow-up). `CompatibilityTransformerCaveSkyholeTest`, `TransformPatcherCacheTest` and
   `TerrainVertexFormatRequirementsTest` are library-independent and unchanged.
 - `TransformCorpusReplayTest`: without `-PglslCorpusDir` it replays the committed mini-corpus
   (`src/test/resources/transform-corpus`) on the default engine instead of skipping (orchestrator decision 2), so every
@@ -129,8 +132,10 @@ replay: engine=douira corpus=.../run/transform-corpus-s7-taumc cases=175 identic
 replay: concurrent engine=douira threads=8 cases=170 groups=2 sequentialMs=1261.2 concurrentWallMs=288.7 concurrentCallMs=2278.2 differing=0
 ```
 All `BUILD SUCCESSFUL`; `unsupported` is `compat on douira: CompatShaderTransformer has no engine switch yet` in each.
-The corpora recorded on the new engine (`run/transform-corpus-douira`, `-s7-douira*`, `-s7b-douira`, `-dh-douira`) hold
-no TauMC outputs to compare against and were not replayed.
+The corpora recorded on the new engine (`run/transform-corpus-douira`, `-s7-douira*`, `-s7b-douira`, `-dh-douira`) were
+not replayed: they hold the new engine's outputs, and `out.taumc.*` files only for GLSM's compat cases (15, 5, 5, 5
+and 22 cases), which a replay marks unsupported. `run/transform-corpus-s7b-capturetest` (7 cases, 5 of them compat
+cases with TauMC outputs) was not replayed either.
 
 Record run for the `accepted.txt` review (`run/s8-mini-record.out`, into a scratch copy):
 `replay: engine=douira (record) corpus=.../run/s8-mini-record cases=32 ... recorded=27`, then glslangValidator 16.4.0
@@ -393,9 +398,55 @@ one run), so they are not compared with the floor. BSL on against off: 97.06 %, 
 - `ShaderAst.Timing` counts only with `-Ddemonica.glsmPerfDebug=true`; without it, the `[AstShaderTransformer] ...
   timing` numbers would be zero (nothing logs them then).
 - Step 9 may delete nothing the new engine uses: the `accepted.txt` cases and the Iris-side tests are library-neutral
-  or on `ShaderAst` now, except the TauMC copies Step 11 removes (`transform/CompatibilityTransformerTest`,
-  `transform/CeleritasTransformerTest`, `transform/AdaptiveShadowBoundsTransformerTest`, `ShaderAstParityTest`,
-  `TerrainVertexFormatScanParityTest`).
+  or on `ShaderAst` now, except the classes that still import `org.taumc.glsl`, which Step 11 removes or rewrites:
+  the TauMC copies (`transform/CompatibilityTransformerTest`, `transform/CeleritasTransformerTest`,
+  `transform/AdaptiveShadowBoundsTransformerTest`), the parity tests (`ShaderAstParityTest`,
+  `TerrainVertexFormatScanParityTest`, `ShaderAstCorpusDifferential`), and `AstShaderTransformerTest`, whose
+  `taumc(...)` helper compares against the TauMC engine. On the GLSM side, `glsm/CompatShaderTransformerTest` and
+  `glsm/ffp/VertexShaderGeneratorTest` import it too (Step 10).
 - Production shape: the nested `glsl-transformer-3.0.0-pre3.jar` is extracted by the parent Forge JVM into
   `mods/1.12.2/` and loaded from there by the Cleanroom JVM; the evidence is in the instance's
   `smoke-backup-glsl-transformer-s8/run/debug-1.log.gz` and `debug.log`.
+
+## Verification follow-up
+
+The independent verification found one blocking issue and five remarks. Fixed in the commit
+`glsl-transformer: S8 fix TransformPatcherTest token assertions`.
+
+**Blocking: `TransformPatcherTest` still asserted raw substrings (brief Do 2 half done).** The verifier was right:
+S7b (`307d84ce`) ported only the `replaceAll` assertions, and `compositePatchUpgradesLegacyFragmentOutput` kept
+`String.contains` on `patchComposite` output (`"void main"`, `"out vec4 iris_FragData0"`, `"iris_FragData0 = vec4"`),
+the last two tied to the printer's spacing. Fixed: all three go through `GlslTokens.contains(text, snippet)`, each with
+the text as the failure message. The verifier's check, `grep -nE 'assert\w*\(.*\.contains\(' TransformPatcherTest.java
+| grep -v GlslTokens`, now prints nothing (grep exit 1). Re-run with `--rerun`, test XML read afterwards:
+- default engine (`run/s8-fix-tpt-douira.out`): `BUILD SUCCESSFUL in 2s` (`:compileTestJava` ran),
+  `TransformPatcherTest tests="3" skipped="0" failures="0" errors="0"`, engine line `douira`;
+- `-PglslEngine=taumc` (`run/s8-fix-tpt-taumc.out`): `BUILD SUCCESSFUL in 2s`, `tests="3" skipped="0" failures="0"
+  errors="0"`, engine line `taumc`.
+The "What changed" sentence that said S7b had ported the class is corrected. The other raw `contains` assertions left
+in `transform/` tests are either in the TauMC copies Step 11 removes, in `GlslTransformerSpikeTest` (the S1 spike,
+which asserts glsl-transformer's own printer on purpose), or in `TransformPatcherCacheTest` lines 132-133, which look
+for single identifiers (`prepareTexture`, `shadowTexture`) and do not depend on spacing. No other check was re-run: the
+change touches only this test class.
+
+Remarks:
+1. **Test classes still importing TauMC (fixed in the report).** The "Notes for the next step" list omitted
+   `AstShaderTransformerTest` (its `taumc(...)` comparison helper) and `ShaderAstCorpusDifferential`. It now names every
+   test class under `src/test/java` that imports `org.taumc.glsl` (`grep -rln 'org\.taumc\.glsl' src/test/java`: nine
+   classes, seven Iris-side and two GLSM-side).
+2. **"Hold no TauMC outputs" (fixed in the report).** Counted with `find <dir> -name 'out.taumc.*'`: compat cases with
+   TauMC outputs in `transform-corpus-douira` 15 (of 400 cases), `-dh-douira` 22 (140), `-s7-douira`, `-s7-douira2`,
+   `-s7b-douira` 5 each (175), `-s7b-capturetest` 5 (7). The replay paragraph now says so and names
+   `transform-corpus-s7b-capturetest`, which was not replayed.
+3. **`ShaderAst.Timing.start()` without perf debug.** Not changed. `AstShaderTransformer` calls it once per transform
+   (lines 111 and 176), a `ThreadLocal` get and six field resets, against thousands of token-level operations in the
+   same transform. Gating it would mean a null or shared timing object at both call sites and in the log line; left for
+   Step 12 (optional payoff) or never.
+4. **Compat-mod runs keep shaders off.** Correct and unchanged: both compat runs cover GLSM's TauMC compat path and mod
+   init next to the new engine, not a pack load with the 17 compat mods, the same scope as S2's compat run. A pack load
+   with the compat mods is a candidate check for Step 10, when GLSM moves to the new engine.
+5. **I Like Vanilla frame at 1.75 % against the S2 baseline.** Unchanged; already reported in table 3 and Residual diffs
+   (edge jitter, 0.21 % new against TauMC in the same sweep per the verifier). It is the one frame above the TauMC
+   floor; Steps 9 and 10 should re-diff it.
+
+Status stays **done; exit point A reached**.
