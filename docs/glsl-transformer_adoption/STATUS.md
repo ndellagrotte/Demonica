@@ -14,7 +14,7 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S6 ATTRIBUTES and CELERITAS_TERRAIN | done | `09e53d27`, `78534be0` (report), `0eb8356c` (status); report fixes `0c9b9579`, `a9de9aa2` | 2026-09-28 | [S06-attributes-terrain.md](reports/S06-attributes-terrain.md) |
 | S7 DH and AdaptiveShadowBounds | done | `3f835a76`; report and status in the commit that adds the report | 2026-09-28 | [S07-dh-shadow-bounds.md](reports/S07-dh-shadow-bounds.md) |
 | S7b pre-flip hardening (added by the orchestrator) | done | `307d84ce`; report and status `33916dfc`; verification fixes `658bf2cf` and `glsl-transformer: S7b fix continued line comments on extension lines` | 2026-09-29 | [S7b-hardening.md](reports/S7b-hardening.md) |
-| S8 flip the default, port the tests, full run (exit point A) | not started | | | |
+| S8 flip the default, port the tests, full run (exit point A) | done; **exit point A reached** | `72190445`; report and status in the commit that adds the report | 2026-09-29 | [S08-flip-default.md](reports/S08-flip-default.md) |
 | S9 GLSM subtractions and utilities | not started | | | |
 | S10 `CompatShaderTransformer` | not started | | | |
 | S11 remove TauMC, release checks (exit point B) | not started | | | |
@@ -22,11 +22,11 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 
 ## Facts every step needs
 
-- Engine switch: system property `demonica.glsl.engine` (`taumc`, the default, or `douira`), read once by
-  `TransformPatcher.engine()` and logged at first use as
+- Engine switch: system property `demonica.glsl.engine` (`douira`, the default since S8, `TransformPatcher.Engine.DEFAULT`;
+  or `taumc` until Step 11), read once by `TransformPatcher.engine()` and logged at first use as
   `[TransformPatcher] GLSL transform engine: <id> (demonica.glsl.engine)`. An unknown value logs a WARN,
-  `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using taumc`, and falls back
-  to `taumc`. The engine is fixed per JVM, and the transform cache key does not include it. The new engine is
+  `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using douira`, and falls back
+  to the default (before S8: `taumc`). The engine is fixed per JVM, and the transform cache key does not include it. The new engine is
   `shader/.../pipeline/transform/AstShaderTransformer.java`.
 - glsl-transformer sources: `run/lib-src/glsl-transformer/` (gitignored; Step 1 unpacked them). Read by class.
 - Reference parser configuration: `src/test/java/net/coderbot/iris/pipeline/transform/GlslTransformerSpikeTest.java`.
@@ -137,3 +137,17 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   `threw` (a recorded output whose replay throws). `accepted.txt` has nine entries. `TransformPatcherTest` compares as
   `GlslTokens` and is green on both engines. Legacy `texture2DRect`/`textureCube`/`texture1D`/`texture2DArray` calls
   stay unrenamed on both engines (open question for the maintainer).
+- S8 (exit point A, S8 report): the new engine is the default; GLSM's `CompatShaderTransformer` still runs on TauMC,
+  and both libraries ship as nested jars. A production-shaped run in the Prism instance `prod-smoke-test` loaded the
+  nested `glsl-transformer-3.0.0-pre3.jar` through Cleanroom's contained deps (extracted to `mods/1.12.2/` by the
+  parent Forge JVM) and rendered BSL; its files are in the instance's `minecraft/smoke-backup-glsl-transformer-s8/`,
+  and the instance is back on the 0.4.0 jars. `TransformCorpusReplayTest` replays the committed mini-corpus on the
+  default engine in every `:test` (`cases=32 identical=19 accepted=9 failing=0 unsupported=4`); record mode needs an
+  explicit `-PglslCorpusDir`. The TauMC tests' twins on glsl-transformer: `transform/transformer/CompatibilityTransformerTest`,
+  `CeleritasTransformerTest` (the TauMC copies stay until Step 11). `ShaderAst.Timing` counts only with
+  `-Ddemonica.glsmPerfDebug=true`. `capture.sh` always passes `demonica.glsl.engine` (default `taumc`, the reference
+  corpus). `scripts/glsl-corpus/sweep.txt` (the three packs switched mid-game at the corpus camera, then each loaded
+  again from the cache) with `transform-times.py --phases <log>` gives first loads and cached reloads. In game, the new
+  engine's median per transform against TauMC's in one session: BSL 17.7 against 19.2 ms, Complementary 76.5 against
+  73.8, I Like Vanilla 46.3 against 41.6 (two runs each for I Like Vanilla, one for the others); a cached reload transforms nothing on either engine. Full
+  `:test`: 1,065 tests, 0 failures, 4 skipped. The mini-corpus has 32 cases; `accepted.txt` nine entries, reviewed.
