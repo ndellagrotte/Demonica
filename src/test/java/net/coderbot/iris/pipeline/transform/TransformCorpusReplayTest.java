@@ -69,13 +69,16 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * ({@link AdaptiveShadowBoundsStats#activateForTesting(int)}) and the {@link Parameters}; then it calls the engine
  * directly, not through the cache. A stage that differs is written to {@code build/reports/transform-replay/} and
  * fails the test unless {@code src/test/resources/transform-replay/accepted.txt} tolerates it. A case the engine cannot
- * run (a patch kind not ported yet, a state the replayer cannot restore) is counted as unsupported.</p>
+ * run (a state the replayer cannot restore, GLSM's compat cases on an engine other than {@code taumc}) is counted as
+ * unsupported. Every patch kind is ported since Step 7, so an engine exception is a failure (or an accepted error).</p>
  *
  * <p>A case recorded with {@code outcome=error} (the TauMC engine threw) is identical when the replay throws the same
  * {@code class: message}. When the replay succeeds or throws something else, the case's outcome differs: the report
  * {@code <case>.error.diff} holds both, and {@code accepted.txt} can tolerate it with the stage {@code error-succeeded}
  * (the replay transformed the case) or {@code error-threw} (the replay threw something else), never with both at once:
- * an entry for the first does not hide a replay that starts to throw (Step 6).</p>
+ * an entry for the first does not hide a replay that starts to throw (Step 6). A case recorded with an output whose
+ * replay throws is failing unless an entry with the stage {@code threw} accepts it (Step 7b); its report is
+ * {@code <case>.error.diff} too.</p>
  *
  * <p>Dead entries fail too (Step 7): when an engine other than the reference engine replays, every
  * {@code accepted.txt} entry whose case glob matches a case this run replayed (not filtered out, not unsupported) must
@@ -120,6 +123,12 @@ class TransformCorpusReplayTest {
         assertFalse(entries.get(2).matches("x/y", "error-threw"));
         assertTrue(entries.get(3).matches("x-1", "error-threw"));
         assertFalse(entries.get(3).matches("x-1", "error-succeeded"));
+        // Step 7b: a recorded output whose replay throws is accepted only by 'threw', never by '*' or an error stage.
+        final List<AcceptedDiff> threw = parseAccepted("y-* | threw | TauMC's output would not compile either\n");
+        assertTrue(threw.get(0).matches("y-1", "threw"));
+        assertFalse(threw.get(0).matches("y-1", "error-threw"));
+        assertFalse(entries.get(2).matches("x/y", "threw"));
+        assertFalse(entries.get(3).matches("x-1", "threw"));
         // The Step 5 stage 'error' named no outcome; it is gone.
         assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | error | old engine threw\n"));
         assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | fragments | typo\n"));
@@ -336,11 +345,6 @@ class TransformCorpusReplayTest {
             final long start = System.nanoTime();
             try {
                 output = runEngine(patch, inputs, parameters);
-            } catch (UnsupportedOperationException e) {
-                if (String.valueOf(e.getMessage()).contains("not ported yet")) {
-                    return Result.unsupported(e.getMessage());
-                }
-                return engineFailed(name, p.get("error"), e);
             } catch (RuntimeException e) {
                 return engineFailed(name, p.get("error"), e);
             } finally {
@@ -394,13 +398,15 @@ class TransformCorpusReplayTest {
             }
             final String frames = Arrays.stream(e.getStackTrace()).limit(4).map(String::valueOf)
                 .collect(Collectors.joining(" < "));
-            return new Result(Outcome.FAILING, false, name + ": the engine threw " + e + " at " + frames);
+            // A recorded output whose replay throws: only an entry naming the stage 'threw' accepts it (Step 7b).
+            return outcomeDiffers(name, THREW, "recorded an output, the replay threw " + e + " at " + frames, Map.of());
         }
 
         /**
-         * The case recorded {@code outcome=error} and the replay did not throw the same: writes
-         * {@code <case>.error.diff} (the difference and the replay's output, if any) and looks for an
-         * {@code accepted.txt} entry with the stage {@code kind}: {@link #ERROR_SUCCEEDED} or {@link #ERROR_THREW}.
+         * The case's outcome differs from the recorded one (recorded {@code outcome=error} and the replay did not throw
+         * the same, or recorded an output and the replay threw): writes {@code <case>.error.diff} (the difference and
+         * the replay's output, if any) and looks for an {@code accepted.txt} entry with the stage {@code kind}:
+         * {@link #ERROR_SUCCEEDED}, {@link #ERROR_THREW} or {@link #THREW}.
          */
         private Result outcomeDiffers(String name, String kind, String detail, Map<String, String> actual) throws IOException {
             final StringBuilder report = new StringBuilder("# " + name + " error: " + detail + "\n");
@@ -638,14 +644,20 @@ class TransformCorpusReplayTest {
     static final String ERROR_SUCCEEDED = "error-succeeded";
     /** The stage of a case recorded as an error whose replay threw something else. */
     static final String ERROR_THREW = "error-threw";
+    /**
+     * The stage of a case recorded with an output whose replay throws (Step 7b: a TauMC output that no compiler would
+     * accept, where the glsl-transformer engine throws a syntax error instead).
+     */
+    static final String THREW = "threw";
 
     /**
      * The stages an accepted.txt entry may name: the Iris stages, {@code compat} (GLSM's cases),
      * {@link #ERROR_SUCCEEDED} and {@link #ERROR_THREW} (a case recorded as an error whose replay succeeded, or threw
-     * something else) and {@code *} (any output stage; not the two error outcomes, which an entry must name).
+     * something else), {@link #THREW} (a case recorded with an output whose replay threw) and {@code *} (any output
+     * stage; not the three outcomes, which an entry must name).
      */
     static final Set<String> ACCEPTED_STAGES = Set.of("vertex", "geometry", "tess_control", "tess_eval", "fragment",
-        "compute", "compat", ERROR_SUCCEEDED, ERROR_THREW, "*");
+        "compute", "compat", ERROR_SUCCEEDED, ERROR_THREW, THREW, "*");
 
     /**
      * One line of accepted.txt: {@code <case glob> | <stage> | <reason>}; {@code source} is the line with its number
@@ -653,7 +665,8 @@ class TransformCorpusReplayTest {
      */
     record AcceptedDiff(Pattern caseGlob, String stage, String reason, String source) {
         boolean matches(String caseName, String stageName) {
-            final boolean errorOutcome = stageName.equals(ERROR_SUCCEEDED) || stageName.equals(ERROR_THREW);
+            final boolean errorOutcome = stageName.equals(ERROR_SUCCEEDED) || stageName.equals(ERROR_THREW)
+                || stageName.equals(THREW);
             return ((stage.equals("*") && !errorOutcome) || stage.equals(stageName)) && matchesCase(caseName);
         }
 

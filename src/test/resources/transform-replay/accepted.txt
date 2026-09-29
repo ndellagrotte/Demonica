@@ -8,8 +8,9 @@
 # vertex, geometry, tess_control, tess_eval, fragment, compute, compat (GLSM's mod-shader cases), error-succeeded or
 # error-threw (a case recorded with outcome=error, TauMC threw, whose replay succeeds, or throws something else; the
 # replay's output is written to build/reports/transform-replay/<case>.error.diff; an entry accepts only the outcome it
-# names, so a replay that starts to throw is not accepted by an entry written for one that succeeded) or '*' (any
-# output stage, not the two error outcomes); any other stage fails the test. Every entry needs a reason a reader can
+# names, so a replay that starts to throw is not accepted by an entry written for one that succeeded), threw (a case
+# recorded with an output whose replay throws; Step 7b) or '*' (any output stage, not the three outcomes); any other
+# stage fails the test. Every entry needs a reason a reader can
 # check; an entry without one fails the test. When an engine other than taumc replays, an entry whose case glob matches
 # a replayed case but that tolerated no difference in that run is stale and fails the test too (Step 7), so an entry
 # must go when its difference goes; entries for cases the run did not replay (another corpus, a filtered kind) are not
@@ -37,10 +38,11 @@ transform-grouped-330-undeclared | error-succeeded | old engine threw (removed i
 # to each declaration it injects); replaceMidTexCoord's removeVariable removes that injected declaration (the last in
 # TauMC's cache order), and its next injectVariable finds no anchor. Before that, TauMC's replaceExpression had missed
 # the renamed references (its by-text cache still knew them as gl_MultiTexCoord3; S3 remark 3). The new engine applies
-# the verbs as documented (the references become iris_MidTex; a removed anchor is fixed again) and transforms the case;
-# its output still declares mc_midTexCoord twice (in vec2 injected, in vec4 renamed), which the transformer logic both
-# engines share produces (report S06, Open questions). Checked by AstShaderTransformerTest.theMultiTexCoord3Case.
-celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it, checked by AstShaderTransformerTest
+# the verbs as documented (the references become iris_MidTex; a removed anchor is fixed again) and transforms the case.
+# Until Step 7b its output declared mc_midTexCoord twice (in vec2 injected, in vec4 renamed); since Step 7b the new
+# engine's patchMultiTexCoord3 injects no declaration when the shader declared gl_MultiTexCoord3 itself, so the output
+# declares it once (in vec2) and compiles (glslangValidator). Checked by AstShaderTransformerTest.theMultiTexCoord3Case.
+celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it into a program that declares mc_midTexCoord once (Step 7b), checked by AstShaderTransformerTest
 
 # Step 7 (2026-09-28): DH_TERRAIN, DH_GENERIC and adaptive shadow bounds on the glsl-transformer engine. The 53
 # "S7 pending" entries of Step 6 (51 BSL fragment stages, and the mini-corpus's shadow-bounds and
@@ -55,3 +57,36 @@ celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed i
 # statement. No recorded pack input uses gl_MultiTexCoord2 in a DH program. Checked by
 # AstShaderTransformerTest.dhMultiTexCoord2Alias.
 dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by AstShaderTransformerTest
+# Step 7b (2026-09-29): pre-flip hardening (report S7b-hardening.md). Nine mini-corpus cases, TauMC outputs recorded
+# with -PglslReplayEngine=taumc -PglslReplayRecord=true. Three replay identically on the new engine:
+# composite-extension-all (#extension all : warn), composite-extension-in-function and
+# composite-extension-before-version, which glsl-transformer's grammar rejected until the new engine took #extension
+# lines out of the text before the parse (ShaderAst.ExtensionLines); its output is TauMC's (same header, same body).
+# The other six differ on purpose:
+#
+# gl_MultiTexCoord3 (OptiFine's alias of mc_midTexCoord), handled as Iris 26.1's CommonTransformer.patchMultiTexCoord3
+# does, fixed for a declared gl_MultiTexCoord3 (transformer/CommonTransformer.patchMultiTexCoord3): TauMC patched only a
+# declared gl_MultiTexCoord3 and then declared mc_midTexCoord twice (attributes-multitexcoord3-declared: glslangValidator
+# "'mc_midTexCoord' : redefinition"), and left the built-in, which a core profile does not have, in the program
+# (attributes-multitexcoord3-builtin, celeritas-terrain-multitexcoord3-builtin: "'gl_MultiTexCoord3' : undeclared
+# identifier"). The new engine renames every gl_MultiTexCoord3 to mc_midTexCoord and declares it once; its three vertex
+# outputs compile (glslangValidator). Checked by AstShaderTransformerTest.multiTexCoord3Shapes.
+attributes-multitexcoord3-declared | vertex | Step 7b: TauMC declared mc_midTexCoord twice (renamed gl_MultiTexCoord3 and injected); the new engine keeps the renamed declaration only, checked by AstShaderTransformerTest
+attributes-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads mc_midTexCoord and declares it (Iris 26.1), checked by AstShaderTransformerTest
+celeritas-terrain-multitexcoord3-builtin | vertex | Step 7b: TauMC left the built-in gl_MultiTexCoord3 (not in a core profile); the new engine reads it through iris_MidTex from Celeritas's mc_midTexCoord (Iris 26.1), checked by AstShaderTransformerTest
+#
+# patch as an identifier: TauMC's lexer reads patch as a keyword at every version, so its output for a program that
+# names a variable patch is broken GLSL ('<missing ';'>' text in it; glslangValidator "syntax error, unexpected
+# UNIFORM" and "unexpected PATCH"). glsl-transformer's lexer is version-aware: at 330 patch is an identifier and the new
+# engine's output compiles; at 420 (hoisted by imageLoad) patch is a keyword and the new engine throws a syntax error,
+# where TauMC's output would not have compiled either. Checked by AstShaderTransformerTest.patchAsAnIdentifier.
+composite-patch-identifier | fragment | Step 7b: TauMC's output is broken GLSL (patch lexed as a keyword); the new engine's compiles, checked by AstShaderTransformerTest
+composite-patch-hoisted | threw | Step 7b: at 420 patch is a keyword; the new engine throws a syntax error where TauMC emitted broken GLSL that no compiler accepts, checked by AstShaderTransformerTest
+#
+# texture2DRect, textureCube, texture1D and texture2DArray under #version 330 core: GlslTransformUtils.TEXTURE_RENAMES
+# lacks them, so neither engine renames them. TauMC's grammar lexes them as keywords and its output is broken GLSL; the
+# new engine keeps the non-core calls, which a core profile does not have (glslangValidator: "'texture2DRect' :
+# undeclared identifier" for TauMC's output; it aborts on an assertion for the new engine's). A behaviour change for both
+# engines, left to the maintainer (report S7b, Open questions); AstShaderTransformerTest.legacyTextureCallsKeepTheirNames
+# pins the new engine's output.
+composite-legacy-textures | fragment | Step 7b: TauMC's output is broken GLSL (the legacy texture functions lexed as keywords); the new engine keeps the non-core calls (not renamed by either engine; open question), pinned by AstShaderTransformerTest

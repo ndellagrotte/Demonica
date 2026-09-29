@@ -87,7 +87,7 @@ GLSM's path is separate: `GLStateManager.glShaderSource` (line 5429) runs `GlslT
 
 `TransformPatcher` gets an engine selector, read once from the system property `demonica.glsl.engine` (`taumc` or `douira`; default `taumc` until Step 8 flips it, removed in Step 11), logged at first use. Its two private entry points route to `ShaderTransformer` (old) or `AstShaderTransformer` (new). `clearCache()` clears both engines' session state. `CompatShaderTransformer` reads the same property for its own parse/transform/print block from Step 10 on. Nothing else in the code base sees the switch.
 
-Until a patch kind is ported, the new engine throws `UnsupportedOperationException("glsl-transformer engine: <kind> not ported yet")`. The replay test (3.5) filters by kind, so partial engines are testable. A dev run on the new engine before Step 6 therefore fails to load any pack (gbuffers programs are ATTRIBUTES); end-to-end runs start in Step 6.
+Until a patch kind is ported, the new engine throws `UnsupportedOperationException("glsl-transformer engine: <kind> not ported yet")`. *(2026-09-29) Every kind is ported since Step 7; the exception and the replayer's catch for it are gone (Step 7b).* The replay test (3.5) filters by kind, so partial engines are testable. A dev run on the new engine before Step 6 therefore fails to load any pack (gbuffers programs are ATTRIBUTES); end-to-end runs start in Step 6.
 
 ### 3.3 Package layout during and after
 

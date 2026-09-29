@@ -34,7 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * are compared as {@link GlslTokens}. Step 6 adds ATTRIBUTES and CELERITAS_TERRAIN: every declared type of
  * {@code mc_Entity} and {@code mc_midTexCoord} (the corpora have only {@code vec3}/{@code vec4} and
  * {@code vec2}/{@code vec4}), the geometry stage, and every input-availability combination. Step 7 adds DH_TERRAIN and
- * DH_GENERIC.
+ * DH_GENERIC. Step 7b adds the {@code #extension} lines glsl-transformer's grammar rejects, {@code patch} as an
+ * identifier, the {@code gl_MultiTexCoord3} shapes and the legacy texture calls neither engine renames.
  */
 class AstShaderTransformerTest {
 
@@ -127,8 +128,10 @@ class AstShaderTransformerTest {
      * renames the declaration and injects {@code attribute vec4 mc_midTexCoord;}, which TauMC makes its variable anchor;
      * {@code replaceMidTexCoord}'s {@code removeVariable} removes that injected declaration, and the next
      * {@code injectVariable} throws. Before that, TauMC's {@code replaceExpression} had missed the renamed references.
-     * The new engine replaces them and transforms the case; its output still declares {@code mc_midTexCoord} twice, from
-     * the transformer logic both engines share (report S06, Open questions).
+     * The new engine replaces them and transforms the case. Since Step 7b its {@code patchMultiTexCoord3} injects no
+     * second declaration when the shader declared {@code gl_MultiTexCoord3} (Iris 26.1's handling, fixed; report S7b),
+     * so the output declares {@code mc_midTexCoord} once, as Celeritas's {@code in vec2}; until then it declared it
+     * twice (report S06, Open questions).
      */
     @Test
     void theMultiTexCoord3Case() throws IOException {
@@ -161,9 +164,10 @@ class AstShaderTransformerTest {
         assertTrue(GlslTokens.contains(outVertex, "position . xz += ( iris_MidTex . xy - texcoord ) * 0.05 ;"), outVertex);
         assertTrue(GlslTokens.contains(outVertex, "vec4 iris_MidTex = vec4 ( mc_midTexCoord . xy * 3.0517578E-5 , 0.0 , 1.0 ) ;"), outVertex);
         assertFalse(GlslTokens.contains(outVertex, "gl_MultiTexCoord3"), outVertex);
-        // The shared logic's defect: the renamed declaration stays next to the injected one.
+        // One declaration: replaceMidTexCoord removed the renamed one and declared Celeritas's attribute (Step 7b).
         assertEquals(1, lines(outVertex, "in vec2 mc_midTexCoord ;"), outVertex);
-        assertEquals(1, lines(outVertex, "in vec4 mc_midTexCoord ;"), outVertex);
+        assertEquals(0, lines(outVertex, "in vec4 mc_midTexCoord ;"), outVertex);
+        assertEquals(0, lines(outVertex, "attribute vec4 mc_midTexCoord ;"), outVertex);
     }
 
     /**
@@ -335,6 +339,139 @@ class AstShaderTransformerTest {
         final String broken = "#version 330 core\nout vec4 frag;\nvoid main() { frag = vec4(1.0) }\n";
         assertTrue(taumc(vertex, broken).containsKey(PatchShaderType.FRAGMENT));
         assertThrows(ShaderAst.SyntaxException.class, () -> douira(vertex, broken));
+    }
+
+    private static Map<PatchShaderType, String> attributes(boolean douira, String vertex, String fragment) {
+        final AttributeParameters parameters = new AttributeParameters(Patch.ATTRIBUTES, false, new InputAvailability(true, true, true));
+        return douira ? AstShaderTransformer.transform(vertex, null, null, null, fragment, parameters)
+            : ShaderTransformer.transform(vertex, null, null, null, fragment, parameters);
+    }
+
+    /**
+     * Step 7b, the {@code #extension} lines glsl-transformer 3.0.0-pre3's grammar rejects but TauMC's engine
+     * transformed: {@code #extension all : warn} (and {@code all : disable} after code), an {@code #extension} inside
+     * a function body, and one before {@code #version}. The new engine takes {@code #extension} lines out of the text
+     * before the parse ({@code ShaderAst.ExtensionLines}) and gives TauMC's program: the same header lines, the same
+     * body. The mini-corpus cases {@code composite-extension-all}, {@code -in-function} and {@code -before-version}.
+     */
+    @Test
+    void extensionLinesTheGrammarRejects() throws IOException {
+        for (String name : List.of("composite-extension-all", "composite-extension-in-function", "composite-extension-before-version")) {
+            final String vertex = resource("/transform-corpus/" + name + "/in.vertex.glsl");
+            final String fragment = resource("/transform-corpus/" + name + "/in.fragment.glsl");
+            // glsl-transformer's own parse, without ShaderAst's text pre-pass, rejects the fragment shader.
+            assertThrows(RuntimeException.class, () -> rawGlslTransformerParse(fragment), name);
+            assertSameProgram(taumc(vertex, fragment), douira(vertex, fragment));
+        }
+        final String allWarn = douira(resource("/transform-corpus/composite-extension-all/in.vertex.glsl"),
+            resource("/transform-corpus/composite-extension-all/in.fragment.glsl")).get(PatchShaderType.FRAGMENT);
+        assertTrue(GlslTokens.contains(allWarn, "#extension all : warn"), allWarn);
+        final String beforeVersion = douira(resource("/transform-corpus/composite-extension-before-version/in.vertex.glsl"),
+            resource("/transform-corpus/composite-extension-before-version/in.fragment.glsl")).get(PatchShaderType.FRAGMENT);
+        assertTrue(beforeVersion.startsWith("#version 330 core\n"), beforeVersion);
+        assertTrue(GlslTokens.contains(beforeVersion, "#extension GL_ARB_gpu_shader5 : enable"), beforeVersion);
+    }
+
+    /** glsl-transformer's own parse of a program, without {@code ShaderAst}'s text pre-pass; throws on a syntax error. */
+    private static Object rawGlslTransformerParse(String source) {
+        final io.github.douira.glsl_transformer.ast.transform.ASTParser parser = new io.github.douira.glsl_transformer.ast.transform.ASTParser();
+        parser.setParsingCacheStrategy(io.github.douira.glsl_transformer.ast.transform.ASTParser.ParsingCacheStrategy.NONE);
+        ShaderAst.BUILD_LOCK.lock();
+        try {
+            return parser.parseTranslationUnit(ShaderAst.ROOT_SUPPLIER.get(), source);
+        } finally {
+            ShaderAst.BUILD_LOCK.unlock();
+        }
+    }
+
+    /**
+     * Step 7b, {@code patch} as an identifier. TauMC's lexer reads it as a keyword at every version, so its output is
+     * broken GLSL (its error recovery writes {@code <missing ';'>} into it). glsl-transformer's lexer is version-aware:
+     * raised to 330, {@code patch} is an identifier and the new engine's program is the pack's; hoisted to 420 (by
+     * {@code imageLoad}), it is a keyword, and the new engine throws where TauMC's output would not have compiled
+     * either. The mini-corpus cases {@code composite-patch-identifier} and {@code composite-patch-hoisted}.
+     */
+    @Test
+    void patchAsAnIdentifier() throws IOException {
+        final String vertex = resource("/transform-corpus/composite-patch-identifier/in.vertex.glsl");
+        final String at330 = resource("/transform-corpus/composite-patch-identifier/in.fragment.glsl");
+        assertTrue(taumc(vertex, at330).get(PatchShaderType.FRAGMENT).contains("<missing"));
+        final String output = douira(vertex, at330).get(PatchShaderType.FRAGMENT);
+        assertTrue(output.startsWith("#version 330 core\n"), output);
+        assertTrue(GlslTokens.contains(output, "float patch = 0.5 ;"), output);
+        assertTrue(GlslTokens.contains(output, "iris_FragData0 = texture ( colortex0 , texcoord ) * patch ;"), output);
+
+        final String hoisted = resource("/transform-corpus/composite-patch-hoisted/in.fragment.glsl");
+        final String taumcHoisted = taumc(vertex, hoisted).get(PatchShaderType.FRAGMENT);
+        assertTrue(taumcHoisted.startsWith("#version 420 core") && taumcHoisted.contains("<missing"), taumcHoisted);
+        final ShaderAst.SyntaxException thrown = assertThrows(ShaderAst.SyntaxException.class, () -> douira(vertex, hoisted));
+        assertTrue(thrown.getMessage().contains("'float patch'"), thrown.getMessage());
+    }
+
+    /**
+     * Step 7b, {@code gl_MultiTexCoord3} (OptiFine's alias of {@code mc_midTexCoord}) in a vertex shader, declared
+     * (which GLSL itself forbids: {@code gl_} names are reserved) or read as the built-in, in ATTRIBUTES and
+     * CELERITAS_TERRAIN programs. TauMC's engine patched only a declared one and then declared {@code mc_midTexCoord}
+     * twice (ATTRIBUTES; CELERITAS_TERRAIN threw), and left the built-in in a core-profile program. The new engine
+     * handles both as Iris 26.1 does, without the second declaration ({@code CommonTransformer.patchMultiTexCoord3}): one
+     * declaration of {@code mc_midTexCoord}, no {@code gl_MultiTexCoord3}. The mini-corpus cases
+     * {@code attributes-multitexcoord3-declared}, {@code attributes-multitexcoord3-builtin},
+     * {@code celeritas-terrain-multitexcoord3} and {@code celeritas-terrain-multitexcoord3-builtin}.
+     */
+    @Test
+    void multiTexCoord3Shapes() throws IOException {
+        final String fragment = resource("/transform-corpus/attributes-multitexcoord3-declared/in.fragment.glsl");
+        final String declared = resource("/transform-corpus/attributes-multitexcoord3-declared/in.vertex.glsl");
+        final String builtin = resource("/transform-corpus/attributes-multitexcoord3-builtin/in.vertex.glsl");
+
+        final String taumcDeclared = attributes(false, declared, fragment).get(PatchShaderType.VERTEX);
+        assertEquals(2, lines(taumcDeclared, "in vec4 mc_midTexCoord ;"), taumcDeclared);
+        final String taumcBuiltin = attributes(false, builtin, fragment).get(PatchShaderType.VERTEX);
+        assertTrue(GlslTokens.contains(taumcBuiltin, "midcoord = gl_MultiTexCoord3 . xy ;"), taumcBuiltin);
+
+        for (String vertex : List.of(declared, builtin)) {
+            final String output = attributes(true, vertex, fragment).get(PatchShaderType.VERTEX);
+            assertEquals(1, lines(output, "in vec4 mc_midTexCoord ;"), output);
+            assertTrue(GlslTokens.contains(output, "midcoord = mc_midTexCoord . xy ;"), output);
+            assertFalse(GlslTokens.contains(output, "gl_MultiTexCoord3"), output);
+        }
+
+        final String terrainFragment = resource("/transform-corpus/celeritas-terrain-multitexcoord3-builtin/in.fragment.glsl");
+        final String terrainBuiltin = resource("/transform-corpus/celeritas-terrain-multitexcoord3-builtin/in.vertex.glsl");
+        final String taumcTerrain = terrain(false, terrainBuiltin, null, terrainFragment).get(PatchShaderType.VERTEX);
+        assertTrue(GlslTokens.contains(taumcTerrain, "gl_MultiTexCoord3"), taumcTerrain);
+        final String output = terrain(true, terrainBuiltin, null, terrainFragment).get(PatchShaderType.VERTEX);
+        assertEquals(1, lines(output, "in vec2 mc_midTexCoord ;"), output);
+        assertEquals(0, lines(output, "attribute vec4 mc_midTexCoord ;"), output);
+        assertEquals(0, lines(output, "in vec4 mc_midTexCoord ;"), output);
+        assertTrue(GlslTokens.contains(output, "vec4 iris_MidTex = vec4 ( mc_midTexCoord . xy * 3.0517578E-5 , 0.0 , 1.0 ) ;"), output);
+        assertTrue(GlslTokens.contains(output, "midcoord = ( iris_TextureMatrix * iris_MidTex ) . xy ;"), output);
+        assertFalse(GlslTokens.contains(output, "gl_MultiTexCoord3"), output);
+
+        // A shader that reads the built-in and declares mc_midTexCoord is left alone, by TauMC, Iris 26.1 and the new
+        // engine alike (the mini-corpus case 'attributes'; report S7b, Open questions).
+        final String both = resource("/transform-corpus/attributes/in.vertex.glsl");
+        assertTrue(GlslTokens.contains(attributes(true, both, resource("/transform-corpus/attributes/in.fragment.glsl"))
+            .get(PatchShaderType.VERTEX), "vec4 tangentData = gl_MultiTexCoord3 ;"));
+    }
+
+    /**
+     * Step 7b pins, for the maintainer's decision (report S7b, Open questions): under {@code #version 330 core},
+     * {@code texture2DRect}, {@code textureCube}, {@code texture1D} and {@code texture2DArray} calls keep their names in
+     * the new engine's output ({@code GlslTransformUtils.TEXTURE_RENAMES} lacks them), and a core profile does not have
+     * them; TauMC's grammar lexes them as keywords, and its output is broken GLSL. The mini-corpus case
+     * {@code composite-legacy-textures}. A fix changes this test.
+     */
+    @Test
+    void legacyTextureCallsKeepTheirNames() throws IOException {
+        final String vertex = resource("/transform-corpus/composite-legacy-textures/in.vertex.glsl");
+        final String fragment = resource("/transform-corpus/composite-legacy-textures/in.fragment.glsl");
+        assertTrue(taumc(vertex, fragment).get(PatchShaderType.FRAGMENT).contains("<missing"));
+        final String output = douira(vertex, fragment).get(PatchShaderType.FRAGMENT);
+        assertTrue(output.startsWith("#version 330 core\n"), output);
+        assertTrue(GlslTokens.contains(output, "iris_FragData0 = texture2DRect ( colortex4 , texcoord * 16.0 ) "
+            + "+ textureCube ( skybox , vec3 ( texcoord , 1.0 ) ) + texture1D ( noise , texcoord . x ) "
+            + "+ texture2DArray ( layers , vec3 ( texcoord , 0.0 ) ) ;"), output);
     }
 
     /** Every patch kind is ported (Step 7): nothing throws "not ported yet", and the parameter type is reset. */

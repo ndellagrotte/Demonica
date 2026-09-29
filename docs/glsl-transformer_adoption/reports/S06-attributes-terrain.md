@@ -88,7 +88,9 @@ Outside git: `run/s6-*.out`, the new engine's in-game corpora `run/transform-cor
 | anything else | | | throws `IllegalStateException` | falls through, as `uint` |
 
 The injected strings are TauMC's, `>>` and `&` included; the printer keeps them (the corpus's 12 CELERITAS_TERRAIN
-vertex stages replay identically, and `mcEntityTypes` compares all eleven declarations with TauMC). The corpora
+vertex stages replay identically, and `mcEntityTypes` compares all eleven declarations with TauMC; *(correction,
+2026-09-29, Step 7b: ten declared types, `float`, `vec2` to `vec4`, `int`, `ivec2` to `ivec4`, `uint` and `bool`, plus
+the undeclared case, compared with TauMC, and `mat2`, which throws in both)*). The corpora
 declare only `vec3`/`vec4` `mc_Entity` and `vec2`/`vec4` `mc_midTexCoord`; the unit tests cover the rest.
 `MID_TEX_SCALE` is concatenated as Java prints it, `3.0517578E-5`, as before.
 
@@ -168,7 +170,8 @@ declarations. No recorded input uses `gl_MultiTexCoord3` at all (grep over every
 
 ### New engine tests beyond the corpus
 
-`mcEntityTypes` (eleven declarations, none, and `mat2`, which throws in both), `mcMidTexCoordTypes` (six and none),
+`mcEntityTypes` (eleven declarations, none, and `mat2`, which throws in both; *correction, 2026-09-29, Step 7b: ten
+declared types, not eleven*), `mcMidTexCoordTypes` (six and none),
 `geometryStages` (CELERITAS_TERRAIN and ATTRIBUTES with a geometry stage; no corpus has one: Celeritas's geometry branch
 replaces `toClipSpace3(...)` with `vertex`, and the vertex stage projects a displaced `worldpos`), and
 `attributeInputAvailability` (all eight texture/lightmap/color combinations; the corpora have five). Each compares the

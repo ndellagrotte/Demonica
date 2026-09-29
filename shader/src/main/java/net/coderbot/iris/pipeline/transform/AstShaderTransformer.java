@@ -3,6 +3,7 @@ package net.coderbot.iris.pipeline.transform;
 import com.google.common.base.Stopwatch;
 import com.gtnewhorizons.angelica.glsm.CompatShaderTransformer;
 import com.gtnewhorizons.angelica.glsm.GlslTransformUtils;
+import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
 import io.github.douira.glsl_transformer.util.Type;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.celeritas.vertices.ExtendedChunkVertexType;
@@ -13,6 +14,7 @@ import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 import net.coderbot.iris.pipeline.transform.transformer.AdaptiveShadowBoundsTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.AttributeTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CeleritasTransformer;
+import net.coderbot.iris.pipeline.transform.transformer.CommonTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CompositeDepthTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.ComputeTransformer;
@@ -25,6 +27,7 @@ import org.embeddedt.embeddium.impl.render.shader.ShaderLoader;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,14 +50,19 @@ import java.util.regex.Pattern;
  * {@code renameReservedWords} before the parse, and has no grouped step.</p>
  *
  * <p>Threads: {@code TransformPatcher} calls this from several {@code Shader-Transform-*} threads at once. No lock is
- * held around a transform; {@link ShaderAst} holds {@link ShaderAst#BUILD_LOCK} around every parse and node build
- * (glsl-transformer 3.0.0-pre3 is not thread-safe there, and its parser is shared). Step 5 measured the alternative,
- * the lock around the whole transform: as fast alone, and serialized on eight threads.</p>
+ * held around a transform; {@link ShaderAst} holds {@link ShaderAst#BUILD_LOCK} around every AST build (glsl-transformer
+ * 3.0.0-pre3 is not thread-safe there, and its snippet parser is shared), but not around a program's ANTLR parse
+ * (Step 7b). Step 5 measured the alternative, the lock around the whole transform: as fast alone, and serialized on
+ * eight threads. With {@code -Ddemonica.glsmPerfDebug=true} each transform logs where its time went
+ * ({@link ShaderAst.Timing}).</p>
  *
  * <p>The header's {@code #extension} lines are the ones the TauMC engine wrote: those of the source's leading
  * directive block, the directive lines at its very start up to the first blank line, comment, indented line or code
  * ({@link ShaderAst#extensionDirectives()}). TauMC's pre-parser read only that block, and its parser ignores
- * directives, so an {@code #extension} after the block is dropped, here as there. Two things differ from the TauMC
+ * directives, so an {@code #extension} after the block is dropped, here as there. {@link ShaderAst} finds the lines in
+ * the text and takes them out before the parse (Step 7b), so {@code #extension all : warn}, an {@code #extension} in a
+ * function body and one before {@code #version}, which glsl-transformer's grammar rejects, transform as they did with
+ * TauMC. Two things differ from the TauMC
  * engine by construction. TauMC's header held every directive of the leading block except {@code #version}, so a
  * {@code #define} or {@code #pragma} there came back in the header; glsl-transformer drops and logs them (sources
  * arrive preprocessed; no recorded input has one). A source that does not parse throws
@@ -100,6 +108,7 @@ public class AstShaderTransformer {
         final EnumMap<PatchShaderType, String> result = new EnumMap<>(PatchShaderType.class);
 
         final Stopwatch watch = Stopwatch.createStarted();
+        final ShaderAst.Timing timing = ShaderAst.Timing.start();
 
         parameters.type = ShaderType.COMPUTE;
 
@@ -154,6 +163,7 @@ public class AstShaderTransformer {
 
         watch.stop();
         Iris.logger.info("[Load #{}] Transformed compute shader for {} in {}", Iris.getShaderPackLoadId(), patchType.name(), watch);
+        logTiming(patchType, watch, timing);
         return result;
     }
 
@@ -163,6 +173,7 @@ public class AstShaderTransformer {
         final EnumMap<PatchShaderType, String> prepatched = new EnumMap<>(PatchShaderType.class);
 
         final Stopwatch watch = Stopwatch.createStarted();
+        final ShaderAst.Timing timing = ShaderAst.Timing.start();
 
         for (PatchShaderType type : PatchShaderType.VALUES) {
             parameters.type = type.glShaderType;
@@ -255,7 +266,20 @@ public class AstShaderTransformer {
         }
         watch.stop();
         Iris.logger.info("[Load #{}] Transformed shader for {} in {}", Iris.getShaderPackLoadId(), patchType.name(), watch);
+        logTiming(patchType, watch, timing);
         return result;
+    }
+
+    /**
+     * With {@code -Ddemonica.glsmPerfDebug=true}, where the transform's time went (Step 7b):
+     * {@code [AstShaderTransformer] ATTRIBUTES timing totalMs=.. parseMs=.. buildMs=.. lockWaitMs=.. lockHeldMs=..
+     * locks=.. contended=..} ({@link ShaderAst.Timing}).
+     */
+    private static void logTiming(Patch patchType, Stopwatch watch, ShaderAst.Timing timing) {
+        if (GLSMPerfDebug.isEnabled()) {
+            Iris.logger.info("[AstShaderTransformer] {} timing totalMs={} {}", patchType.name(),
+                watch.elapsed(TimeUnit.NANOSECONDS) / 1_000_000.0, timing);
+        }
     }
 
     private static void doTransform(ShaderAst ast, Patch patchType, Parameters parameters, int versionInt) {
@@ -296,16 +320,15 @@ public class AstShaderTransformer {
     }
 
     /**
-     * The TauMC engine's {@code patchMultiTexCoord3}: a vertex shader that declares {@code gl_MultiTexCoord3} and not
-     * {@code mc_midTexCoord} reads the mid-texture coordinate through {@code mc_midTexCoord}. The injected declaration
-     * says {@code attribute}, as the TauMC engine's did; {@link #replaceMidTexCoord} removes one of the two
-     * declarations right after.
+     * CELERITAS_TERRAIN's {@code gl_MultiTexCoord3}: a vertex shader that uses {@code gl_MultiTexCoord3} (declared or
+     * as the built-in) and does not declare {@code mc_midTexCoord} reads the mid-texture coordinate through
+     * {@code mc_midTexCoord}, as Iris 26.1 does ({@link CommonTransformer#patchMultiTexCoord3}, Step 7b; the TauMC
+     * engine patched only a declared {@code gl_MultiTexCoord3}). A declaration is injected only if the shader had none;
+     * it says {@code attribute}, as the TauMC engine's did. {@link #replaceMidTexCoord} right after removes the one
+     * declaration there is, so the program declares {@code mc_midTexCoord} once, as Celeritas's {@code in vec2}.
      */
     public static void patchMultiTexCoord3(ShaderAst ast, Parameters parameters) {
-        if (parameters.type == ShaderType.VERTEX && ast.hasVariable("gl_MultiTexCoord3") && !ast.hasVariable("mc_midTexCoord")) {
-            ast.rename("gl_MultiTexCoord3", "mc_midTexCoord");
-            ast.injectVariable("attribute vec4 mc_midTexCoord;");
-        }
+        CommonTransformer.patchMultiTexCoord3(ast, parameters, "attribute vec4 mc_midTexCoord;");
     }
 
     /**

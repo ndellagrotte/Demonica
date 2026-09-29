@@ -11,7 +11,8 @@ import java.util.Map;
  * common transformation, the entity uniforms, the matrix uniforms and, for vertex shaders, the fixed-function vertex
  * attributes as {@code layout}-located {@code iris_*} inputs. Ported verb for verb from the TauMC engine's
  * {@code net.coderbot.iris.pipeline.transform.AttributeTransformer} (Step 6 of
- * docs/glsl-transformer_adoption/ADOPTION_PLAN.md), with the same injected source strings.
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md), with the same injected source strings; {@code gl_MultiTexCoord3} is
+ * handled as Iris 26.1 does ({@link CommonTransformer#patchMultiTexCoord3}, Step 7b).
  */
 public final class AttributeTransformer {
 	private AttributeTransformer() {
@@ -71,10 +72,9 @@ public final class AttributeTransformer {
 			transformer.rename("gl_MultiTexCoord0", "iris_MultiTexCoord0");
 			transformer.rename("gl_MultiTexCoord1", "iris_MultiTexCoord1");
 
-			if (transformer.hasVariable("gl_MultiTexCoord3") && !transformer.hasVariable("mc_midTexCoord")) {
-				transformer.rename("gl_MultiTexCoord3", "mc_midTexCoord");
-				transformer.injectVariable("in vec4 mc_midTexCoord;");
-			}
+			// gl_MultiTexCoord3 as Iris 26.1 handles it (Step 7b); the TauMC engine patched only a declared one, and
+			// declared mc_midTexCoord twice then.
+			CommonTransformer.patchMultiTexCoord3(transformer, parameters, "in vec4 mc_midTexCoord;");
 		}
 	}
 }

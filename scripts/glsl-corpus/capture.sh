@@ -15,6 +15,10 @@
 # default roots stay untouched. Example, the Distant Horizons programs on the TauMC engine:
 #   GLSL_CORPUS_ROOT=run/transform-corpus-dh scripts/glsl-corpus/capture.sh complementary -PwithCompatMods
 #
+# The frames are the script's `shot <name>` steps. Only frames written during this run count (Step 7b): a frame that is
+# missing or older than the run's start (a run that stopped before its `shot` step leaves the previous run's file) is
+# named on stderr, nothing stale is copied, and the script exits 3 if the client itself exited 0.
+#
 # One client at a time, and no other Gradle build while it runs. The corpus is third-party shader code: it stays
 # under run/, which git ignores.
 set -euo pipefail
@@ -60,12 +64,35 @@ if [ "$name" = compat ]; then
     rm -rf "$root/run/client/compat_shaders"
 fi
 cd "$root"
+screenshots=$root/run/client/screenshots
+# The frames this run must write: the script's shot steps.
+mapfile -t shots < <(sed -n 's/^[[:space:]]*shot[[:space:]]\+\([^[:space:]]\+\).*/\1/p' "$script")
+# A marker older than anything the client writes: a frame counts only if it is newer.
+started=$(mktemp "${TMPDIR:-/tmp}/capture-$name.XXXXXX")
+trap 'rm -f "$started"' EXIT
+sleep 1
 status=0
 ./gradlew runClient "-PdevScript=@$script" "-PdevProps=$props" "${extra[@]}" "$@" > "$log" 2>&1 || status=$?
 rm -rf "$root/run/client/saves/corpus"
-if [ -n "$frames" ]; then
+missing=()
+fresh=()
+for shot in "${shots[@]}"; do
+    frame=$screenshots/$shot.png
+    if [ -f "$frame" ] && [ "$frame" -nt "$started" ]; then
+        fresh+=("$frame")
+    else
+        missing+=("$shot")
+    fi
+done
+if [ -n "$frames" ] && [ ${#fresh[@]} -gt 0 ]; then
     mkdir -p "$frames"
-    cp "$root"/run/client/screenshots/corpus-"$name"-*.png "$frames/" 2>/dev/null || true
+    cp "${fresh[@]}" "$frames/"
 fi
-echo "capture $name ($engine): exit $status, $(find "$corpus" -name case.properties 2>/dev/null | wc -l) cases in $corpus, log $log"
+echo "capture $name ($engine): exit $status, $(find "$corpus" -name case.properties 2>/dev/null | wc -l) cases in $corpus, log $log, frames ${#fresh[@]} of ${#shots[@]}"
+if [ ${#missing[@]} -gt 0 ]; then
+    echo "capture $name: MISSING frames (not written by this run): ${missing[*]}" >&2
+    if [ "$status" -eq 0 ]; then
+        status=3
+    fi
+fi
 exit $status

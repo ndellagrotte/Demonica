@@ -76,7 +76,19 @@ class TerrainVertexFormatScanParityTest {
             Arguments.of("swizzles and members", "in vec4 at_tangent; void main() { vec2 a = at_tangent.xy; float b = at_tangent.w; }"),
             Arguments.of("longer and shorter names", "in vec4 at_tangentX; in vec4 xat_tangent; in vec4 at_tangen; void main() { at_tangentX; }"),
             Arguments.of("a line continuation in code", "in vec4 at_tangent; void main() { vec4 t = at_\\\ntangent; vec4 u = at_tangent; }"),
-            Arguments.of("the Celeritas header's shape", CELERITAS_HEADER_SHAPE)
+            Arguments.of("the Celeritas header's shape", CELERITAS_HEADER_SHAPE),
+            // Step 7b: line ends and directive lines as TauMC's lexer modes read them.
+            Arguments.of("a line comment ended by a lone CR", "in vec4 at_tangent;\n// c\rvoid main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a line comment continued over a backslash and a lone CR", "in vec4 at_tangent;\n// c \\\rvoid main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("#error with a trailing backslash", "#error foo \\\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("#endif with a trailing backslash", "#ifdef B\n#endif \\\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("#endif ended by a lone CR", "#ifdef B\n#endif\rin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("#else ended by a lone CR", "#ifdef B\n#else\r#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a block comment over two lines on a #define line", "#define X /* a\n at_tangent */ 1\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a block comment over two lines on an #if line", "#if A /* a\n at_tangent */\n#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("comments on #define, #if, #elif, #else, #endif lines", "#define X 1 // c\n#if A /* c */\n#elif B // c\n#else /* c */\n#endif // c\n"
+                + "in vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("an indented directive and a null directive", "   #define X 1\n#\n#   \nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n")
         );
     }
 
@@ -99,7 +111,21 @@ class TerrainVertexFormatScanParityTest {
             Arguments.of("a stray backslash", "in vec4 at_tangent; void main() { \\ }"),
             Arguments.of("a form feed", "in vec4 at_tangent;\f void main() {}"),
             Arguments.of("a non-ASCII letter", "in vec4 at_tangént; void main() {}"),
-            Arguments.of("an unknown directive", "#include \"foo.glsl\"\nin vec4 at_tangent; void main() {}")
+            Arguments.of("an unknown directive", "#include \"foo.glsl\"\nin vec4 at_tangent; void main() {}"),
+            // Step 7b: directive lines TauMC's lexer rejected.
+            Arguments.of("a comment on an #ifdef line", "#ifdef A // c\n#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a comment on an #undef line", "#undef A // c\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a block comment on a #version line", "#version 330 core /* c */\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a comment on an #extension line", "#extension GL_X : enable // c\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a #pragma with a trailing backslash", "#pragma optimize(on) \\\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("an #ifndef with a trailing backslash", "#ifndef A \\\n#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a lone CR ending a #define line", "#define A\rin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a lone CR ending an #if line", "#if A\r#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a lone CR ending an #error line", "#error A\rin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a top-level #endif (TauMC threw EmptyStackException)", "#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("one #endif too many", "#ifdef A\n#endif\n#endif\nin vec4 at_tangent; void main() { vec4 t = at_tangent; }\n"),
+            Arguments.of("a # inside a line of code", "in vec4 at_tangent; void main() { # }\nvoid f() { vec4 t = at_tangent; }\n"),
+            Arguments.of("an upper-case directive", "#DEFINE X 1\nin vec4 at_tangent; void main() {}")
         );
     }
 
@@ -113,12 +139,15 @@ class TerrainVertexFormatScanParityTest {
     }
 
     /**
-     * The named differences, both toward the complete format: an unterminated block comment (the TauMC lexer read the
-     * rest as code) and an attribute read only inside an {@code #ifdef} block (the TauMC lexer read the block as one
-     * opaque token and did not count it).
+     * The differences that remain, each as {@code countIdentifiers}' javadoc lists it: an unterminated block comment
+     * (the TauMC lexer read the rest as code; the scan throws); an attribute read only inside an {@code #ifdef} block
+     * (the TauMC lexer read the block as one opaque token and did not count it); code after a {@code #line} directive,
+     * after an {@code #else} without an open block or after {@code #ifdef_X} (the TauMC lexer counted nothing more);
+     * and {@code #version}/{@code #pragma} contents the TauMC lexer rejected (the scan does not check them). In the
+     * rows where the scan counts more, TauMC's count left out attributes the program reads.
      */
     @Test
-    void differencesTowardTheCompleteFormat() {
+    void remainingDifferences() {
         final String unterminated = "in vec4 at_tangent; void main() { vec4 t = at_tangent; } /* at_midBlock";
         assertArrayEquals(new int[] {0, 0, 2, 1, 0}, taumc(unterminated));
         assertThrows(IllegalArgumentException.class, () -> TerrainVertexFormatRequirements.countIdentifiers(unterminated));
@@ -126,6 +155,17 @@ class TerrainVertexFormatScanParityTest {
         final String conditional = "in vec4 at_tangent;\n#ifdef TANGENTS\nvoid f() { vec4 t = at_tangent; }\n#endif\nvoid main() {}\n";
         assertArrayEquals(new int[] {0, 0, 1, 0, 0}, taumc(conditional));
         assertArrayEquals(new int[] {0, 0, 2, 0, 0}, TerrainVertexFormatRequirements.countIdentifiers(conditional));
+
+        final String code = "in vec4 at_tangent; void main() { vec4 t = at_tangent; }\n";
+        for (String countedNothingMore : List.of("#line 5\n" + code, "#line abc\n" + code, "#else\n" + code, "#elif A\n" + code,
+            "#ifdef A\n#endif\n#else\n" + code, "#ifdef_X\n" + code)) {
+            assertArrayEquals(new int[] {0, 0, 0, 0, 0}, taumc(countedNothingMore), countedNothingMore);
+            assertArrayEquals(new int[] {0, 0, 2, 0, 0}, TerrainVertexFormatRequirements.countIdentifiers(countedNothingMore), countedNothingMore);
+        }
+        for (String unchecked : List.of("#version abc\n" + code, "#version 330 foo\n" + code, "#pragma @@\n" + code, "#pragma \"x\"\n" + code)) {
+            assertEquals(null, taumc(unchecked), unchecked);
+            assertArrayEquals(new int[] {0, 0, 2, 0, 0}, TerrainVertexFormatRequirements.countIdentifiers(unchecked), unchecked);
+        }
     }
 
     /**
@@ -170,7 +210,11 @@ class TerrainVertexFormatScanParityTest {
         assertEquals(0, differing);
     }
 
-    /** The scan {@code TerrainVertexFormatRequirements} did before Step 6: TauMC's lexer; null when it reported an error. */
+    /**
+     * The scan {@code TerrainVertexFormatRequirements} did before Step 6: TauMC's lexer; null when it reported an error
+     * or threw (a top-level {@code #endif}: {@code EmptyStackException}), which {@code analyze} treated alike, keeping
+     * the complete format.
+     */
     static int[] taumc(String source) {
         final TerrainVertexFormatRequirements.Attribute[] attributes = TerrainVertexFormatRequirements.Attribute.values();
         final int[] occurrences = new int[attributes.length];
@@ -184,7 +228,13 @@ class TerrainVertexFormatScanParityTest {
                 errors[0]++;
             }
         });
-        for (Token token : lexer.getAllTokens()) {
+        final List<? extends Token> tokens;
+        try {
+            tokens = lexer.getAllTokens();
+        } catch (RuntimeException exception) {
+            return null;
+        }
+        for (Token token : tokens) {
             if (token.getType() != GLSLLexer.IDENTIFIER) {
                 continue;
             }

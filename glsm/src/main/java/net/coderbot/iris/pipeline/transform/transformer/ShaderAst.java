@@ -1,6 +1,7 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
 import io.github.douira.glsl_transformer.GLSLLexer;
+import io.github.douira.glsl_transformer.GLSLParser.TranslationUnitContext;
 import io.github.douira.glsl_transformer.ast.node.Identifier;
 import io.github.douira.glsl_transformer.ast.node.TranslationUnit;
 import io.github.douira.glsl_transformer.ast.node.Version;
@@ -38,9 +39,12 @@ import io.github.douira.glsl_transformer.ast.print.ASTPrinter;
 import io.github.douira.glsl_transformer.ast.print.PrintType;
 import io.github.douira.glsl_transformer.ast.query.Root;
 import io.github.douira.glsl_transformer.ast.query.RootSupplier;
+import io.github.douira.glsl_transformer.ast.transform.ASTBuilder;
 import io.github.douira.glsl_transformer.ast.transform.ASTParser;
 import io.github.douira.glsl_transformer.ast.transform.JobParameters;
 import io.github.douira.glsl_transformer.ast.traversal.ASTVoidVisitor;
+import io.github.douira.glsl_transformer.parser.EnhancedParser;
+import io.github.douira.glsl_transformer.parser.ParseShape;
 import io.github.douira.glsl_transformer.parser.ParsingException;
 import io.github.douira.glsl_transformer.token_filter.ChannelFilter;
 import io.github.douira.glsl_transformer.token_filter.TokenChannel;
@@ -98,8 +102,9 @@ import java.util.regex.Pattern;
  * {@link #findQualifiers}, {@link #removeConstAssignment}).</p>
  *
  * <p>Life cycle: {@link #parse(String, int)}, then the verbs, then {@link #print(String)}. An instance is not
- * thread-safe. Different instances may be used on different threads: they share one parser, and every method that
- * parses or builds AST nodes holds {@link #BUILD_LOCK} while it does (see {@link #newParser} and {@link #build}).</p>
+ * thread-safe. Different instances may be used on different threads: a program's ANTLR parse runs on a parser of its
+ * own, and every method that builds AST nodes (the program's AST, each verb's snippet on the shared snippet parser)
+ * holds {@link #BUILD_LOCK} while it does (see {@link #parse(String, int)}, {@link #newParser} and {@link #build}).</p>
  *
  * <p>This class lives in the {@code glsm} project, not next to the Iris transformers in {@code shader}, because
  * GLSM's {@code CompatShaderTransformer} must use it too and {@code glsm} cannot see {@code shader}.</p>
@@ -116,13 +121,16 @@ public final class ShaderAst {
     /**
      * glsl-transformer 3.0.0-pre3 gives every AST node it constructs the root on top of a static, unsynchronized
      * stack ({@code Root.activeBuildRoots}), which each build pushes and pops. Two threads building nodes at once, even
-     * with separate parsers, can give nodes the other thread's root or corrupt the stack. The lock also guards the one
-     * parser every program shares ({@link #t}; see {@link #newParser}). Every method of this class that builds nodes
-     * (the parse, and each verb that parses a snippet) holds this lock while it does; code that uses {@link #t},
+     * with separate parsers, can give nodes the other thread's root or corrupt the stack. The lock also guards the
+     * snippet parser every program shares ({@link #t}; see {@link #newParser}). Every method of this class that builds
+     * nodes (the AST build of a parsed program, and each verb that parses a snippet) holds this lock while it does; the
+     * ANTLR parse of a program does not (Step 7b; {@link #parse(String, int)}). Code that uses {@link #t},
      * {@link #tree} or {@link #root} to build nodes itself (a {@code parseAndInjectNode}, a
      * {@code new Identifier(...)}) must run it through {@link #build}, which holds the lock and sets the lexer version.
      * Reentrant. Step 5 measured holding it around a whole transform instead: slower under concurrency, no faster
-     * alone (docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md).
+     * alone (docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md). Step 7b took the programs' ANTLR
+     * parses out of it: in game, eight {@code Shader-Transform} threads spent most of a transform waiting for it
+     * (docs/glsl-transformer_adoption/reports/S7b-hardening.md). {@link Timing} counts the waits.
      */
     public static final ReentrantLock BUILD_LOCK = new ReentrantLock();
 
@@ -131,18 +139,21 @@ public final class ShaderAst {
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     /**
-     * The parser, shared by every program: the argument every glsl-transformer call that parses a snippet needs. Use it
+     * The snippet parser, shared by every program: the argument every glsl-transformer call that parses a snippet needs. Use it
      * only inside {@link #build}.
      */
     public final ASTParser t;
-    /** The program. {@link #print(String)} removes its version statement and extension directives. */
+    /**
+     * The program. It holds no {@code #extension} directive ({@link ExtensionLines} takes them out before the parse);
+     * {@link #print(String)} removes its version statement.
+     */
     public final TranslationUnit tree;
     /** The indexes of {@link #tree}: identifiers by name, nodes by class, external declarations by name. */
     public final Root root;
 
     private final List<String> droppedDirectives;
-    // How many of the program's #extension directives are in its leading directive block (see leadingExtensionCount).
-    private final int leadingExtensions;
+    // The #extension lines of the program's leading directive block, for the header (see ExtensionLines).
+    private final List<String> leadingExtensions;
     // The lexer version of the parse; every snippet a verb parses is lexed at it too (see snippet).
     private final Version lexerVersion;
     // The spelling of each numeric type specifier of the parsed program whose spelling is not the type's compact name
@@ -164,7 +175,7 @@ public final class ShaderAst {
         Expression.ExpressionType.RIGHT_SHIFT_ASSIGNMENT, Expression.ExpressionType.BITWISE_AND_ASSIGNMENT,
         Expression.ExpressionType.BITWISE_XOR_ASSIGNMENT, Expression.ExpressionType.BITWISE_OR_ASSIGNMENT);
 
-    private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives, int leadingExtensions,
+    private ShaderAst(ASTParser t, TranslationUnit tree, Root root, List<String> droppedDirectives, List<String> leadingExtensions,
                       Version lexerVersion, Map<BuiltinNumericTypeSpecifier, String> spelledTypes) {
         this.t = t;
         this.tree = tree;
@@ -194,12 +205,15 @@ public final class ShaderAst {
      * Parses a program with the lexer set to GLSL {@code version}, which decides which words are keywords
      * ({@code sample} is one from 400 on). Pass the version of the {@code #version} line the source carries.
      *
-     * <p>Preprocessor directives other than {@code #version} and {@code #extension} are dropped and logged, as the
-     * TauMC engine ignored them: the channel filter drops {@code #define}, {@code #if} and the like, and
-     * {@code #pragma}, which glsl-transformer parses, is removed from the tree. An {@code #extension} after the leading
-     * directive block ({@link #extensionDirectives()}) is dropped too, as the TauMC engine dropped it.
-     * {@link #droppedDirectives()} lists them. {@code #version} and {@code #extension} stay in the tree until
-     * {@link #print(String)}.</p>
+     * <p>{@code #extension} lines are taken out of the text before the parse ({@link ExtensionLines}, Step 7b): those
+     * of the leading directive block are {@link #extensionDirectives()}; one after that block is dropped, as the TauMC
+     * engine dropped it. Other preprocessor directives but {@code #version} are dropped and logged, as the TauMC engine
+     * ignored them: the channel filter drops {@code #define}, {@code #if} and the like, and {@code #pragma}, which
+     * glsl-transformer parses, is removed from the tree. {@link #droppedDirectives()} lists them. {@code #version}
+     * stays in the tree until {@link #print(String)}.</p>
+     *
+     * <p>The ANTLR parse runs on a parser of its own, outside {@link #BUILD_LOCK}; only the AST build from its parse
+     * tree holds the lock (Step 7b).</p>
      *
      * @throws SyntaxException          if the source does not parse
      * @throws IllegalArgumentException if glsl-transformer has no {@link Version} for {@code version}
@@ -209,43 +223,68 @@ public final class ShaderAst {
     }
 
     private static ShaderAst parse(String source, Version lexerVersion) {
+        // The #extension lines are taken out of the text before the parse (Step 7b; see ExtensionLines).
+        final ExtensionLines extensionLines = ExtensionLines.of(source);
+        final String text = extensionLines.text();
         final DirectiveFilter filter = new DirectiveFilter();
         final Root root = ROOT_SUPPLIER.get();
         final Version version = lexerVersion != null ? lexerVersion : DEFAULT_LEXER_VERSION;
+        final Timing timing = Timing.CURRENT.get();
         final TranslationUnit tree;
         final List<String> dropped;
         final List<TypeToken> typeTokens;
-        BUILD_LOCK.lock();
         try {
-            PARSER.setTokenFilter(filter);
-            PARSER.getLexer().version = version;
-            tree = PARSER.parseTranslationUnit(root, source);
-            // Read under the lock: the filter stays on the shared parser, and the next parse (a snippet of another
-            // program on another thread) resets it.
+            // The ANTLR parse (lexing, the channel filter, the parse tree) touches no glsl-transformer build state, so
+            // it runs outside BUILD_LOCK on a parser of its own (Step 7b; ASTParser.parseTranslationUnit does the same
+            // two calls, parse then build, on its shared parser). Only the AST build holds the lock.
+            final long parseStart = System.nanoTime();
+            final TranslationUnitContext parsed = newProgramParser(filter, version).parse(text, ParseShape.TRANSLATION_UNIT);
+            timing.parseNanos += System.nanoTime() - parseStart;
+            final long acquired = lockBuild(timing);
+            final long buildStart = System.nanoTime();
+            try {
+                tree = ASTBuilder.buildSubtree(root, parsed, ParseShape.TRANSLATION_UNIT.visitMethod);
+            } finally {
+                timing.programBuildNanos += System.nanoTime() - buildStart;
+                unlockBuild(timing, acquired);
+            }
             dropped = new ArrayList<>(filter.dropped.values());
             typeTokens = new ArrayList<>(filter.numericTypes.values());
         } catch (ParsingException | ParseCancellationException e) {
             throw SyntaxException.of(e);
-        } finally {
-            filter.recording = false;
-            BUILD_LOCK.unlock();
         }
-        final int leadingExtensions = leadingExtensionCount(source);
-        int extensions = 0;
         for (ExternalDeclaration declaration : new ArrayList<>(tree.getChildren())) {
             if (declaration instanceof PragmaDirective pragma) {
                 dropped.add(ASTPrinter.print(PrintType.COMPACT, pragma).trim());
                 pragma.detachAndDelete();
-            } else if (declaration instanceof ExtensionDirective extension && ++extensions > leadingExtensions) {
-                // Left in the tree: print() removes every #extension, and extensionDirectives() skips this one.
+            } else if (declaration instanceof ExtensionDirective extension) {
+                // One the text scan did not take out (a directive after a comment on its line): dropped, as TauMC's
+                // engine dropped every #extension outside the leading block.
                 dropped.add(extensionLine(extension) + " (after the leading directives)");
+                extension.detachAndDelete();
             }
+        }
+        for (String later : extensionLines.later()) {
+            dropped.add(later + " (after the leading directives)");
         }
         if (!dropped.isEmpty()) {
             LOGGER.warn("[ShaderAst] Dropped {} preprocessor directive(s): {}", dropped.size(), dropped);
         }
-        return new ShaderAst(PARSER, tree, root, List.copyOf(dropped), Math.min(leadingExtensions, extensions), version,
+        return new ShaderAst(PARSER, tree, root, List.copyOf(dropped), extensionLines.leading(), version,
             spelledTypes(tree, typeTokens));
+    }
+
+    /**
+     * A parser for one program: the same configuration as {@link #newParser}'s ({@code ParsingCacheStrategy.NONE} is a
+     * plain {@link EnhancedParser}), with the program's filter and lexer version. Built per parse: an
+     * {@link EnhancedParser} is a lexer and a parser over ANTLR's shared, thread-safe DFA, so it is cheap to build, and
+     * a fresh one keeps no token stream of an earlier program alive.
+     */
+    private static EnhancedParser newProgramParser(DirectiveFilter filter, Version version) {
+        final EnhancedParser parser = new EnhancedParser();
+        parser.setTokenFilter(filter);
+        parser.getLexer().version = version;
+        return parser;
     }
 
     private static final Pattern EXTENSION_LINE = Pattern.compile("#[ \\t]*extension\\b");
@@ -268,6 +307,11 @@ public final class ShaderAst {
      * rule keeps it); and conditional directives, after which TauMC's lexer reads program text into the block.</p>
      */
     static int leadingExtensionCount(String source) {
+        return leadingBlock(source)[0];
+    }
+
+    /** {@link #leadingExtensionCount}'s block: {count of #extension lines, the offset where the block ends}. */
+    private static int[] leadingBlock(String source) {
         final int length = source.length();
         int count = 0;
         int start = 0;
@@ -295,7 +339,127 @@ public final class ShaderAst {
             }
             start = end;
         }
-        return count;
+        return new int[] {count, start};
+    }
+
+    // An #extension directive once its comments and continuations are gone: the name (any, "all" included) and the
+    // optional behavior.
+    private static final Pattern EXTENSION_PARTS = Pattern.compile(
+        "#[ \\t]*extension[ \\t]+([^\\s:]+)[ \\t]*(?::[ \\t]*([A-Za-z_][A-Za-z0-9_]*))?[ \\t]*");
+
+    /**
+     * The {@code #extension} directives of a program, taken out of its text before the parse (Step 7b of
+     * docs/glsl-transformer_adoption/ADOPTION_PLAN.md, report S7b-hardening.md), with the text that is parsed instead:
+     * each directive line blanked (its characters but the line breaks become spaces, so line numbers stay). The lines
+     * are found by text, outside comments, where a line's first non-blank character is {@code #} followed by
+     * {@code extension}; a backslash before the line break continues one. A line whose name and behavior do not read
+     * as {@code #extension NAME [: BEHAVIOR]} stays in the text for the parser to judge.
+     *
+     * <p>{@link #leading()} are those of the leading directive block ({@link #leadingExtensionCount}), formatted as
+     * TauMC's token printer wrote them, {@code #extension NAME : behavior}: the header lines, as the TauMC engine's.
+     * {@link #later()} are the others (after code, inside a function, indented), which the TauMC engine dropped. Taking
+     * them out of the text is what lets a program parse that glsl-transformer 3.0.0-pre3 would reject though TauMC's
+     * engine transformed it: {@code #extension all : warn} (its {@code extensionDirective} rule wants an
+     * {@code NR_IDENTIFIER}, and its directive lexer mode reads {@code all} as {@code NR_ALL}, the keyword of
+     * {@code #pragma invariant(all)}), an {@code #extension} inside a function body, and an {@code #extension} before
+     * {@code #version}
+     * (the leading block then starts with it, and it goes to the header after {@code #version}, as in TauMC's
+     * output).</p>
+     */
+    record ExtensionLines(String text, List<String> leading, List<String> later) {
+        static ExtensionLines of(String source) {
+            final int length = source.length();
+            final int leadingEnd = leadingBlock(source)[1];
+            final List<String> leading = new ArrayList<>();
+            final List<String> later = new ArrayList<>();
+            StringBuilder text = null;
+            boolean lineStart = true;
+            int i = 0;
+            while (i < length) {
+                final char c = source.charAt(i);
+                if (c == '\n' || c == '\r') {
+                    lineStart = true;
+                    i++;
+                } else if (c == ' ' || c == '\t') {
+                    i++;
+                } else if (c == '/' && i + 1 < length && source.charAt(i + 1) == '*') {
+                    final int close = source.indexOf("*/", i + 2);
+                    i = close < 0 ? length : close + 2;
+                    lineStart = false;
+                } else if (c == '/' && i + 1 < length && source.charAt(i + 1) == '/') {
+                    i = lineEnd(source, i, false);
+                } else if (c == '#' && lineStart) {
+                    final int end = lineEnd(source, i, true);
+                    if (EXTENSION_LINE.matcher(source).region(i, end).lookingAt()) {
+                        final java.util.regex.Matcher parts = EXTENSION_PARTS.matcher(withoutCommentsAndContinuations(source, i, end));
+                        if (parts.matches()) {
+                            final String line = "#extension " + parts.group(1) + (parts.group(2) != null ? " : " + parts.group(2) : "");
+                            (i < leadingEnd ? leading : later).add(line);
+                            if (text == null) {
+                                text = new StringBuilder(source);
+                            }
+                            for (int k = i; k < end; k++) {
+                                if (source.charAt(k) != '\n' && source.charAt(k) != '\r') {
+                                    text.setCharAt(k, ' ');
+                                }
+                            }
+                        }
+                    }
+                    i = end;
+                    lineStart = false;
+                } else {
+                    lineStart = false;
+                    i++;
+                }
+            }
+            return new ExtensionLines(text != null ? text.toString() : source, List.copyOf(leading), List.copyOf(later));
+        }
+
+        /**
+         * Where the directive or line comment starting at {@code start} ends: at its line break ({@code \n},
+         * {@code \r\n} or a lone {@code \r}), which a backslash right before it continues; in a directive
+         * ({@code directive}), a block comment may span lines. The line break itself is not part of it.
+         */
+        private static int lineEnd(String source, int start, boolean directive) {
+            final int length = source.length();
+            int i = start;
+            while (i < length) {
+                final char c = source.charAt(i);
+                if (c == '\\' && i + 1 < length && (source.charAt(i + 1) == '\n' || source.charAt(i + 1) == '\r')) {
+                    i += source.charAt(i + 1) == '\r' && i + 2 < length && source.charAt(i + 2) == '\n' ? 3 : 2;
+                } else if (c == '\n' || c == '\r') {
+                    return i;
+                } else if (directive && c == '/' && i + 1 < length && source.charAt(i + 1) == '*') {
+                    final int close = source.indexOf("*/", i + 2);
+                    i = close < 0 ? length : close + 2;
+                } else {
+                    i++;
+                }
+            }
+            return length;
+        }
+
+        /** The directive's text with its comments replaced by a space and its continuations joined. */
+        private static String withoutCommentsAndContinuations(String source, int start, int end) {
+            final StringBuilder line = new StringBuilder(end - start);
+            int i = start;
+            while (i < end) {
+                final char c = source.charAt(i);
+                if (c == '\\' && i + 1 < end && (source.charAt(i + 1) == '\n' || source.charAt(i + 1) == '\r')) {
+                    i += source.charAt(i + 1) == '\r' && i + 2 < end && source.charAt(i + 2) == '\n' ? 3 : 2;
+                } else if (c == '/' && i + 1 < end && source.charAt(i + 1) == '*') {
+                    final int close = source.indexOf("*/", i + 2);
+                    i = close < 0 || close + 2 > end ? end : close + 2;
+                    line.append(' ');
+                } else if (c == '/' && i + 1 < end && source.charAt(i + 1) == '/') {
+                    break;
+                } else {
+                    line.append(c);
+                    i++;
+                }
+            }
+            return line.toString().stripTrailing();
+        }
     }
 
     /**
@@ -354,21 +518,22 @@ public final class ShaderAst {
     }
 
     /**
-     * The one parser of every program and every snippet, used only under {@link #BUILD_LOCK} (see {@link #newParser}).
-     * Each {@link #parse} sets its own filter and lexer version on it; {@link #build} sets the program's version again
-     * before a verb's snippet.
+     * The one parser of every snippet, used only under {@link #BUILD_LOCK} (see {@link #newParser}); {@link #build} sets
+     * the program's lexer version on it before a verb's snippet. Programs are parsed on parsers of their own
+     * ({@link #newProgramParser}).
      */
-    private static final ASTParser PARSER = newParser(new DirectiveFilter());
+    private static final ASTParser PARSER = newParser(DirectiveFilter.forSnippets());
 
     // The lexer's own default version, for a source without #version.
     private static final Version DEFAULT_LEXER_VERSION = PARSER.getLexer().version;
 
     /**
-     * Builds a parser; {@link #PARSER}, the one every program uses, is built here. Step 5 measured one parser per
+     * Builds a parser; {@link #PARSER}, the snippet parser every program uses, is built here. Step 5 measured one parser per
      * {@link #parse} against one shared parser under {@link #BUILD_LOCK} on the recorded COMPOSITE cases (the replay's
      * concurrent pass and {@code TransformPatcherCacheTest}): the shared parser was faster alone and on eight threads,
      * mostly because its AST cache (below) keeps the verbs' snippets across programs (report
-     * docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md).
+     * docs/glsl-transformer_adoption/reports/S05-orchestrator-composite.md). Since Step 7b only snippets go through it;
+     * programs are parsed by {@link #newProgramParser}, with the same parsing configuration, outside the lock.
      *
      * <p>Parsing cache: {@link ASTParser.ParsingCacheStrategy#NONE}. The two-tier cache that Iris uses returns a
      * cached parse tree for a translation unit it has seen, and then the channel filter sees no tokens, so a
@@ -398,12 +563,103 @@ public final class ShaderAst {
      * parsed at another version since. Every verb of this class that parses goes through here.
      */
     public <N> N build(Supplier<N> build) {
-        BUILD_LOCK.lock();
+        final Timing timing = Timing.CURRENT.get();
+        final long acquired = lockBuild(timing);
         try {
             t.getLexer().version = lexerVersion;
             return build.get();
         } finally {
-            BUILD_LOCK.unlock();
+            unlockBuild(timing, acquired);
+        }
+    }
+
+    /**
+     * Takes {@link #BUILD_LOCK} and counts the wait in {@code timing}. Returns when the lock was acquired, or -1 for a
+     * reentrant acquisition, which is neither waited for nor counted.
+     */
+    private static long lockBuild(Timing timing) {
+        if (BUILD_LOCK.isHeldByCurrentThread()) {
+            BUILD_LOCK.lock();
+            return -1;
+        }
+        final long start = System.nanoTime();
+        if (!BUILD_LOCK.tryLock()) {
+            timing.contended++;
+            BUILD_LOCK.lock();
+        }
+        final long acquired = System.nanoTime();
+        timing.acquisitions++;
+        timing.lockWaitNanos += acquired - start;
+        return acquired;
+    }
+
+    private static void unlockBuild(Timing timing, long acquired) {
+        if (acquired >= 0) {
+            timing.lockHeldNanos += System.nanoTime() - acquired;
+        }
+        BUILD_LOCK.unlock();
+    }
+
+    /**
+     * Where the current thread's parse and build time went since {@link #start()}, for the transform timing that
+     * {@code -Ddemonica.glsmPerfDebug=true} logs (Step 7b): the ANTLR parses of programs (outside the lock), the AST
+     * builds of programs, and the waits for and holds of {@link #BUILD_LOCK} (program builds and every verb's snippet).
+     * Per thread; counting costs two {@code nanoTime} calls per lock acquisition.
+     */
+    public static final class Timing {
+        private static final ThreadLocal<Timing> CURRENT = ThreadLocal.withInitial(Timing::new);
+
+        private long parseNanos;
+        private long programBuildNanos;
+        private long lockWaitNanos;
+        private long lockHeldNanos;
+        private int acquisitions;
+        private int contended;
+
+        private Timing() {
+        }
+
+        /** Resets and returns the current thread's timing. */
+        public static Timing start() {
+            final Timing timing = CURRENT.get();
+            timing.parseNanos = 0;
+            timing.programBuildNanos = 0;
+            timing.lockWaitNanos = 0;
+            timing.lockHeldNanos = 0;
+            timing.acquisitions = 0;
+            timing.contended = 0;
+            return timing;
+        }
+
+        public double parseMs() {
+            return parseNanos / 1_000_000.0;
+        }
+
+        public double programBuildMs() {
+            return programBuildNanos / 1_000_000.0;
+        }
+
+        public double lockWaitMs() {
+            return lockWaitNanos / 1_000_000.0;
+        }
+
+        public double lockHeldMs() {
+            return lockHeldNanos / 1_000_000.0;
+        }
+
+        public int acquisitions() {
+            return acquisitions;
+        }
+
+        public int contended() {
+            return contended;
+        }
+
+        /** {@code parseMs=.. buildMs=.. lockWaitMs=.. lockHeldMs=.. locks=.. contended=..}. */
+        @Override
+        public String toString() {
+            return String.format(java.util.Locale.ROOT, "parseMs=%.3f buildMs=%.3f lockWaitMs=%.3f lockHeldMs=%.3f locks=%d contended=%d",
+                parseMs(), programBuildMs(), lockWaitMs(), lockHeldMs(), acquisitions, contended);
         }
     }
 
@@ -423,21 +679,16 @@ public final class ShaderAst {
      *
      * <p>An {@code #extension} after that block is not returned: TauMC's pre-parser never read it and its parser
      * ignores directives, so the TauMC engine dropped it, and so does this class ({@link #parse} lists it in
-     * {@link #droppedDirectives()} and logs it; {@link #print(String)} removes it from the body). glsl-transformer
-     * parses {@code #extension} anywhere at the top level, so without this rule such a line would move into the header,
-     * where a {@code require} of an extension the driver lacks fails a program TauMC's output compiled.</p>
+     * {@link #droppedDirectives()} and logs it; it is not in the parsed text, so not in the body either). Moving such a
+     * line into the header would make a {@code require} of an extension the driver lacks fail a program TauMC's output
+     * compiled. The lines are found in the text ({@link ExtensionLines}, Step 7b), so their name and behavior are not
+     * checked by glsl-transformer's grammar ({@code #extension all : warn} is valid GLSL it rejects).</p>
      *
      * <p>{@link #print(String)} removes the directives from the tree, so the orchestrator reads them first and writes
      * them into its header.</p>
      */
     public List<String> extensionDirectives() {
-        final List<String> lines = new ArrayList<>();
-        for (ExternalDeclaration declaration : tree.getChildren()) {
-            if (declaration instanceof ExtensionDirective extension && lines.size() < leadingExtensions) {
-                lines.add(extensionLine(extension));
-            }
-        }
-        return lines;
+        return leadingExtensions;
     }
 
     private static String extensionLine(ExtensionDirective extension) {
@@ -454,8 +705,8 @@ public final class ShaderAst {
     /**
      * Prints the program under {@code header}, as {@code GlslTransformUtils.getFormattedShader(tree, header)} did:
      * the header, a newline, then the body. The body is printed with {@link PrintType#INDENTED} after the version
-     * statement and every {@code #extension} directive are removed from {@link #tree} (the orchestrator writes its
-     * own {@code #version} and extension lines into the header). Read them before printing if they are needed.
+     * statement is removed from {@link #tree} (the orchestrator writes its own {@code #version} and extension lines
+     * into the header; the tree has no {@code #extension} directive, see {@link ExtensionLines}).
      */
     public String print(String header) {
         final VersionStatement version = tree.getVersionStatement();
@@ -1652,6 +1903,13 @@ public final class ShaderAst {
 
         DirectiveFilter() {
             super(TokenChannel.PREPROCESSOR);
+        }
+
+        /** The shared parser's filter: the verbs' snippets are Iris's code, whose type spellings nobody reads. */
+        static DirectiveFilter forSnippets() {
+            final DirectiveFilter filter = new DirectiveFilter();
+            filter.recording = false;
+            return filter;
         }
 
         @Override

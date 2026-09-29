@@ -22,6 +22,33 @@ public final class CommonTransformer {
 	private CommonTransformer() {
 	}
 
+	/**
+	 * {@code gl_MultiTexCoord3}, OptiFine's old alias of {@code mc_midTexCoord}, in a vertex shader, as Iris 26.1's
+	 * {@code CommonTransformer.patchMultiTexCoord3} handles it, with one fix (Step 7b of
+	 * docs/glsl-transformer_adoption/ADOPTION_PLAN.md, report S7b-hardening.md): if the shader uses
+	 * {@code gl_MultiTexCoord3} at all (declared or as the built-in, which a core profile does not have) and does not
+	 * declare {@code mc_midTexCoord}, every {@code gl_MultiTexCoord3} becomes {@code mc_midTexCoord}, and
+	 * {@code declaration} declares it, unless the shader declared {@code gl_MultiTexCoord3} itself: its renamed
+	 * declaration is then the one (Iris declares it again, and so did the TauMC engine, giving two declarations).
+	 *
+	 * <p>The TauMC engine tested {@code hasVariable} for both names (declared), so a shader that read the built-in was
+	 * not patched and kept {@code gl_MultiTexCoord3} in a core-profile program; Iris 26.1 tests any use for both. This
+	 * tests any use of {@code gl_MultiTexCoord3}, as Iris, and a declaration of {@code mc_midTexCoord}, as TauMC: a
+	 * shader that reads {@code mc_midTexCoord} without declaring it gets the declaration it lacks. A shader that reads
+	 * the built-in {@code gl_MultiTexCoord3} and declares {@code mc_midTexCoord} is left alone, by all three (report
+	 * S7b, Open questions).</p>
+	 */
+	public static void patchMultiTexCoord3(ShaderAst ast, Parameters parameters, String declaration) {
+		if (parameters.type == ShaderType.VERTEX && ast.root.identifierIndex.has("gl_MultiTexCoord3")
+			&& !ast.hasVariable("mc_midTexCoord")) {
+			final boolean declared = ast.hasVariable("gl_MultiTexCoord3");
+			ast.rename("gl_MultiTexCoord3", "mc_midTexCoord");
+			if (!declared) {
+				ast.injectVariable(declaration);
+			}
+		}
+	}
+
 	public static void transform(ShaderAst root, Parameters parameters, boolean core, int glslVersion) {
 		root.rename("gl_FogFragCoord", "iris_FogFragCoord");
 		if (parameters.type == ShaderType.VERTEX) {
