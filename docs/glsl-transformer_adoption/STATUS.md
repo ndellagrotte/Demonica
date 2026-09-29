@@ -16,14 +16,15 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
 | S7b pre-flip hardening (added by the orchestrator) | done | `307d84ce`; report and status `33916dfc`; verification fixes `658bf2cf` and `glsl-transformer: S7b fix continued line comments on extension lines` | 2026-09-29 | [S7b-hardening.md](reports/S7b-hardening.md) |
 | S8 flip the default, port the tests, full run (exit point A) | done; **exit point A reached** | `72190445`; report and status `392f4dd3`; verification fix `02f161d6` | 2026-09-29 | [S08-flip-default.md](reports/S08-flip-default.md) |
 | S9 GLSM subtractions and utilities | done | `21eb3764`; report and status in the commit that adds the report | 2026-09-29 | [S09-glsm-subtractions.md](reports/S09-glsm-subtractions.md) |
-| S10 `CompatShaderTransformer` | not started | | | |
+| S10 `CompatShaderTransformer` | done | `65b3efed`; report and status in the commit that adds the report | 2026-09-29 | [S10-compat-shader-transformer.md](reports/S10-compat-shader-transformer.md) |
 | S11 remove TauMC, release checks (exit point B) | not started | | | |
 | S12 optional payoff | not started | | | |
 
 ## Facts every step needs
 
-- Engine switch: system property `demonica.glsl.engine` (`douira`, the default since S8, `TransformPatcher.Engine.DEFAULT`;
-  or `taumc` until Step 11), read once by `TransformPatcher.engine()` and logged at first use as
+- Engine switch: system property `demonica.glsl.engine` (`douira`, the default since S8, `GlslTransformEngine.DEFAULT`
+  since S10, before that `TransformPatcher.Engine.DEFAULT`; or `taumc` until Step 11), read once by
+  `TransformPatcher.engine()` and logged at first use as
   `[TransformPatcher] GLSL transform engine: <id> (demonica.glsl.engine)`. An unknown value logs a WARN,
   `[TransformPatcher] Unknown GLSL transform engine '<value>' in demonica.glsl.engine; using douira`, and falls back
   to the default (before S8: `taumc`). The engine is fixed per JVM, and the transform cache key does not include it. The new engine is
@@ -157,3 +158,13 @@ depends on before it starts, and updates its own row when it is done. Branch: `f
   engine's `ShaderTransformer` and `AdaptiveShadowBoundsTransformer`, GLSM's `CompatShaderTransformer`, TauMC-oracle
   tests; the list is in the S9 report). `glsm/ffp/VertexShaderGeneratorTest` runs on `ShaderAst` and `GlslTokens`, no
   TauMC. Full `:test`: 1,065 tests, 0 failures, 4 skipped; mini-corpus replay unchanged.
+- S10 (S10 report): GLSM's `CompatShaderTransformer` runs on `ShaderAst` by default. Both it and `TransformPatcher`
+  resolve the engine through `glsm/.../glsm/GlslTransformEngine` (property, default `douira`, the same WARN fallback for
+  an unknown value), each logging `[CompatShaderTransformer]`/`[TransformPatcher] GLSL transform engine: <id>
+  (demonica.glsl.engine)` once. The verb sequence is written once over a private `Verbs` interface with a TauMC and a
+  `ShaderAst` adapter; `CompatShaderTransformer.transform(source, isFragment, engine)` lets the replay pick the engine,
+  so compat cases replay on `douira` (every recorded compat case identical: 121 cases, 22 distinct inputs).
+  `ShaderAst.print(header, version)` prints floats without `f` below 130 (unreachable today: compat output is at least
+  330). The mini-corpus has 39 cases (11 compat; `:test` replay `identical=30 accepted=9 failing=0 unsupported=0`).
+  `scripts/glsl-corpus/compat-bsl.txt` loads BSL with `-PwithCompatMods`. Full `:test`: 1,073 tests, 0 failures, 4
+  skipped.
