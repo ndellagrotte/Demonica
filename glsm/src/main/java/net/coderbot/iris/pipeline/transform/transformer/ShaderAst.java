@@ -748,6 +748,28 @@ public final class ShaderAst {
      * into the header; the tree has no {@code #extension} directive, see {@link ExtensionLines}).
      */
     public String print(String header) {
+        removeHeaderDirectives();
+        return header + "\n" + ASTPrinter.print(PrintType.INDENTED, tree);
+    }
+
+    /**
+     * {@link #print(String)} for output that declares GLSL {@code version}. glsl-transformer prints every
+     * {@code float} literal with an {@code f} suffix ({@code 1.0f}), which GLSL added in 1.30; below 130 this prints
+     * floats without it ({@code 1.0}, {@code 1.0E-4}), otherwise it is {@link #print(String)}. GLSM's
+     * {@code CompatShaderTransformer} passes its output version (Step 10); the Iris pipeline never prints below 330.
+     */
+    public String print(String header, int version) {
+        if (version >= FLOAT_SUFFIX_VERSION) {
+            return print(header);
+        }
+        removeHeaderDirectives();
+        return header + "\n" + new UnsuffixedFloatPrinter().printTree(tree);
+    }
+
+    /** The first GLSL version with float suffixes ({@code 1.0f}), GLSL 1.30, section 4.1.4. */
+    static final int FLOAT_SUFFIX_VERSION = 130;
+
+    private void removeHeaderDirectives() {
         final VersionStatement version = tree.getVersionStatement();
         if (version != null) {
             version.detachAndDelete();
@@ -757,7 +779,28 @@ public final class ShaderAst {
                 declaration.detachAndDelete();
             }
         }
-        return header + "\n" + ASTPrinter.print(PrintType.INDENTED, tree);
+    }
+
+    /** {@link PrintType#INDENTED}, with {@code float} literals printed without the {@code f} suffix. */
+    private static final class UnsuffixedFloatPrinter extends ASTPrinter {
+        UnsuffixedFloatPrinter() {
+            super(PrintType.INDENTED.getTokenProcessor());
+        }
+
+        String printTree(ASTNode node) {
+            startVisit(node);
+            finalizePrinting();
+            return generateString();
+        }
+
+        @Override
+        public Void visitLiteralExpression(LiteralExpression node) {
+            if (node.getType() == Type.FLOAT32) {
+                emitLiteral(Double.toString(node.getFloating()));
+                return null;
+            }
+            return super.visitLiteralExpression(node);
+        }
     }
 
     /** {@link #print(String)} with an empty header, for tests. */

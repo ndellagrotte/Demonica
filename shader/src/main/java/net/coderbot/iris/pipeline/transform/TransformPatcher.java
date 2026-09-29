@@ -1,5 +1,6 @@
 package net.coderbot.iris.pipeline.transform;
 
+import com.gtnewhorizons.angelica.glsm.GlslTransformEngine;
 import com.gtnewhorizons.angelica.glsm.debug.GLSMPerfDebug;
 import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
@@ -20,66 +21,39 @@ import net.coderbot.iris.shaderpack.texture.TextureStage;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 public class TransformPatcher {
 
-    /** The system property that selects the transform engine (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.2). */
-    public static final String ENGINE_PROPERTY = "demonica.glsl.engine";
-
-    /** The GLSL transform engines. The switch exists while the pipeline moves from one library to the other. */
-    public enum Engine {
-        /** {@link ShaderTransformer}, on TauMC's glsl-transformation-lib. */
-        TAUMC("taumc"),
-        /** {@link AstShaderTransformer}, on douira's glsl-transformer. */
-        DOUIRA("douira");
-
-        public final String id;
-
-        Engine(String id) {
-            this.id = id;
-        }
-
-        /**
-         * The engine used when {@code demonica.glsl.engine} is unset or unknown: glsl-transformer since Step 8 (exit
-         * point A of the adoption plan). {@code -Ddemonica.glsl.engine=taumc} selects the old engine until Step 11
-         * removes it.
-         */
-        public static final Engine DEFAULT = DOUIRA;
-    }
+    /**
+     * The system property that selects the transform engine (docs/glsl-transformer_adoption/ADOPTION_PLAN.md, 3.2),
+     * {@link GlslTransformEngine#PROPERTY}. GLSM's {@code CompatShaderTransformer} reads the same property through the
+     * same helper (Step 10).
+     */
+    public static final String ENGINE_PROPERTY = GlslTransformEngine.PROPERTY;
 
     // Resolved and logged once, when a transform first needs it (the holder class initializes on first access).
     private static final class EngineHolder {
-        static final Engine ENGINE = resolveEngine();
+        static final GlslTransformEngine ENGINE = resolveEngine();
 
-        private static Engine resolveEngine() {
-            final String value = System.getProperty(ENGINE_PROPERTY, Engine.DEFAULT.id).trim().toLowerCase(Locale.ROOT);
-            Engine resolved = null;
-            for (Engine candidate : Engine.values()) {
-                if (candidate.id.equals(value)) {
-                    resolved = candidate;
-                    break;
-                }
-            }
-            if (resolved == null) {
-                // Concatenated: IrisLogging has no warn(String, Object...), so '{}' arguments would bind to
-                // warn(Object...) and log the array's identity instead of the message.
-                Iris.logger.warn("[TransformPatcher] Unknown GLSL transform engine '" + value + "' in "
-                    + ENGINE_PROPERTY + "; using " + Engine.DEFAULT.id);
-                resolved = Engine.DEFAULT;
-            }
+        private static GlslTransformEngine resolveEngine() {
+            // Concatenated: IrisLogging has no warn(String, Object...), so '{}' arguments would bind to
+            // warn(Object...) and log the array's identity instead of the message.
+            final GlslTransformEngine resolved = GlslTransformEngine.fromSystemProperty(value -> Iris.logger.warn(
+                "[TransformPatcher] Unknown GLSL transform engine '" + value + "' in " + ENGINE_PROPERTY + "; using "
+                    + GlslTransformEngine.DEFAULT.id));
             Iris.logger.info("[TransformPatcher] GLSL transform engine: {} ({})", resolved.id, ENGINE_PROPERTY);
             return resolved;
         }
     }
 
     /**
-     * The engine every transform in this JVM uses, from {@value #ENGINE_PROPERTY} (default {@link Engine#DEFAULT},
-     * {@code douira}).
+     * The engine every transform in this JVM uses, from {@value #ENGINE_PROPERTY} (default
+     * {@link GlslTransformEngine#DEFAULT}, {@code douira}): {@link ShaderTransformer} on TauMC's library for
+     * {@code taumc}, {@link AstShaderTransformer} on glsl-transformer for {@code douira}.
      */
-    public static Engine engine() {
+    public static GlslTransformEngine engine() {
         return EngineHolder.ENGINE;
     }
 

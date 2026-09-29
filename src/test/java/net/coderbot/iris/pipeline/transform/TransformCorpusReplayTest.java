@@ -1,6 +1,7 @@
 package net.coderbot.iris.pipeline.transform;
 
 import com.gtnewhorizons.angelica.glsm.CompatShaderTransformer;
+import com.gtnewhorizons.angelica.glsm.GlslTransformEngine;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import com.gtnewhorizons.angelica.glsm.backend.BackendManager;
 import com.gtnewhorizons.angelica.glsm.debug.TransformCorpus;
@@ -71,8 +72,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * ({@link AdaptiveShadowBoundsStats#activateForTesting(int)}) and the {@link Parameters}; then it calls the engine
  * directly, not through the cache. A stage that differs is written to {@code build/reports/transform-replay/} and
  * fails the test unless {@code src/test/resources/transform-replay/accepted.txt} tolerates it. A case the engine cannot
- * run (a state the replayer cannot restore, GLSM's compat cases on an engine other than {@code taumc}) is counted as
- * unsupported. Every patch kind is ported since Step 7, so an engine exception is a failure (or an accepted error).</p>
+ * run (a state the replayer cannot restore) is counted as unsupported. GLSM's compat cases run on the replay's engine
+ * through {@code CompatShaderTransformer.transform(source, isFragment, engine)} (Step 10). Every patch kind is ported since Step 7, so an engine exception is a failure (or an accepted error).</p>
  *
  * <p>A case recorded with {@code outcome=error} (the TauMC engine threw) is identical when the replay throws the same
  * {@code class: message}. When the replay succeeds or throws something else, the case's outcome differs: the report
@@ -376,10 +377,6 @@ class TransformCorpusReplayTest {
         }
 
         private Result replayCompat(String name, Path caseDir, Map<String, String> p) throws IOException {
-            if (!engine.equals(REFERENCE_ENGINE)) {
-                // CompatShaderTransformer gets its engine switch in Step 10.
-                return Result.unsupported("compat on " + engine + ": CompatShaderTransformer has no engine switch yet");
-            }
             final int minGlsl = Integer.parseInt(p.getOrDefault("minGlslVersion", "330"));
             final int replayMinGlsl = BackendManager.RENDER_BACKEND.getMinGLSLVersion();
             if (minGlsl != replayMinGlsl) {
@@ -388,7 +385,8 @@ class TransformCorpusReplayTest {
             final String input = Files.readString(caseDir.resolve("in.glsl"), StandardCharsets.UTF_8);
             final boolean isFragment = Boolean.parseBoolean(p.get("isFragment"));
             CompatShaderTransformer.clearCache();
-            final String output = CompatShaderTransformer.transform(input, isFragment);
+            // The replay's engine, not the JVM's (Step 10: CompatShaderTransformer has the same switch as TransformPatcher).
+            final String output = CompatShaderTransformer.transform(input, isFragment, GlslTransformEngine.byId(engine));
             final Map<String, String> actual = new LinkedHashMap<>();
             actual.put("", output);
             return compare(name, caseDir, actual);

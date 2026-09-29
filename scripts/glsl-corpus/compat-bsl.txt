@@ -1,0 +1,35 @@
+# glsl-transformer Step 10 (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): compat.txt with a shader pack. Run with
+# -PwithCompatMods (and -PdevProps=angelica.dumpShaders=true to dump GLSM's compat shaders), so that GLSM's
+# CompatShaderTransformer and the Iris pipeline (BSL) run in one session. The first frame matches compat.txt's
+# corpus-compat-0-world (no pack), the others are taken under BSL.
+pack off
+wait 20
+world corpus 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 6000
+cmd /weather clear
+cmd /gamemode creative
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+stats
+shot compat-bsl-0-nopack
+log pack BSL
+pack BSL_v10.1.8.zip
+wait 20
+chunks 1200
+wait 100
+stats
+shot compat-bsl-1-pack
+screen inventory
+wait 20
+shot compat-bsl-2-inventory hud
+screen close
+wait 10
+stats
+log pack off
+pack off
+wait 20
+exit

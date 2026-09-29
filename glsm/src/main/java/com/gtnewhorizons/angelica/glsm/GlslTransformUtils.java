@@ -109,8 +109,8 @@ public class GlslTransformUtils {
      * and <code>}</code>. The glsl-transformer engine prints with {@code ShaderAst.print(header)} instead.
      *
      * @deprecated Kept only for the code still on TauMC's parse tree (the old Iris engine's {@code ShaderTransformer}
-     * and {@code AdaptiveShadowBoundsTransformer}, GLSM's {@code CompatShaderTransformer}, and the TauMC oracle
-     * tests); Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md deletes it with TauMC's library.
+     * and {@code AdaptiveShadowBoundsTransformer}, GLSM's {@code CompatShaderTransformer} on the {@code taumc} engine,
+     * and the TauMC oracle tests); Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md deletes it with TauMC's library.
      */
     @Deprecated
     public static String getFormattedShader(ParseTree tree, String header) {
