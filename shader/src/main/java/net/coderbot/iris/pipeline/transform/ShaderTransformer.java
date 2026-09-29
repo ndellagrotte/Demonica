@@ -9,8 +9,6 @@ import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
-import org.embeddedt.embeddium.impl.gl.shader.ShaderConstants;
-import org.embeddedt.embeddium.impl.render.shader.ShaderLoader;
 import org.taumc.glsl.ShaderParser;
 import org.taumc.glsl.Transformer;
 import org.taumc.glsl.grammar.GLSLLexer;
@@ -33,12 +31,12 @@ public class ShaderTransformer {
     }
 
 
-    /** {@link VersionNegotiation#init()}; kept here so that {@code Iris} and the tests that call it are unchanged. */
+    /** {@link VersionNegotiation#init()}; kept for the tests that call it here ({@code Iris} calls it directly since Step 7). */
     public static void init() {
         VersionNegotiation.init();
     }
 
-    /** {@link VersionNegotiation#versionHoistingState()}; the corpus recorder and replayer call it here. */
+    /** {@link VersionNegotiation#versionHoistingState()}; kept for the tests that call it here (the recorder calls it directly since Step 7). */
     public static String versionHoistingState() {
         return VersionNegotiation.versionHoistingState();
     }
@@ -174,10 +172,10 @@ public class ShaderTransformer {
             int versionInt = Integer.parseInt(versionString);
 
             // Include celeritas header in scan — it's injected post-negotiation but contains uint/uvec3
-            String scanSource = (patchType == Patch.CELERITAS_TERRAIN && type == PatchShaderType.VERTEX) ? input + computeCeleritasHeader() : input;
+            String scanSource = (patchType == Patch.CELERITAS_TERRAIN && type == PatchShaderType.VERTEX) ? input + AstShaderTransformer.computeCeleritasHeader() : input;
             if (type == PatchShaderType.FRAGMENT
                 && AdaptiveShadowBoundsStats.isInstrumentationEnabled()
-                && AdaptiveShadowBoundsTransformer.mayInjectRuntimeStats(input)) {
+                && net.coderbot.iris.pipeline.transform.transformer.AdaptiveShadowBoundsTransformer.mayInjectRuntimeStats(input)) {
                 scanSource += "\n" + AdaptiveShadowBoundsStats.shaderVersionMarker();
             }
             final int requiredVersion = VersionNegotiation.getRequiredVersion(scanSource, versionInt);
@@ -236,7 +234,7 @@ public class ShaderTransformer {
 
             // For Celeritas terrain vertex shaders, inject chunk_vertex.glsl header
             if (patchType == Patch.CELERITAS_TERRAIN && shaderType == PatchShaderType.VERTEX) {
-                header += computeCeleritasHeader();
+                header += AstShaderTransformer.computeCeleritasHeader();
             }
 
             final String finalHeader = header;
@@ -388,21 +386,9 @@ public class ShaderTransformer {
         }
     }
 
-    /** Celeritas's {@code chunk_vertex.glsl}, the text header of CELERITAS_TERRAIN vertex shaders; both engines use it. */
-    static String computeCeleritasHeader() {
-        final ShaderConstants constants = ShaderConstants.builder()
-            .add("VERT_POS_SCALE", "1.0")
-            .add("VERT_POS_OFFSET", "0.0")
-            .add("VERT_TEX_SCALE", "1.0")
-            .build();
-
-        final String chunkVertexHeader = org.embeddedt.embeddium.impl.gl.shader.ShaderParser.parseShader(
-            ShaderLoader.getShaderSource("actinium:include/chunk_vertex.glsl"), ShaderLoader::getShaderSource, constants)
-            .replace("_get_relative_chunk_coord(pos) * vec3(16.0)", "vec3(_get_relative_chunk_coord(pos)) * 16.0");
-
-
-        return "\n\n" + chunkVertexHeader + "\n\n";
-    }
+    // Celeritas's chunk_vertex.glsl header and the adaptive-shadow-bounds pre-check are engine-neutral: Step 7 moved
+    // them to AstShaderTransformer.computeCeleritasHeader and transformer/AdaptiveShadowBoundsTransformer, which both
+    // engines call.
 
 
 }

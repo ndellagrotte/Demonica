@@ -16,9 +16,9 @@ import java.util.regex.Pattern;
  * negotiation against {@link RenderSystem#getMaxGlslVersion()}, which never lowers a version.
  *
  * <p>Extracted from {@code ShaderTransformer} unchanged in Step 5 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md.
- * {@link ShaderTransformer#init()}, {@link ShaderTransformer#versionHoistingState()} and
- * {@code ShaderTransformer.resetVersionHoistingForTesting()} delegate here, so their callers ({@code Iris}, the corpus
- * recorder and replayer) did not change.</p>
+ * {@code Iris} and the corpus recorder call it directly since Step 7; {@link ShaderTransformer#init()},
+ * {@link ShaderTransformer#versionHoistingState()} and {@code ShaderTransformer.resetVersionHoistingForTesting()} still
+ * delegate here for the tests that call them, until Step 11 deletes the TauMC engine.</p>
  */
 public final class VersionNegotiation {
     /** The {@code #version} directive: group 1 the number, group 2 the profile, if any. */
@@ -86,7 +86,7 @@ public final class VersionNegotiation {
     private static Object2IntMap<String> keywordToVersion;
     private static int maxSupportedHoistVersion;
 
-    /** Enables version hoisting for the features the hardware supports. {@code Iris} calls it through {@link ShaderTransformer#init()}. */
+    /** Enables version hoisting for the features the hardware supports; {@code Iris} calls it at runtime GL initialization. */
     public static void init() {
         final StringBuilder patternBuilder = new StringBuilder();
         final Object2IntOpenHashMap<String> versionMap = new Object2IntOpenHashMap<>();

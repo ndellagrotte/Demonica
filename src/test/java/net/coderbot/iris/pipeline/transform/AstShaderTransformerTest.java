@@ -33,7 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * extension lines and the ones after the leading directives, the matrix spellings {@code transformGrouped} compares, and the named behaviour differences. Outputs
  * are compared as {@link GlslTokens}. Step 6 adds ATTRIBUTES and CELERITAS_TERRAIN: every declared type of
  * {@code mc_Entity} and {@code mc_midTexCoord} (the corpora have only {@code vec3}/{@code vec4} and
- * {@code vec2}/{@code vec4}), the geometry stage, and every input-availability combination.
+ * {@code vec2}/{@code vec4}), the geometry stage, and every input-availability combination. Step 7 adds DH_TERRAIN and
+ * DH_GENERIC.
  */
 class AstShaderTransformerTest {
 
@@ -336,14 +337,100 @@ class AstShaderTransformerTest {
         assertThrows(ShaderAst.SyntaxException.class, () -> douira(vertex, broken));
     }
 
-    /** A kind that is not ported throws with the phrase the corpus replay classifies as unsupported. */
+    /** Every patch kind is ported (Step 7): nothing throws "not ported yet", and the parameter type is reset. */
     @Test
-    void unportedKindsThrow() {
+    void everyKindIsPorted() {
         final DHParameters dh = new DHParameters(Patch.DH_TERRAIN, null);
-        final UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
-            () -> AstShaderTransformer.transform("#version 330 core\nvoid main() {}\n", null, null, null, null, dh));
-        assertEquals("glsl-transformer engine: DH_TERRAIN not ported yet", thrown.getMessage());
+        final Map<PatchShaderType, String> output = AstShaderTransformer.transform(
+            "#version 330 core\nvoid main() { gl_Position = gl_Vertex; }\n", null, null, null, null, dh);
+        assertTrue(GlslTokens.contains(output.get(PatchShaderType.VERTEX), "_vert_init ( ) ;"), output.get(PatchShaderType.VERTEX));
         assertNull(dh.type);
+    }
+
+    /**
+     * DH_TERRAIN and DH_GENERIC (Step 7) against the TauMC engine on what the mini-corpus's two cases and
+     * Complementary's three recorded DH programs do not use: {@code ftransform()}, the texture matrices,
+     * {@code gl_MultiTexCoord0} to {@code 7} except 2 ({@link #dhMultiTexCoord2Alias}), the inverse matrices, the
+     * combined matrix, the legacy matrices in the fragment stage, a declaration the transformer would otherwise add,
+     * and a geometry stage.
+     */
+    @Test
+    void dhPrograms() {
+        final String vertex = "#version 120\nuniform vec3 modelOffset;\nvarying vec2 texcoord;\nvarying vec2 lmcoord;\n"
+            + "varying vec4 glcolor;\nvarying vec3 normal;\nvarying float material;\n"
+            + "void main() {\n"
+            + "    texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;\n"
+            + "    lmcoord = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;\n"
+            + "    vec4 unused = gl_MultiTexCoord4 + gl_MultiTexCoord5 + gl_MultiTexCoord6 + gl_MultiTexCoord7;\n"
+            + "    glcolor = gl_Color * unused.w;\n"
+            + "    normal = normalize(gl_NormalMatrix * gl_Normal);\n"
+            + "    material = float(dhMaterialId);\n"
+            + "    vec4 view = gl_ModelViewMatrixInverse * gl_ProjectionMatrixInverse * vec4(modelOffset, 1.0);\n"
+            + "    gl_Position = ftransform() + gl_ModelViewProjectionMatrix * gl_Vertex + gl_ProjectionMatrix * gl_ModelViewMatrix * view;\n"
+            + "}\n";
+        final String geometry = "#version 330 core\nlayout(triangles) in;\nlayout(triangle_strip, max_vertices = 3) out;\n"
+            + "in vec4 glcolor[];\nout vec4 gcolor;\n"
+            + "void main() { for (int i = 0; i < 3; i++) { gcolor = glcolor[i]; "
+            + "gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_in[i].gl_Position; EmitVertex(); } EndPrimitive(); }\n";
+        final String fragment = "#version 120\nuniform sampler2D texture;\nvarying vec2 texcoord;\nvarying vec4 glcolor;\n"
+            + "varying float material;\n"
+            + "void main() { vec4 p = gl_ProjectionMatrixInverse * gl_ModelViewMatrixInverse * gl_ProjectionMatrix * gl_ModelViewMatrix * vec4(1.0);"
+            + " gl_FragData[0] = texture2D(texture, texcoord) * glcolor * p.w * (gl_TextureMatrix[0] * vec4(material)).x; }\n";
+        for (Patch patch : List.of(Patch.DH_TERRAIN, Patch.DH_GENERIC)) {
+            for (String withGeometry : new String[] {null, geometry}) {
+                final Map<PatchShaderType, String> old = ShaderTransformer.transform(vertex, withGeometry, null, null, fragment,
+                    new DHParameters(patch, null));
+                final DHParameters parameters = new DHParameters(patch, null);
+                final Map<PatchShaderType, String> now = AstShaderTransformer.transform(vertex, withGeometry, null, null, fragment,
+                    parameters);
+                assertSameProgram(old, now);
+                assertNull(parameters.type);
+
+                final String outVertex = now.get(PatchShaderType.VERTEX);
+                assertTrue(GlslTokens.contains(outVertex, "void main ( ) { _vert_init ( ) ;"), outVertex);
+                assertTrue(GlslTokens.contains(outVertex, patch == Patch.DH_TERRAIN
+                    ? "vec4 getVertexPosition ( ) { return vec4 ( modelOffset + _vert_position , 1.0 ) ; }"
+                    : "vec4 getVertexPosition ( ) { return vec4 ( _vert_position , 1.0 ) ; }"), outVertex);
+                assertTrue(GlslTokens.contains(outVertex, patch == Patch.DH_TERRAIN ? "in uvec4 vPosition ;" : "in vec3 aScale ;"),
+                    outVertex);
+                // The pack's own declaration is kept and, for DH_TERRAIN, not injected a second time.
+                final String text = GlslTokens.of(outVertex).text();
+                assertEquals(1, text.split("uniform vec3 modelOffset ;", -1).length - 1, outVertex);
+            }
+        }
+    }
+
+    /**
+     * Named difference (Step 7): {@code gl_MultiTexCoord2}, OptiFine's alias of the lightmap coordinate. Both DH
+     * transformers rename it to {@code gl_MultiTexCoord1} and then replace {@code gl_MultiTexCoord1} with the DH light
+     * coordinate. TauMC's {@code replaceExpression} misses the renamed references (its by-text cache still knows them
+     * as {@code gl_MultiTexCoord2}, S3 remark 3), so its output keeps {@code gl_MultiTexCoord1}, which a core-profile
+     * program does not have; the new engine replaces them, as the transformer means. Mini-corpus case
+     * {@code dh-terrain-multitexcoord2}.
+     */
+    @Test
+    void dhMultiTexCoord2Alias() {
+        final String vertex = "#version 120\nvarying vec2 lmcoord;\n"
+            + "void main() { lmcoord = gl_MultiTexCoord2.xy + gl_MultiTexCoord1.xy; gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; }\n";
+        final String fragment = "#version 120\nvarying vec2 lmcoord;\nvoid main() { gl_FragData[0] = vec4(lmcoord, 0.0, 1.0); }\n";
+        for (Patch patch : List.of(Patch.DH_TERRAIN, Patch.DH_GENERIC)) {
+            final Map<PatchShaderType, String> old = ShaderTransformer.transform(vertex, null, null, null, fragment,
+                new DHParameters(patch, null));
+            final Map<PatchShaderType, String> now = AstShaderTransformer.transform(vertex, null, null, null, fragment,
+                new DHParameters(patch, null));
+            final String light = "vec4 ( _vert_tex_light_coord , 0.0 , 1.0 ) . xy";
+            assertTrue(GlslTokens.contains(old.get(PatchShaderType.VERTEX), "lmcoord = gl_MultiTexCoord1 . xy + " + light + " ;"),
+                old.get(PatchShaderType.VERTEX));
+            assertTrue(GlslTokens.contains(now.get(PatchShaderType.VERTEX), "lmcoord = " + light + " + " + light + " ;"),
+                now.get(PatchShaderType.VERTEX));
+            assertFalse(now.get(PatchShaderType.VERTEX).contains("gl_MultiTexCoord"), now.get(PatchShaderType.VERTEX));
+            // Nothing else differs.
+            final String withoutTheLine = GlslTokens.diff(old.get(PatchShaderType.VERTEX), now.get(PatchShaderType.VERTEX));
+            assertEquals(2, withoutTheLine.lines().filter(line -> line.startsWith("-") || line.startsWith("+")).count(),
+                withoutTheLine);
+            assertSameProgram(Map.of(PatchShaderType.FRAGMENT, old.get(PatchShaderType.FRAGMENT)),
+                Map.of(PatchShaderType.FRAGMENT, now.get(PatchShaderType.FRAGMENT)));
+        }
     }
 
     /** COMPUTE: the shorter pre-pass list, the same header and the parameter type reset after a failure. */

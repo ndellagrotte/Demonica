@@ -10,27 +10,30 @@ import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.AdaptiveShadowBoundsStats;
 import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
+import net.coderbot.iris.pipeline.transform.transformer.AdaptiveShadowBoundsTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.AttributeTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CeleritasTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CompatibilityTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.CompositeDepthTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.ComputeTransformer;
+import net.coderbot.iris.pipeline.transform.transformer.DHGenericTransformer;
+import net.coderbot.iris.pipeline.transform.transformer.DHTerrainTransformer;
 import net.coderbot.iris.pipeline.transform.transformer.ShaderAst;
 import net.coderbot.iris.pipeline.transform.transformer.TextureTransformer;
+import org.embeddedt.embeddium.impl.gl.shader.ShaderConstants;
+import org.embeddedt.embeddium.impl.render.shader.ShaderLoader;
 
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * The transform engine on douira's glsl-transformer, selected with {@code -Ddemonica.glsl.engine=douira}
- * ({@link TransformPatcher#engine()}). It takes over from {@link ShaderTransformer} one patch kind at a time
- * (docs/glsl-transformer_adoption/ADOPTION_PLAN.md); a kind that is not ported yet throws
- * {@code UnsupportedOperationException("glsl-transformer engine: <kind> not ported yet")}, a message the corpus replay
- * relies on. Ported: COMPOSITE and COMPUTE (Step 5), ATTRIBUTES and CELERITAS_TERRAIN (Step 6).
+ * ({@link TransformPatcher#engine()}). It took over from {@link ShaderTransformer} one patch kind at a time
+ * (docs/glsl-transformer_adoption/ADOPTION_PLAN.md): COMPOSITE and COMPUTE (Step 5), ATTRIBUTES and CELERITAS_TERRAIN
+ * (Step 6), DH_TERRAIN and DH_GENERIC (Step 7), so every {@link Patch} is transformed here, adaptive shadow bounds
+ * included ({@code transformer/CommonTransformer}).
  *
  * <p>The sequence is the TauMC engine's, stage by stage: find {@code #version}; hoist the version for the features the
  * source uses ({@link VersionNegotiation}; the scan includes the Celeritas header for CELERITAS_TERRAIN vertex shaders
@@ -60,19 +63,12 @@ import java.util.regex.Pattern;
 public class AstShaderTransformer {
     private static final Pattern versionPattern = VersionNegotiation.VERSION_PATTERN;
 
-    /** The patch kinds this engine transforms; the others throw {@link #notPorted}. */
-    private static final Set<Patch> PORTED = EnumSet.of(Patch.COMPOSITE, Patch.COMPUTE, Patch.ATTRIBUTES,
-        Patch.CELERITAS_TERRAIN);
-
     static void clearSessionState() {
     }
 
     public static <P extends Parameters> Map<PatchShaderType, String> transform(String vertex, String geometry, String tessControl, String tessEval, String fragment, P parameters) {
         if (vertex == null && geometry == null && tessControl == null && tessEval == null && fragment == null) {
             return null;
-        }
-        if (!PORTED.contains(parameters.patch)) {
-            throw notPorted(parameters.patch);
         }
 
         final EnumMap<PatchShaderType, String> inputs = new EnumMap<>(PatchShaderType.class);
@@ -91,9 +87,6 @@ public class AstShaderTransformer {
     public static <P extends Parameters> Map<PatchShaderType, String> transformCompute(String compute, P parameters) {
         if (compute == null) {
             return null;
-        }
-        if (!PORTED.contains(parameters.patch)) {
-            throw notPorted(parameters.patch);
         }
 
         try {
@@ -192,7 +185,7 @@ public class AstShaderTransformer {
             int versionInt = Integer.parseInt(versionString);
 
             // Include celeritas header in scan — it's injected post-negotiation but contains uint/uvec3
-            String scanSource = (patchType == Patch.CELERITAS_TERRAIN && type == PatchShaderType.VERTEX) ? input + ShaderTransformer.computeCeleritasHeader() : input;
+            String scanSource = (patchType == Patch.CELERITAS_TERRAIN && type == PatchShaderType.VERTEX) ? input + computeCeleritasHeader() : input;
             if (type == PatchShaderType.FRAGMENT
                 && AdaptiveShadowBoundsStats.isInstrumentationEnabled()
                 && AdaptiveShadowBoundsTransformer.mayInjectRuntimeStats(input)) {
@@ -253,7 +246,7 @@ public class AstShaderTransformer {
             // For Celeritas terrain vertex shaders, inject chunk_vertex.glsl header: text between the extension lines
             // and the body, never parsed (its #ifdef blocks stay as they are); restoreReservedWords runs over it.
             if (patchType == Patch.CELERITAS_TERRAIN && shaderType == PatchShaderType.VERTEX) {
-                header += ShaderTransformer.computeCeleritasHeader();
+                header += computeCeleritasHeader();
             }
 
             final String formattedShader = GlslTransformUtils.restoreReservedWords(entry.getValue().print(header));
@@ -284,8 +277,14 @@ public class AstShaderTransformer {
             case COMPUTE:
                 ComputeTransformer.transform(ast, parameters, versionInt);
                 break;
+            case DH_TERRAIN:
+                DHTerrainTransformer.transform(ast, parameters, versionInt);
+                break;
+            case DH_GENERIC:
+                DHGenericTransformer.transform(ast, parameters, versionInt);
+                break;
             default:
-                throw notPorted(patchType);
+                throw new IllegalStateException("Unknown patch type: " + patchType.name());
         }
         TextureTransformer.transform(ast, parameters);
         CompatibilityTransformer.transformEach(ast, parameters);
@@ -396,7 +395,23 @@ public class AstShaderTransformer {
         }
     }
 
-    private static UnsupportedOperationException notPorted(Patch patch) {
-        return new UnsupportedOperationException("glsl-transformer engine: " + patch + " not ported yet");
+    /**
+     * Celeritas's {@code chunk_vertex.glsl} with Iris's constants, the text header of CELERITAS_TERRAIN vertex shaders
+     * (emitted between the extension lines and the body, and scanned for version hoisting). Engine-neutral: moved here
+     * from the TauMC engine's {@code ShaderTransformer} in Step 7, which now calls it here.
+     */
+    static String computeCeleritasHeader() {
+        final ShaderConstants constants = ShaderConstants.builder()
+            .add("VERT_POS_SCALE", "1.0")
+            .add("VERT_POS_OFFSET", "0.0")
+            .add("VERT_TEX_SCALE", "1.0")
+            .build();
+
+        final String chunkVertexHeader = org.embeddedt.embeddium.impl.gl.shader.ShaderParser.parseShader(
+            ShaderLoader.getShaderSource("actinium:include/chunk_vertex.glsl"), ShaderLoader::getShaderSource, constants)
+            .replace("_get_relative_chunk_coord(pos) * vec3(16.0)", "vec3(_get_relative_chunk_coord(pos)) * 16.0");
+
+
+        return "\n\n" + chunkVertexHeader + "\n\n";
     }
 }

@@ -6,7 +6,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import net.coderbot.iris.gl.texture.TextureType;
 import net.coderbot.iris.helpers.Tri;
 import net.coderbot.iris.pipeline.transform.PatchShaderType;
-import net.coderbot.iris.pipeline.transform.ShaderTransformer;
+import net.coderbot.iris.pipeline.transform.VersionNegotiation;
 import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
@@ -68,7 +68,7 @@ public final class TransformCorpusRecorder {
             c.input("glsl.maxVersion", RenderSystem.getMaxGlslVersion());
             c.input("glsl.ssbo", RenderSystem.supportsSSBO());
             c.input("glsl.imageLoadStore", RenderSystem.supportsImageLoadStore());
-            c.input("versionHoisting", ShaderTransformer.versionHoistingState());
+            c.input("versionHoisting", VersionNegotiation.versionHoistingState());
             c.input("shadowBounds.instrumentation", shadowBoundsInstrumentation);
             c.input("shadowBounds.binding", shadowBoundsBinding);
             return c;

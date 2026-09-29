@@ -124,7 +124,7 @@ class GlslCorpusParseSurveyTest {
         // The Celeritas header joins the scan for CELERITAS_TERRAIN vertex shaders; it only needs GLSL 130, below the
         // stage minimum, so it is left out here.
         if (stage == PatchShaderType.FRAGMENT && Boolean.parseBoolean(p.get("shadowBounds.instrumentation"))
-            && AdaptiveShadowBoundsTransformer.mayInjectRuntimeStats(source)) {
+            && net.coderbot.iris.pipeline.transform.transformer.AdaptiveShadowBoundsTransformer.mayInjectRuntimeStats(source)) {
             scan += "\nstd430";
         }
         versionInt = Math.max(versionInt, (int) requiredVersion.invoke(null, scan, versionInt));

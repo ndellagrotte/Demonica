@@ -12,8 +12,9 @@ import java.util.Set;
  * The transformation every patch kind starts with, on {@link ShaderAst}: legacy built-ins ({@code gl_FogFragCoord},
  * {@code gl_FrontColor}, {@code gl_Color}, {@code gl_FragColor}, {@code gl_FragData}, {@code gl_Fog}) become
  * declared {@code iris_*} variables, a sampler named {@code texture} or {@code gcolor} becomes {@code gtexture}, the
- * legacy texture functions get their core names, and {@code shadow2D}/{@code shadow2DLod} become wrapped
- * {@code texture}/{@code textureLod} calls. Ported verb for verb from the TauMC engine's
+ * legacy texture functions get their core names, {@code shadow2D}/{@code shadow2DLod} become wrapped
+ * {@code texture}/{@code textureLod} calls, and recognized PCF shadow helpers get a bounds guard
+ * ({@link AdaptiveShadowBoundsTransformer}, Step 7). Ported verb for verb from the TauMC engine's
  * {@code net.coderbot.iris.pipeline.transform.CommonTransformer} (Step 5 of
  * docs/glsl-transformer_adoption/ADOPTION_PLAN.md).
  */
@@ -93,10 +94,7 @@ public final class CommonTransformer {
 		root.renameFunctionCall(GlslTransformUtils.TEXTURE_RENAMES);
 		root.renameAndWrapShadow("shadow2D", "texture");
 		root.renameAndWrapShadow("shadow2DLod", "textureLod");
-		// TODO(S7): AdaptiveShadowBoundsTransformer.transform(root, parameters.type). The TauMC engine rewrites
-		// recognized PCF shadow helpers here (bounds guard, and with the instrumentation on, the stats counters);
-		// until Step 7 ports it, this engine leaves them alone, and the corpus replay accepts the fragment stages
-		// that differ for it as "S7 pending" (src/test/resources/transform-replay/accepted.txt).
+		AdaptiveShadowBoundsTransformer.transform(root, parameters.type);
 
 		if (parameters.patch == Patch.ATTRIBUTES && parameters.type == ShaderType.VERTEX) {
 			root.injectVariable("uniform bool actinium_ClipPlanesEnabled;");

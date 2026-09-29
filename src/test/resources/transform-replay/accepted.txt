@@ -10,9 +10,10 @@
 # replay's output is written to build/reports/transform-replay/<case>.error.diff; an entry accepts only the outcome it
 # names, so a replay that starts to throw is not accepted by an entry written for one that succeeded) or '*' (any
 # output stage, not the two error outcomes); any other stage fails the test. Every entry needs a reason a reader can
-# check; an entry without one fails the test. An entry whose reason starts with "S7 pending" is verified by the
-# replayer: the stage's difference must be the TauMC engine's adaptive-shadow-bounds rewrite and nothing else (the
-# TauMC engine rerun with the PCF helpers hidden from that rewrite must give the replay's output), or the stage fails.
+# check; an entry without one fails the test. When an engine other than taumc replays, an entry whose case glob matches
+# a replayed case but that tolerated no difference in that run is stale and fails the test too (Step 7), so an entry
+# must go when its difference goes; entries for cases the run did not replay (another corpus, a filtered kind) are not
+# judged.
 #
 # Step 2 (2026-09-28): empty. The TauMC engine replays its own recordings identically.
 
@@ -41,66 +42,16 @@ transform-grouped-330-undeclared | error-succeeded | old engine threw (removed i
 # engines share produces (report S06, Open questions). Checked by AstShaderTransformerTest.theMultiTexCoord3Case.
 celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed injection anchor) after missing the renamed references (stale by-text cache); the new engine transforms it, checked by AstShaderTransformerTest
 
-# S7 pending: the fragment stages the TauMC engine's AdaptiveShadowBoundsTransformer rewrites (a bounds guard in the PCF
-# helper texture2DShadow2x2 or SampleFilteredShadow and, instrumented, the stats counters and their SSBO), which the new
-# engine leaves alone until Step 7 ports it (transformer/CommonTransformer's TODO(S7)). One entry per case, fragment
-# only. The replayer verifies each (reason prefix "S7 pending"): the TauMC engine rerun with the helpers hidden from the
-# rewrite must give the replay's output. Pack corpora: the 51 BSL cases whose helper TauMC rewrote (49 ATTRIBUTES, 2
-# CELERITAS_TERRAIN; all recorded instrumented; the recording run logged 51 "[AdaptiveShadowBounds] ... injected=1").
-# The other 103 fragment inputs that name a helper replay identically: 51 BSL ones in which TauMC inspected no helper
-# definition (logged inspected=0) and Complementary's 52, whose helper TauMC inspected and left alone (logged
-# inspected=1 injected=0 unsupported=1); I Like Vanilla has none. Mini-corpus: shadow-bounds and
-# shadow-bounds-instrumented. Step 7 removes these entries.
-bsl/00020-ATTRIBUTES-825c8f36 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00021-ATTRIBUTES-b555a40c | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00022-ATTRIBUTES-ac688cec | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00023-ATTRIBUTES-e47ea55d | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00024-ATTRIBUTES-d5908726 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00025-ATTRIBUTES-c824935b | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00027-ATTRIBUTES-a5689664 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00040-ATTRIBUTES-33c92701 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00045-ATTRIBUTES-37425c65 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00046-ATTRIBUTES-5e4c91ed | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00048-ATTRIBUTES-d9a02a94 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00050-ATTRIBUTES-25250269 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00051-ATTRIBUTES-a05933b6 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00054-ATTRIBUTES-435f1c84 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00055-ATTRIBUTES-9094383f | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00056-ATTRIBUTES-02ea3dfd | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00057-ATTRIBUTES-192ff13f | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00058-ATTRIBUTES-64cae373 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00059-ATTRIBUTES-3ce5ff52 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00060-ATTRIBUTES-ad201a49 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00061-ATTRIBUTES-d4ca272c | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00065-ATTRIBUTES-3979445b | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00066-ATTRIBUTES-f760f3ba | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00067-ATTRIBUTES-12e306d1 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00069-ATTRIBUTES-5e15f053 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00074-ATTRIBUTES-e99c8567 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00075-ATTRIBUTES-d1df048a | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00078-ATTRIBUTES-569cda43 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00081-ATTRIBUTES-e164e238 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00082-ATTRIBUTES-56b2aa1d | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00083-ATTRIBUTES-e92b81fd | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00084-ATTRIBUTES-cfabc3f5 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00085-ATTRIBUTES-be5f9bb7 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00086-ATTRIBUTES-721ebd62 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00087-ATTRIBUTES-ba9ec048 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00088-ATTRIBUTES-df2c90be | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00089-ATTRIBUTES-0b5dd412 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00090-ATTRIBUTES-1d64b3a9 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00095-ATTRIBUTES-62941cc4 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00096-ATTRIBUTES-8daa4e02 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00097-ATTRIBUTES-81c5921e | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00098-ATTRIBUTES-2dbcd6e3 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00100-ATTRIBUTES-8b099274 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00101-ATTRIBUTES-50d89e97 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00102-CELERITAS_TERRAIN-4a7ab12b | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00103-CELERITAS_TERRAIN-2eb1d79a | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00104-ATTRIBUTES-187a2893 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00106-ATTRIBUTES-d86555e0 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00108-ATTRIBUTES-128020e7 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00109-ATTRIBUTES-fd7a5851 | fragment | S7 pending (adaptive shadow bounds, Step 7)
-bsl/00110-ATTRIBUTES-b58e73db | fragment | S7 pending (adaptive shadow bounds, Step 7)
-shadow-bounds | fragment | S7 pending (adaptive shadow bounds, Step 7)
-shadow-bounds-instrumented | fragment | S7 pending (adaptive shadow bounds, Step 7)
+# Step 7 (2026-09-28): DH_TERRAIN, DH_GENERIC and adaptive shadow bounds on the glsl-transformer engine. The 53
+# "S7 pending" entries of Step 6 (51 BSL fragment stages, and the mini-corpus's shadow-bounds and
+# shadow-bounds-instrumented) are gone: those stages replay identically now. No DH case differs (the mini-corpus's
+# dh-terrain and dh-generic, and the three DH programs recorded from Complementary Reimagined with Distant Horizons
+# under run/transform-corpus-dh/).
+#
+# Both DH transformers rename gl_MultiTexCoord2 (OptiFine's lightmap alias) to gl_MultiTexCoord1 and then replace
+# gl_MultiTexCoord1 with the DH light coordinate. TauMC's replaceExpression misses the renamed references (its by-text
+# cache still knows them as gl_MultiTexCoord2; S3 remark 3), so its output keeps gl_MultiTexCoord1, which a core-profile
+# program does not declare; the new engine replaces them as the transformer means. The vertex stage differs in that one
+# statement. No recorded pack input uses gl_MultiTexCoord2 in a DH program. Checked by
+# AstShaderTransformerTest.dhMultiTexCoord2Alias.
+dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by AstShaderTransformerTest

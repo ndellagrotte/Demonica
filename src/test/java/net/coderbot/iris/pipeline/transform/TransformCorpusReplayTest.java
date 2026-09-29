@@ -20,6 +20,7 @@ import net.coderbot.iris.pipeline.transform.parameter.TextureStageParameters;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +30,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -62,7 +65,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  *
  * <p>Each case restores what the output depends on besides the sources: the GLSL capability
  * ({@link RenderSystem#initializeGlslCapabilityForTesting(int, boolean, boolean)}), version hoisting
- * ({@link ShaderTransformer#init()} or its reset), the adaptive-shadow-bounds instrumentation
+ * ({@link VersionNegotiation#init()} or its reset), the adaptive-shadow-bounds instrumentation
  * ({@link AdaptiveShadowBoundsStats#activateForTesting(int)}) and the {@link Parameters}; then it calls the engine
  * directly, not through the cache. A stage that differs is written to {@code build/reports/transform-replay/} and
  * fails the test unless {@code src/test/resources/transform-replay/accepted.txt} tolerates it. A case the engine cannot
@@ -74,14 +77,12 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
  * (the replay transformed the case) or {@code error-threw} (the replay threw something else), never with both at once:
  * an entry for the first does not hide a replay that starts to throw (Step 6).</p>
  *
- * <p>An {@code accepted.txt} entry whose reason starts with {@code S7 pending} is checked, not trusted (Step 6): the
- * stage's difference must be the TauMC engine's adaptive-shadow-bounds rewrite and nothing else. The replayer runs the
- * TauMC engine again on the case, once as recorded and once with the PCF helper functions renamed so that
- * {@code AdaptiveShadowBoundsTransformer} does not recognize them ({@link #S7_HELPER_SUFFIX}; its runtime-stats
- * pre-check matches by substring, so the version hoisting stays the same) and renamed back in the output. The first
- * run must reproduce the recorded output, the second must equal the replay's and differ from the recorded one (all
- * compared as {@link GlslTokens}); then the recorded-against-replay difference is exactly what the rewrite changes.
- * Otherwise the stage fails.</p>
+ * <p>Dead entries fail too (Step 7): when an engine other than the reference engine replays, every
+ * {@code accepted.txt} entry whose case glob matches a case this run replayed (not filtered out, not unsupported) must
+ * have tolerated a difference of it; an entry that matched none is listed as {@code STALE} and fails the test, so
+ * entries cannot outlive the differences they were written for. Entries for cases the run did not replay (another
+ * corpus, a filtered patch kind) are not judged. The reference engine replays its own recordings, where no entry
+ * applies, so its runs skip the check.</p>
  *
  * <p>The summary also gives the engine's time: the sum of the engine calls per patch kind ({@code replay: transformMs}),
  * measured around the direct call, as {@code TransformPatcher}'s {@code transformMs} is around its call.</p>
@@ -93,24 +94,19 @@ class TransformCorpusReplayTest {
     static final String RECORD_PROPERTY = "demonica.glsl.replay.record";
     static final String THREADS_PROPERTY = "demonica.glsl.replay.threads";
     static final String REFERENCE_ENGINE = "taumc";
-    /** The reason prefix of an {@code accepted.txt} entry the replayer verifies as adaptive-shadow-bounds only. */
-    static final String S7_PENDING = "S7 pending";
-    /** Appended to the PCF helper names to hide them from the TauMC engine's adaptive-shadow-bounds rewrite. */
-    static final String S7_HELPER_SUFFIX = "_s7pendingcheck";
-    private static final List<String> PCF_HELPERS = List.of("texture2DShadow2x2", "SampleFilteredShadow");
     private static final String ACCEPTED_RESOURCE = "/transform-replay/accepted.txt";
 
     @AfterAll
     static void restoreGlobalState() {
         AdaptiveShadowBoundsStats.activateForTesting(-1);
-        ShaderTransformer.resetVersionHoistingForTesting();
+        VersionNegotiation.resetForTesting();
         RenderSystem.initializeGlslCapabilityForTesting(460, false, false);
     }
 
     /** accepted.txt: every entry needs a reason and a known stage (S2 verification: stages were not checked). */
     @Test
     void acceptedEntriesNeedAReasonAndAKnownStage() throws IOException {
-        final List<AcceptedDiff> entries = parseAccepted("# comment\n\nbsl/000*-COMPOSITE-* | fragment | S7 pending\n"
+        final List<AcceptedDiff> entries = parseAccepted("# comment\n\nbsl/000*-COMPOSITE-* | fragment | a reason\n"
             + "transform-grouped-330-undeclared | error-succeeded | old engine threw\n* | * | anything\n"
             + "x-* | error-threw | both threw, differently\n");
         assertEquals(4, entries.size());
@@ -132,6 +128,36 @@ class TransformCorpusReplayTest {
         assertThrows(org.opentest4j.AssertionFailedError.class, () -> parseAccepted("a | fragment\n"));
         // The committed file parses.
         readAccepted();
+    }
+
+    /**
+     * The stale check (Step 7) on two mini-corpus cases replayed by the glsl-transformer engine: an entry for a case
+     * that replays identically is stale, the entry that tolerates a real difference is used, and an entry for a case
+     * the run did not replay is not judged.
+     */
+    @Test
+    void acceptedEntriesThatTolerateNothingAreStale(@TempDir Path reports) throws IOException {
+        final Path mini = Paths.get(System.getProperty("demonica.projectRoot", "."), "src", "test", "resources",
+            "transform-corpus");
+        final List<AcceptedDiff> entries = parseAccepted("composite-330 | fragment | dead: this case replays identically\n"
+            + "transform-grouped-330-undeclared | error-succeeded | old engine threw; the new engine transforms it\n"
+            + "shadow-bounds | fragment | not replayed in this run, so not judged\n");
+        final Replayer replayer = new Replayer("douira", false, entries, reports);
+        try {
+            for (String name : List.of("composite-330", "transform-grouped-330-undeclared")) {
+                final Path caseDir = mini.resolve(name);
+                final Result result = replayer.replay(name, caseDir,
+                    TransformCorpus.readCaseProperties(caseDir.resolve(TransformCorpus.CASE_FILE)));
+                assertEquals(name.equals("composite-330") ? Outcome.IDENTICAL : Outcome.ACCEPTED, result.outcome(), result.detail());
+            }
+        } finally {
+            restoreGlobalState();
+        }
+        assertEquals(List.of(entries.get(0)), replayer.staleEntries());
+        assertEquals(2, replayer.inScope.size());
+        assertEquals(1, replayer.used.size());
+        assertTrue(replayer.used.contains(entries.get(1)));
+        assertEquals("accepted.txt:1: composite-330 | fragment | dead: this case replays identically", entries.get(0).source());
     }
 
     @Test
@@ -184,11 +210,16 @@ class TransformCorpusReplayTest {
         summary.perPatch.forEach((patch, counts) -> System.out.println("replay:   " + patch + " " + counts));
         summary.unsupportedReasons.forEach((reason, count) -> System.out.println("replay:   unsupported " + count + "x: " + reason));
         summary.failures.forEach(failure -> System.out.println("replay:   FAILING " + failure));
-        if (replayer.s7Verified > 0) {
-            final String s7 = "replay: " + S7_PENDING + " stages verified as adaptive shadow bounds only: " + replayer.s7Verified;
-            System.out.println(s7);
-            summary.timing.add(s7);
-        }
+        final List<AcceptedDiff> stale = record || engine.equals(REFERENCE_ENGINE) ? List.of() : replayer.staleEntries();
+        final String staleLine = record || engine.equals(REFERENCE_ENGINE)
+            ? "replay: accepted entries not checked for staleness (" + (record ? "record mode" : "the reference engine")
+                + ")"
+            : "replay: accepted entries in scope=" + replayer.inScope.size() + " used=" + replayer.used.size()
+                + " stale=" + stale.size();
+        System.out.println(staleLine);
+        summary.timing.add(staleLine);
+        stale.forEach(entry -> System.out.println("replay:   STALE " + entry.source()
+            + " (its glob matches cases of this run, but it tolerated no difference)"));
         final String timing = "replay: transformMs engine=" + engine + " " + summary.timingText();
         System.out.println(timing);
         summary.timing.add(timing);
@@ -202,6 +233,8 @@ class TransformCorpusReplayTest {
 
         if (!record) {
             assertEquals(0, summary.failing, "replay failures (diffs under " + reports + "): " + summary.failures);
+            assertTrue(stale.isEmpty(), "stale accepted.txt entries (they tolerated no difference): "
+                + stale.stream().map(AcceptedDiff::source).toList());
         }
     }
 
@@ -234,6 +267,10 @@ class TransformCorpusReplayTest {
         private final Path reports;
         private String capabilityState;
         private final List<Job> jobs = new ArrayList<>();
+        /** The entries whose case glob matched a case this run replayed (not unsupported), for the stale check. */
+        final Set<AcceptedDiff> inScope = Collections.newSetFromMap(new IdentityHashMap<>());
+        /** The entries that tolerated a difference in this run. */
+        final Set<AcceptedDiff> used = Collections.newSetFromMap(new IdentityHashMap<>());
 
         Replayer(String engine, boolean record, List<AcceptedDiff> accepted, Path reports) {
             this.engine = engine;
@@ -244,11 +281,27 @@ class TransformCorpusReplayTest {
 
         Result replay(String name, Path caseDir, Map<String, String> properties) throws IOException {
             final String domain = properties.getOrDefault("domain", "iris");
-            return switch (domain) {
+            final Result result = switch (domain) {
                 case "iris" -> replayIris(name, caseDir, properties);
                 case "compat" -> replayCompat(name, caseDir, properties);
                 default -> Result.unsupported("unknown domain '" + domain + "'");
             };
+            if (result.outcome() != Outcome.UNSUPPORTED) {
+                for (AcceptedDiff entry : accepted) {
+                    if (entry.matchesCase(name)) {
+                        inScope.add(entry);
+                    }
+                }
+            }
+            return result;
+        }
+
+        /**
+         * The entries that are in scope (their glob matched a case this replayer replayed) and tolerated nothing, in
+         * file order: dead entries (class javadoc).
+         */
+        List<AcceptedDiff> staleEntries() {
+            return accepted.stream().filter(entry -> inScope.contains(entry) && !used.contains(entry)).toList();
         }
 
         private Result replayIris(String name, Path caseDir, Map<String, String> p) throws IOException {
@@ -303,8 +356,7 @@ class TransformCorpusReplayTest {
                 return outcomeDiffers(name, ERROR_SUCCEEDED, "recorded the error '" + p.get("error") + "', the replay succeeded",
                     actual).timed(nanos);
             }
-            final Result result = compare(name, caseDir, actual,
-                (stage, got) -> verifyS7Pending(patch, p, inputs, caseDir, stage, got)).timed(nanos);
+            final Result result = compare(name, caseDir, actual).timed(nanos);
             if (output != null && (result.outcome() == Outcome.IDENTICAL || result.outcome() == Outcome.ACCEPTED)) {
                 jobs.add(new Job(name, patch, p, inputs, output));
             }
@@ -327,7 +379,7 @@ class TransformCorpusReplayTest {
             final String output = CompatShaderTransformer.transform(input, isFragment);
             final Map<String, String> actual = new LinkedHashMap<>();
             actual.put("", output);
-            return compare(name, caseDir, actual, null);
+            return compare(name, caseDir, actual);
         }
 
         /** The engine threw {@code e}; the case recorded {@code recordedError} (null when it succeeded). */
@@ -356,8 +408,11 @@ class TransformCorpusReplayTest {
                 .append(" output:\n").append(text).append(text.endsWith("\n") ? "" : "\n"));
             Files.createDirectories(reports);
             Files.writeString(reports.resolve(name.replace('/', '_') + ".error.diff"), report, StandardCharsets.UTF_8);
-            final boolean tolerated = accepted.stream().anyMatch(a -> a.matches(name, kind));
-            return new Result(tolerated ? Outcome.ACCEPTED : Outcome.FAILING, false, name + " [" + kind + "]: " + detail);
+            final AcceptedDiff tolerated = accepted.stream().filter(a -> a.matches(name, kind)).findFirst().orElse(null);
+            if (tolerated != null) {
+                used.add(tolerated);
+            }
+            return new Result(tolerated != null ? Outcome.ACCEPTED : Outcome.FAILING, false, name + " [" + kind + "]: " + detail);
         }
 
         /**
@@ -434,12 +489,10 @@ class TransformCorpusReplayTest {
 
         /**
          * Compares or records each stage. {@code actual} maps a stage name ({@code ""} for the compat domain's single
-         * output) to the engine's output. {@code s7Check} verifies a stage accepted as {@link #S7_PENDING}: it returns
-         * null when the difference is the adaptive-shadow-bounds rewrite alone, otherwise why not (null: no check
-         * possible, and such an entry fails).
+         * output) to the engine's output. A differing stage is accepted by the first {@code accepted.txt} entry that
+         * matches it, which counts as used.
          */
-        private Result compare(String name, Path caseDir, Map<String, String> actual,
-                               java.util.function.BiFunction<String, String, String> s7Check) throws IOException {
+        private Result compare(String name, Path caseDir, Map<String, String> actual) throws IOException {
             if (record) {
                 for (Map.Entry<String, String> stage : actual.entrySet()) {
                     Files.writeString(caseDir.resolve(outputName(engine, stage.getKey())), stage.getValue(),
@@ -488,14 +541,8 @@ class TransformCorpusReplayTest {
                     + REFERENCE_ENGINE + " (-) against " + engine + " (+)\n" + diff, StandardCharsets.UTF_8);
                 final AcceptedDiff tolerated = accepted.stream().filter(a -> a.matches(name, stageLabel)).findFirst()
                     .orElse(null);
-                if (tolerated != null && tolerated.reason().startsWith(S7_PENDING)) {
-                    final String why = s7Check == null ? "no check for this domain" : s7Check.apply(stage, got);
-                    if (why == null) {
-                        anyAccepted = true;
-                    } else {
-                        failing.add(stageLabel + " (accepted as '" + tolerated.reason() + "', but " + why + ")");
-                    }
-                } else if (tolerated != null) {
+                if (tolerated != null) {
+                    used.add(tolerated);
                     anyAccepted = true;
                 } else {
                     failing.add(stageLabel);
@@ -506,90 +553,6 @@ class TransformCorpusReplayTest {
             }
             return new Result(anyAccepted ? Outcome.ACCEPTED : Outcome.IDENTICAL, byteIdentical, name);
         }
-
-        /**
-         * The check behind an {@link #S7_PENDING} entry (class javadoc): null when the TauMC engine, with the PCF
-         * helpers hidden from its adaptive-shadow-bounds rewrite, gives {@code got} for {@code stage} and the recorded
-         * output differs from that; otherwise why not.
-         */
-        private String verifyS7Pending(Patch patch, Map<String, String> p, EnumMap<PatchShaderType, String> inputs,
-                                       Path caseDir, String stage, String got) {
-            if (got == null) {
-                return "the replay has no " + stage + " output";
-            }
-            final EnumMap<PatchShaderType, String> hidden = new EnumMap<>(PatchShaderType.class);
-            boolean renamed = false;
-            for (Map.Entry<PatchShaderType, String> input : inputs.entrySet()) {
-                String text = input.getValue();
-                for (String helper : PCF_HELPERS) {
-                    final String next = text.replaceAll("\\b" + helper + "\\b", helper + S7_HELPER_SUFFIX);
-                    renamed |= !next.equals(text);
-                    text = next;
-                }
-                hidden.put(input.getKey(), text);
-            }
-            if (!renamed) {
-                return "the case has no PCF helper (" + String.join(", ", PCF_HELPERS) + ")";
-            }
-            final String asRecorded;
-            String withoutBounds;
-            try {
-                asRecorded = taumcStage(patch, p, inputs, stage);
-                withoutBounds = taumcStage(patch, p, hidden, stage);
-            } catch (RuntimeException e) {
-                return "the TauMC engine threw " + e + " when rerun";
-            }
-            if (asRecorded == null || withoutBounds == null) {
-                return "the TauMC engine gave no " + stage + " output when rerun";
-            }
-            for (String helper : PCF_HELPERS) {
-                withoutBounds = withoutBounds.replace(helper + S7_HELPER_SUFFIX, helper);
-            }
-            final String rest = GlslTokens.diff(GlslTokens.of(withoutBounds), GlslTokens.of(got));
-            if (!rest.isEmpty()) {
-                return "it differs beyond adaptive shadow bounds (TauMC without the rewrite (-) against " + engine
-                    + " (+)):\n" + rest;
-            }
-            try {
-                final String recorded = Files.readString(caseDir.resolve(outputName(REFERENCE_ENGINE, stage)),
-                    StandardCharsets.UTF_8);
-                if (!GlslTokens.diff(GlslTokens.of(recorded), GlslTokens.of(asRecorded)).isEmpty()) {
-                    return "the TauMC engine rerun does not reproduce the recorded output";
-                }
-                if (GlslTokens.diff(GlslTokens.of(recorded), GlslTokens.of(withoutBounds)).isEmpty()) {
-                    return "the TauMC engine's adaptive-shadow-bounds rewrite changed nothing in this stage";
-                }
-            } catch (IOException e) {
-                return "the recorded output cannot be read: " + e;
-            }
-            s7Verified++;
-            return null;
-        }
-
-        /** The TauMC engine's output for one stage of the case, with the case's instrumentation state. */
-        private static String taumcStage(Patch patch, Map<String, String> p, EnumMap<PatchShaderType, String> in, String stage) {
-            final boolean instrumentation = Boolean.parseBoolean(p.getOrDefault("shadowBounds.instrumentation", "false"));
-            AdaptiveShadowBoundsStats.activateForTesting(instrumentation
-                ? Integer.parseInt(p.getOrDefault("shadowBounds.binding", "-1")) : -1);
-            try {
-                final Map<PatchShaderType, String> output = patch == Patch.COMPUTE
-                    ? ShaderTransformer.transformCompute(in.get(PatchShaderType.COMPUTE), parameters(patch, p))
-                    : ShaderTransformer.transform(in.get(PatchShaderType.VERTEX), in.get(PatchShaderType.GEOMETRY),
-                        in.get(PatchShaderType.TESS_CONTROL), in.get(PatchShaderType.TESS_EVAL),
-                        in.get(PatchShaderType.FRAGMENT), parameters(patch, p));
-                for (Map.Entry<PatchShaderType, String> entry : output.entrySet()) {
-                    if (TransformCorpusRecorder.stageName(entry.getKey()).equals(stage)) {
-                        return entry.getValue();
-                    }
-                }
-                return null;
-            } finally {
-                AdaptiveShadowBoundsStats.activateForTesting(-1);
-            }
-        }
-
-        /** How many stages {@link #verifyS7Pending} confirmed, for the summary. */
-        int s7Verified;
 
         private Map<PatchShaderType, String> runEngine(Patch patch, EnumMap<PatchShaderType, String> in,
                                                        Parameters parameters) {
@@ -618,13 +581,13 @@ class TransformCorpusReplayTest {
             final String state = maxVersion + "|" + ssbo + "|" + imageLoadStore + "|" + hoisting;
             if (!state.equals(capabilityState)) {
                 RenderSystem.initializeGlslCapabilityForTesting(maxVersion, ssbo, imageLoadStore);
-                ShaderTransformer.resetVersionHoistingForTesting();
+                VersionNegotiation.resetForTesting();
                 if (!hoisting.equals("none")) {
-                    ShaderTransformer.init();
+                    VersionNegotiation.init();
                 }
                 capabilityState = state;
             }
-            final String replayHoisting = ShaderTransformer.versionHoistingState();
+            final String replayHoisting = VersionNegotiation.versionHoistingState();
             if (!replayHoisting.equals(hoisting)) {
                 capabilityState = null;
                 return "version hoisting '" + hoisting + "' cannot be restored (the capability gives '" + replayHoisting + "')";
@@ -684,13 +647,20 @@ class TransformCorpusReplayTest {
     static final Set<String> ACCEPTED_STAGES = Set.of("vertex", "geometry", "tess_control", "tess_eval", "fragment",
         "compute", "compat", ERROR_SUCCEEDED, ERROR_THREW, "*");
 
-    /** One line of accepted.txt: {@code <case glob> | <stage> | <reason>}. */
-    record AcceptedDiff(Pattern caseGlob, String stage, String reason) {
+    /**
+     * One line of accepted.txt: {@code <case glob> | <stage> | <reason>}; {@code source} is the line with its number
+     * ({@code accepted.txt:42: ...}), for the messages.
+     */
+    record AcceptedDiff(Pattern caseGlob, String stage, String reason, String source) {
         boolean matches(String caseName, String stageName) {
-            final String leaf = caseName.substring(caseName.lastIndexOf('/') + 1);
             final boolean errorOutcome = stageName.equals(ERROR_SUCCEEDED) || stageName.equals(ERROR_THREW);
-            return ((stage.equals("*") && !errorOutcome) || stage.equals(stageName))
-                && (caseGlob.matcher(caseName).matches() || caseGlob.matcher(leaf).matches());
+            return ((stage.equals("*") && !errorOutcome) || stage.equals(stageName)) && matchesCase(caseName);
+        }
+
+        /** Whether the glob matches the case's path under the corpus, or its directory name alone. */
+        boolean matchesCase(String caseName) {
+            final String leaf = caseName.substring(caseName.lastIndexOf('/') + 1);
+            return caseGlob.matcher(caseName).matches() || caseGlob.matcher(leaf).matches();
         }
     }
 
@@ -721,7 +691,8 @@ class TransformCorpusReplayTest {
                 fail(ACCEPTED_RESOURCE + ":" + (i + 1) + ": unknown stage '" + stage + "' (one of " + ACCEPTED_STAGES
                     + "), in: " + line);
             }
-            entries.add(new AcceptedDiff(glob(parts[0].strip()), stage, parts[2].strip()));
+            entries.add(new AcceptedDiff(glob(parts[0].strip()), stage, parts[2].strip(),
+                "accepted.txt:" + (i + 1) + ": " + line));
         }
         return entries;
     }
