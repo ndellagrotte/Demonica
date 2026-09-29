@@ -34,10 +34,11 @@ S8TNLib, so that the game can tell you which is missing.
 
 Demonica patches Celeritas's own classes in one place only, and each patch is
 recorded with a draft of the upstream change that would make it unnecessary
-([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)). If a different
-Celeritas build is installed, Demonica checks what its patches bind to before
-applying any of them, and turns off what no longer fits: at worst shaders are
-off, and the log and the shader pack screen say why.
+([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)). Before applying
+any of them, Demonica hashes the installed Celeritas jar. On any build but the
+pinned one, only the fog patch applies and shaders are off, and the log and the
+shader pack screen say why
+([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md#at-runtime)).
 
 ## Installing
 
