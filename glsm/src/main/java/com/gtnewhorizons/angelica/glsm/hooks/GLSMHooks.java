@@ -22,7 +22,6 @@ public final class GLSMHooks {
     /** Optional host-owned observer for diagnostics at the native draw boundary. */
     public static DrawCallObserver drawCallObserver;
     public static ShaderWorkSubmitter shaderWorkSubmitter;
-    public static ShaderTransformPostProcessor postTransformProcessor;
     public static PerFrameUniformBlock perFrameUniformBlock;
     public static PerFrameUniformBlock perPassUniformBlock;
 

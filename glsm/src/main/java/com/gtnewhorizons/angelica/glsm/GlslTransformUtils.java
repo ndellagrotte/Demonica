@@ -1,12 +1,7 @@
 package com.gtnewhorizons.angelica.glsm;
 
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.taumc.glsl.grammar.GLSLLexer;
-import org.taumc.glsl.grammar.GLSLParser;
-import org.taumc.glsl.grammar.GLSLPreParser;
 
 import java.util.List;
 import java.util.Map;
@@ -109,26 +104,15 @@ public class GlslTransformUtils {
         return source;
     }
 
-    /** Parse a full GLSL translation unit with syntax-error listeners suppressed. */
-    public static GLSLParser.Translation_unitContext parseFullQuiet(String source) {
-        final GLSLLexer lexer = new GLSLLexer(CharStreams.fromString(source));
-        lexer.removeErrorListeners();
-        final GLSLParser parser = new GLSLParser(new CommonTokenStream(lexer));
-        parser.removeErrorListeners();
-        parser.setBuildParseTree(true);
-        return parser.translation_unit();
-    }
-
-    /** Parse only the preprocessor structure of a GLSL source, with syntax-error listeners suppressed. */
-    public static GLSLPreParser.Translation_unitContext parsePreQuiet(String source) {
-        final GLSLLexer lexer = new GLSLLexer(CharStreams.fromString(source));
-        lexer.removeErrorListeners();
-        final GLSLPreParser preParser = new GLSLPreParser(new CommonTokenStream(lexer, GLSLLexer.DIRECTIVES));
-        preParser.removeErrorListeners();
-        preParser.setBuildParseTree(true);
-        return preParser.translation_unit();
-    }
-
+    /**
+     * The TauMC-era token-spaced serializer: one space after every token, a newline after {@code ;}, <code>{</code>
+     * and <code>}</code>. The glsl-transformer engine prints with {@code ShaderAst.print(header)} instead.
+     *
+     * @deprecated Kept only for the code still on TauMC's parse tree (the old Iris engine's {@code ShaderTransformer}
+     * and {@code AdaptiveShadowBoundsTransformer}, GLSM's {@code CompatShaderTransformer}, and the TauMC oracle
+     * tests); Step 11 of docs/glsl-transformer_adoption/ADOPTION_PLAN.md deletes it with TauMC's library.
+     */
+    @Deprecated
     public static String getFormattedShader(ParseTree tree, String header) {
         StringBuilder sb = new StringBuilder(header + "\n");
         String[] tabHolder = {""};
