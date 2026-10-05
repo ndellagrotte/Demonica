@@ -401,29 +401,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.compositeRenderer = new CompositeRenderer(programs.getComposite(), programs.getCompositeCompute(), flipper, compositeBuildContext, programs.getPackDirectives().getExplicitFlips("composite_pre"), compositeTransformFutures, "composite", TextureStage.COMPOSITE_AND_FINAL);
 		this.finalPassRenderer = new FinalPassRenderer(programs, compositeBuildContext, flipper.snapshot(), this.compositeRenderer.getFlippedAtLeastOnceFinal(), finalTransformFuture, "final");
 
-		// [(textured=false,lightmap=false), (textured=true,lightmap=false), (textured=true,lightmap=true)]
-		final ProgramId[] ids = new ProgramId[] {
-				ProgramId.Basic, ProgramId.Textured, ProgramId.TexturedLit,
-				ProgramId.SkyBasic, ProgramId.SkyTextured, ProgramId.SkyTextured,
-				null, null, ProgramId.Terrain,
-				null, null, ProgramId.Water,
-				null, ProgramId.Clouds, ProgramId.Clouds,
-				null, ProgramId.DamagedBlock, ProgramId.DamagedBlock,
-				ProgramId.Block, ProgramId.Block, ProgramId.Block,
-				ProgramId.BlockTrans, ProgramId.BlockTrans, ProgramId.BlockTrans,
-				ProgramId.BeaconBeam, ProgramId.BeaconBeam, ProgramId.BeaconBeam,
-				ProgramId.Entities, ProgramId.Entities, ProgramId.Entities,
-				ProgramId.EntitiesTrans, ProgramId.EntitiesTrans, ProgramId.EntitiesTrans,
-				null, ProgramId.ArmorGlint, ProgramId.ArmorGlint,
-				null, ProgramId.SpiderEyes, ProgramId.SpiderEyes,
-				ProgramId.Hand, ProgramId.Hand, ProgramId.Hand,
-				ProgramId.HandWater, ProgramId.HandWater, ProgramId.HandWater,
-				null, null, ProgramId.Weather,
-				// world border uses textured_lit even though it has no lightmap :/
-				null, ProgramId.TexturedLit, ProgramId.TexturedLit,
-				ProgramId.ShadowWater, ProgramId.ShadowWater, ProgramId.ShadowWater,
-				ProgramId.Shadow, ProgramId.Shadow, ProgramId.Shadow
-		};
+		final ProgramId[] ids = GBUFFER_PROGRAM_IDS;
 
 		if (ids.length != RenderCondition.values().length * 3) {
 			throw new IllegalStateException("Program ID table length mismatch");
@@ -771,8 +749,16 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		switch (phase) {
-			case NONE, OUTLINE, DEBUG, PARTICLES:
+			case NONE, OUTLINE, DEBUG:
 				return RenderCondition.DEFAULT;
+			case PARTICLES:
+				// Demonica: upstream picks PARTICLES or PARTICLES_TRANS by render pipeline (OPAQUE_PARTICLE,
+				// TRANSLUCENT_PARTICLE, I pipeline/IrisPipelines.java). 1.12.2 has no such split:
+				// ParticleManager.renderParticles draws every layer with blending on (SRC_ALPHA,
+				// ONE_MINUS_SRC_ALPHA), toggling only the depth mask, and renderLitParticles leaves the state to
+				// each particle. So every particle draw takes gbuffers_particles; ParticlesTrans is read but no draw
+				// uses it (no id falls back to it). Revisit if a pack's gbuffers_particles_translucent differs.
+				return RenderCondition.PARTICLES;
 			case SKY, SUNSET, CUSTOM_SKY, SUN, MOON, STARS, VOID:
 				return RenderCondition.SKY;
 			case TERRAIN_SOLID, TERRAIN_CUTOUT, TERRAIN_CUTOUT_MIPPED:
@@ -2033,6 +2019,35 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			PBRTextureManager.notifyPBRTexturesChanged();
 		}
 	}
+
+	// [(textured=false,lightmap=false), (textured=true,lightmap=false), (textured=true,lightmap=true)]
+	// Demonica: a static field (was a constructor local) so DeferredWorldRenderingPipelineProgramTableTest can check
+	// each row against RenderCondition
+	static final ProgramId[] GBUFFER_PROGRAM_IDS = new ProgramId[] {
+			ProgramId.Basic, ProgramId.Textured, ProgramId.TexturedLit,
+			ProgramId.SkyBasic, ProgramId.SkyTextured, ProgramId.SkyTextured,
+			null, null, ProgramId.Terrain,
+			null, null, ProgramId.Water,
+			null, ProgramId.Clouds, ProgramId.Clouds,
+			null, ProgramId.DamagedBlock, ProgramId.DamagedBlock,
+			ProgramId.Block, ProgramId.Block, ProgramId.Block,
+			ProgramId.BlockTrans, ProgramId.BlockTrans, ProgramId.BlockTrans,
+			ProgramId.BeaconBeam, ProgramId.BeaconBeam, ProgramId.BeaconBeam,
+			ProgramId.Entities, ProgramId.Entities, ProgramId.Entities,
+			ProgramId.EntitiesTrans, ProgramId.EntitiesTrans, ProgramId.EntitiesTrans,
+			null, ProgramId.ArmorGlint, ProgramId.ArmorGlint,
+			null, ProgramId.SpiderEyes, ProgramId.SpiderEyes,
+			ProgramId.Hand, ProgramId.Hand, ProgramId.Hand,
+			ProgramId.HandWater, ProgramId.HandWater, ProgramId.HandWater,
+			null, null, ProgramId.Weather,
+			// world border uses textured_lit even though it has no lightmap :/
+			null, ProgramId.TexturedLit, ProgramId.TexturedLit,
+			// Demonica: particles take gbuffers_particles (upstream ShaderKey.PARTICLES, lit, for every textured
+			// particle draw), which falls back to textured_lit; ParticlesTrans has no row (getCondition says why)
+			null, ProgramId.Particles, ProgramId.Particles,
+			ProgramId.ShadowWater, ProgramId.ShadowWater, ProgramId.ShadowWater,
+			ProgramId.Shadow, ProgramId.Shadow, ProgramId.Shadow
+	};
 
 	private static final InputAvailability INPUT_NONE = new InputAvailability(false, false);
 	private static final InputAvailability INPUT_TEXTURE = new InputAvailability(true, false);
