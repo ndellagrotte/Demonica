@@ -36,6 +36,7 @@ import net.coderbot.iris.shaderpack.texture.TextureFilteringData;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.irisshaders.iris.api.v0.IrisApi;
+import org.apache.commons.lang3.SystemUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
@@ -270,9 +271,14 @@ public class ShaderPack {
 			final GuiScreen current = mc.currentScreen;
 			if (current instanceof ShaderPackScreen) {
 				// Demonica: our lang string is "List: %s", so the list is joined without upstream's ": " prefix.
-				final FeatureMissingErrorScreen screen = new FeatureMissingErrorScreen(current, I18n.format("iris.unsupported.pack"),
-						I18n.format("iris.unsupported.pack.description", FeatureFlags.getInvalidStatus(invalidFlagList),
-								String.join(", ", invalidFeatureFlags) + "."));
+				String message = I18n.format("iris.unsupported.pack.description", FeatureFlags.getInvalidStatus(invalidFlagList),
+						String.join(", ", invalidFeatureFlags) + ".");
+				if (SystemUtils.IS_OS_MAC) {
+					// Demonica: upstream's key starts with "\n", but a .lang file without #PARSE_ESCAPES keeps
+					// "\n" literally, so the line break is added here (listFormattedStringToWidth breaks on it).
+					message = message + "\n" + I18n.format("iris.unsupported.pack.macos");
+				}
+				final FeatureMissingErrorScreen screen = new FeatureMissingErrorScreen(current, I18n.format("iris.unsupported.pack"), message);
 				if (mc.isCallingFromMinecraftThread()) {
 					mc.displayGuiScreen(screen);
 				} else {

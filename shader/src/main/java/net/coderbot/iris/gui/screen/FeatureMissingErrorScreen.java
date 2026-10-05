@@ -30,6 +30,8 @@ public class FeatureMissingErrorScreen extends GuiScreen {
     @Override
     public void initGui() {
         this.buttonList.clear();
+        // Demonica: anchored to the bottom instead of upstream's fixed y=140, which a message wrapped to several
+        // lines from y=110 (more on small GUI scales) would run into.
         this.buttonList.add(new GuiButton(BACK, this.width / 2 - 100, this.height - 40, I18n.format("gui.back")));
     }
 
