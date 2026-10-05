@@ -95,6 +95,7 @@ public final class CommonUniforms {
 		}, StateUpdateNotifiers.bindTextureNotifier);
 
 		uniforms.uniform1i("gtextureId", () -> GLStateManager.getBoundTextureForServerState(0), StateUpdateNotifiers.bindTextureNotifier);
+		uniforms.uniform1i("textureReloadCount", CapturedRenderingState.INSTANCE::getTextureReloadCount, StateUpdateNotifiers.bindTextureNotifier);
 
 		uniforms.uniform2i("gtextureSize", () -> {
 			final int glId = GLStateManager.getBoundTextureForServerState(0);
