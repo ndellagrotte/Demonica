@@ -443,7 +443,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			return cachedPasses.computeIfAbsent(Pair.of(id, availability), p -> {
 				final ProgramSource source = resolver.resolveNullable(p.getLeft());
 
-				if (condition == RenderCondition.SHADOW || condition == RenderCondition.SHADOW_TRANSLUCENT) {
+				// Demonica: every shadow condition (upstream ShaderKey.isShadow()), not just SHADOW and SHADOW_TRANSLUCENT
+				if (condition.isShadow()) {
 					if (!shadowDirectives.isShadowEnabled().orElse(shadowRenderTargets != null)) {
 						// shadow is not used
 						return null;
@@ -460,8 +461,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 				}
 
 				try {
-					return createPass(source, availability,
-						condition == RenderCondition.SHADOW || condition == RenderCondition.SHADOW_TRANSLUCENT, finalId);
+					return createPass(source, availability, condition.isShadow(), finalId);
 				} catch (Exception e) {
 					throw new RuntimeException("Failed to create pass for " + source.getName() + " for rendering condition "
 						+ condition + " specialized to input availability " + availability, e);
@@ -487,10 +487,21 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			if (programs.getPackDirectives().getShadowDirectives().isShadowEnabled().orElse(true)) {
 				this.shadowRenderer = new ShadowRenderer(programs.getShadow().orElse(null),
 					programs.getPackDirectives(), shadowRenderTargets, shadowCompositeRenderer);
-				Program shadowProgram = table.match(RenderCondition.SHADOW, new InputAvailability(true, true)).getProgram();
-				Program shadowWaterProgram = table.match(RenderCondition.SHADOW_TRANSLUCENT, new InputAvailability(true, true)).getProgram();
-				shadowRenderer.setUsesImages((shadowProgram != null && shadowProgram.getActiveImages() > 0)
-					|| (shadowWaterProgram != null && shadowWaterProgram.getActiveImages() > 0));
+				// Demonica: every shadow condition's program counts (plan 2.4 added shadow_entities, shadow_lightning and
+				// shadow_block), not just shadow and shadow_water
+				boolean shadowUsesImages = false;
+				for (RenderCondition condition : RenderCondition.values()) {
+					if (!condition.isShadow()) {
+						continue;
+					}
+					Pass shadowPass = table.match(condition, new InputAvailability(true, true));
+					Program shadowProgram = shadowPass != null ? shadowPass.getProgram() : null;
+					if (shadowProgram != null && shadowProgram.getActiveImages() > 0) {
+						shadowUsesImages = true;
+						break;
+					}
+				}
+				shadowRenderer.setUsesImages(shadowUsesImages);
 			} else {
 				shadowRenderer = null;
 			}
@@ -730,12 +741,31 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		return packDirectives.getTextureMap();
 	}
 
+	// Demonica: static (the shadow branch of getCondition) so DeferredWorldRenderingPipelineProgramTableTest can check it
+	static RenderCondition getShadowCondition(WorldRenderingPhase phase, SpecialCondition special) {
+		// Demonica: upstream picks the shadow program by render pipeline (IrisPipelines.assignToShadow): lightning
+		// and the dragon rays take SHADOW_LIGHTNING, the end portal and gateway SHADOW_BLOCK, and every entity
+		// and block-entity pipeline (models, beacon beams, glint, eyes, text) SHADOW_ENTITIES_CUTOUT, so a
+		// chest casts its shadow with shadow_entities too. 1.12.2 has no pipelines, so the special condition and
+		// the phase stand in for them. In the shadow pass the phase is ENTITIES inside RenderManagerIrisMixin's
+		// wrap of each entity (ShadowRenderer.renderEntities draws them through RenderManager with the phase at
+		// NONE) and BLOCK_ENTITIES across ShadowRenderer.renderTileEntities.
+		if (special == SpecialCondition.LIGHTNING) {
+			return RenderCondition.SHADOW_LIGHTNING;
+		} else if (special == SpecialCondition.END_PORTAL) {
+			return RenderCondition.SHADOW_BLOCK;
+		}
+
+		return switch (phase) {
+			case TERRAIN_TRANSLUCENT, TRIPWIRE -> RenderCondition.SHADOW_TRANSLUCENT;
+			case ENTITIES, BLOCK_ENTITIES -> RenderCondition.SHADOW_ENTITIES;
+			default -> RenderCondition.SHADOW;
+		};
+	}
+
 	private RenderCondition getCondition(WorldRenderingPhase phase) {
 		if (isRenderingShadow) {
-			return switch (phase) {
-				case TERRAIN_TRANSLUCENT, TRIPWIRE -> RenderCondition.SHADOW_TRANSLUCENT;
-				default -> RenderCondition.SHADOW;
-			};
+			return getShadowCondition(phase, special);
 		}
 
 		if (special != null) {
@@ -745,7 +775,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 				return RenderCondition.ENTITY_EYES;
 			} else if (special == SpecialCondition.GLINT) {
 				return RenderCondition.GLINT;
+			} else if (special == SpecialCondition.LIGHTNING) {
+				return RenderCondition.LIGHTNING;
 			}
+			// Demonica: END_PORTAL only picks the shadow program; here the portal keeps its phase's program, as
+			// upstream draws END_PORTAL and END_GATEWAY with BLOCK_ENTITY
 		}
 
 		switch (phase) {
@@ -2045,6 +2079,13 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			// Demonica: particles take gbuffers_particles (upstream ShaderKey.PARTICLES, lit, for every textured
 			// particle draw), which falls back to textured_lit; ParticlesTrans has no row (getCondition says why)
 			null, ProgramId.Particles, ProgramId.Particles,
+			// Demonica: upstream ShaderKey.LIGHTNING (POSITION_COLOR: the bolt and the death ray draw untextured), which
+			// falls back to entities; every column names it, as a null would fall back to basic
+			ProgramId.Lightning, ProgramId.Lightning, ProgramId.Lightning,
+			// Demonica: upstream ShaderKey.SHADOW_ENTITIES_CUTOUT, SHADOW_LIGHTNING and SHADOW_BLOCK
+			ProgramId.ShadowEntities, ProgramId.ShadowEntities, ProgramId.ShadowEntities,
+			ProgramId.ShadowLightning, ProgramId.ShadowLightning, ProgramId.ShadowLightning,
+			ProgramId.ShadowBlock, ProgramId.ShadowBlock, ProgramId.ShadowBlock,
 			ProgramId.ShadowWater, ProgramId.ShadowWater, ProgramId.ShadowWater,
 			ProgramId.Shadow, ProgramId.Shadow, ProgramId.Shadow
 	};
