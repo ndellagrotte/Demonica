@@ -19,6 +19,11 @@ public enum FeatureFlags {
 	TESSELLATION_SHADERS(() -> true, RenderSystem::supportsTesselation),
 	REVERSED_CULLING(() -> true, () -> true),
 	CAN_DISABLE_WEATHER(() -> true, () -> true),
+	// Demonica: software-true as upstream. FADE_VARIABLE is served by the const mc_chunkFade that AttributeTransformer
+	// (-1.0) and CeleritasTransformer (1.0, fully faded in) declare, as 1.12.2 chunks do not fade in;
+	// TEXTURE_FILTERING by the textureFilteringMode = 0 uniform (no texture filtering option on 1.12.2).
+	FADE_VARIABLE(() -> true, () -> true),
+	TEXTURE_FILTERING(() -> true, () -> true),
 	UNKNOWN(() -> false, () -> false);
 
 	private final BooleanSupplier irisRequirement;

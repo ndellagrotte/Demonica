@@ -242,6 +242,18 @@ public class ShaderPack {
 			activeFeatures.add(FeatureFlags.getValue(flag));
 		}
 
+		// Demonica: upstream's checks (Iris 1.11.4 ShaderPack), kept as throws: BSL 10.1.8, Complementary Reimagined
+		// r5.9.3 and I Like Vanilla 1.4.4 each declare CUSTOM_IMAGES (and Complementary SSBO) in the same
+		// shaders.properties block as their image./bufferObject. directives (docs/IRIS_PORTING_PLAN.md, open check 3).
+		// Iris.loadExternalShaderpack catches the exception and leaves shaders off, as upstream.
+		if (!activeFeatures.contains(FeatureFlags.SSBO) && !shaderProperties.getBufferObjects().isEmpty()) {
+			throw new IllegalStateException("An SSBO is being used, but the feature flag for SSBO's hasn't been set! Please set either a requirement or check for the SSBO feature using \"iris.features.required/optional = ssbo\".");
+		}
+
+		if (!activeFeatures.contains(FeatureFlags.CUSTOM_IMAGES) && !shaderProperties.getCustomImages().isEmpty()) {
+			throw new IllegalStateException("Custom images are being used, but the feature flag for custom images hasn't been set! Please set either a requirement or check for custom images' feature flag using \"iris.features.required/optional = CUSTOM_IMAGES\".");
+		}
+
 		List<FeatureFlags> invalidFlagList = shaderProperties.getRequiredFeatureFlags().stream().filter(FeatureFlags::isInvalid).map(FeatureFlags::getValue).collect(Collectors.toList());
 		List<String> invalidFeatureFlags = invalidFlagList.stream().map(FeatureFlags::getHumanReadableName).collect(Collectors.toList());
 

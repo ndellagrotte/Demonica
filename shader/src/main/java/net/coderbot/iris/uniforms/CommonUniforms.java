@@ -154,6 +154,9 @@ public final class CommonUniforms {
 			// TODO: Do we need to clamp this to avoid fullbright breaking shaders? Or should shaders be able to detect
 			//       that the player is trying to turn on fullbright?
 			.uniform1f(PER_FRAME, "screenBrightness", () -> client.gameSettings.gammaSetting)
+			// Demonica: PER_FRAME upstream, reading the anisotropy level when the texture filtering option is
+			// ANISOTROPIC; 1.12.2 has no texture filtering option, so it is a constant 0 (filtering off).
+			.uniform1i(ONCE, "anisotropicFiltering", () -> 0)
 			.uniform1f(ONCE, "pi", () -> PI)
 			// just a dummy value for shaders where entityColor isn't supplied through a vertex attribute (and thus is
 			// not available) - suppresses warnings. See AttributeShaderTransformer for the actual entityColor code.

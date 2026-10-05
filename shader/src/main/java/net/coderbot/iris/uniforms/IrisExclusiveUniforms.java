@@ -26,6 +26,12 @@ public class IrisExclusiveUniforms {
 	public static void addIrisExclusiveUniforms(UniformHolder uniforms) {
 		WorldInfoUniforms.addWorldInfoUniforms(uniforms);
 
+		// Demonica: PER_FRAME upstream, read from the chunk fade-in time and texture filtering options; 1.12.2 has
+		// neither (chunks do not fade in, textures are not filtered), so both are the constant 0. They back the
+		// FADE_VARIABLE and TEXTURE_FILTERING feature flags.
+		uniforms.uniform1f(UniformUpdateFrequency.ONCE, "chunkFadeTimeInv", () -> 0.0F);
+		uniforms.uniform1i(UniformUpdateFrequency.ONCE, "textureFilteringMode", () -> 0);
+
 		//All Iris-exclusive uniforms (uniforms which do not exist in either OptiFine or ShadersMod) should be registered here.
 		uniforms.uniform1f(UniformUpdateFrequency.PER_FRAME, "thunderStrength", IrisExclusiveUniforms::getThunderStrength);
 		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "currentPlayerHealth", IrisExclusiveUniforms::getCurrentHealth);

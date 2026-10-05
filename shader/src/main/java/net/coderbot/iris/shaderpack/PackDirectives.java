@@ -39,6 +39,8 @@ public class PackDirectives {
 	private boolean weatherParticles;
 	private boolean rainDepth;
 	private boolean separateAo;
+	// Demonica: parsed for parity; nothing reads it yet, as 1.12.2 has no sampler anisotropy path to switch off.
+	private boolean breaksAnisotropy;
 	private boolean voxelizeLightBlocks;
 	private boolean separateEntityDraws;
 	private boolean frustumCulling;
@@ -86,6 +88,7 @@ public class PackDirectives {
 		weatherParticles = properties.getWeatherParticles().orElse(true);
 		rainDepth = properties.getRainDepth().orElse(false);
 		separateAo = properties.getSeparateAo().orElse(false);
+		breaksAnisotropy = properties.getBreaksAnisotropy().orElse(false);
 		voxelizeLightBlocks = properties.getVoxelizeLightBlocks().orElse(false);
 		separateEntityDraws = properties.getSeparateEntityDraws().orElse(false);
 		frustumCulling = properties.getFrustumCulling().orElse(true);
@@ -107,6 +110,8 @@ public class PackDirectives {
 		this(supportedRenderTargets, new PackShadowDirectives(directives.getShadowDirectives()));
 		cloudSetting = directives.cloudSetting;
 		separateAo = directives.separateAo;
+		// Demonica: upstream's copy constructor drops breaksAnisotropy; copy it like its neighbours.
+		breaksAnisotropy = directives.breaksAnisotropy;
 		voxelizeLightBlocks = directives.voxelizeLightBlocks;
 		separateEntityDraws = directives.separateEntityDraws;
 		frustumCulling = directives.frustumCulling;
@@ -159,6 +164,10 @@ public class PackDirectives {
 
 	public boolean shouldUseSeparateAo() {
 		return separateAo;
+	}
+
+	public boolean breaksAnisotropy() {
+		return breaksAnisotropy;
 	}
 
 	public boolean shouldVoxelizeLightBlocks() {
