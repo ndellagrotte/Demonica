@@ -45,7 +45,21 @@ public class IrisExclusiveUniforms {
 		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "maxPlayerAir", IrisExclusiveUniforms::getMaxAir);
 		uniforms.uniform1b(UniformUpdateFrequency.PER_FRAME, "firstPersonCamera", IrisExclusiveUniforms::isFirstPersonCamera);
 		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isSpectator", IrisExclusiveUniforms::isSpectator);
-		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isRightHanded", () -> true); // 1.7.10 doesn't support left-handed mode
+		// Demonica: 1.12.2 has no colour-space pathway (upstream IrisVideoSettings.colorSpace), so this is always 0.
+		uniforms.uniform1i(UniformUpdateFrequency.PER_TICK, "currentColorSpace", () -> 0);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isRiding", IrisExclusiveUniforms::getIsPassenger);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isElytraFlying", IrisExclusiveUniforms::isElytraFlying);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "heavyFog", IrisExclusiveUniforms::isHeavyFog);
+		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "currentPlayerArmor", IrisExclusiveUniforms::getCurrentArmor);
+		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "maxPlayerArmor", () -> 50);
+		uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "seaLevel", () -> {
+			final WorldClient world = Minecraft.getMinecraft().world;
+			return world == null ? 0 : world.getSeaLevel();
+		});
+		uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "logicalHeightLimit", () -> {
+			final WorldClient world = Minecraft.getMinecraft().world;
+			return world == null ? 256 : world.provider.getHeight();
+		});
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "eyePosition", IrisExclusiveUniforms::getEyePosition);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "relativeEyePosition", IrisExclusiveUniforms::getRelativeEyePosition);
 		uniforms.uniform4f(UniformUpdateFrequency.PER_TICK, "lightningBoltPosition", IrisExclusiveUniforms::getLightningBoltPosition);
@@ -95,6 +109,27 @@ public class IrisExclusiveUniforms {
 		}
 
 		return Minecraft.getMinecraft().player.getMaxHealth();
+	}
+
+	private static float getCurrentArmor() {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+			return -1;
+		}
+
+		return Minecraft.getMinecraft().player.getTotalArmorValue() / 50.0f;
+	}
+
+	private static boolean getIsPassenger() {
+		return Minecraft.getMinecraft().player != null && Minecraft.getMinecraft().player.isRiding();
+	}
+
+	private static boolean isElytraFlying() {
+		return Minecraft.getMinecraft().player != null && Minecraft.getMinecraft().player.isElytraFlying();
+	}
+
+	private static boolean isHeavyFog() {
+		final Minecraft mc = Minecraft.getMinecraft();
+		return mc.world != null && mc.ingameGUI != null && mc.ingameGUI.getBossOverlay().shouldCreateFog();
 	}
 
 	private static boolean isFirstPersonCamera() {

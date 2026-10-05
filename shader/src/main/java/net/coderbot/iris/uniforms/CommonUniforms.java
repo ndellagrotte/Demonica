@@ -28,6 +28,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.MobEffects;
 import net.minecraft.potion.PotionEffect;
+import net.minecraft.util.EnumHandSide;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Math;
 import org.joml.Vector2f;
@@ -145,6 +146,8 @@ public final class CommonUniforms {
 				}
 				return cloudTime;
 			})
+			// Demonica: upstream reads GameOptions.mainHand().
+			.uniform1b(PER_FRAME, "isRightHanded", () -> client.gameSettings.mainHand == EnumHandSide.RIGHT)
             .uniform1b(PER_FRAME, "is_sneaking", CommonUniforms::isSneaking)
             .uniform1b(PER_FRAME, "is_sprinting", CommonUniforms::isSprinting)
             .uniform1b(PER_FRAME, "is_hurt", CommonUniforms::isHurt)
@@ -161,6 +164,7 @@ public final class CommonUniforms {
 			// just a dummy value for shaders where entityColor isn't supplied through a vertex attribute (and thus is
 			// not available) - suppresses warnings. See AttributeShaderTransformer for the actual entityColor code.
             .uniform1f(PER_TICK, "playerMood", CommonUniforms::getPlayerMood)
+			.uniform1f(PER_TICK, "constantMood", CommonUniforms::getConstantMood)
 			.uniform2i(PER_FRAME, "eyeBrightness", CommonUniforms::getEyeBrightness)
 			.uniform2i(PER_FRAME, "eyeBrightnessSmooth", () -> {
 				final Vector2f smoothed = eyeBrightnessSmooth.get();
@@ -222,6 +226,11 @@ public final class CommonUniforms {
 			}
 		}
 
+		return 0.0F;
+	}
+
+	// Demonica: 1.12.2 has no mood mechanic (upstream LocalPlayer.getCurrentMood), so this is always 0.
+	private static float getConstantMood() {
 		return 0.0F;
 	}
 
