@@ -56,10 +56,6 @@ public class IrisExclusiveUniforms {
 			final WorldClient world = Minecraft.getMinecraft().world;
 			return world == null ? 0 : world.getSeaLevel();
 		});
-		uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "logicalHeightLimit", () -> {
-			final WorldClient world = Minecraft.getMinecraft().world;
-			return world == null ? 256 : world.provider.getHeight();
-		});
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "eyePosition", IrisExclusiveUniforms::getEyePosition);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "relativeEyePosition", IrisExclusiveUniforms::getRelativeEyePosition);
 		uniforms.uniform4f(UniformUpdateFrequency.PER_TICK, "lightningBoltPosition", IrisExclusiveUniforms::getLightningBoltPosition);
@@ -128,6 +124,8 @@ public class IrisExclusiveUniforms {
 	}
 
 	private static boolean isHeavyFog() {
+		// Demonica: null-checks ingameGUI, which upstream's gui never needs. In 1.12.2 only the dragon fight's boss bar
+		// sets the fog flag (the wither only darkens the sky), as upstream.
 		final Minecraft mc = Minecraft.getMinecraft();
 		return mc.world != null && mc.ingameGUI != null && mc.ingameGUI.getBossOverlay().shouldCreateFog();
 	}
@@ -187,6 +185,13 @@ public class IrisExclusiveUniforms {
 				} else {
 					return 256;
 				}
+			});
+			// Demonica: upstream reads dimensionType().logicalHeight(). 1.12.2's analogue is Forge's
+			// WorldProvider.getActualHeight() (128 in the Nether, else 256); getHeight() is always 256. The world is
+			// read per call, not captured like `level` above, so it follows dimension changes.
+			uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "logicalHeightLimit", () -> {
+				final WorldClient world = Minecraft.getMinecraft().world;
+				return world == null ? 256 : world.provider.getActualHeight();
 			});
 			uniforms.uniform1b(UniformUpdateFrequency.PER_FRAME, "hasCeiling", () -> {
 				if (level != null && level.provider != null) {
