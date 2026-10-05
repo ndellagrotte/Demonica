@@ -45,6 +45,8 @@ public class CompatUniformManager {
     static final int LOC_CLIP_PLANES = 17;
     static final int LOC_CLIP_PLANES_ENABLED = 18;
     static final int LOC_IRIS_COLOR_MODULATOR = 19;
+    static final int LOC_IRIS_MODELVIEW_INVERSE = 20;
+    static final int LOC_IRIS_PROJECTION_INVERSE = 21;
 
     // Light source fields: 12 per light × 2 lights = 24 locations
     static final int LIGHT_FIELDS = 12;
@@ -52,14 +54,14 @@ public class CompatUniformManager {
     static final int LF_HALF_VECTOR = 4, LF_SPOT_DIRECTION = 5, LF_SPOT_EXPONENT = 6;
     static final int LF_SPOT_CUTOFF = 7, LF_SPOT_COS_CUTOFF = 8;
     static final int LF_CONSTANT_ATTEN = 9, LF_LINEAR_ATTEN = 10, LF_QUADRATIC_ATTEN = 11;
-    static final int LOC_LIGHT_BASE = 20;
+    static final int LOC_LIGHT_BASE = 22;
 
     // Material fields: 5 locations
     static final int MF_EMISSION = 0, MF_AMBIENT = 1, MF_DIFFUSE = 2, MF_SPECULAR = 3, MF_SHININESS = 4;
     static final int MAT_FIELDS = 5;
-    static final int LOC_MAT_BASE = LOC_LIGHT_BASE + 2 * LIGHT_FIELDS; // 43
+    static final int LOC_MAT_BASE = LOC_LIGHT_BASE + 2 * LIGHT_FIELDS; // 46
 
-    static final int LOC_COUNT = LOC_MAT_BASE + MAT_FIELDS; // 48
+    static final int LOC_COUNT = LOC_MAT_BASE + MAT_FIELDS; // 51
 
     private static final String[] LIGHT_FIELD_NAMES = {
         "ambient", "diffuse", "specular", "position", "halfVector",
@@ -94,6 +96,12 @@ public class CompatUniformManager {
         UNIFORM_NAMES[LOC_CLIP_PLANES] = "actinium_ClipPlane[0]";
         UNIFORM_NAMES[LOC_CLIP_PLANES_ENABLED] = "actinium_ClipPlanesEnabled";
         UNIFORM_NAMES[LOC_IRIS_COLOR_MODULATOR] = "iris_ColorModulator";
+        // Demonica: CoreTransformHelper renames gl_ModelViewMatrixInverse and gl_ProjectionMatrixInverse to these in
+        // ATTRIBUTES, CELERITAS_TERRAIN and COMPOSITE programs, and only the Celeritas seam and the DH programs set them.
+        // Upstream Iris splits them into Default and Shadow variants because Sodium bakes terrain uniforms; here the
+        // inverse of the current stack is uploaded with the matrix, so one name serves the gbuffers and shadow passes.
+        UNIFORM_NAMES[LOC_IRIS_MODELVIEW_INVERSE] = "iris_ModelViewMatrixInverse";
+        UNIFORM_NAMES[LOC_IRIS_PROJECTION_INVERSE] = "iris_ProjectionMatrixInverse";
         for (int li = 0; li < 2; li++) {
             for (int fi = 0; fi < LIGHT_FIELDS; fi++) {
                 UNIFORM_NAMES[LOC_LIGHT_BASE + li * LIGHT_FIELDS + fi] = "actinium_LightSource[" + li + "]." + LIGHT_FIELD_NAMES[fi];
@@ -241,10 +249,15 @@ public class CompatUniformManager {
             }
 
             // ModelView Inverse
-            if (locs[LOC_MODELVIEW_INVERSE] != -1) {
+            if (locs[LOC_MODELVIEW_INVERSE] != -1 || locs[LOC_IRIS_MODELVIEW_INVERSE] != -1) {
                 mv.invert(buffers.scratchMatrix);
                 buffers.scratchMatrix.get(buffers.mat4Buf);
-                RENDER_BACKEND.uniformMatrix4(locs[LOC_MODELVIEW_INVERSE], false, buffers.mat4Buf);
+                if (locs[LOC_MODELVIEW_INVERSE] != -1) {
+                    RENDER_BACKEND.uniformMatrix4(locs[LOC_MODELVIEW_INVERSE], false, buffers.mat4Buf);
+                }
+                if (locs[LOC_IRIS_MODELVIEW_INVERSE] != -1) {
+                    RENDER_BACKEND.uniformMatrix4(locs[LOC_IRIS_MODELVIEW_INVERSE], false, buffers.mat4Buf);
+                }
             }
 
             // Normal Matrix (inverse-transpose of upper-left 3x3 of ModelView)
@@ -273,10 +286,15 @@ public class CompatUniformManager {
             }
 
             // Projection Inverse
-            if (locs[LOC_PROJECTION_INVERSE] != -1) {
+            if (locs[LOC_PROJECTION_INVERSE] != -1 || locs[LOC_IRIS_PROJECTION_INVERSE] != -1) {
                 proj.invert(buffers.scratchMatrix);
                 buffers.scratchMatrix.get(buffers.mat4Buf);
-                RENDER_BACKEND.uniformMatrix4(locs[LOC_PROJECTION_INVERSE], false, buffers.mat4Buf);
+                if (locs[LOC_PROJECTION_INVERSE] != -1) {
+                    RENDER_BACKEND.uniformMatrix4(locs[LOC_PROJECTION_INVERSE], false, buffers.mat4Buf);
+                }
+                if (locs[LOC_IRIS_PROJECTION_INVERSE] != -1) {
+                    RENDER_BACKEND.uniformMatrix4(locs[LOC_IRIS_PROJECTION_INVERSE], false, buffers.mat4Buf);
+                }
             }
         }
 
@@ -422,6 +440,11 @@ public class CompatUniformManager {
             RENDER_BACKEND.uniform4f(locs[LOC_MAT_BASE + MF_SPECULAR], mat.specular.x, mat.specular.y, mat.specular.z, mat.specular.w);
         if (locs[LOC_MAT_BASE + MF_SHININESS] != -1)
             RENDER_BACKEND.uniform1f(locs[LOC_MAT_BASE + MF_SHININESS], mat.shininess);
+    }
+
+    /** The uniform name looked up for a location index (package-private for tests). */
+    static String uniformName(int location) {
+        return UNIFORM_NAMES[location];
     }
 
     static boolean hasUniformLocation(int[] locations, int offset, int count) {
