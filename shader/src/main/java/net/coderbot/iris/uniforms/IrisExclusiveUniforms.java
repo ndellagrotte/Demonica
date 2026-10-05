@@ -2,9 +2,10 @@ package net.coderbot.iris.uniforms;
 
 import com.gtnewhorizons.angelica.compat.mojang.Camera;
 import com.gtnewhorizons.angelica.compat.mojang.GameModeUtil;
+import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.gl.uniform.UniformUpdateFrequency;
-import net.coderbot.iris.block_rendering.BlockRenderingSettings;
+import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -55,11 +56,10 @@ public class IrisExclusiveUniforms {
 		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isSpectator", IrisExclusiveUniforms::isSpectator);
 		// Demonica: 1.12.2 has no colour-space pathway (upstream IrisVideoSettings.colorSpace), so this is always 0.
 		uniforms.uniform1i(UniformUpdateFrequency.PER_TICK, "currentColorSpace", () -> 0);
-		// Demonica: upstream's isInShallowWater() is the 1.13+ "feet in water" test; 1.12.2 has only isInWater().
-		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "feetInWater", IrisExclusiveUniforms::getIsInWater);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "feetInWater", IrisExclusiveUniforms::getIsInShallowWater);
 		// Demonica: 1.12.2 has no swimming pose (added in 1.13), so the player is never in a swimming animation.
 		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "inSwimmingAnimation", () -> false);
-		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "vehicleInWater", IrisExclusiveUniforms::getVehicleInWater);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "vehicleInWater", IrisExclusiveUniforms::getVehicleInShallowWater);
 		uniforms.uniform1i(UniformUpdateFrequency.PER_TICK, "vehicleId", IrisExclusiveUniforms::getVehicleId);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "vehicleLookVector", IrisExclusiveUniforms::getVehicleLookVector);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "relativeVehiclePosition", IrisExclusiveUniforms::getRelativeVehiclePosition);
@@ -154,7 +154,7 @@ public class IrisExclusiveUniforms {
 	private static Vector3d getRelativeVehiclePosition() {
 		final Entity vehicle = getVehicle();
 		if (vehicle == null) return ZERO;
-		// Demonica: upstream's Entity.getPosition(partialTick) is Entity.lerp for the interpolated position in 1.12.2.
+		// Demonica: 1.12.2 has no Entity.getPosition(partialTick); lerp prevPos -> pos by hand, as upstream's lerps xo -> x.
 		final float t = CapturedRenderingState.INSTANCE.getTickDelta();
 		final double x = vehicle.prevPosX + (vehicle.posX - vehicle.prevPosX) * t;
 		final double y = vehicle.prevPosY + (vehicle.posY - vehicle.prevPosY) * t;
@@ -162,14 +162,18 @@ public class IrisExclusiveUniforms {
 		return relativeVehiclePositionCache.set(CameraUniforms.getUnshiftedCameraPosition()).sub(x, y, z);
 	}
 
-	private static boolean getVehicleInWater() {
-		final Entity vehicle = getVehicle();
-		return vehicle != null && vehicle.isInWater();
+	private static boolean getVehicleInShallowWater() {
+		return isInShallowWater(getVehicle());
 	}
 
-	private static boolean getIsInWater() {
-		final EntityPlayerSP player = Minecraft.getMinecraft().player;
-		return player != null && player.isInWater();
+	private static boolean getIsInShallowWater() {
+		return isInShallowWater(Minecraft.getMinecraft().player);
+	}
+
+	// Demonica: 1.12.2 has no Entity.isInShallowWater() (upstream's isInWater() && !isUnderWater()); the
+	// equivalent is isInWater() with the eyes out of water, which 1.12.2 tests with isInsideOfMaterial(WATER).
+	private static boolean isInShallowWater(Entity entity) {
+		return entity != null && entity.isInWater() && !entity.isInsideOfMaterial(Material.WATER);
 	}
 
 	private static Vector3d getPlayerLookVector() {
