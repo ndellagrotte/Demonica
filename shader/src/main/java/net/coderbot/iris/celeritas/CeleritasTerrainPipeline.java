@@ -152,9 +152,9 @@ public class CeleritasTerrainPipeline {
 
             // Set alpha reference. The shader pack directive wins; otherwise match Iris/Sodium defaults
             // for terrain passes so translucent water does not inherit a stale vanilla alpha test.
-            // Demonica: upstream (SodiumPrograms.getAlphaTest, ShaderKey.TERRAIN_CUTOUT/SHADOW_TERRAIN_CUTOUT) tests
-            // the cutout passes at HALF_ALPHA (0.5) and SHADOW_TRANS not at all; these 0.1/0.0001 defaults come from
-            // Angelica and are kept so the pass split changes no pack's output.
+            // Demonica: upstream's Sodium terrain path (SodiumPrograms.getAlphaTest) tests both cutout passes at
+            // HALF_ALPHA (0.5), TRANSLUCENT at NON_ZERO_ALPHA and SHADOW_TRANS not at all; these 0.1/0.0001 defaults
+            // come from Angelica and are kept so the pass split changes no pack's output.
             passInfo.alphaReference = switch (pass) {
                 case GBUFFER_CUTOUT, SHADOW_CUTOUT -> 0.1f;
                 case GBUFFER_TRANSLUCENT, SHADOW_TRANSLUCENT -> 0.0001f;

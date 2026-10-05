@@ -87,8 +87,27 @@ class CeleritasTerrainPassSourcesTest {
     }
 
     @Test
+    void packShippingBSLsFilesSharesTheShadowTransformWithShadowTranslucent() throws Exception {
+        // The shape of BSL, Complementary and I Like Vanilla: no split files and no shadow_water. Before 2.2 the
+        // pipeline submitted shadow twice (as shadow and as the shadow_water fallback); now it is transformed once.
+        for (String name : new String[] {"shadow", "gbuffers_terrain", "gbuffers_water"}) {
+            ProgramFallbackResolverTest.writeProgram(tempDir, name);
+        }
+
+        List<String> submitted = new ArrayList<>();
+        Map<IrisTerrainPass, Object> futures = submit(resolve(tempDir), submitted);
+
+        assertEquals(List.of("gbuffers_terrain", "gbuffers_water", "shadow"), submitted);
+        assertEquals(EnumSet.allOf(IrisTerrainPass.class), futures.keySet());
+        assertSame(futures.get(IrisTerrainPass.GBUFFER_SOLID), futures.get(IrisTerrainPass.GBUFFER_CUTOUT));
+        assertSame(futures.get(IrisTerrainPass.SHADOW), futures.get(IrisTerrainPass.SHADOW_CUTOUT));
+        assertSame(futures.get(IrisTerrainPass.SHADOW), futures.get(IrisTerrainPass.SHADOW_TRANSLUCENT));
+        assertNotSame(futures.get(IrisTerrainPass.GBUFFER_SOLID), futures.get(IrisTerrainPass.GBUFFER_TRANSLUCENT));
+    }
+
+    @Test
     void packWithoutSplitFilesTransformsEachSourceOnceInTheOldOrder() throws Exception {
-        // The shape of BSL, Complementary and I Like Vanilla: the four sources the pipeline transformed before 2.2.
+        // No split files but a shadow_water: the four distinct sources the pipeline transformed before 2.2.
         for (String name : new String[] {"shadow", "shadow_water", "gbuffers_terrain", "gbuffers_water"}) {
             ProgramFallbackResolverTest.writeProgram(tempDir, name);
         }
