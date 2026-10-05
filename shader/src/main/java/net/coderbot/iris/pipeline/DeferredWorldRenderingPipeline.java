@@ -15,6 +15,7 @@ import net.coderbot.iris.Iris;
 import net.coderbot.iris.block_rendering.BlockMaterialMapping;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.coderbot.iris.celeritas.CeleritasTerrainPipeline;
+import net.coderbot.iris.celeritas.IrisTerrainPass;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.debug.IrisGlDebug;
 import net.coderbot.iris.features.FeatureFlags;
@@ -103,6 +104,7 @@ import org.lwjgl.opengl.GL43;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -237,16 +239,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		resolver = new ProgramFallbackResolver(programs);
 		final Map<Pair<String, InputAvailability>, CompletableFuture<Map<PatchShaderType, String>>> attributeTransformFutures = submitAttributeTransforms(resolver);
 
-		final Optional<ProgramSource> terrainSource = first(programs.getGbuffersTerrain(), programs.getGbuffersTexturedLit(), programs.getGbuffersTextured(), programs.getGbuffersBasic());
-		final Optional<ProgramSource> translucentSource = first(programs.getGbuffersWater(), terrainSource);
-		final Optional<ProgramSource> shadowSource = programs.getShadow();
-		final Optional<ProgramSource> shadowTranslucentSource = first(programs.getShadowWater(), shadowSource);
-
-		// Celeritas terrain transform futures
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasTerrainFuture = terrainSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasTranslucentFuture = translucentSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasShadowFuture = shadowSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasShadowTranslucentFuture = shadowTranslucentSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
+		// Celeritas terrain sources, one per pass through the fallback chain (upstream SodiumPrograms), and their
+		// transform futures, one per distinct source
+		final EnumMap<IrisTerrainPass, Optional<ProgramSource>> celeritasTerrainSources = CeleritasTerrainPipeline.resolveSources(resolver);
+		final EnumMap<IrisTerrainPass, CompletableFuture<Map<PatchShaderType, String>>> celeritasTerrainFutures =
+			CeleritasTerrainPipeline.submitTransforms(celeritasTerrainSources, DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform);
 
 		this.cloudSetting = programs.getPackDirectives().getCloudSetting();
 		this.shouldRenderUnderwaterOverlay = programs.getPackDirectives().underwaterOverlay();
@@ -629,11 +626,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.celeritasTerrainPipeline = new CeleritasTerrainPipeline(createTerrainSamplers,
 			shadowRenderer == null ? null : createShadowTerrainSamplers, createTerrainImages,
 			shadowRenderer == null ? null : createShadowTerrainImages, this.customUniforms,
-			terrainSource,
-			translucentSource,
-			shadowSource,
-			shadowTranslucentSource,
-			celeritasTerrainFuture, celeritasTranslucentFuture, celeritasShadowFuture, celeritasShadowTranslucentFuture,
+			celeritasTerrainSources, celeritasTerrainFutures,
 			renderTargets, flippedAfterPrepare, flippedAfterTranslucent,
 			celeritasShadowFb);
 
@@ -2094,16 +2087,6 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	private static CompletableFuture<Map<PatchShaderType, String>> submitCeleritasTerrainTransform(ProgramSource source) {
 		return Iris.ShaderTransformExecutor.submitTracked(() -> TransformPatcher.patchCeleritasTerrain(source.getVertexSource().orElse(null), source.getGeometrySource().orElse(null), source.getFragmentSource().orElse(null)));
-	}
-
-	@SafeVarargs
-	private static <T> Optional<T> first(Optional<T>... candidates) {
-		for (Optional<T> candidate : candidates) {
-			if (candidate.isPresent()) {
-				return candidate;
-			}
-		}
-		return Optional.empty();
 	}
 
 	private static void logBlockMappingSummary() {
