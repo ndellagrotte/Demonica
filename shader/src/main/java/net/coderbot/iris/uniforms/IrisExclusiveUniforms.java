@@ -2,6 +2,7 @@ package net.coderbot.iris.uniforms;
 
 import com.gtnewhorizons.angelica.compat.mojang.Camera;
 import com.gtnewhorizons.angelica.compat.mojang.GameModeUtil;
+import net.coderbot.iris.block_rendering.BlockMaterialMapping;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.gl.uniform.UniformUpdateFrequency;
@@ -14,6 +15,7 @@ import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.effect.EntityLightningBolt;
+import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
@@ -105,17 +107,32 @@ public class IrisExclusiveUniforms {
 		if (pos != null) {
 			final WorldClient world = Minecraft.getMinecraft().world;
 			final IBlockState state = world.getBlockState(pos);
-			// Demonica: Material.AIR stands in for BlockState.isAir(); the world border test is
+			final Block block = state.getBlock();
+			// Demonica: Forge's Block.isAir stands in for BlockState.isAir(); the world border test is
 			// WorldBorder.contains(BlockPos).
-			if (state.getMaterial() != Material.AIR && world.getWorldBorder().contains(pos)) {
-				final Block block = state.getBlock();
-				// Demonica: ids are keyed by block and metadata; -1 is "not mapped", which upstream's
-				// Object2IntMap reads as 0. The snowy bit ShaderBlockContexts adds for chunk geometry is not applied here.
-				return Math.max(0, BlockRenderingSettings.INSTANCE.getBlockStateId(block, block.getMetaFromState(state)));
+			if (!block.isAir(state, world, pos) && world.getWorldBorder().contains(pos)) {
+				// Demonica: ids are keyed by block and metadata, where upstream's map is keyed by block state. A block
+				// the pack does not list resolves to -1, as upstream's map does (its defaultReturnValue is -1).
+				int metadata = block.getMetaFromState(state);
+				// Demonica: snowy=true is a real block state property upstream; 1.12.2 derives it from the block above,
+				// so the snowy bit is added here the same way ShaderBlockContexts adds it for chunk geometry.
+				if (isSnowy(block, pos, world)) {
+					metadata |= BlockMaterialMapping.SNOWY_META_BIT;
+				}
+				return BlockRenderingSettings.INSTANCE.getBlockStateId(block, metadata);
 			}
 		}
 
 		return 0;
+	}
+
+	// Demonica: mirrors ShaderBlockContexts.isSnowy (host module, not visible from here).
+	private static boolean isSnowy(Block block, BlockPos pos, WorldClient world) {
+		if (!BlockRenderingSettings.INSTANCE.hasSnowyEntries() || !BlockRenderingSettings.INSTANCE.getSnowyBlocks().contains(block)) {
+			return false;
+		}
+		final Block above = world.getBlockState(pos.up()).getBlock();
+		return above == Blocks.SNOW_LAYER || above == Blocks.SNOW;
 	}
 
 	private static Vector3f getCurrentSelectedBlockPos() {
