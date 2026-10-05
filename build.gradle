@@ -578,6 +578,11 @@ dependencies {
     } else if (hudCache != null) {
         throw new GradleException("-PwithHudCache takes stellarcore or gnetum, not '${hudCache}'")
     }
+    // -PwithModernSplash: the dev client also loads Modern Splash 1.5.3, a coremod that replaces FML's SplashProgress
+    // and draws its text with colour 0 after a raw glColor4f (MixinFontRendererSplashColor).
+    if (project.findProperty('withModernSplash') != null) {
+        modRuntimeOnly 'curse.maven:modern-splash-629058:8487408'
+    }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
