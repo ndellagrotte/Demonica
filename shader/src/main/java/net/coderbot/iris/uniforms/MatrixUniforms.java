@@ -21,7 +21,8 @@ public final class MatrixUniforms {
 
 	private static final Matrix4f GBUFFER_MODELVIEW_SCRATCH = new Matrix4f();
 
-	private static Matrix4fc getGbufferModelView() {
+	// Package-private: IrisInternalUniforms.addOtherUniforms inverts this same gbufferModelView.
+	static Matrix4fc getGbufferModelView() {
 		final Matrix4fc raw = RenderingState.INSTANCE.getModelViewMatrix();
 		final Entity view = Minecraft.getMinecraft().getRenderViewEntity();
 		if (view == null) {

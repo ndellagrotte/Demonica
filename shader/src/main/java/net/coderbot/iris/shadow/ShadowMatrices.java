@@ -18,7 +18,13 @@ public class ShadowMatrices {
 	// NB: These matrices are in column-major order, not row-major order like what you'd expect!
 
 	public static Matrix4f createOrthoMatrix(float halfPlaneLength, float nearPlane, float farPlane) {
-		return new Matrix4f(
+		return createOrthoMatrix(halfPlaneLength, nearPlane, farPlane, new Matrix4f());
+	}
+
+	// Demonica: writes into dest, so a per-frame supplier (iris_ShadowProjectionMatrixInverse) builds the shadow
+	// projection without allocating a Matrix4f every frame.
+	public static Matrix4f createOrthoMatrix(float halfPlaneLength, float nearPlane, float farPlane, Matrix4f dest) {
+		return dest.set(
 				// column 1
 				1.0f / halfPlaneLength, 0f, 0f, 0f,
 				// column 2
