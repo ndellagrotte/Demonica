@@ -5,17 +5,22 @@ import com.gtnewhorizons.angelica.compat.mojang.GameModeUtil;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.coderbot.iris.gl.uniform.UniformHolder;
 import net.coderbot.iris.gl.uniform.UniformUpdateFrequency;
+import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.effect.EntityLightningBolt;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Math;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
+import org.joml.Vector3f;
 import org.joml.Vector4f;
 
 import java.util.List;
@@ -31,6 +36,8 @@ public class IrisExclusiveUniforms {
 	private static final Vector3d playerBodyVectorCache = new Vector3d();
 	private static final Vector3d vehicleLookVectorCache = new Vector3d();
 	private static final Vector3d relativeVehiclePositionCache = new Vector3d();
+	private static final Vector3f selectedBlockPosCache = new Vector3f();
+	private static final Vector3f NO_SELECTED_BLOCK_POS = new Vector3f(-256.0f);
 
 	public static void addIrisExclusiveUniforms(UniformHolder uniforms) {
 		WorldInfoUniforms.addWorldInfoUniforms(uniforms);
@@ -74,9 +81,56 @@ public class IrisExclusiveUniforms {
 			final WorldClient world = Minecraft.getMinecraft().world;
 			return world == null ? 0 : world.getSeaLevel();
 		});
+		uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "currentSelectedBlockId", IrisExclusiveUniforms::getCurrentSelectedBlockId);
+		uniforms.uniform3f(UniformUpdateFrequency.PER_FRAME, "currentSelectedBlockPos", IrisExclusiveUniforms::getCurrentSelectedBlockPos);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "eyePosition", IrisExclusiveUniforms::getEyePosition);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "relativeEyePosition", IrisExclusiveUniforms::getRelativeEyePosition);
 		uniforms.uniform4f(UniformUpdateFrequency.PER_TICK, "lightningBoltPosition", IrisExclusiveUniforms::getLightningBoltPosition);
+	}
+
+	// Demonica: upstream's gate is GameRendererAccessor.shouldRenderBlockOutlineA(); 1.12.2's analogue is
+	// EntityRenderer.isDrawBlockOutline() (opened by the access transformer).
+	private static BlockPos getSelectedBlockPos() {
+		final Minecraft mc = Minecraft.getMinecraft();
+		final RayTraceResult hit = mc.objectMouseOver;
+		if (mc.world != null && mc.entityRenderer != null && mc.entityRenderer.isDrawBlockOutline() && hit != null
+			&& hit.typeOfHit == RayTraceResult.Type.BLOCK) {
+			return hit.getBlockPos();
+		}
+		return null;
+	}
+
+	private static int getCurrentSelectedBlockId() {
+		final BlockPos pos = getSelectedBlockPos();
+		if (pos != null) {
+			final WorldClient world = Minecraft.getMinecraft().world;
+			final IBlockState state = world.getBlockState(pos);
+			// Demonica: Material.AIR stands in for BlockState.isAir(); the world border test is
+			// WorldBorder.contains(BlockPos).
+			if (state.getMaterial() != Material.AIR && world.getWorldBorder().contains(pos)) {
+				final Block block = state.getBlock();
+				// Demonica: ids are keyed by block and metadata; -1 is "not mapped", which upstream's
+				// Object2IntMap reads as 0. The snowy bit ShaderBlockContexts adds for chunk geometry is not applied here.
+				return Math.max(0, BlockRenderingSettings.INSTANCE.getBlockStateId(block, block.getMetaFromState(state)));
+			}
+		}
+
+		return 0;
+	}
+
+	private static Vector3f getCurrentSelectedBlockPos() {
+		final BlockPos pos = getSelectedBlockPos();
+		if (pos != null) {
+			// Demonica: upstream subtracts the camera position from BlockPos.getCenter(); the unshifted camera
+			// position is the same value here, in double precision until the final cast.
+			final Vector3dc camera = CameraUniforms.getUnshiftedCameraPosition();
+			return selectedBlockPosCache.set(
+				(float) (pos.getX() + 0.5 - camera.x()),
+				(float) (pos.getY() + 0.5 - camera.y()),
+				(float) (pos.getZ() + 0.5 - camera.z()));
+		}
+
+		return NO_SELECTED_BLOCK_POS;
 	}
 
 	private static float getThunderStrength() {
