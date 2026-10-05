@@ -80,6 +80,7 @@ import net.coderbot.iris.texture.pbr.PBRTextureManager;
 import net.coderbot.iris.texture.pbr.PBRType;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
+import net.coderbot.iris.uniforms.IrisTimeUniforms;
 import net.coderbot.iris.uniforms.ItemMaterialHelper;
 import net.coderbot.iris.uniforms.WorldTimeUniforms;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
@@ -1793,6 +1794,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void beginLevelRendering() {
+		// Demonica: upstream updates at the head of LevelRenderer.renderLevel; this is the once-per-frame equivalent.
+		IrisTimeUniforms.updateTime();
         IrisGlDebug.markStage("level:begin");
 		isRenderingFullScreenPass = false;
 		hasRenderedPreparePass = false;
