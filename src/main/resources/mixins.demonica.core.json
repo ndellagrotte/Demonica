@@ -16,6 +16,7 @@
     "core.MixinVertexBufferUploader",
     "core.MixinWorldVertexBufferUploader",
     "core.startup.MixinEntityRendererFovFallback",
+    "core.startup.MixinFontRendererSplashColor",
     "core.startup.MixinGameSettingsIrisInit",
     "core.startup.MixinMinecraftDisplay",
     "core.startup.MixinMinecraftIrisLoadingComplete",
