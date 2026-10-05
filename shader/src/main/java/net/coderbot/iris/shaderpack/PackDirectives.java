@@ -50,6 +50,7 @@ public class PackDirectives {
 	@Getter private boolean oldHandLight;
 	@Getter private boolean prepareBeforeShadow;
 	@Getter private boolean supportsColorCorrection;
+	@Getter private boolean supportsEndFlash;
 	@Getter private int fallbackTex;
 	private Object2ObjectMap<String, Object2BooleanMap<String>> explicitFlips = new Object2ObjectOpenHashMap<>();
 	private Object2ObjectMap<String, TextureScaleOverride> scaleOverrides = new Object2ObjectOpenHashMap<>();
@@ -64,6 +65,7 @@ public class PackDirectives {
 		noiseTextureResolution = 256;
 		sunPathRotation = 0.0F;
 		supportsColorCorrection = false;
+		supportsEndFlash = false;
 		ambientOcclusionLevel = 1.0F;
 		wetnessHalfLife = 600.0f;
 		drynessHalfLife = 200.0f;
@@ -96,6 +98,7 @@ public class PackDirectives {
 		oldLighting = properties.getOldLighting().orElse(false);
 		fallbackTex = properties.getFallbackTex();
 		supportsColorCorrection = properties.getSupportsColorCorrection().orElse(false);
+		supportsEndFlash = properties.getSupportsEndFlash().orElse(false);
 		concurrentCompute = properties.getConcurrentCompute().orElse(false);
 		oldHandLight = properties.getOldHandLight().orElse(true);
 		explicitFlips = properties.getExplicitFlips();
@@ -117,6 +120,7 @@ public class PackDirectives {
 		frustumCulling = directives.frustumCulling;
 		occlusionCulling = directives.occlusionCulling;
 		oldLighting = directives.oldLighting;
+		supportsEndFlash = directives.supportsEndFlash;
 		concurrentCompute = directives.concurrentCompute;
 		explicitFlips = directives.explicitFlips;
 		scaleOverrides = directives.scaleOverrides;

@@ -63,6 +63,7 @@ public class ShaderProperties {
 	@Getter private OptionalBoolean oldHandLight = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean dynamicHandLight = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean supportsColorCorrection = OptionalBoolean.DEFAULT;
+	@Getter private OptionalBoolean supportsEndFlash = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean oldLighting = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean shadowTerrain = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean shadowTranslucent = OptionalBoolean.DEFAULT;
@@ -235,6 +236,7 @@ public class ShaderProperties {
 			});
 			handleBooleanDirective(key, value, "prepareBeforeShadow", bool -> prepareBeforeShadow = bool);
 			handleBooleanDirective(key, value, "supportsColorCorrection", bool -> supportsColorCorrection = bool);
+			handleBooleanDirective(key, value, "endFlashShadows", bool -> supportsEndFlash = bool);
 			handleIntDirective(key, value, "fallbackTex", val -> fallbackTex = val);
 
 			if ("weather".equals(key)) {

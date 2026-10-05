@@ -65,6 +65,7 @@ public interface WorldRenderingPipeline {
 	boolean shouldWriteRainAndSnowToDepthBuffer();
 	boolean shouldRenderParticlesBeforeDeferred();
 	boolean allowConcurrentCompute();
+	boolean supportsEndFlash();
 
 	float getSunPathRotation();
 
