@@ -28,6 +28,7 @@
     "features.iris.ParticleItemPickupIrisMixin",
     "features.iris.ParticleManagerCullingMixin",
     "features.iris.ParticleManagerIrisMixin",
+    "features.iris.ParticleMobAppearanceIrisMixin",
     "features.iris.RenderDragonIrisMixin",
     "features.iris.RenderEntityItemIrisMixin",
     "features.iris.RenderGlobalIrisMixin",
