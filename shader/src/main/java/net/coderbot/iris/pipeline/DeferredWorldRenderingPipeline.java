@@ -80,6 +80,7 @@ import net.coderbot.iris.texture.pbr.PBRTextureManager;
 import net.coderbot.iris.texture.pbr.PBRType;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
+import net.coderbot.iris.uniforms.IrisTimeUniforms;
 import net.coderbot.iris.uniforms.ItemMaterialHelper;
 import net.coderbot.iris.uniforms.WorldTimeUniforms;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
@@ -193,6 +194,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private final boolean shouldRenderPrepareBeforeShadow;
 	private final boolean oldLighting;
 	private final boolean allowConcurrentCompute;
+	private final boolean supportsEndFlash;
 	private final OptionalInt forcedShadowRenderDistanceChunks;
 	private final CloudSetting dhCloudSetting;
 
@@ -263,6 +265,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			.map(s -> s == net.coderbot.iris.shaderpack.ParticleRenderingSettings.BEFORE || s == net.coderbot.iris.shaderpack.ParticleRenderingSettings.MIXED)
 			.orElse(false);
 		this.allowConcurrentCompute = programs.getPackDirectives().getConcurrentCompute();
+		this.supportsEndFlash = programs.getPackDirectives().isSupportsEndFlash();
 		this.shouldRenderPrepareBeforeShadow = programs.getPackDirectives().isPrepareBeforeShadow();
 		this.oldLighting = programs.getPackDirectives().isOldLighting();
 		this.updateNotifier = new FrameUpdateNotifier();
@@ -742,6 +745,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	@Override
 	public boolean allowConcurrentCompute() {
 		return allowConcurrentCompute;
+	}
+
+	@Override
+	public boolean supportsEndFlash() {
+		return supportsEndFlash;
 	}
 
 	@Override
@@ -1786,6 +1794,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void beginLevelRendering() {
+		// Demonica: upstream updates at the head of LevelRenderer.renderLevel; this is the once-per-frame equivalent.
+		IrisTimeUniforms.updateTime();
         IrisGlDebug.markStage("level:begin");
 		isRenderingFullScreenPass = false;
 		hasRenderedPreparePass = false;

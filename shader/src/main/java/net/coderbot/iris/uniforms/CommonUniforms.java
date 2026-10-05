@@ -28,6 +28,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.MobEffects;
 import net.minecraft.potion.PotionEffect;
+import net.minecraft.util.EnumHandSide;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Math;
 import org.joml.Vector2f;
@@ -63,6 +64,7 @@ public final class CommonUniforms {
 		BiomeUniforms.addBiomeUniforms(uniforms);
         new CelestialUniforms(directives.getSunPathRotation()).addCelestialUniforms(uniforms);
         IrisExclusiveUniforms.addIrisExclusiveUniforms(uniforms);
+        IrisTimeUniforms.addTimeUniforms(uniforms);
         IdMapUniforms.addIdMapUniforms(updateNotifier, uniforms, idMap, directives.isOldHandLight());
         MatrixUniforms.addMatrixUniforms(uniforms, directives);
 
@@ -145,6 +147,8 @@ public final class CommonUniforms {
 				}
 				return cloudTime;
 			})
+			// Demonica: upstream reads GameOptions.mainHand().
+			.uniform1b(PER_FRAME, "isRightHanded", () -> client.gameSettings.mainHand == EnumHandSide.RIGHT)
             .uniform1b(PER_FRAME, "is_sneaking", CommonUniforms::isSneaking)
             .uniform1b(PER_FRAME, "is_sprinting", CommonUniforms::isSprinting)
             .uniform1b(PER_FRAME, "is_hurt", CommonUniforms::isHurt)
@@ -154,10 +158,14 @@ public final class CommonUniforms {
 			// TODO: Do we need to clamp this to avoid fullbright breaking shaders? Or should shaders be able to detect
 			//       that the player is trying to turn on fullbright?
 			.uniform1f(PER_FRAME, "screenBrightness", () -> client.gameSettings.gammaSetting)
+			// Demonica: PER_FRAME upstream, reading the anisotropy level when the texture filtering option is
+			// ANISOTROPIC; 1.12.2 has no texture filtering option, so it is a constant 0 (filtering off).
+			.uniform1i(ONCE, "anisotropicFiltering", () -> 0)
 			.uniform1f(ONCE, "pi", () -> PI)
 			// just a dummy value for shaders where entityColor isn't supplied through a vertex attribute (and thus is
 			// not available) - suppresses warnings. See AttributeShaderTransformer for the actual entityColor code.
             .uniform1f(PER_TICK, "playerMood", CommonUniforms::getPlayerMood)
+			.uniform1f(PER_TICK, "constantMood", CommonUniforms::getConstantMood)
 			.uniform2i(PER_FRAME, "eyeBrightness", CommonUniforms::getEyeBrightness)
 			.uniform2i(PER_FRAME, "eyeBrightnessSmooth", () -> {
 				final Vector2f smoothed = eyeBrightnessSmooth.get();
@@ -219,6 +227,11 @@ public final class CommonUniforms {
 			}
 		}
 
+		return 0.0F;
+	}
+
+	// Demonica: 1.12.2 has no mood mechanic (upstream LocalPlayer.getCurrentMood), so this is always 0.
+	private static float getConstantMood() {
 		return 0.0F;
 	}
 

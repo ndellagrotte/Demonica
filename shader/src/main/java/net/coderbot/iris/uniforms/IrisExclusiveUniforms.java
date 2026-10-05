@@ -26,8 +26,17 @@ public class IrisExclusiveUniforms {
 	public static void addIrisExclusiveUniforms(UniformHolder uniforms) {
 		WorldInfoUniforms.addWorldInfoUniforms(uniforms);
 
+		// Demonica: PER_FRAME upstream, read from the chunk fade-in time and texture filtering options; 1.12.2 has
+		// neither (chunks do not fade in, textures are not filtered), so both are the constant 0. They back the
+		// FADE_VARIABLE and TEXTURE_FILTERING feature flags.
+		uniforms.uniform1f(UniformUpdateFrequency.ONCE, "chunkFadeTimeInv", () -> 0.0F);
+		uniforms.uniform1i(UniformUpdateFrequency.ONCE, "textureFilteringMode", () -> 0);
+
 		//All Iris-exclusive uniforms (uniforms which do not exist in either OptiFine or ShadersMod) should be registered here.
 		uniforms.uniform1f(UniformUpdateFrequency.PER_FRAME, "thunderStrength", IrisExclusiveUniforms::getThunderStrength);
+		// Demonica: 1.12.2 has no End sky flash (upstream EndFlashStorage); the uniforms read 0 so packs' custom uniforms resolve.
+		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "endFlashIntensity", () -> 0.0F);
+		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "previousEndFlashIntensity", () -> 0.0F);
 		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "currentPlayerHealth", IrisExclusiveUniforms::getCurrentHealth);
 		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "maxPlayerHealth", IrisExclusiveUniforms::getMaxHealth);
 		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "currentPlayerHunger", IrisExclusiveUniforms::getCurrentHunger);
@@ -36,7 +45,17 @@ public class IrisExclusiveUniforms {
 		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "maxPlayerAir", IrisExclusiveUniforms::getMaxAir);
 		uniforms.uniform1b(UniformUpdateFrequency.PER_FRAME, "firstPersonCamera", IrisExclusiveUniforms::isFirstPersonCamera);
 		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isSpectator", IrisExclusiveUniforms::isSpectator);
-		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isRightHanded", () -> true); // 1.7.10 doesn't support left-handed mode
+		// Demonica: 1.12.2 has no colour-space pathway (upstream IrisVideoSettings.colorSpace), so this is always 0.
+		uniforms.uniform1i(UniformUpdateFrequency.PER_TICK, "currentColorSpace", () -> 0);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isRiding", IrisExclusiveUniforms::getIsPassenger);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "isElytraFlying", IrisExclusiveUniforms::isElytraFlying);
+		uniforms.uniform1b(UniformUpdateFrequency.PER_TICK, "heavyFog", IrisExclusiveUniforms::isHeavyFog);
+		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "currentPlayerArmor", IrisExclusiveUniforms::getCurrentArmor);
+		uniforms.uniform1f(UniformUpdateFrequency.PER_TICK, "maxPlayerArmor", () -> 50);
+		uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "seaLevel", () -> {
+			final WorldClient world = Minecraft.getMinecraft().world;
+			return world == null ? 0 : world.getSeaLevel();
+		});
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "eyePosition", IrisExclusiveUniforms::getEyePosition);
 		uniforms.uniform3d(UniformUpdateFrequency.PER_FRAME, "relativeEyePosition", IrisExclusiveUniforms::getRelativeEyePosition);
 		uniforms.uniform4f(UniformUpdateFrequency.PER_TICK, "lightningBoltPosition", IrisExclusiveUniforms::getLightningBoltPosition);
@@ -86,6 +105,29 @@ public class IrisExclusiveUniforms {
 		}
 
 		return Minecraft.getMinecraft().player.getMaxHealth();
+	}
+
+	private static float getCurrentArmor() {
+		if (Minecraft.getMinecraft().player == null || !Minecraft.getMinecraft().playerController.gameIsSurvivalOrAdventure()) {
+			return -1;
+		}
+
+		return Minecraft.getMinecraft().player.getTotalArmorValue() / 50.0f;
+	}
+
+	private static boolean getIsPassenger() {
+		return Minecraft.getMinecraft().player != null && Minecraft.getMinecraft().player.isRiding();
+	}
+
+	private static boolean isElytraFlying() {
+		return Minecraft.getMinecraft().player != null && Minecraft.getMinecraft().player.isElytraFlying();
+	}
+
+	private static boolean isHeavyFog() {
+		// Demonica: null-checks ingameGUI, which upstream's gui never needs. In 1.12.2 only the dragon fight's boss bar
+		// sets the fog flag (the wither only darkens the sky), as upstream.
+		final Minecraft mc = Minecraft.getMinecraft();
+		return mc.world != null && mc.ingameGUI != null && mc.ingameGUI.getBossOverlay().shouldCreateFog();
 	}
 
 	private static boolean isFirstPersonCamera() {
@@ -143,6 +185,13 @@ public class IrisExclusiveUniforms {
 				} else {
 					return 256;
 				}
+			});
+			// Demonica: upstream reads dimensionType().logicalHeight(). 1.12.2's analogue is Forge's
+			// WorldProvider.getActualHeight() (128 in the Nether, else 256); getHeight() is always 256. The world is
+			// read per call, not captured like `level` above, so it follows dimension changes.
+			uniforms.uniform1i(UniformUpdateFrequency.PER_FRAME, "logicalHeightLimit", () -> {
+				final WorldClient world = Minecraft.getMinecraft().world;
+				return world == null ? 256 : world.provider.getActualHeight();
 			});
 			uniforms.uniform1b(UniformUpdateFrequency.PER_FRAME, "hasCeiling", () -> {
 				if (level != null && level.provider != null) {
