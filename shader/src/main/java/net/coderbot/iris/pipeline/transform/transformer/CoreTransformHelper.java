@@ -54,6 +54,12 @@ public final class CoreTransformHelper {
         transformer.injectVariable("layout(location = 2) in vec4 iris_MultiTexCoord0;");
 
         transformer.rename("gl_Vertex", "iris_Vertex");
+        // Iris's CompositeTransformer: the full-screen quad has texture coordinates on unit 0 only, so 1-7 are not
+        // valid inputs and read the fixed-function initial value.
+        // Demonica: before the gl_MultiTexCoord0 rename, where Iris calls it after replacing gl_MultiTexCoord0 with
+        // vec4(UV0, 0.0, 1.0); Demonica keeps its iris_MultiTexCoord0 input. The names do not overlap, so the order
+        // does not change the output.
+        CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 1, 7);
         transformer.rename("gl_MultiTexCoord0", "iris_MultiTexCoord0");
 
         transformer.renameFunctionCall("ftransform", "iris_ftransform");

@@ -31,7 +31,7 @@ public final class DHTerrainTransformer {
             transformer.replaceExpression("gl_MultiTexCoord0", "vec4(0.0, 0.0, 0.0, 1.0)");
             transformer.replaceExpression("gl_MultiTexCoord1", "vec4(_vert_tex_light_coord, 0.0, 1.0)");
 
-            replaceGlMultiTexCoordBounded(transformer, 4, 7);
+            CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 4, 7);
         }
 
         transformer.rename("gl_Color", "_vert_color");
@@ -102,11 +102,5 @@ public final class DHTerrainTransformer {
                 + " }"
         );
         transformer.prependMain("_vert_init();");
-    }
-
-    private static void replaceGlMultiTexCoordBounded(ShaderAst transformer, int from, int to) {
-        for (int i = from; i <= to; i++) {
-            transformer.replaceExpression("gl_MultiTexCoord" + i, "vec4(0.0, 0.0, 0.0, 1.0)");
-        }
     }
 }

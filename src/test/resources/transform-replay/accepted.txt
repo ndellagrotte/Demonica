@@ -136,3 +136,14 @@ transform-grouped-type-mismatch | vertex | Step 12: Iris 26.1's transformGrouped
 # lit = 0.0, as TauMC's lit = 0.0f; neither program compiled before the port, neither does after it (report, Open
 # questions).
 transform-grouped-arrays | vertex | Step 12: Iris 26.1's transformGrouped casts the array declarator w as a scalar (does not compile; TauMC's output did not link either); array types skipped as before
+
+# docs/IRIS_PORTING_PLAN.md item 3.1 (2026-10-05): CommonTransformer.replaceGlMultiTexCoordBounded, Iris 26.1's helper,
+# now runs for ATTRIBUTES and CELERITAS_TERRAIN vertex shaders (gl_MultiTexCoord4-7, Iris VanillaTransformer and
+# SodiumTransformer) and COMPOSITE vertex shaders (1-7, Iris CompositeTransformer), as it did already for both DH patches.
+# The three cases were recorded (out.douira.*) before the port, when the built-ins stayed and the core-profile vertex
+# stage did not compile (glslangValidator: "'gl_MultiTexCoord4' : undeclared identifier", "'gl_MultiTexCoord1' :
+# undeclared identifier"); after it each reads vec4(0.0, 0.0, 0.0, 1.0) and compiles and links, checked by
+# CommonTransformerTest.
+attributes-multitexcoord-4-7 | vertex | item 3.1: Iris VanillaTransformer's replaceGlMultiTexCoordBounded(4, 7) zeros gl_MultiTexCoord4-7, checked by CommonTransformerTest
+celeritas-terrain-multitexcoord-4-7 | vertex | item 3.1: Iris SodiumTransformer's replaceGlMultiTexCoordBounded(4, 7) zeros gl_MultiTexCoord4-7, checked by CommonTransformerTest
+composite-multitexcoord-1-7 | vertex | item 3.1: Iris CompositeTransformer's replaceGlMultiTexCoordBounded(1, 7) zeros gl_MultiTexCoord1-7, checked by CommonTransformerTest

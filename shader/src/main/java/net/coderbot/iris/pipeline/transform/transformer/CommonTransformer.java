@@ -49,6 +49,24 @@ public final class CommonTransformer {
 		}
 	}
 
+	/**
+	 * Iris 26.1's {@code CommonTransformer.replaceGlMultiTexCoordBounded}: every {@code gl_MultiTexCoord<i>} with
+	 * {@code minimum <= i <= maximum} read as an expression becomes {@code vec4(0.0, 0.0, 0.0, 1.0)}, the initial value
+	 * of a texture coordinate the fixed-function pipeline never set. Iris calls it for 4-7 in its VANILLA and SODIUM
+	 * vertex shaders (Demonica's ATTRIBUTES and CELERITAS_TERRAIN) and both DH patches, and for 1-7 in COMPOSITE.
+	 */
+	public static void replaceGlMultiTexCoordBounded(ShaderAst ast, int minimum, int maximum) {
+		// Demonica: written with the ShaderAst verb (the loop DHTerrainTransformer and DHGenericTransformer had as
+		// private copies), not as Iris's root.replaceReferenceExpressions over a prefix query: every caller runs it
+		// between other verbs, which PORTING_GUIDE rule 3 keeps idiom code out of, and the verb leaves the DH output
+		// as it was (dh-terrain-legacy, dh-generic-legacy). Both replace only reference expressions, so a pack's own
+		// declaration of the name stays, as in Iris; the exact names also skip Iris's Integer.parseInt of the suffix,
+		// which throws on a name such as gl_MultiTexCoordX.
+		for (int i = minimum; i <= maximum; i++) {
+			ast.replaceExpression("gl_MultiTexCoord" + i, "vec4(0.0, 0.0, 0.0, 1.0)");
+		}
+	}
+
 	public static void transform(ShaderAst root, Parameters parameters, boolean core, int glslVersion) {
 		root.rename("gl_FogFragCoord", "iris_FogFragCoord");
 		if (parameters.type == ShaderType.VERTEX) {

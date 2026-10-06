@@ -67,6 +67,14 @@ public final class CeleritasTransformer {
         vertexReplacements.put("gl_MultiTexCoord2", "iris_LightTexCoord");
         vertexReplacements.forEach(transformer::replaceExpression);
 
+        // gl_MultiTexCoord0 and gl_MultiTexCoord1 are the only valid inputs (with
+        // gl_MultiTexCoord2 and gl_MultiTexCoord3 as aliases), other texture
+        // coordinates are not valid inputs.
+        // Demonica: here, after the 0-2 replacements, where Iris calls it after patchMultiTexCoord3; Demonica patches
+        // gl_MultiTexCoord3 later, in ShaderTransformer.doTransform. The names do not overlap, so the order does not
+        // change the output.
+        CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 4, 7);
+
         if (transformer.hasVariable("chunkOffset")) {
             transformer.removeVariable("chunkOffset");
         }
