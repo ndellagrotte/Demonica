@@ -1,6 +1,7 @@
 package com.demonica.diagnostics;
 
 import com.demonica.diagnostics.dev.DevHarness;
+import com.demonica.diagnostics.probe.ShadowCallbackProbe;
 import net.coderbot.iris.debug.Diagnostics;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
@@ -21,6 +22,7 @@ public class DemonicaDiagnosticsMod {
     public void onInit(FMLInitializationEvent event) {
         if (Diagnostics.present()) {
             DevHarness.install();
+            ShadowCallbackProbe.install();
         }
     }
 }
