@@ -48,6 +48,17 @@ class ShadowRendererPhaseTest {
     }
 
     @Test
+    void runsShadowCallbacksWithCutoutPhaseAndRestoresPreviousPhase() {
+        FakeWorldRenderingPipeline pipeline = new FakeWorldRenderingPipeline(WorldRenderingPhase.NONE);
+
+        ShadowRenderer.TerrainPhaseScope.runCutout(pipeline,
+            () -> assertEquals(WorldRenderingPhase.TERRAIN_CUTOUT, pipeline.getPhase()));
+
+        assertEquals(WorldRenderingPhase.NONE, pipeline.getPhase());
+        assertEquals(List.of(WorldRenderingPhase.TERRAIN_CUTOUT, WorldRenderingPhase.NONE), pipeline.phaseChanges);
+    }
+
+    @Test
     void restoresPreviousPhaseWhenOpaqueDrawFails() {
         FakeWorldRenderingPipeline pipeline = new FakeWorldRenderingPipeline(WorldRenderingPhase.CLOUDS);
         IllegalStateException failure = new IllegalStateException("terrain draw failed");
