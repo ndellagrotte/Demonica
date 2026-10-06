@@ -62,7 +62,7 @@ celeritas-terrain-multitexcoord3 | error-succeeded | old engine threw (removed i
 # program does not declare; the new engine replaces them as the transformer means. The vertex stage differs in that one
 # statement. No recorded pack input uses gl_MultiTexCoord2 in a DH program. Checked by
 # ShaderTransformerTest.dhMultiTexCoord2Alias.
-dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by ShaderTransformerTest
+dh-terrain-multitexcoord2 | vertex | old engine's stale by-text cache left the renamed gl_MultiTexCoord2 reference as gl_MultiTexCoord1 (not in a core profile); the new engine replaces it with the DH light coordinate, checked by ShaderTransformerTest; item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
 
 # Step 7b (2026-09-29): pre-flip hardening (report S7b-hardening.md). Nine mini-corpus cases, TauMC outputs recorded
 # with -PglslReplayEngine=taumc -PglslReplayRecord=true. Three replay identically on the new engine:
@@ -169,3 +169,32 @@ attributes-gtexture-two-decls | fragment | item 3.2: Iris's getGtextureRenameTar
 # sampler2D texture, which Iris renames with its uses; the TauMC verb renamed the uses but not the parameter, so the
 # function read the file-scope gtexture instead of its argument (called with tex). Both outputs compile and link.
 vanilla/00014-COMPOSITE-8068a20f | fragment | item 3.2: Iris's getGtextureRenameTargets renames the parameter sampler2D texture of addReflection to gtexture with its use (TauMC left the parameter, so the use read the uniform), checked by GtextureMergeTest.parameterNamedTextureIsRenamedWithItsUses
+
+# docs/IRIS_PORTING_PLAN.md item 3.3 (2026-10-05): Iris 26.1's DH transformer deltas. DH_TERRAIN vertex stages declare and
+# write out vec3 iris_vBlockPos and flat out uvec2 iris_TexId (DH's tile id from irisExtra.z/w and the face index from
+# irisExtra.y) and apply the micro-offset in x and z only (vec3(mx, 0.0, mz), as DH 3.3.0's own terrain vertex shader);
+# DH_TERRAIN fragment stages get in vec3 iris_vBlockPos, flat in uvec2 iris_TexId, uniform sampler2D dhBlockAtlas and the
+# dh_hasTexture/dh_blockFaceUv/dh_sampleTexture functions (removed again by removeUnusedFunctions when the pack calls none,
+# as in Iris); DH_GENERIC fragment stages get the dh_hasTexture() false / dh_sampleTexture() vec4(1.0) stubs (likewise
+# removed when unused, so dh-generic and dh-generic-legacy replay identically). The three *-textured cases were recorded
+# (out.douira.*) before the change; their fragment stages did not compile before it ("'dh_hasTexture' : no matching
+# overloaded function found") and every stage of them compiles and links after it. DHTransformerTest checks every behaviour.
+dh-terrain | vertex | item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
+dh-terrain | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment declarations iris_vBlockPos, iris_TexId and dhBlockAtlas (the unused dh_* functions are removed), checked by DHTransformerTest
+dh-terrain-legacy | vertex | item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
+dh-terrain-legacy | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment declarations iris_vBlockPos, iris_TexId and dhBlockAtlas (the unused dh_* functions are removed), checked by DHTransformerTest
+dh-terrain-multitexcoord2 | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment declarations iris_vBlockPos, iris_TexId and dhBlockAtlas (the unused dh_* functions are removed), checked by DHTransformerTest
+dh-terrain-textured | vertex | item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
+dh-terrain-textured | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment block defines the dh_hasTexture and dh_sampleTexture the pack calls (before: undeclared, did not compile), checked by DHTransformerTest
+dh-terrain-textured-geometry | vertex | item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
+dh-terrain-textured-geometry | geometry | item 3.3: Iris 26.1's transformGrouped declares the fragment stage's new iris_TexId (flat) and iris_vBlockPos as geometry outputs and zeroes them (uvec2(0u)), checked by DHTransformerTest
+dh-terrain-textured-geometry | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment block defines the dh_hasTexture and dh_sampleTexture the pack calls (before: undeclared, did not compile), checked by DHTransformerTest
+dh-generic-textured | fragment | item 3.3: Iris 26.1's DHGenericTransformer fragment stubs dh_hasTexture() false and dh_sampleTexture() vec4(1.0) for the calls the pack makes (before: undeclared, did not compile), checked by DHTransformerTest
+# Two pack cases change, in run/transform-corpus-dh (Complementary Reimagined r5.9.3, the DH terrain programs): each vertex
+# stage gains the iris_vBlockPos/iris_TexId outputs and the vec3(mx, 0.0, mz) offset, each fragment stage the three
+# declarations; Complementary calls none of the dh_* helpers, so they are removed. Its DH_GENERIC program
+# (complementary/00139-DH_GENERIC-ccfa5fb3) replays identically: the stand-ins are removed unused. Both outputs compile and link.
+complementary/00138-DH_TERRAIN-df6768a5 | vertex | item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
+complementary/00138-DH_TERRAIN-df6768a5 | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment declarations iris_vBlockPos, iris_TexId and dhBlockAtlas (the unused dh_* functions are removed), checked by DHTransformerTest
+complementary/00140-DH_TERRAIN-7be0f1b1 | vertex | item 3.3: Iris 26.1's DHTerrainTransformer vertex outputs iris_vBlockPos and iris_TexId and the micro-offset vec3(mx, 0.0, mz), checked by DHTransformerTest
+complementary/00140-DH_TERRAIN-7be0f1b1 | fragment | item 3.3: Iris 26.1's DHTerrainTransformer fragment declarations iris_vBlockPos, iris_TexId and dhBlockAtlas (the unused dh_* functions are removed), checked by DHTransformerTest

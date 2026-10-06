@@ -628,8 +628,8 @@ class ShaderTransformerTest {
             for (String withGeometry : new String[] {null, geometry}) {
                 final Map<PatchShaderType, String> old = taumcEngine(patch.name(), Arrays.asList(vertex, withGeometry, fragment));
                 final DHParameters parameters = new DHParameters(patch, null);
-                final Map<PatchShaderType, String> now = ShaderTransformer.transform(vertex, withGeometry, null, null, fragment,
-                    parameters);
+                final Map<PatchShaderType, String> now = withoutDhTextureDeltas(patch,
+                    ShaderTransformer.transform(vertex, withGeometry, null, null, fragment, parameters));
                 if (withGeometry == null) {
                     assertSameProgram(old, now);
                 } else {
@@ -674,8 +674,8 @@ class ShaderTransformerTest {
         final String fragment = "#version 120\nvarying vec2 lmcoord;\nvoid main() { gl_FragData[0] = vec4(lmcoord, 0.0, 1.0); }\n";
         for (Patch patch : List.of(Patch.DH_TERRAIN, Patch.DH_GENERIC)) {
             final Map<PatchShaderType, String> old = taumcEngine(patch.name(), Arrays.asList(vertex, fragment));
-            final Map<PatchShaderType, String> now = ShaderTransformer.transform(vertex, null, null, null, fragment,
-                new DHParameters(patch, null));
+            final Map<PatchShaderType, String> now = withoutDhTextureDeltas(patch,
+                ShaderTransformer.transform(vertex, null, null, null, fragment, new DHParameters(patch, null)));
             final String light = "vec4 ( _vert_tex_light_coord , 0.0 , 1.0 ) . xy";
             assertTrue(GlslTokens.contains(old.get(PatchShaderType.VERTEX), "lmcoord = gl_MultiTexCoord1 . xy + " + light + " ;"),
                 old.get(PatchShaderType.VERTEX));
@@ -689,6 +689,33 @@ class ShaderTransformerTest {
             assertSameProgram(Map.of(PatchShaderType.FRAGMENT, old.get(PatchShaderType.FRAGMENT)),
                 Map.of(PatchShaderType.FRAGMENT, now.get(PatchShaderType.FRAGMENT)));
         }
+    }
+
+    /**
+     * Named deviation (plan item 3.3): Iris 26.1's DH transformer deltas, which TauMC's engine did not have. A DH_TERRAIN
+     * program's vertex stage declares and writes {@code iris_vBlockPos} and {@code iris_TexId} and applies the
+     * micro-offset as {@code vec3(mx, 0.0, mz)} (TauMC: {@code vec3(mx, my, mz)}), and its fragment stage declares
+     * {@code iris_vBlockPos}, {@code iris_TexId} and {@code dhBlockAtlas}; the {@code dh_*} helpers (DH_TERRAIN) and
+     * stand-ins (DH_GENERIC) are removed again when the stage does not call them, as in these programs. This takes those
+     * lines out of the new output and puts {@code my} back, so the rest is still compared with TauMC's.
+     * {@code transformer/DHTransformerTest} checks the deltas themselves.
+     */
+    private static Map<PatchShaderType, String> withoutDhTextureDeltas(Patch patch, Map<PatchShaderType, String> output) {
+        if (patch != Patch.DH_TERRAIN) {
+            return output;
+        }
+        final Map<PatchShaderType, String> result = new java.util.EnumMap<>(PatchShaderType.class);
+        output.forEach((stage, text) -> {
+            if (stage == PatchShaderType.VERTEX || stage == PatchShaderType.FRAGMENT) {
+                assertTrue(text.contains("iris_TexId"), stage + ": " + text);
+                text = text.lines()
+                    .filter(line -> !line.contains("iris_vBlockPos") && !line.contains("iris_TexId") && !line.contains("dhBlockAtlas"))
+                    .collect(java.util.stream.Collectors.joining("\n", "", "\n"))
+                    .replace("vec3(mx, 0.0f, mz)", "vec3(mx, my, mz)");
+            }
+            result.put(stage, text);
+        });
+        return result;
     }
 
     /** COMPUTE: the shorter pre-pass list, the same header and the parameter type reset after a failure. */

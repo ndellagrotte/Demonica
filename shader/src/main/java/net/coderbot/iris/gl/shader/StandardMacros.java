@@ -120,6 +120,9 @@ public class StandardMacros {
 
 		if (DHCompat.hasRenderingEnabled()) {
 			define(standardDefines, "DISTANT_HORIZONS");
+			// Iris 26.1 (StandardMacros): DH_TERRAIN fragment stages have dh_hasTexture() and dh_sampleTexture()
+			// (DHTerrainTransformer, plan item 3.3); packs such as BSL call them only under this macro.
+			define(standardDefines, "DISTANT_HORIZONS_TEXTURES");
 		}
 
 		define(standardDefines, "DH_BLOCK_UNKNOWN", String.valueOf(0));
