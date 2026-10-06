@@ -153,12 +153,12 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
     private void demonica$renderIrisShadowsBeforeTerrain(RenderGlobal renderGlobal, Entity entity, double partialTicks, ICamera camera,
                                                         int frame, boolean spectator, Operation<Void> original) {
         this.demonica$renderIrisShadows(camera, (float) partialTicks);
-        // Upstream's skipSetupRender (MixinLevelRenderer_SkipRendering): a skipAllRendering pack culls no terrain. The
-        // shadow pass above still runs, as upstream's does.
-        // Demonica: a condition inside this existing wrap rather than upstream's separate @WrapWithCondition.
-        if (!demonica$skipAllRendering()) {
-            original.call(renderGlobal, entity, partialTicks, camera, frame, spectator);
-        }
+        // Terrain setup runs even for a skipAllRendering pack. Upstream's skipSetupRender (MixinLevelRenderer_SkipRendering)
+        // has no effect while a pack is in use: it conditions update's cullTerrain call, which iris$setShadows
+        // (MixinLevelRenderer) already drops whenever a pack is in use, and iris$renderTerrainShadows calls cullTerrain
+        // directly after the shadow pass. So upstream still sets up terrain and builds chunks, which the shadow pass
+        // needs; here setupTerrain is where Celeritas builds and uploads them. Only the chunk draws are skipped (below).
+        original.call(renderGlobal, entity, partialTicks, camera, frame, spectator);
     }
 
     @Unique
