@@ -16,7 +16,7 @@ public final class CoreTransformHelper {
 
     /**
      * Inject matrix uniforms and rename FFP matrix builtins to iris_* equivalents.
-     * Handles: ModelView, ModelViewInverse, Projection, ProjectionInverse, NormalMatrix, ModelViewProjectionMatrix, TextureMatrix[0..1], and LightmapTextureMatrix.
+     * Handles: ModelView, ModelViewInverse, Projection, ProjectionInverse, NormalMatrix, ModelViewProjectionMatrix, TextureMatrix[0..2], and LightmapTextureMatrix.
      */
     public static void injectMatrixUniforms(ShaderAst transformer) {
         transformer.injectVariable("uniform mat4 iris_ModelViewMatrix;");
@@ -42,7 +42,15 @@ public final class CoreTransformHelper {
         replacements.put("gl_TextureMatrix[1]", "iris_LightmapTextureMatrix");
         replacements.forEach(transformer::replaceExpression);
 
-        // Catch any remaining gl_TextureMatrix references (e.g. [2]-[7])
+        // gl_TextureMatrix[2] is the lightmap matrix too, as gl_MultiTexCoord2 aliases gl_MultiTexCoord1 (Iris's
+        // glTextureMatrix2, which VanillaCoreTransformer replaces with the same lightmap matrix as [1]).
+        // Demonica: iris_LightmapTextureMatrix, as [1] gets here, where Iris writes the matrix out as a constant
+        // (BuiltinReplacementUniforms holds the same values). Its own call after the HashMap, so the order of the
+        // [0]/[1] replacements stays as it was. COMPOSITE gets it too, as it gets [0] and [1]; Iris's
+        // CompositeTransformer makes [0]-[7] mat4(1.0) there.
+        transformer.replaceExpression("gl_TextureMatrix[2]", "iris_LightmapTextureMatrix");
+
+        // Catch any remaining gl_TextureMatrix references (e.g. [3]-[7], or a non-literal index)
         transformer.replaceExpression("gl_TextureMatrix", "mat4[8](iris_TextureMatrix, iris_LightmapTextureMatrix, mat4(1.0), mat4(1.0), mat4(1.0), mat4(1.0), mat4(1.0), mat4(1.0))");
     }
 

@@ -147,3 +147,12 @@ transform-grouped-arrays | vertex | Step 12: Iris 26.1's transformGrouped casts 
 attributes-multitexcoord-4-7 | vertex | item 3.1: Iris VanillaTransformer's replaceGlMultiTexCoordBounded(4, 7) zeros gl_MultiTexCoord4-7, checked by CommonTransformerTest
 celeritas-terrain-multitexcoord-4-7 | vertex | item 3.1: Iris SodiumTransformer's replaceGlMultiTexCoordBounded(4, 7) zeros gl_MultiTexCoord4-7, checked by CommonTransformerTest
 composite-multitexcoord-1-7 | vertex | item 3.1: Iris CompositeTransformer's replaceGlMultiTexCoordBounded(1, 7) zeros gl_MultiTexCoord1-7, checked by CommonTransformerTest
+
+# docs/IRIS_PORTING_PLAN.md item 3.4 (2026-10-05): CoreTransformHelper.injectMatrixUniforms replaces gl_TextureMatrix[2]
+# with iris_LightmapTextureMatrix, as [1], before the catch-all array (Iris's glTextureMatrix2, which
+# VanillaCoreTransformer replaces with the lightmap matrix, as [1]); it was the catch-all's mat4(1.0). [3] keeps the
+# catch-all. Both cases were recorded (out.douira.*) before the change; both outputs compile and link before and after.
+# COMPOSITE gets it too, as it gets [0] and [1] (Iris's CompositeTransformer makes [0]-[7] mat4(1.0)).
+attributes-texturematrix-2 | vertex | item 3.4: Iris's glTextureMatrix2: gl_TextureMatrix[2] is iris_LightmapTextureMatrix like [1], not the catch-all identity, checked by CoreTransformHelperTest
+composite-texturematrix-2 | vertex | item 3.4: Iris's glTextureMatrix2: gl_TextureMatrix[2] is iris_LightmapTextureMatrix like [1], not the catch-all identity, checked by CoreTransformHelperTest
+composite-texturematrix-2 | fragment | item 3.4: Iris's glTextureMatrix2: gl_TextureMatrix[2] is iris_LightmapTextureMatrix like [1] in every stage, checked by CoreTransformHelperTest
