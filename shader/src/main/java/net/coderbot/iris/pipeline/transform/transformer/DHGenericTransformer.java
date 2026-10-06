@@ -1,5 +1,6 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
+import io.github.douira.glsl_transformer.ast.transform.ASTInjectionPoint;
 import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
@@ -11,12 +12,17 @@ import net.coderbot.iris.pipeline.transform.parameter.Parameters;
  * chunk and sub-chunk offsets against the camera; the normal from {@code gl_VertexID}). Ported verb for verb from the
  * TauMC engine's {@code net.coderbot.iris.pipeline.transform.DHGenericTransformer} (Step 7 of
  * docs/glsl-transformer_adoption/ADOPTION_PLAN.md), with the same injected source strings in the same order.
+ *
+ * <p>Plan item 3.3 (docs/IRIS_PORTING_PLAN.md): the fragment stage gets Iris 26.1's stand-ins for the DH terrain
+ * texture helpers ({@code dh_hasTexture()} is {@code false}, {@code dh_sampleTexture()} white), so a pack can share one
+ * fragment source between its DH programs.</p>
  */
 public final class DHGenericTransformer {
     private DHGenericTransformer() {
     }
 
     public static void transform(ShaderAst transformer, Parameters parameters, int glslVersion) {
+        // Demonica: Iris passes core = false; see DHTerrainTransformer.transform for why Demonica passes true.
         CommonTransformer.transform(transformer, parameters, true, glslVersion);
 
         transformer.replaceExpression("gl_TextureMatrix[0]", "mat4(1.0)");
@@ -31,7 +37,7 @@ public final class DHGenericTransformer {
             transformer.replaceExpression("gl_MultiTexCoord0", "vec4(0.0, 0.0, 0.0, 1.0)");
             transformer.replaceExpression("gl_MultiTexCoord1", "vec4(_vert_tex_light_coord, 0.0, 1.0)");
 
-            replaceGlMultiTexCoordBounded(transformer, 4, 7);
+            CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 4, 7);
         }
 
         transformer.rename("gl_Color", "_vert_color");
@@ -67,6 +73,33 @@ public final class DHGenericTransformer {
 
         transformer.replaceExpression("gl_ModelViewProjectionMatrix", "(iris_ProjectionMatrix * iris_ModelViewMatrix)");
         ShaderTransformer.applyIntelHd4000Workaround(transformer);
+
+        if (parameters.type == ShaderType.FRAGMENT) {
+            injectFragmentTextureStubs(transformer);
+        }
+    }
+
+    /**
+     * Iris 26.1's DH generic fragment block ({@code DHGenericTransformer.transform}, the {@code FRAGMENT} branch):
+     * generic objects (DH's boxes: clouds, beacon beams, ...) have no block texture, so the helpers that
+     * {@link DHTerrainTransformer} defines from the atlas say so.
+     *
+     * <p>Demonica: idiom code, Iris's text, run after this stage's verbs (PORTING_GUIDE rule 3) instead of between
+     * the {@code gl_MultiTexCoord} and {@code gl_Color} steps where Iris has it; the block goes at the top of the
+     * declarations either way.</p>
+     */
+    static void injectFragmentTextureStubs(ShaderAst ast) {
+        ast.build(() -> {
+            ast.tree.parseAndInjectNodes(ast.t, ASTInjectionPoint.BEFORE_DECLARATIONS,
+
+                """
+					bool dh_hasTexture() { return false; }""", """
+					vec4 dh_sampleTexture() {
+						return vec4(1.0);
+					 }
+					 """);
+            return null;
+        });
     }
 
     /** Declares DH's generic vertex inputs and the Iris values, and calls {@code _vert_init()} first in {@code main}. */
@@ -110,11 +143,5 @@ public final class DHGenericTransformer {
                 + " }"
         );
         transformer.prependMain("_vert_init();");
-    }
-
-    private static void replaceGlMultiTexCoordBounded(ShaderAst transformer, int from, int to) {
-        for (int i = from; i <= to; i++) {
-            transformer.replaceExpression("gl_MultiTexCoord" + i, "vec4(0.0, 0.0, 0.0, 1.0)");
-        }
     }
 }

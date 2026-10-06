@@ -83,6 +83,11 @@ public final class AttributeTransformer {
 			// gl_MultiTexCoord3 as Iris 26.1 handles it (Step 7b); the TauMC engine patched only a declared one, and
 			// declared mc_midTexCoord twice then.
 			CommonTransformer.patchMultiTexCoord3(transformer, parameters, "in vec4 mc_midTexCoord;");
+
+			// gl_MultiTexCoord0 and gl_MultiTexCoord1 are the only valid inputs (with
+			// gl_MultiTexCoord2 and gl_MultiTexCoord3 as aliases), other texture
+			// coordinates are not valid inputs.
+			CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 4, 7);
 		}
 	}
 }
