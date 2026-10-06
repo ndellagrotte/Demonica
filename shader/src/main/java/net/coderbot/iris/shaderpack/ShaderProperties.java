@@ -88,6 +88,7 @@ public class ShaderProperties {
 	@Getter private OptionalBoolean separateAo = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean voxelizeLightBlocks = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean separateEntityDraws = OptionalBoolean.DEFAULT;
+	private OptionalBoolean skipAllRendering = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean frustumCulling = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean occlusionCulling = OptionalBoolean.DEFAULT;
 	@Getter private ShadowCullState shadowCulling = ShadowCullState.DEFAULT;
@@ -225,6 +226,7 @@ public class ShaderProperties {
 			handleBooleanDirective(key, value, "frustum.culling", bool -> frustumCulling = bool);
 			handleBooleanDirective(key, value, "occlusion.culling", bool -> occlusionCulling = bool);
 			handleBooleanDirective(key, value, "shadow.enabled", bool -> shadowEnabled = bool);
+			handleBooleanDirective(key, value, "skipAllRendering", bool -> skipAllRendering = bool);
 			handleBooleanDirective(key, value, "dhShadow.enabled", bool -> dhShadowEnabled = bool);
 			handleBooleanDirective(key, value, "particles.before.deferred", bool -> {
 				if (bool.orElse(false) && particleRenderingSettings.isEmpty()) {
@@ -641,6 +643,10 @@ public class ShaderProperties {
 			return Optional.of(ParticleRenderingSettings.MIXED);
 		}
 		return particleRenderingSettings;
+	}
+
+	public OptionalBoolean skipAllRendering() {
+		return skipAllRendering;
 	}
 
 	/**

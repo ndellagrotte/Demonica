@@ -195,6 +195,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private final boolean shouldRenderPrepareBeforeShadow;
 	private final boolean oldLighting;
 	private final boolean allowConcurrentCompute;
+	private final boolean skipAllRendering;
 	private final OptionalInt forcedShadowRenderDistanceChunks;
 	private final CloudSetting dhCloudSetting;
 
@@ -260,6 +261,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			.map(s -> s == net.coderbot.iris.shaderpack.ParticleRenderingSettings.BEFORE || s == net.coderbot.iris.shaderpack.ParticleRenderingSettings.MIXED)
 			.orElse(false);
 		this.allowConcurrentCompute = programs.getPackDirectives().getConcurrentCompute();
+		this.skipAllRendering = programs.getPackDirectives().skipAllRendering();
 		this.shouldRenderPrepareBeforeShadow = programs.getPackDirectives().isPrepareBeforeShadow();
 		this.oldLighting = programs.getPackDirectives().isOldLighting();
 		this.updateNotifier = new FrameUpdateNotifier();
@@ -724,6 +726,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	@Override
 	public boolean allowConcurrentCompute() {
 		return allowConcurrentCompute;
+	}
+
+	@Override
+	public boolean skipAllRendering() {
+		return skipAllRendering;
 	}
 
 	@Override

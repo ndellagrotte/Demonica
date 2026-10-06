@@ -41,6 +41,7 @@ public class PackDirectives {
 	private boolean separateAo;
 	private boolean voxelizeLightBlocks;
 	private boolean separateEntityDraws;
+	private boolean skipAllRendering;
 	private boolean frustumCulling;
 	private boolean occlusionCulling;
 	@Getter private boolean oldLighting;
@@ -88,6 +89,7 @@ public class PackDirectives {
 		separateAo = properties.getSeparateAo().orElse(false);
 		voxelizeLightBlocks = properties.getVoxelizeLightBlocks().orElse(false);
 		separateEntityDraws = properties.getSeparateEntityDraws().orElse(false);
+		skipAllRendering = properties.skipAllRendering().orElse(false);
 		frustumCulling = properties.getFrustumCulling().orElse(true);
 		occlusionCulling = properties.getOcclusionCulling().orElse(true);
 		oldLighting = properties.getOldLighting().orElse(false);
@@ -179,6 +181,10 @@ public class PackDirectives {
 
 	public boolean getConcurrentCompute() {
 		return concurrentCompute;
+	}
+
+	public boolean skipAllRendering() {
+		return skipAllRendering;
 	}
 
 	public CloudSetting getDHCloudSetting() {
