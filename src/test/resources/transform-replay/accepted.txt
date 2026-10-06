@@ -114,8 +114,8 @@ transform-each-empty-declaration | * | Step 12: Iris 26.1's transformEach remove
 # initialization is prepended to main, visiting the next stage's in declarations in document order; TauMC injected at
 # its variable anchor in HashMap order. The same declarations and statements (ShaderTransformerTest.dhPrograms).
 transform-grouped | vertex | Step 12: Iris 26.1's transformGrouped injects the missing out viewDir before the declarations (TauMC: at its variable anchor); same lines
-dh-terrain-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines, checked by ShaderTransformerTest.dhPrograms
-dh-generic-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines, checked by ShaderTransformerTest.dhPrograms
+dh-terrain-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines but one, checked by ShaderTransformerTest.dhPrograms; item 3.2: the pack's out vec4 gcolor keeps its name, where TauMC renamed it gtexture (Iris 26.1's getGtextureRenameTargets renames only a sampler uniform)
+dh-generic-legacy | geometry | Step 12: Iris 26.1's transformGrouped declares and initializes the geometry stage's missing outs in the fragment stage's order (TauMC: HashMap order); same lines but one, checked by ShaderTransformerTest.dhPrograms; item 3.2: the pack's out vec4 gcolor keeps its name, where TauMC renamed it gtexture (Iris 26.1's getGtextureRenameTargets renames only a sampler uniform)
 transform-grouped-geometry | vertex | Step 12: Iris 26.1's transformGrouped injects the missing out vColor (read by the geometry stage) before the declarations; same lines
 #
 # Iris 26.1 transformGrouped, the pipeline: Iris pairs vertex with tessellation control, tessellation control with
@@ -156,3 +156,16 @@ composite-multitexcoord-1-7 | vertex | item 3.1: Iris CompositeTransformer's rep
 attributes-texturematrix-2 | vertex | item 3.4: Iris's glTextureMatrix2: gl_TextureMatrix[2] is iris_LightmapTextureMatrix like [1], not the catch-all identity, checked by CoreTransformHelperTest
 composite-texturematrix-2 | vertex | item 3.4: Iris's glTextureMatrix2: gl_TextureMatrix[2] is iris_LightmapTextureMatrix like [1], not the catch-all identity, checked by CoreTransformHelperTest
 composite-texturematrix-2 | fragment | item 3.4: Iris's glTextureMatrix2: gl_TextureMatrix[2] is iris_LightmapTextureMatrix like [1] in every stage, checked by CoreTransformHelperTest
+
+# docs/IRIS_PORTING_PLAN.md item 3.2 (2026-10-05): Iris 26.1's gtexture merge (CommonTransformer.renameGtexture, from
+# Iris's CommonTransformer.transform and getGtextureRenameTargets). A pack that declares both uniform sampler2D texture
+# and uniform sampler2D gcolor keeps one declaration, gcolor's, renamed gtexture; before, both were renamed and the
+# output did not compile (glslangValidator: "'gtexture' : redefinition"). Both cases were recorded (out.douira.*) before
+# the change; after it both compile and link. composite-gtexture-gcolor-only (the single-declaration path) replays
+# identically and needs no entry. GtextureMergeTest checks every behaviour.
+composite-gtexture-two-decls | fragment | item 3.2: Iris's getGtextureRenameTargets merge: the texture declaration is removed and gcolor's is renamed gtexture, checked by GtextureMergeTest
+attributes-gtexture-two-decls | fragment | item 3.2: Iris's getGtextureRenameTargets merge: the texture member of uniform sampler2D gcolor, texture; is removed and gcolor is renamed gtexture, checked by GtextureMergeTest
+# One pack case changes, in run/transform-corpus (I Like Vanilla, composite): addReflection takes a parameter
+# sampler2D texture, which Iris renames with its uses; the TauMC verb renamed the uses but not the parameter, so the
+# function read the file-scope gtexture instead of its argument (called with tex). Both outputs compile and link.
+vanilla/00014-COMPOSITE-8068a20f | fragment | item 3.2: Iris's getGtextureRenameTargets renames the parameter sampler2D texture of addReflection to gtexture with its use (TauMC left the parameter, so the use read the uniform), checked by GtextureMergeTest.parameterNamedTextureIsRenamedWithItsUses

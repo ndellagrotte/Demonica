@@ -310,6 +310,10 @@ public class ShaderTransformer {
             default:
                 throw new IllegalStateException("Unknown patch type: " + patchType.name());
         }
+        // Iris 26.1 renames texture and gcolor to gtexture in CommonTransformer (plan item 3.2). Here it is idiom code,
+        // so it runs after the patch transformer's verbs (PORTING_GUIDE rule 3), and before TextureTransformer, which
+        // renames samplers by name, as in Iris.
+        CommonTransformer.renameGtexture(ast);
         TextureTransformer.transform(ast, parameters);
         CompatibilityTransformer.transformEach(ast, parameters);
     }

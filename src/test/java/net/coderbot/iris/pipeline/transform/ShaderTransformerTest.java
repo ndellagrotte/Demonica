@@ -636,8 +636,11 @@ class ShaderTransformerTest {
                     // Named deviation (Step 12): Iris 26.1's transformGrouped declares and initializes the geometry
                     // stage's missing outputs in the order the fragment stage declares its inputs; TauMC's in HashMap
                     // order. The same lines otherwise.
+                    // Named deviation (plan item 3.2): the geometry stage's out vec4 gcolor keeps its name, where TauMC
+                    // renamed it gtexture; Iris 26.1's getGtextureRenameTargets renames only a sampler uniform.
                     assertEquals(old.keySet(), now.keySet());
-                    old.forEach((stage, text) -> assertEquals(stage == PatchShaderType.GEOMETRY ? sortedLines(text) : GlslTokens.of(text).text(),
+                    old.forEach((stage, text) -> assertEquals(stage == PatchShaderType.GEOMETRY
+                            ? sortedLines(text.replace("gtexture", "gcolor")) : GlslTokens.of(text).text(),
                         stage == PatchShaderType.GEOMETRY ? sortedLines(now.get(stage)) : GlslTokens.of(now.get(stage)).text(), stage.name()));
                 }
                 assertNull(parameters.type);
