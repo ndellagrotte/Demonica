@@ -14,6 +14,7 @@ import net.coderbot.iris.config.IrisConfig;
 import net.coderbot.iris.celeritas.IrisCeleritasShaderProvider;
 import net.coderbot.iris.client.IrisDebugScreenHandler;
 import net.coderbot.iris.gbuffer_overrides.matching.InputAvailability;
+import net.coderbot.iris.gl.shader.ShaderCompileException;
 import net.coderbot.iris.gl.shader.StandardMacros;
 import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
@@ -884,14 +885,31 @@ public class Iris {
             long endTime = System.nanoTime();
             logger.info("[Load #{}] Total shaderpack load time for '{}' in dimension '{}': {} ms", shaderPackLoadId, currentPackName, dimensionName, String.format("%.1f", (endTime - startTime) / 1_000_000.0));
             return pipeline;
+        } catch (ShaderCompileException e) {
+            // Demonica: upstream catches it to pick its "Failed to compile shaders" screen and chat line; Demonica has
+            // neither, so it logs the file and the driver message on one line and then disables shaders as below.
+            logger.error(e.toLogLine());
+            return disablePipeline(e);
         } catch (Exception e) {
-            logger.error("Failed to create shader rendering pipeline, disabling shaders!", e);
-            // TODO: This should be reverted if a dimension change causes shaders to compile again
-            fallback = true;
-            notifyPlayer(I18n.format("iris.shaders.pipelineFailed", Throwables.getRootCause(e).getMessage()));
+            // Demonica: pass creation wraps compile errors (DeferredWorldRenderingPipeline's "Failed to create pass
+            // for ..."), so look for one in the cause chain too.
+            ShaderCompileException compileError = ShaderCompileException.findIn(e);
 
-            return new FixedFunctionWorldRenderingPipeline();
+            if (compileError != null) {
+                logger.error(compileError.toLogLine());
+            }
+
+            return disablePipeline(e);
         }
+    }
+
+    private static WorldRenderingPipeline disablePipeline(Exception e) {
+        logger.error("Failed to create shader rendering pipeline, disabling shaders!", e);
+        // TODO: This should be reverted if a dimension change causes shaders to compile again
+        fallback = true;
+        notifyPlayer(I18n.format("iris.shaders.pipelineFailed", Throwables.getRootCause(e).getMessage()));
+
+        return new FixedFunctionWorldRenderingPipeline();
     }
 
     /**

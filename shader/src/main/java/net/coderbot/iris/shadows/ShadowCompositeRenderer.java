@@ -16,6 +16,7 @@ import net.coderbot.iris.gl.program.Program;
 import net.coderbot.iris.gl.program.ProgramBuilder;
 import net.coderbot.iris.gl.program.ProgramSamplers;
 import net.coderbot.iris.gl.program.ProgramUniforms;
+import net.coderbot.iris.gl.shader.ShaderCompileException;
 import net.coderbot.iris.gl.state.FogMode;
 import net.coderbot.iris.gl.texture.TextureAccess;
 import net.coderbot.iris.pipeline.PatchedShaderPrinter;
@@ -279,6 +280,9 @@ public class ShadowCompositeRenderer {
 
         try {
             builder = ProgramBuilder.begin(source.getName(), vertex, geometry, tessControl, tessEval, fragment, IrisSamplers.COMPOSITE_RESERVED_TEXTURE_UNITS);
+        } catch (ShaderCompileException e) {
+            // Demonica: upstream merged shadowcomp into CompositeRenderer, which passes compile errors through
+            throw e;
         } catch (RuntimeException e) {
             // TODO: Better error handling
             throw new RuntimeException("Shader compilation failed for shadow composite " + source.getName() + "!", e);
@@ -325,6 +329,9 @@ public class ShadowCompositeRenderer {
                         TextureStage.SHADOWCOMP, pipeline.getTextureMap());
                     PatchedShaderPrinter.debugPatchedShaders(source.getName() + "_compute", null, null, null, transformed);
                     builder = ProgramBuilder.beginCompute(source.getName(), transformed, IrisSamplers.COMPOSITE_RESERVED_TEXTURE_UNITS);
+                } catch (ShaderCompileException e) {
+                    // Demonica: upstream merged shadowcomp into CompositeRenderer, which passes compile errors through
+                    throw e;
                 } catch (RuntimeException e) {
                     // TODO: Better error handling
                     throw new RuntimeException("Shader compilation failed for shadowcomp compute " + source.getName() + "!", e);

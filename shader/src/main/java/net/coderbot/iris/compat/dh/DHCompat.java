@@ -3,6 +3,7 @@ package net.coderbot.iris.compat.dh;
 import com.demonica.compat.Mods;
 import com.gtnewhorizons.angelica.rendering.RenderingState;
 import net.coderbot.iris.Iris;
+import net.coderbot.iris.gl.shader.ShaderCompileException;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
@@ -30,7 +31,11 @@ public class DHCompat {
             }
         } catch (Throwable e) {
             lastIncompatible = false;
-            if (e instanceof InvocationTargetException ite) {
+            // Demonica: upstream tests e.getCause(), as it builds DHCompatInternal by reflection; Demonica calls the
+            // constructor directly, so the compile error arrives unwrapped.
+            if (e instanceof ShaderCompileException sce) {
+                throw sce;
+            } else if (e instanceof InvocationTargetException ite) {
                 throw new RuntimeException("Unknown error loading Distant Horizons compatibility.", ite.getCause());
             } else {
                 throw new RuntimeException("Unknown error loading Distant Horizons compatibility.", e);
