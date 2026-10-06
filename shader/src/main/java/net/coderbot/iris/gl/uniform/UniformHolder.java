@@ -1,6 +1,7 @@
 package net.coderbot.iris.gl.uniform;
 
 import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix3fc;
 import org.joml.Matrix4fc;
 import org.joml.Vector2f;
 import org.joml.Vector2ic;
@@ -45,6 +46,8 @@ public interface UniformHolder {
     UniformHolder uniform4fArray(UniformUpdateFrequency updateFrequency, String name, Supplier<float[]> value);
 
 	UniformHolder uniformMatrix(UniformUpdateFrequency updateFrequency, String name, Supplier<Matrix4fc> value);
+
+	UniformHolder uniformMatrix3(UniformUpdateFrequency updateFrequency, String name, Supplier<Matrix3fc> value);
 
 
 	UniformHolder externallyManagedUniform(String name, UniformType type);

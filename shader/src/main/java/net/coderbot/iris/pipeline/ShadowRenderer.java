@@ -195,13 +195,20 @@ public class ShadowRenderer {
 	}
 
 	public static MatrixStack createShadowModelView(float sunPathRotation, float intervalSize) {
+		// Set up our modelview matrix stack
+		return createShadowModelView(new MatrixStack(), sunPathRotation, intervalSize);
+	}
+
+	// Demonica: fills a caller-owned stack, so a per-frame supplier (iris_ShadowModelViewMatrixInverse) builds the
+	// shadow modelview without allocating a MatrixStack every frame. Static and touching only the target, like the
+	// overload above, so the pass's own shadowModelView is never disturbed.
+	public static MatrixStack createShadowModelView(MatrixStack target, float sunPathRotation, float intervalSize) {
 		final Vector3d entityPos = getShadowCameraAnchor(CapturedRenderingState.INSTANCE.getTickDelta());
 
-		// Set up our modelview matrix stack
-		final MatrixStack modelView = new MatrixStack();
-		ShadowMatrices.createModelViewMatrix(modelView, getShadowAngle(), intervalSize, sunPathRotation, entityPos.x, entityPos.y, entityPos.z);
+		target.reset();
+		ShadowMatrices.createModelViewMatrix(target, getShadowAngle(), intervalSize, sunPathRotation, entityPos.x, entityPos.y, entityPos.z);
 
-		return modelView;
+		return target;
 	}
 
 	private MatrixStack getShadowModelView() {

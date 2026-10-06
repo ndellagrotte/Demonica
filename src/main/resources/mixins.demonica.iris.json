@@ -37,6 +37,7 @@
     "features.iris.RenderItemIrisMixin",
     "features.iris.RenderLivingBaseIrisMixin",
     "features.iris.RenderManagerIrisMixin",
+    "features.iris.TextureManagerIrisMixin",
     "features.iris.TextureUtilIrisMixin",
     "features.iris.TileEntityBeaconRendererIrisMixin",
     "features.iris.TileEntityEndPortalRendererIrisMixin",

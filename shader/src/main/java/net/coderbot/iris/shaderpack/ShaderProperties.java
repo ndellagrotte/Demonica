@@ -63,6 +63,7 @@ public class ShaderProperties {
 	@Getter private OptionalBoolean oldHandLight = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean dynamicHandLight = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean supportsColorCorrection = OptionalBoolean.DEFAULT;
+	@Getter private OptionalBoolean supportsEndFlash = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean oldLighting = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean shadowTerrain = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean shadowTranslucent = OptionalBoolean.DEFAULT;
@@ -86,6 +87,7 @@ public class ShaderProperties {
 	@Getter private OptionalBoolean concurrentCompute = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean beaconBeamDepth = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean separateAo = OptionalBoolean.DEFAULT;
+	@Getter private OptionalBoolean breaksAnisotropy = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean voxelizeLightBlocks = OptionalBoolean.DEFAULT;
 	@Getter private OptionalBoolean separateEntityDraws = OptionalBoolean.DEFAULT;
 	private OptionalBoolean skipAllRendering = OptionalBoolean.DEFAULT;
@@ -221,6 +223,7 @@ public class ShaderProperties {
 			handleBooleanDirective(key, value, "allowConcurrentCompute", bool -> concurrentCompute = bool);
 			handleBooleanDirective(key, value, "beacon.beam.depth", bool -> beaconBeamDepth = bool);
 			handleBooleanDirective(key, value, "separateAo", bool -> separateAo = bool);
+			handleBooleanDirective(key, value, "breaksAnisotropy", bool -> breaksAnisotropy = bool);
 			handleBooleanDirective(key, value, "voxelizeLightBlocks", bool -> voxelizeLightBlocks = bool);
 			handleBooleanDirective(key, value, "separateEntityDraws", bool -> separateEntityDraws = bool);
 			handleBooleanDirective(key, value, "frustum.culling", bool -> frustumCulling = bool);
@@ -235,6 +238,7 @@ public class ShaderProperties {
 			});
 			handleBooleanDirective(key, value, "prepareBeforeShadow", bool -> prepareBeforeShadow = bool);
 			handleBooleanDirective(key, value, "supportsColorCorrection", bool -> supportsColorCorrection = bool);
+			handleBooleanDirective(key, value, "endFlashShadows", bool -> supportsEndFlash = bool);
 			handleIntDirective(key, value, "fallbackTex", val -> fallbackTex = val);
 
 			if ("weather".equals(key)) {
