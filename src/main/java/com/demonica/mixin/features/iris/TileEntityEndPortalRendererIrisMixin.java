@@ -4,6 +4,8 @@ import com.demonica.render.EndPortalRenderPolicy;
 import com.demonica.render.EndPortalRenderer;
 import net.coderbot.iris.apiimpl.IrisApiV0Impl;
 import net.coderbot.iris.debug.IrisGlDebug;
+import net.coderbot.iris.gbuffer_overrides.matching.SpecialCondition;
+import net.coderbot.iris.layer.GbufferPrograms;
 import net.minecraft.client.renderer.tileentity.TileEntityEndPortalRenderer;
 import net.minecraft.tileentity.TileEntityEndPortal;
 import org.spongepowered.asm.mixin.Mixin;
@@ -50,6 +52,14 @@ public abstract class TileEntityEndPortalRendererIrisMixin {
         double distanceSq = x * x + y * y + z * z;
         int vanillaLayerCount = this.getPasses(distanceSq);
 
-        EndPortalRenderer.render(te, x, y, z, this.getOffset(), vanillaLayerCount);
+        // Upstream's shadow pass draws the END_PORTAL and END_GATEWAY render pipelines with shadow_block
+        // (ShaderKey.SHADOW_BLOCK); the special condition marks this draw for it. TileEntityEndGatewayRenderer reaches
+        // here through super.render after drawing its beam, which stays on the block-entity programs.
+        GbufferPrograms.setupSpecialRenderCondition(SpecialCondition.END_PORTAL);
+        try {
+            EndPortalRenderer.render(te, x, y, z, this.getOffset(), vanillaLayerCount);
+        } finally {
+            GbufferPrograms.teardownSpecialRenderCondition();
+        }
     }
 }

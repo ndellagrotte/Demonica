@@ -18,6 +18,7 @@ import net.coderbot.iris.gl.program.ProgramUniforms;
 import net.coderbot.iris.pipeline.PatchedShaderPrinter;
 import net.coderbot.iris.pipeline.transform.PatchShaderType;
 import net.coderbot.iris.rendertarget.RenderTargets;
+import net.coderbot.iris.shaderpack.ProgramFallbackResolver;
 import net.coderbot.iris.gl.state.FogMode;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.builtin.BuiltinReplacementUniforms;
@@ -31,13 +32,24 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 public class CeleritasTerrainPipeline {
+    // Demonica: the order the passes' transforms are submitted and their results read in: gbuffers before shadow, as
+    // the four per-source futures this replaced were, so a pack whose passes share sources does the same work in the
+    // same order as before the pass split.
+    private static final IrisTerrainPass[] TRANSFORM_ORDER = {
+            IrisTerrainPass.GBUFFER_SOLID, IrisTerrainPass.GBUFFER_CUTOUT, IrisTerrainPass.GBUFFER_TRANSLUCENT,
+            IrisTerrainPass.SHADOW, IrisTerrainPass.SHADOW_CUTOUT, IrisTerrainPass.SHADOW_TRANSLUCENT
+    };
+
     private final EnumMap<IrisTerrainPass, PassInfo> passInfoMap = new EnumMap<>(IrisTerrainPass.class);
 
     @Getter
@@ -79,14 +91,8 @@ public class CeleritasTerrainPipeline {
             IntFunction<ProgramImages> createTerrainImages,
             IntFunction<ProgramImages> createShadowImages,
             CustomUniforms customUniforms,
-            Optional<ProgramSource> terrainSource,
-            Optional<ProgramSource> translucentSource,
-            Optional<ProgramSource> shadowSource,
-            Optional<ProgramSource> shadowTranslucentSource,
-            CompletableFuture<Map<PatchShaderType, String>> terrainFuture,
-            CompletableFuture<Map<PatchShaderType, String>> translucentFuture,
-            CompletableFuture<Map<PatchShaderType, String>> shadowFuture,
-            CompletableFuture<Map<PatchShaderType, String>> shadowTranslucentFuture,
+            Map<IrisTerrainPass, Optional<ProgramSource>> passSources,
+            Map<IrisTerrainPass, CompletableFuture<Map<PatchShaderType, String>>> passTransformFutures,
             RenderTargets renderTargets,
             ImmutableSet<Integer> flippedAfterPrepare,
             ImmutableSet<Integer> flippedAfterTranslucent,
@@ -98,14 +104,11 @@ public class CeleritasTerrainPipeline {
         this.createTerrainImages = createTerrainImages;
         this.createShadowImages = createShadowImages;
 
-        // Build program source map (local - only needed during construction)
+        // Each pass's source is already resolved through the fallback chain (resolveSources)
         final EnumMap<IrisTerrainPass, Optional<ProgramSource>> gbufferProgramSource = new EnumMap<>(IrisTerrainPass.class);
-        gbufferProgramSource.put(IrisTerrainPass.GBUFFER_SOLID, terrainSource);
-        gbufferProgramSource.put(IrisTerrainPass.GBUFFER_CUTOUT, terrainSource);
-        gbufferProgramSource.put(IrisTerrainPass.GBUFFER_TRANSLUCENT, translucentSource.isPresent() ? translucentSource : terrainSource);
-        gbufferProgramSource.put(IrisTerrainPass.SHADOW, shadowSource);
-        gbufferProgramSource.put(IrisTerrainPass.SHADOW_CUTOUT, shadowSource);
-        gbufferProgramSource.put(IrisTerrainPass.SHADOW_TRANSLUCENT, shadowTranslucentSource.isPresent() ? shadowTranslucentSource : shadowSource);
+        for (IrisTerrainPass pass : IrisTerrainPass.VALUES) {
+            gbufferProgramSource.put(pass, passSources.getOrDefault(pass, Optional.empty()));
+        }
 
         // Initialize PassInfo, framebuffers, blend modes, and alpha in single pass
         for (IrisTerrainPass pass : IrisTerrainPass.VALUES) {
@@ -113,12 +116,10 @@ public class CeleritasTerrainPipeline {
             passInfoMap.put(pass, passInfo);
 
             // Set up framebuffer, blend mode, and buffer blend overrides
-            final ProgramId programId = switch (pass) {
-                case GBUFFER_TRANSLUCENT -> ProgramId.Water;
-                case SHADOW_TRANSLUCENT -> ProgramId.ShadowWater;
-                case SHADOW, SHADOW_CUTOUT -> ProgramId.Shadow;
-                default -> ProgramId.Terrain;
-            };
+            // Demonica: the shadow passes keep taking their blend from the id's default and not from the source's
+            // directives (upstream SodiumPrograms uses the directive). ShadowSolid and ShadowCutout have no default
+            // here, as Shadow had, so the split leaves shadow terrain blending unchanged.
+            final ProgramId programId = pass.getProgramId();
 
             if (pass.isShadow()) {
                 passInfo.framebuffer = shadowFramebuffer;
@@ -151,6 +152,9 @@ public class CeleritasTerrainPipeline {
 
             // Set alpha reference. The shader pack directive wins; otherwise match Iris/Sodium defaults
             // for terrain passes so translucent water does not inherit a stale vanilla alpha test.
+            // Demonica: upstream's Sodium terrain path (SodiumPrograms.getAlphaTest) tests both cutout passes at
+            // HALF_ALPHA (0.5), TRANSLUCENT at NON_ZERO_ALPHA and SHADOW_TRANS not at all; these 0.1/0.0001 defaults
+            // come from Angelica and are kept so the pass split changes no pack's output.
             passInfo.alphaReference = switch (pass) {
                 case GBUFFER_CUTOUT, SHADOW_CUTOUT -> 0.1f;
                 case GBUFFER_TRANSLUCENT, SHADOW_TRANSLUCENT -> 0.0001f;
@@ -161,14 +165,50 @@ public class CeleritasTerrainPipeline {
                     pass);
         }
 
-        // Process and apply shader sources
+        // Process and apply shader sources: once per distinct transform (submitTransforms gives passes that share a
+        // source the same future), applied to every pass that shares it
+        final Map<CompletableFuture<Map<PatchShaderType, String>>, List<IrisTerrainPass>> passesByFuture = new LinkedHashMap<>();
+        for (IrisTerrainPass pass : TRANSFORM_ORDER) {
+            final CompletableFuture<Map<PatchShaderType, String>> future = passTransformFutures.get(pass);
+            if (future != null && gbufferProgramSource.get(pass).isPresent()) {
+                passesByFuture.computeIfAbsent(future, f -> new ArrayList<>()).add(pass);
+            }
+        }
         List<String> transformedVertexSources = new ArrayList<>();
-        processShaderFuture(terrainFuture, terrainSource, transformedVertexSources, passInfoMap.get(IrisTerrainPass.GBUFFER_SOLID), passInfoMap.get(IrisTerrainPass.GBUFFER_CUTOUT));
-        processShaderFuture(translucentFuture, translucentSource, transformedVertexSources, passInfoMap.get(IrisTerrainPass.GBUFFER_TRANSLUCENT));
-        processShaderFuture(shadowFuture, shadowSource, transformedVertexSources, passInfoMap.get(IrisTerrainPass.SHADOW), passInfoMap.get(IrisTerrainPass.SHADOW_CUTOUT));
-        processShaderFuture(shadowTranslucentFuture, shadowTranslucentSource.isPresent() ? shadowTranslucentSource : shadowSource, transformedVertexSources, passInfoMap.get(IrisTerrainPass.SHADOW_TRANSLUCENT));
+        passesByFuture.forEach((future, passes) -> processShaderFuture(future, gbufferProgramSource.get(passes.get(0)),
+                transformedVertexSources, passes.stream().map(passInfoMap::get).toArray(PassInfo[]::new)));
         this.vertexFormatRequirements = TerrainVertexFormatRequirements.analyze(transformedVertexSources);
         updateVertexFormatRequirements(this.vertexFormatRequirements);
+    }
+
+    /**
+     * Each pass's program source, resolved through the fallback chain from {@link IrisTerrainPass#getProgramId()}.
+     */
+    public static EnumMap<IrisTerrainPass, Optional<ProgramSource>> resolveSources(ProgramFallbackResolver resolver) {
+        final EnumMap<IrisTerrainPass, Optional<ProgramSource>> sources = new EnumMap<>(IrisTerrainPass.class);
+        for (IrisTerrainPass pass : IrisTerrainPass.VALUES) {
+            sources.put(pass, resolver.resolve(pass.getProgramId()));
+        }
+        return sources;
+    }
+
+    /**
+     * Submits one transform per distinct source and gives every pass that resolves to it the same future.
+     * Demonica: upstream transforms each pass on its own, in turn (SodiumPrograms.transformShaders, whose transform
+     * also takes the pass's alpha test and shadow flag). The CELERITAS_TERRAIN transform takes no per-pass input, so
+     * passes that share a source share its output; the transforms here run concurrently, where two submissions of one
+     * source would both miss TransformPatcher's cache; and every corpus pack resolves the solid and cutout passes
+     * (gbuffer and shadow alike) to one source.
+     */
+    public static <F> EnumMap<IrisTerrainPass, F> submitTransforms(Map<IrisTerrainPass, Optional<ProgramSource>> sources,
+                                                                   Function<ProgramSource, F> submit) {
+        final Map<ProgramSource, F> bySource = new IdentityHashMap<>();
+        final EnumMap<IrisTerrainPass, F> futures = new EnumMap<>(IrisTerrainPass.class);
+        for (IrisTerrainPass pass : TRANSFORM_ORDER) {
+            sources.getOrDefault(pass, Optional.empty())
+                    .ifPresent(source -> futures.put(pass, bySource.computeIfAbsent(source, submit)));
+        }
+        return futures;
     }
 
     private void processShaderFuture(@Nullable CompletableFuture<Map<PatchShaderType, String>> future, Optional<ProgramSource> source,

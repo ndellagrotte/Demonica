@@ -16,7 +16,8 @@ public enum ProgramId {
 	ShadowCutout(ProgramGroup.Shadow, "cutout", Shadow),
 	ShadowWater(ProgramGroup.Shadow, "water", Shadow, BlendModeOverride.OFF),
 	ShadowEntities(ProgramGroup.Shadow, "entities", Shadow, BlendModeOverride.OFF),
-	ShadowLightning(ProgramGroup.Shadow, "lightning", ShadowEntities, BlendModeOverride.OFF),
+	// Demonica: alpha test off by default, as upstream's ShaderKey.SHADOW_LIGHTNING (AlphaTests.OFF); see Lightning
+	ShadowLightning(ProgramGroup.Shadow, "lightning", ShadowEntities, BlendModeOverride.OFF, AlphaTestOverride.OFF),
 	ShadowBlock(ProgramGroup.Shadow, "block", Shadow, BlendModeOverride.OFF),
 
 	Basic(ProgramGroup.Gbuffers, "basic"),
@@ -41,7 +42,10 @@ public enum ProgramId {
 
 	Entities(ProgramGroup.Gbuffers, "entities", TexturedLit),
 	EntitiesTrans(ProgramGroup.Gbuffers, "entities_translucent", Entities),
-	Lightning(ProgramGroup.Gbuffers, "lightning", Entities),
+	// Demonica: alpha test off by default, as upstream's ShaderKey.LIGHTNING (AlphaTests.OFF). 1.12.2's
+	// RenderLightningBolt leaves vanilla's GREATER 0.1 test on (LayerEnderDragonDeath turns it off), so a pack's
+	// gbuffers_lightning writing a low alpha would lose fragments upstream keeps
+	Lightning(ProgramGroup.Gbuffers, "lightning", Entities, null, AlphaTestOverride.OFF),
 	Particles(ProgramGroup.Gbuffers, "particles", TexturedLit),
 	ParticlesTrans(ProgramGroup.Gbuffers, "particles_translucent", Particles),
 	EntitiesGlowing(ProgramGroup.Gbuffers, "entities_glowing", Entities),

@@ -169,11 +169,11 @@ class ProgramFallbackResolverTest {
         return expected;
     }
 
-    private static Path fixtureRoot() throws URISyntaxException {
+    static Path fixtureRoot() throws URISyntaxException {
         return Path.of(ProgramFallbackResolverTest.class.getResource("/program-fallback-pack").toURI());
     }
 
-    private static void writeProgram(Path root, String name) throws IOException {
+    static void writeProgram(Path root, String name) throws IOException {
         Files.writeString(root.resolve(name + ".vsh"), "#version 120\n\nvoid main() {}\n");
         Files.writeString(root.resolve(name + ".fsh"), "#version 120\n\nvoid main() {}\n");
     }
@@ -183,7 +183,7 @@ class ProgramFallbackResolverTest {
      * ShaderPackSourceNames.POTENTIAL_STARTS, include graph, include processor), without the preprocessor and
      * properties, which a source without directives does not need.
      */
-    private static ProgramSet loadProgramSet(Path root) throws Exception {
+    static ProgramSet loadProgramSet(Path root) throws Exception {
         ImmutableList.Builder<AbsolutePackPath> starts = ImmutableList.builder();
         ShaderPackSourceNames.findPresentSources(starts, root, AbsolutePackPath.fromAbsolutePath("/"),
             ShaderPackSourceNames.POTENTIAL_STARTS);

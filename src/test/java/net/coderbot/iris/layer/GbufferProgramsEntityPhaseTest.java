@@ -162,6 +162,43 @@ class GbufferProgramsEntityPhaseTest {
         );
     }
 
+    @Test
+    void nestedEntityDrawPutsTheParticlePhaseBack() {
+        FakePhaseOperations operations = new FakePhaseOperations(
+            GbufferPrograms.OwnedPhase.NONE,
+            WorldRenderingPhase.PARTICLES
+        );
+        List<WorldRenderingPhase> phasesDuringDraw = new ArrayList<>();
+
+        GbufferPrograms.drawNestedEntity(operations, () -> phasesDuringDraw.add(operations.pipelinePhase));
+
+        assertEquals(List.of(WorldRenderingPhase.ENTITIES), phasesDuringDraw);
+        assertEquals(WorldRenderingPhase.PARTICLES, operations.pipelinePhase);
+        assertEquals(GbufferPrograms.OwnedPhase.NONE, operations.ownedPhase);
+        assertEquals(List.of("beginEntities", "endEntities", "setPipelinePhase PARTICLES"), operations.events);
+    }
+
+    @Test
+    void nestedEntityDrawPutsTheParticlePhaseBackWhenDrawingFails() {
+        FakePhaseOperations operations = new FakePhaseOperations(
+            GbufferPrograms.OwnedPhase.NONE,
+            WorldRenderingPhase.PARTICLES
+        );
+        IllegalStateException failure = new IllegalStateException("entity render failed");
+
+        IllegalStateException thrown = assertThrows(
+            IllegalStateException.class,
+            () -> GbufferPrograms.drawNestedEntity(operations, () -> {
+                throw failure;
+            })
+        );
+
+        assertSame(failure, thrown);
+        assertEquals(WorldRenderingPhase.PARTICLES, operations.pipelinePhase);
+        assertEquals(GbufferPrograms.OwnedPhase.NONE, operations.ownedPhase);
+        assertEquals(List.of("beginEntities", "endEntities", "setPipelinePhase PARTICLES"), operations.events);
+    }
+
     private static final class FakePhaseOperations implements GbufferPrograms.PhaseOperations {
         private final List<String> events = new ArrayList<>();
         private GbufferPrograms.OwnedPhase ownedPhase;
@@ -219,6 +256,12 @@ class GbufferProgramsEntityPhaseTest {
             this.assertOwnedPhase(GbufferPrograms.OwnedPhase.BLOCK_ENTITIES);
             this.ownedPhase = GbufferPrograms.OwnedPhase.NONE;
             this.pipelinePhase = WorldRenderingPhase.NONE;
+        }
+
+        @Override
+        public void setPipelinePhase(WorldRenderingPhase phase) {
+            this.events.add("setPipelinePhase " + phase);
+            this.pipelinePhase = phase;
         }
 
         private void assertOwnedPhase(GbufferPrograms.OwnedPhase expected) {

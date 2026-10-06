@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.coderbot.iris.apiimpl.IrisApiV0Impl;
 import net.coderbot.iris.debug.ShaderRegressionDebug;
+import net.coderbot.iris.gbuffer_overrides.matching.SpecialCondition;
 import net.coderbot.iris.layer.GbufferPrograms;
 import net.coderbot.iris.pipeline.WorldRenderingPhase;
 import net.coderbot.iris.uniforms.CapturedRenderingState;
@@ -17,7 +18,8 @@ import org.spongepowered.asm.mixin.Mixin;
  * Publishes the entity that is being rendered to the shader pipeline: the Iris
  * entity id consumed by {@code entityId} uniforms and the entities gbuffer phase
  * for the duration of {@link RenderManager#renderEntity} and
- * {@link RenderManager#renderMultipass}.
+ * {@link RenderManager#renderMultipass}, and the lightning special condition
+ * around a lightning bolt's {@code renderEntity}.
  *
  * <p>Both hooks wrap their whole target method instead of redirecting the
  * {@code Render#doRender} / {@code Render#renderMultipass} call sites. ASM
@@ -55,11 +57,23 @@ public class RenderManagerIrisMixin {
         GbufferPrograms.EntityPhase entityPhase = null;
         boolean beganEntityPhase = false;
         CapturedRenderingState.INSTANCE.setCurrentEntity(EntityIdHelper.getEntityId(entity));
+        // Upstream draws lightning bolts with their own render pipeline (ShaderKey.LIGHTNING, SHADOW_LIGHTNING in the
+        // shadow pass); here the special condition selects gbuffers_lightning / shadow_lightning for the bolt's draws.
+        boolean lightning = EntityIdHelper.isLightningBolt(entity);
         try {
             entityPhase = GbufferPrograms.enterEntityPhase();
             beganEntityPhase = entityPhase.changedPhase();
             ShaderRegressionDebug.logEntityPhase("renderEntity:before", entity, render, previousPhase.name(), beganEntityPhase);
-            original.call(entity, x, y, z, yaw, partialTicks, renderOutlines);
+            if (lightning) {
+                GbufferPrograms.setupSpecialRenderCondition(SpecialCondition.LIGHTNING);
+            }
+            try {
+                original.call(entity, x, y, z, yaw, partialTicks, renderOutlines);
+            } finally {
+                if (lightning) {
+                    GbufferPrograms.teardownSpecialRenderCondition();
+                }
+            }
         } finally {
             try {
                 if (entityPhase != null) {

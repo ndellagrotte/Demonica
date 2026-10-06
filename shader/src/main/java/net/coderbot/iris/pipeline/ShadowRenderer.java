@@ -514,6 +514,15 @@ public class ShadowRenderer {
 			renderedEntitiesList.add(entity);
 		}
 
+		// Demonica: 1.12.2 keeps lightning bolts in World.weatherEffects, not loadedEntityList, where upstream's
+		// entitiesForRendering() holds them, so without this loop they never reach the shadow pass and its
+		// shadow_lightning program (RenderManagerIrisMixin sets the lightning condition around each bolt).
+		for (Entity entity : getLevel().weatherEffects) {
+			if (!entity.ignoreFrustumCheck && !frustum.isBoundingBoxInFrustum(entity.getEntityBoundingBox())) continue;
+
+			renderedEntitiesList.add(entity);
+		}
+
 		profiler.endStartSection("sort");
 
 		renderedEntitiesList.sort(ENTITY_CLASS_COMPARATOR);
