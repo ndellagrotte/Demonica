@@ -103,9 +103,9 @@ class IncludeGraphCaseHintTest {
     }
 
     @Test
-    void symlinkedIncludeIsNotReportedMissing() throws IOException {
+    void symlinkedIncludeIsNotReportedMissing(@TempDir Path sharedDir) throws IOException {
         // Upstream's getCanonicalPath() comparison resolves symlinks and would flag this include; the listing walk does not.
-        Path elsewhere = Files.createDirectories(shaders.resolve("../shared-lib"));
+        Path elsewhere = Files.createDirectories(sharedDir.resolve("shared-lib"));
         Files.writeString(elsewhere.resolve("common.glsl"), "const float commonValue = 1.0;\n");
         Files.writeString(shaders.resolve("composite.fsh"), "#version 120\n#include \"/lib/common.glsl\"\nvoid main() {}\n");
         try {

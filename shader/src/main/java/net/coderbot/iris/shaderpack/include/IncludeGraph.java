@@ -8,6 +8,7 @@ import net.coderbot.iris.shaderpack.error.RusticError;
 import net.coderbot.iris.shaderpack.transform.line.LineTransform;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -352,7 +353,7 @@ public class IncludeGraph {
 
 		try (Stream<Path> children = Files.list(directory)) {
 			return children.map(child -> child.getFileName().toString()).sorted().collect(Collectors.toList());
-		} catch (IOException e) {
+		} catch (IOException | UncheckedIOException e) {
 			return Collections.emptyList();
 		}
 	}
