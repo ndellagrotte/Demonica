@@ -9,6 +9,7 @@ import com.gtnewhorizons.angelica.compat.mojang.Camera;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.rendering.RenderingState;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
@@ -126,6 +127,14 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         }
 
         CapturedRenderingState.INSTANCE.setTickDelta(partialTicks);
+        // Demonica: upstream sets cloudTime here (MixinLevelRenderer renderLevel HEAD) from the level's game time,
+        // wrapped at one period of the cloud texture (width * 400 ticks), and 0 when there is no cloud texture.
+        // 1.12.2's clouds scroll by RenderGlobal.cloudTickCounter (opened by the access transformer), so that is
+        // the clock packs need to line up with vanilla clouds. Fancy clouds map 256 cells to one texture repeat
+        // whatever the texture's size, so the period is the constant 256 * 400 ticks, and the texture always
+        // exists. Not set in renderClouds: that runs only while clouds are drawn, and packs that draw their own
+        // clouds turn vanilla's off (clouds=off), which would freeze the value.
+        CapturedRenderingState.INSTANCE.setCloudTime((this.mc.renderGlobal.cloudTickCounter % (256 * 400) + partialTicks) * 0.03F);
         SystemTimeUniforms.COUNTER.beginFrame();
         SystemTimeUniforms.TIMER.beginFrame(System.nanoTime());
 
@@ -152,6 +161,11 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
     private void demonica$renderIrisShadowsBeforeTerrain(RenderGlobal renderGlobal, Entity entity, double partialTicks, ICamera camera,
                                                         int frame, boolean spectator, Operation<Void> original) {
         this.demonica$renderIrisShadows(camera, (float) partialTicks);
+        // Terrain setup runs even for a skipAllRendering pack. Upstream's skipSetupRender (MixinLevelRenderer_SkipRendering)
+        // has no effect while a pack is in use: it conditions update's cullTerrain call, which iris$setShadows
+        // (MixinLevelRenderer) already drops whenever a pack is in use, and iris$renderTerrainShadows calls cullTerrain
+        // directly after the shadow pass. So upstream still sets up terrain and builds chunks, which the shadow pass
+        // needs; here setupTerrain is where Celeritas builds and uploads them. Only the chunk draws are skipped (below).
         original.call(renderGlobal, entity, partialTicks, camera, frame, spectator);
     }
 
@@ -254,26 +268,67 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         );
     }
 
+    // Every terrain layer of the pass (solid, cutout-mipped, cutout, translucent): the consolidated-cutout skip below
+    // and a skipAllRendering pack's.
     @Redirect(
         method = "renderWorldPass(IFJ)V",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/client/renderer/RenderGlobal;renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
-            ordinal = 2
+            target = "Lnet/minecraft/client/renderer/RenderGlobal;renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I"
         )
     )
-    private int demonica$skipDuplicateConsolidatedCutout(
+    private int demonica$renderTerrainLayer(
         RenderGlobal renderGlobal,
         BlockRenderLayer blockLayer,
         double partialTicks,
         int pass,
         Entity entity
     ) {
+        // Upstream's skipRenderChunks (MixinLevelRenderer_SkipRendering): a skipAllRendering pack draws no chunk layer.
+        // Demonica: a condition inside this existing redirect (widened from the cutout call to all four) rather than
+        // upstream's separate @WrapWithCondition. The translucent call also carries Iris's translucent prelude (S8's
+        // HEAD hook: the hand's solid parts, then the deferred passes), which upstream runs outside the skipped draw
+        // (MixinLevelRenderer.iris$beginTranslucents), so it runs here without the draw.
+        if (demonica$skipAllRendering()) {
+            if (blockLayer == BlockRenderLayer.TRANSLUCENT) {
+                ShaderTerrain.beginLayer(blockLayer, (float) partialTicks);
+                ShaderTerrain.endLayer();
+            }
+            return 0;
+        }
+
         if (blockLayer == BlockRenderLayer.CUTOUT && demonica$cutoutSharesCutoutMippedPass()) {
             return 0;
         }
 
         return renderGlobal.renderBlockLayer(blockLayer, partialTicks, pass, entity);
+    }
+
+    // Upstream's skipRenderEntities (MixinLevelRenderer_SkipRendering): a skipAllRendering pack draws no entity. Both of
+    // Forge's entity passes (0 after the cutout layers, 1 after the translucent layer).
+    // Demonica: 1.12.2 draws the entities, lightning (World.weatherEffects) and block entities in one
+    // RenderGlobal.renderEntities call, so this skips block entities too. Upstream skips only the entity list and leaves
+    // block entities drawn ("TODO IMS 24w35a block entities"). No existing site covers this call, so it is the one
+    // injection the item adds.
+    @WrapWithCondition(
+        method = "renderWorldPass(IFJ)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/RenderGlobal;renderEntities(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/renderer/culling/ICamera;F)V")
+    )
+    private boolean demonica$skipEntitiesForPack(RenderGlobal renderGlobal, Entity renderViewEntity, ICamera camera, float partialTicks) {
+        return !demonica$skipAllRendering();
+    }
+
+    /**
+     * Whether the active pack sets {@code skipAllRendering}: upstream's condition, the pipeline's flag. Demonica: false in a
+     * nested renderWorldPass, which the Iris pipeline does not draw (no composites or final would follow the skip).
+     */
+    @Unique
+    private static boolean demonica$skipAllRendering() {
+        if (RenderWorldRecursionGuard.isNested() || !Iris.enabled) {
+            return false;
+        }
+        WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        return pipeline != null && pipeline.skipAllRendering();
     }
 
     /** Whether Celeritas draws cutout geometry in the cutout-mipped pass (render pass consolidation). */

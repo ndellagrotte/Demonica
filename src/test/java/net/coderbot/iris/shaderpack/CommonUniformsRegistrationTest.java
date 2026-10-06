@@ -12,10 +12,14 @@ import net.coderbot.iris.shaderpack.include.AbsolutePackPath;
 import net.coderbot.iris.shaderpack.include.IncludeGraph;
 import net.coderbot.iris.shaderpack.option.ShaderPackOptions;
 import net.coderbot.iris.shaderpack.StringPair;
+import net.coderbot.iris.shadow.ShadowMatrices;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
+import net.coderbot.iris.uniforms.IrisInternalUniforms;
 import net.minecraft.launchwrapper.Launch;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix3fc;
+import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector2f;
 import org.joml.Vector2ic;
@@ -41,6 +45,8 @@ import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CommonUniformsRegistrationTest {
@@ -65,6 +71,40 @@ class CommonUniformsRegistrationTest {
         assertTrue(uniforms.names.contains("pi"));
     }
 
+    @Test
+    void registersInternalMatricesWithUpstreamTypes() throws IOException {
+        RecordingUniformHolder uniforms = new RecordingUniformHolder();
+
+        IrisInternalUniforms.addOtherUniforms(uniforms, new FrameUpdateNotifier(), createDirectives());
+
+        assertEquals(Set.of("iris_DefaultNormalMat"), uniforms.matrix3Suppliers.keySet());
+        assertEquals(Set.of(
+            "iris_DefaultProjectionMatrixInverse",
+            "iris_DefaultModelViewMatrixInverse",
+            "iris_ShadowModelViewMatrixInverse",
+            "iris_ShadowProjectionMatrixInverse"
+        ), uniforms.matrix4Suppliers.keySet());
+    }
+
+    @Test
+    void shadowProjectionInverseInvertsTheShadowPassOrthoWithoutAllocating() throws IOException {
+        RecordingUniformHolder uniforms = new RecordingUniformHolder();
+        PackDirectives directives = createDirectives();
+        PackShadowDirectives shadow = directives.getShadowDirectives();
+
+        IrisInternalUniforms.addOtherUniforms(uniforms, new FrameUpdateNotifier(), directives);
+        Supplier<Matrix4fc> supplier = uniforms.matrix4Suppliers.get("iris_ShadowProjectionMatrixInverse");
+
+        // The default planes (0.05, 256) are non-negative, so no DH/render-distance substitution applies.
+        assertTrue(shadow.getNearPlane() >= 0 && shadow.getFarPlane() >= 0);
+        Matrix4f expected = ShadowMatrices.createOrthoMatrix(shadow.getDistance(), shadow.getNearPlane(), shadow.getFarPlane()).invert();
+        Matrix4fc first = supplier.get();
+        assertTrue(expected.equals(first, 1.0e-4f), () -> "expected " + expected + " but was " + first);
+        assertTrue(new Matrix4f(first).mul(ShadowMatrices.createOrthoMatrix(shadow.getDistance(), shadow.getNearPlane(), shadow.getFarPlane()))
+            .equals(new Matrix4f(), 1.0e-4f));
+        assertSame(first, supplier.get());
+    }
+
     private PackDirectives createDirectives() throws IOException {
         Path entry = tempDir.resolve("entry.glsl");
         Files.writeString(entry, "void main() {}\n");
@@ -79,6 +119,8 @@ class CommonUniformsRegistrationTest {
 
     private static final class RecordingUniformHolder implements DynamicUniformHolder {
         private final Set<String> names = new HashSet<>();
+        private final Map<String, Supplier<Matrix4fc>> matrix4Suppliers = new HashMap<>();
+        private final Map<String, Supplier<Matrix3fc>> matrix3Suppliers = new HashMap<>();
 
         @Override
         public UniformHolder uniform1f(UniformUpdateFrequency frequency, String name, FloatSupplier value) {
@@ -152,6 +194,13 @@ class CommonUniformsRegistrationTest {
 
         @Override
         public UniformHolder uniformMatrix(UniformUpdateFrequency frequency, String name, Supplier<Matrix4fc> value) {
+            matrix4Suppliers.put(name, value);
+            return record(name);
+        }
+
+        @Override
+        public UniformHolder uniformMatrix3(UniformUpdateFrequency frequency, String name, Supplier<Matrix3fc> value) {
+            matrix3Suppliers.put(name, value);
             return record(name);
         }
 

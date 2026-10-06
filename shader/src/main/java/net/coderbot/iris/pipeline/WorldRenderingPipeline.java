@@ -65,6 +65,10 @@ public interface WorldRenderingPipeline {
 	boolean shouldWriteRainAndSnowToDepthBuffer();
 	boolean shouldRenderParticlesBeforeDeferred();
 	boolean allowConcurrentCompute();
+	// Demonica: upstream declares skipAllRendering() on IrisRenderingPipeline only and its mixin tests instanceof; here it
+	// sits with the other pack directives on the interface, false for the fixed-function pipeline.
+	boolean skipAllRendering();
+	boolean supportsEndFlash();
 
 	float getSunPathRotation();
 

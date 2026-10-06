@@ -15,6 +15,7 @@ import net.coderbot.iris.Iris;
 import net.coderbot.iris.block_rendering.BlockMaterialMapping;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.coderbot.iris.celeritas.CeleritasTerrainPipeline;
+import net.coderbot.iris.celeritas.IrisTerrainPass;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.debug.IrisGlDebug;
 import net.coderbot.iris.features.FeatureFlags;
@@ -80,6 +81,7 @@ import net.coderbot.iris.texture.pbr.PBRTextureManager;
 import net.coderbot.iris.texture.pbr.PBRType;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
+import net.coderbot.iris.uniforms.IrisTimeUniforms;
 import net.coderbot.iris.uniforms.ItemMaterialHelper;
 import net.coderbot.iris.uniforms.WorldTimeUniforms;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
@@ -103,6 +105,7 @@ import org.lwjgl.opengl.GL43;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -193,6 +196,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private final boolean shouldRenderPrepareBeforeShadow;
 	private final boolean oldLighting;
 	private final boolean allowConcurrentCompute;
+	private final boolean skipAllRendering;
+	private final boolean supportsEndFlash;
 	private final OptionalInt forcedShadowRenderDistanceChunks;
 	private final CloudSetting dhCloudSetting;
 
@@ -237,16 +242,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		resolver = new ProgramFallbackResolver(programs);
 		final Map<Pair<String, InputAvailability>, CompletableFuture<Map<PatchShaderType, String>>> attributeTransformFutures = submitAttributeTransforms(resolver);
 
-		final Optional<ProgramSource> terrainSource = first(programs.getGbuffersTerrain(), programs.getGbuffersTexturedLit(), programs.getGbuffersTextured(), programs.getGbuffersBasic());
-		final Optional<ProgramSource> translucentSource = first(programs.getGbuffersWater(), terrainSource);
-		final Optional<ProgramSource> shadowSource = programs.getShadow();
-		final Optional<ProgramSource> shadowTranslucentSource = first(programs.getShadowWater(), shadowSource);
-
-		// Celeritas terrain transform futures
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasTerrainFuture = terrainSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasTranslucentFuture = translucentSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasShadowFuture = shadowSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
-		final CompletableFuture<Map<PatchShaderType, String>> celeritasShadowTranslucentFuture = shadowTranslucentSource.map(DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform).orElse(null);
+		// Celeritas terrain sources, one per pass through the fallback chain (upstream SodiumPrograms), and their
+		// transform futures, one per distinct source
+		final EnumMap<IrisTerrainPass, Optional<ProgramSource>> celeritasTerrainSources = CeleritasTerrainPipeline.resolveSources(resolver);
+		final EnumMap<IrisTerrainPass, CompletableFuture<Map<PatchShaderType, String>>> celeritasTerrainFutures =
+			CeleritasTerrainPipeline.submitTransforms(celeritasTerrainSources, DeferredWorldRenderingPipeline::submitCeleritasTerrainTransform);
 
 		this.cloudSetting = programs.getPackDirectives().getCloudSetting();
 		this.shouldRenderUnderwaterOverlay = programs.getPackDirectives().underwaterOverlay();
@@ -263,6 +263,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			.map(s -> s == net.coderbot.iris.shaderpack.ParticleRenderingSettings.BEFORE || s == net.coderbot.iris.shaderpack.ParticleRenderingSettings.MIXED)
 			.orElse(false);
 		this.allowConcurrentCompute = programs.getPackDirectives().getConcurrentCompute();
+		this.skipAllRendering = programs.getPackDirectives().skipAllRendering();
+		this.supportsEndFlash = programs.getPackDirectives().isSupportsEndFlash();
 		this.shouldRenderPrepareBeforeShadow = programs.getPackDirectives().isPrepareBeforeShadow();
 		this.oldLighting = programs.getPackDirectives().isOldLighting();
 		this.updateNotifier = new FrameUpdateNotifier();
@@ -404,29 +406,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.compositeRenderer = new CompositeRenderer(programs.getComposite(), programs.getCompositeCompute(), flipper, compositeBuildContext, programs.getPackDirectives().getExplicitFlips("composite_pre"), compositeTransformFutures, "composite", TextureStage.COMPOSITE_AND_FINAL);
 		this.finalPassRenderer = new FinalPassRenderer(programs, compositeBuildContext, flipper.snapshot(), this.compositeRenderer.getFlippedAtLeastOnceFinal(), finalTransformFuture, "final");
 
-		// [(textured=false,lightmap=false), (textured=true,lightmap=false), (textured=true,lightmap=true)]
-		final ProgramId[] ids = new ProgramId[] {
-				ProgramId.Basic, ProgramId.Textured, ProgramId.TexturedLit,
-				ProgramId.SkyBasic, ProgramId.SkyTextured, ProgramId.SkyTextured,
-				null, null, ProgramId.Terrain,
-				null, null, ProgramId.Water,
-				null, ProgramId.Clouds, ProgramId.Clouds,
-				null, ProgramId.DamagedBlock, ProgramId.DamagedBlock,
-				ProgramId.Block, ProgramId.Block, ProgramId.Block,
-				ProgramId.BlockTrans, ProgramId.BlockTrans, ProgramId.BlockTrans,
-				ProgramId.BeaconBeam, ProgramId.BeaconBeam, ProgramId.BeaconBeam,
-				ProgramId.Entities, ProgramId.Entities, ProgramId.Entities,
-				ProgramId.EntitiesTrans, ProgramId.EntitiesTrans, ProgramId.EntitiesTrans,
-				null, ProgramId.ArmorGlint, ProgramId.ArmorGlint,
-				null, ProgramId.SpiderEyes, ProgramId.SpiderEyes,
-				ProgramId.Hand, ProgramId.Hand, ProgramId.Hand,
-				ProgramId.HandWater, ProgramId.HandWater, ProgramId.HandWater,
-				null, null, ProgramId.Weather,
-				// world border uses textured_lit even though it has no lightmap :/
-				null, ProgramId.TexturedLit, ProgramId.TexturedLit,
-				ProgramId.ShadowWater, ProgramId.ShadowWater, ProgramId.ShadowWater,
-				ProgramId.Shadow, ProgramId.Shadow, ProgramId.Shadow
-		};
+		final ProgramId[] ids = GBUFFER_PROGRAM_IDS;
 
 		if (ids.length != RenderCondition.values().length * 3) {
 			throw new IllegalStateException("Program ID table length mismatch");
@@ -468,7 +448,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			return cachedPasses.computeIfAbsent(Pair.of(id, availability), p -> {
 				final ProgramSource source = resolver.resolveNullable(p.getLeft());
 
-				if (condition == RenderCondition.SHADOW || condition == RenderCondition.SHADOW_TRANSLUCENT) {
+				// Demonica: every shadow condition (upstream ShaderKey.isShadow()), not just SHADOW and SHADOW_TRANSLUCENT
+				if (condition.isShadow()) {
 					if (!shadowDirectives.isShadowEnabled().orElse(shadowRenderTargets != null)) {
 						// shadow is not used
 						return null;
@@ -485,8 +466,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 				}
 
 				try {
-					return createPass(source, availability,
-						condition == RenderCondition.SHADOW || condition == RenderCondition.SHADOW_TRANSLUCENT, finalId);
+					return createPass(source, availability, condition.isShadow(), finalId);
 				} catch (Exception e) {
 					throw new RuntimeException("Failed to create pass for " + source.getName() + " for rendering condition "
 						+ condition + " specialized to input availability " + availability, e);
@@ -512,10 +492,21 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			if (programs.getPackDirectives().getShadowDirectives().isShadowEnabled().orElse(true)) {
 				this.shadowRenderer = new ShadowRenderer(programs.getShadow().orElse(null),
 					programs.getPackDirectives(), shadowRenderTargets, shadowCompositeRenderer);
-				Program shadowProgram = table.match(RenderCondition.SHADOW, new InputAvailability(true, true)).getProgram();
-				Program shadowWaterProgram = table.match(RenderCondition.SHADOW_TRANSLUCENT, new InputAvailability(true, true)).getProgram();
-				shadowRenderer.setUsesImages((shadowProgram != null && shadowProgram.getActiveImages() > 0)
-					|| (shadowWaterProgram != null && shadowWaterProgram.getActiveImages() > 0));
+				// Demonica: every shadow condition's program counts (plan 2.4 added shadow_entities, shadow_lightning and
+				// shadow_block), not just shadow and shadow_water
+				boolean shadowUsesImages = false;
+				for (RenderCondition condition : RenderCondition.values()) {
+					if (!condition.isShadow()) {
+						continue;
+					}
+					Pass shadowPass = table.match(condition, new InputAvailability(true, true));
+					Program shadowProgram = shadowPass != null ? shadowPass.getProgram() : null;
+					if (shadowProgram != null && shadowProgram.getActiveImages() > 0) {
+						shadowUsesImages = true;
+						break;
+					}
+				}
+				shadowRenderer.setUsesImages(shadowUsesImages);
 			} else {
 				shadowRenderer = null;
 			}
@@ -629,11 +620,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.celeritasTerrainPipeline = new CeleritasTerrainPipeline(createTerrainSamplers,
 			shadowRenderer == null ? null : createShadowTerrainSamplers, createTerrainImages,
 			shadowRenderer == null ? null : createShadowTerrainImages, this.customUniforms,
-			terrainSource,
-			translucentSource,
-			shadowSource,
-			shadowTranslucentSource,
-			celeritasTerrainFuture, celeritasTranslucentFuture, celeritasShadowFuture, celeritasShadowTranslucentFuture,
+			celeritasTerrainSources, celeritasTerrainFutures,
 			renderTargets, flippedAfterPrepare, flippedAfterTranslucent,
 			celeritasShadowFb);
 
@@ -745,6 +732,16 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	}
 
 	@Override
+	public boolean skipAllRendering() {
+		return skipAllRendering;
+	}
+
+	@Override
+	public boolean supportsEndFlash() {
+		return supportsEndFlash;
+	}
+
+	@Override
 	public float getSunPathRotation() {
 		return sunPathRotation;
 	}
@@ -759,12 +756,31 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		return packDirectives.getTextureMap();
 	}
 
+	// Demonica: static (the shadow branch of getCondition) so DeferredWorldRenderingPipelineProgramTableTest can check it
+	static RenderCondition getShadowCondition(WorldRenderingPhase phase, SpecialCondition special) {
+		// Demonica: upstream picks the shadow program by render pipeline (IrisPipelines.assignToShadow): lightning
+		// and the dragon rays take SHADOW_LIGHTNING, the end portal and gateway SHADOW_BLOCK, and every entity
+		// and block-entity pipeline (models, beacon beams, glint, eyes, text) SHADOW_ENTITIES_CUTOUT, so a
+		// chest casts its shadow with shadow_entities too. 1.12.2 has no pipelines, so the special condition and
+		// the phase stand in for them. In the shadow pass the phase is ENTITIES inside RenderManagerIrisMixin's
+		// wrap of each entity (ShadowRenderer.renderEntities draws them through RenderManager with the phase at
+		// NONE) and BLOCK_ENTITIES across ShadowRenderer.renderTileEntities.
+		if (special == SpecialCondition.LIGHTNING) {
+			return RenderCondition.SHADOW_LIGHTNING;
+		} else if (special == SpecialCondition.END_PORTAL) {
+			return RenderCondition.SHADOW_BLOCK;
+		}
+
+		return switch (phase) {
+			case TERRAIN_TRANSLUCENT, TRIPWIRE -> RenderCondition.SHADOW_TRANSLUCENT;
+			case ENTITIES, BLOCK_ENTITIES -> RenderCondition.SHADOW_ENTITIES;
+			default -> RenderCondition.SHADOW;
+		};
+	}
+
 	private RenderCondition getCondition(WorldRenderingPhase phase) {
 		if (isRenderingShadow) {
-			return switch (phase) {
-				case TERRAIN_TRANSLUCENT, TRIPWIRE -> RenderCondition.SHADOW_TRANSLUCENT;
-				default -> RenderCondition.SHADOW;
-			};
+			return getShadowCondition(phase, special);
 		}
 
 		if (special != null) {
@@ -774,12 +790,24 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 				return RenderCondition.ENTITY_EYES;
 			} else if (special == SpecialCondition.GLINT) {
 				return RenderCondition.GLINT;
+			} else if (special == SpecialCondition.LIGHTNING) {
+				return RenderCondition.LIGHTNING;
 			}
+			// Demonica: END_PORTAL only picks the shadow program; here the portal keeps its phase's program, as
+			// upstream draws END_PORTAL and END_GATEWAY with BLOCK_ENTITY
 		}
 
 		switch (phase) {
-			case NONE, OUTLINE, DEBUG, PARTICLES:
+			case NONE, OUTLINE, DEBUG:
 				return RenderCondition.DEFAULT;
+			case PARTICLES:
+				// Demonica: upstream picks PARTICLES or PARTICLES_TRANS by render pipeline (OPAQUE_PARTICLE,
+				// TRANSLUCENT_PARTICLE, I pipeline/IrisPipelines.java). 1.12.2 has no such split:
+				// ParticleManager.renderParticles draws every layer with blending on (SRC_ALPHA,
+				// ONE_MINUS_SRC_ALPHA), toggling only the depth mask, and renderLitParticles leaves the state to
+				// each particle. So every particle draw takes gbuffers_particles; ParticlesTrans is read but no draw
+				// uses it (no id falls back to it). Revisit if a pack's gbuffers_particles_translucent differs.
+				return RenderCondition.PARTICLES;
 			case SKY, SUNSET, CUSTOM_SKY, SUN, MOON, STARS, VOID:
 				return RenderCondition.SKY;
 			case TERRAIN_SOLID, TERRAIN_CUTOUT, TERRAIN_CUTOUT_MIPPED:
@@ -1786,6 +1814,8 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void beginLevelRendering() {
+		// Demonica: upstream updates at the head of LevelRenderer.renderLevel; this is the once-per-frame equivalent.
+		IrisTimeUniforms.updateTime();
         IrisGlDebug.markStage("level:begin");
 		isRenderingFullScreenPass = false;
 		hasRenderedPreparePass = false;
@@ -2041,6 +2071,42 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 	}
 
+	// [(textured=false,lightmap=false), (textured=true,lightmap=false), (textured=true,lightmap=true)]
+	// Demonica: a static field (was a constructor local) so DeferredWorldRenderingPipelineProgramTableTest can check
+	// each row against RenderCondition
+	static final ProgramId[] GBUFFER_PROGRAM_IDS = new ProgramId[] {
+			ProgramId.Basic, ProgramId.Textured, ProgramId.TexturedLit,
+			ProgramId.SkyBasic, ProgramId.SkyTextured, ProgramId.SkyTextured,
+			null, null, ProgramId.Terrain,
+			null, null, ProgramId.Water,
+			null, ProgramId.Clouds, ProgramId.Clouds,
+			null, ProgramId.DamagedBlock, ProgramId.DamagedBlock,
+			ProgramId.Block, ProgramId.Block, ProgramId.Block,
+			ProgramId.BlockTrans, ProgramId.BlockTrans, ProgramId.BlockTrans,
+			ProgramId.BeaconBeam, ProgramId.BeaconBeam, ProgramId.BeaconBeam,
+			ProgramId.Entities, ProgramId.Entities, ProgramId.Entities,
+			ProgramId.EntitiesTrans, ProgramId.EntitiesTrans, ProgramId.EntitiesTrans,
+			null, ProgramId.ArmorGlint, ProgramId.ArmorGlint,
+			null, ProgramId.SpiderEyes, ProgramId.SpiderEyes,
+			ProgramId.Hand, ProgramId.Hand, ProgramId.Hand,
+			ProgramId.HandWater, ProgramId.HandWater, ProgramId.HandWater,
+			null, null, ProgramId.Weather,
+			// world border uses textured_lit even though it has no lightmap :/
+			null, ProgramId.TexturedLit, ProgramId.TexturedLit,
+			// Demonica: particles take gbuffers_particles (upstream ShaderKey.PARTICLES, lit, for every textured
+			// particle draw), which falls back to textured_lit; ParticlesTrans has no row (getCondition says why)
+			null, ProgramId.Particles, ProgramId.Particles,
+			// Demonica: upstream ShaderKey.LIGHTNING (POSITION_COLOR: the bolt and the death ray draw untextured), which
+			// falls back to entities; every column names it, as a null would fall back to basic
+			ProgramId.Lightning, ProgramId.Lightning, ProgramId.Lightning,
+			// Demonica: upstream ShaderKey.SHADOW_ENTITIES_CUTOUT, SHADOW_LIGHTNING and SHADOW_BLOCK
+			ProgramId.ShadowEntities, ProgramId.ShadowEntities, ProgramId.ShadowEntities,
+			ProgramId.ShadowLightning, ProgramId.ShadowLightning, ProgramId.ShadowLightning,
+			ProgramId.ShadowBlock, ProgramId.ShadowBlock, ProgramId.ShadowBlock,
+			ProgramId.ShadowWater, ProgramId.ShadowWater, ProgramId.ShadowWater,
+			ProgramId.Shadow, ProgramId.Shadow, ProgramId.Shadow
+	};
+
 	private static final InputAvailability INPUT_NONE = new InputAvailability(false, false);
 	private static final InputAvailability INPUT_TEXTURE = new InputAvailability(true, false);
 	private static final InputAvailability INPUT_TEXTURE_LIGHTMAP = new InputAvailability(true, true);
@@ -2094,16 +2160,6 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	private static CompletableFuture<Map<PatchShaderType, String>> submitCeleritasTerrainTransform(ProgramSource source) {
 		return Iris.ShaderTransformExecutor.submitTracked(() -> TransformPatcher.patchCeleritasTerrain(source.getVertexSource().orElse(null), source.getGeometrySource().orElse(null), source.getFragmentSource().orElse(null)));
-	}
-
-	@SafeVarargs
-	private static <T> Optional<T> first(Optional<T>... candidates) {
-		for (Optional<T> candidate : candidates) {
-			if (candidate.isPresent()) {
-				return candidate;
-			}
-		}
-		return Optional.empty();
 	}
 
 	private static void logBlockMappingSummary() {

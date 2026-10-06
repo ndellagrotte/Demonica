@@ -1,27 +1,41 @@
 package net.coderbot.iris.celeritas;
 
 import com.demonica.celeritas.api.shader.PassSemantics;
+import net.coderbot.iris.shaderpack.loading.ProgramId;
 import org.embeddedt.embeddium.impl.render.chunk.RenderPassConfiguration;
 import org.embeddedt.embeddium.impl.render.chunk.terrain.TerrainRenderPass;
 
 public enum IrisTerrainPass {
-    SHADOW("shadow"),
-    SHADOW_CUTOUT("shadow"),
-    SHADOW_TRANSLUCENT("shadow_water"),
-    GBUFFER_SOLID("gbuffers_terrain"),
-    GBUFFER_CUTOUT("gbuffers_terrain_cutout"),
-    GBUFFER_TRANSLUCENT("gbuffers_water");
+    // Each pass's program is its upstream id (I pipeline/programs/SodiumPrograms.java, Pass), resolved through the
+    // fallback chain: shadow_solid and shadow_cutout fall back to shadow, gbuffers_terrain_solid and
+    // gbuffers_terrain_cutout to gbuffers_terrain.
+    // Demonica: TerrainCutoutMip (OptiFine's 1.12.2-era name, which upstream dropped) gets no pass of its own; the
+    // cutout pass draws Celeritas's cutout-mipped material (toTerrainPass) with TerrainCutout, as upstream's one
+    // cutout pass does.
+    SHADOW("shadow", ProgramId.ShadowSolid),
+    SHADOW_CUTOUT("shadow", ProgramId.ShadowCutout),
+    SHADOW_TRANSLUCENT("shadow_water", ProgramId.ShadowWater),
+    GBUFFER_SOLID("gbuffers_terrain", ProgramId.TerrainSolid),
+    GBUFFER_CUTOUT("gbuffers_terrain_cutout", ProgramId.TerrainCutout),
+    GBUFFER_TRANSLUCENT("gbuffers_water", ProgramId.Water);
 
     public static final IrisTerrainPass[] VALUES = values();
 
     private final String name;
+    private final ProgramId programId;
 
-    IrisTerrainPass(String name) {
+    IrisTerrainPass(String name, ProgramId programId) {
         this.name = name;
+        this.programId = programId;
     }
 
     public String getName() {
         return name;
+    }
+
+    /** The program this pass draws with and takes its blend default from (upstream {@code Pass.getOriginalId()}). */
+    public ProgramId getProgramId() {
+        return programId;
     }
 
     public boolean isShadow() {

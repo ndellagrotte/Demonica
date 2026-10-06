@@ -39,8 +39,11 @@ public class PackDirectives {
 	private boolean weatherParticles;
 	private boolean rainDepth;
 	private boolean separateAo;
+	// Demonica: parsed for parity; nothing reads it yet, as 1.12.2 has no sampler anisotropy path to switch off.
+	private boolean breaksAnisotropy;
 	private boolean voxelizeLightBlocks;
 	private boolean separateEntityDraws;
+	private boolean skipAllRendering;
 	private boolean frustumCulling;
 	private boolean occlusionCulling;
 	@Getter private boolean oldLighting;
@@ -48,6 +51,7 @@ public class PackDirectives {
 	@Getter private boolean oldHandLight;
 	@Getter private boolean prepareBeforeShadow;
 	@Getter private boolean supportsColorCorrection;
+	@Getter private boolean supportsEndFlash;
 	@Getter private int fallbackTex;
 	private Object2ObjectMap<String, Object2BooleanMap<String>> explicitFlips = new Object2ObjectOpenHashMap<>();
 	private Object2ObjectMap<String, TextureScaleOverride> scaleOverrides = new Object2ObjectOpenHashMap<>();
@@ -62,6 +66,7 @@ public class PackDirectives {
 		noiseTextureResolution = 256;
 		sunPathRotation = 0.0F;
 		supportsColorCorrection = false;
+		supportsEndFlash = false;
 		ambientOcclusionLevel = 1.0F;
 		wetnessHalfLife = 600.0f;
 		drynessHalfLife = 200.0f;
@@ -86,13 +91,16 @@ public class PackDirectives {
 		weatherParticles = properties.getWeatherParticles().orElse(true);
 		rainDepth = properties.getRainDepth().orElse(false);
 		separateAo = properties.getSeparateAo().orElse(false);
+		breaksAnisotropy = properties.getBreaksAnisotropy().orElse(false);
 		voxelizeLightBlocks = properties.getVoxelizeLightBlocks().orElse(false);
 		separateEntityDraws = properties.getSeparateEntityDraws().orElse(false);
+		skipAllRendering = properties.skipAllRendering().orElse(false);
 		frustumCulling = properties.getFrustumCulling().orElse(true);
 		occlusionCulling = properties.getOcclusionCulling().orElse(true);
 		oldLighting = properties.getOldLighting().orElse(false);
 		fallbackTex = properties.getFallbackTex();
 		supportsColorCorrection = properties.getSupportsColorCorrection().orElse(false);
+		supportsEndFlash = properties.getSupportsEndFlash().orElse(false);
 		concurrentCompute = properties.getConcurrentCompute().orElse(false);
 		oldHandLight = properties.getOldHandLight().orElse(true);
 		explicitFlips = properties.getExplicitFlips();
@@ -107,11 +115,14 @@ public class PackDirectives {
 		this(supportedRenderTargets, new PackShadowDirectives(directives.getShadowDirectives()));
 		cloudSetting = directives.cloudSetting;
 		separateAo = directives.separateAo;
+		// Demonica: upstream's copy constructor drops breaksAnisotropy; copy it like its neighbours.
+		breaksAnisotropy = directives.breaksAnisotropy;
 		voxelizeLightBlocks = directives.voxelizeLightBlocks;
 		separateEntityDraws = directives.separateEntityDraws;
 		frustumCulling = directives.frustumCulling;
 		occlusionCulling = directives.occlusionCulling;
 		oldLighting = directives.oldLighting;
+		supportsEndFlash = directives.supportsEndFlash;
 		concurrentCompute = directives.concurrentCompute;
 		explicitFlips = directives.explicitFlips;
 		scaleOverrides = directives.scaleOverrides;
@@ -161,6 +172,10 @@ public class PackDirectives {
 		return separateAo;
 	}
 
+	public boolean breaksAnisotropy() {
+		return breaksAnisotropy;
+	}
+
 	public boolean shouldVoxelizeLightBlocks() {
 		return voxelizeLightBlocks;
 	}
@@ -179,6 +194,10 @@ public class PackDirectives {
 
 	public boolean getConcurrentCompute() {
 		return concurrentCompute;
+	}
+
+	public boolean skipAllRendering() {
+		return skipAllRendering;
 	}
 
 	public CloudSetting getDHCloudSetting() {

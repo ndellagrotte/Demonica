@@ -43,6 +43,11 @@ public class GbufferPrograms {
 		public void endBlockEntities() {
 			GbufferPrograms.endBlockEntities();
 		}
+
+		@Override
+		public void setPipelinePhase(WorldRenderingPhase phase) {
+			GbufferPrograms.setPhase(phase);
+		}
 	};
 	
 	static {
@@ -137,6 +142,29 @@ public class GbufferPrograms {
 
 		operations.beginEntities();
 		return EntityPhase.changed(operations, false);
+	}
+
+	/**
+	 * Draws an entity that a particle renders (an item being picked up, the elder guardian curse) with the entity
+	 * programs, then puts back the phase that was active before.
+	 */
+	public static void drawNestedEntity(Runnable draw) {
+		drawNestedEntity(PHASE_OPERATIONS, draw);
+	}
+
+	static void drawNestedEntity(PhaseOperations operations, Runnable draw) {
+		WorldRenderingPhase outerPhase = operations.getPipelinePhase();
+		operations.beginEntities();
+		try {
+			draw.run();
+		} finally {
+			operations.endEntities();
+			// Demonica: endEntities() leaves NONE, and ParticleManagerIrisMixin restores its saved phase only when
+			// the particle method returns, so every particle drawn after this one in the same loop would fall to
+			// the DEFAULT programs instead of gbuffers_particles. Upstream has no particle phase to restore: each
+			// draw picks its program from its own render pipeline.
+			operations.setPipelinePhase(outerPhase);
+		}
 	}
 
 	private static OwnedPhase getOwnedProgramPhase() {
@@ -305,5 +333,8 @@ public class GbufferPrograms {
 
 		/** Ends the block-entity phase. */
 		void endBlockEntities();
+
+		/** Sets the active world pipeline's phase without changing the phase owned by {@link GbufferPrograms}. */
+		void setPipelinePhase(WorldRenderingPhase phase);
 	}
 }

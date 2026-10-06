@@ -195,13 +195,20 @@ public class ShadowRenderer {
 	}
 
 	public static MatrixStack createShadowModelView(float sunPathRotation, float intervalSize) {
+		// Set up our modelview matrix stack
+		return createShadowModelView(new MatrixStack(), sunPathRotation, intervalSize);
+	}
+
+	// Demonica: fills a caller-owned stack, so a per-frame supplier (iris_ShadowModelViewMatrixInverse) builds the
+	// shadow modelview without allocating a MatrixStack every frame. Static and touching only the target, like the
+	// overload above, so the pass's own shadowModelView is never disturbed.
+	public static MatrixStack createShadowModelView(MatrixStack target, float sunPathRotation, float intervalSize) {
 		final Vector3d entityPos = getShadowCameraAnchor(CapturedRenderingState.INSTANCE.getTickDelta());
 
-		// Set up our modelview matrix stack
-		final MatrixStack modelView = new MatrixStack();
-		ShadowMatrices.createModelViewMatrix(modelView, getShadowAngle(), intervalSize, sunPathRotation, entityPos.x, entityPos.y, entityPos.z);
+		target.reset();
+		ShadowMatrices.createModelViewMatrix(target, getShadowAngle(), intervalSize, sunPathRotation, entityPos.x, entityPos.y, entityPos.z);
 
-		return modelView;
+		return target;
 	}
 
 	private MatrixStack getShadowModelView() {
@@ -502,6 +509,15 @@ public class ShadowRenderer {
 			if (playerIsSpectator && entity == player) continue;
 			if (Rfp2Compat.isPlayerDummy(entity)) continue;
 
+			if (!entity.ignoreFrustumCheck && !frustum.isBoundingBoxInFrustum(entity.getEntityBoundingBox())) continue;
+
+			renderedEntitiesList.add(entity);
+		}
+
+		// Demonica: 1.12.2 keeps lightning bolts in World.weatherEffects, not loadedEntityList, where upstream's
+		// entitiesForRendering() holds them, so without this loop they never reach the shadow pass and its
+		// shadow_lightning program (RenderManagerIrisMixin sets the lightning condition around each bolt).
+		for (Entity entity : getLevel().weatherEffects) {
 			if (!entity.ignoreFrustumCheck && !frustum.isBoundingBoxInFrustum(entity.getEntityBoundingBox())) continue;
 
 			renderedEntitiesList.add(entity);

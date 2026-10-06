@@ -269,6 +269,16 @@ class ShadowRendererPhaseTest {
         }
 
         @Override
+        public boolean skipAllRendering() {
+            throw unsupported();
+        }
+
+        @Override
+        public boolean supportsEndFlash() {
+            throw unsupported();
+        }
+
+        @Override
         public float getSunPathRotation() {
             throw unsupported();
         }

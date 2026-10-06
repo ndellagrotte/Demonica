@@ -30,11 +30,10 @@ public class ParticleItemPickupIrisMixin {
             return;
         }
 
-        GbufferPrograms.beginEntities();
-        try {
-            renderManager.renderEntity(entity, x, y, z, yaw, partialTicks, debugBoundingBox);
-        } finally {
-            GbufferPrograms.endEntities();
-        }
+        // Demonica: drawNestedEntity puts the particle phase back afterwards; endEntities() alone left NONE, so the
+        // lit particles after this one in the same frame drew with the DEFAULT programs.
+        GbufferPrograms.drawNestedEntity(
+            () -> renderManager.renderEntity(entity, x, y, z, yaw, partialTicks, debugBoundingBox)
+        );
     }
 }

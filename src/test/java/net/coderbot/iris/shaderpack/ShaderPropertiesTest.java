@@ -72,6 +72,28 @@ class ShaderPropertiesTest {
         assertFalse(properties.getExplicitFlips().get("composite").getBoolean("colortex2"));
     }
 
+    @Test
+    void skipAllRenderingDefaultsOffAndReachesPackDirectives() throws IOException {
+        ShaderProperties unset = parse("""
+            oldLighting=true
+            """);
+        ShaderProperties set = parse("""
+            skipAllRendering=true
+            """);
+
+        assertEquals(OptionalBoolean.DEFAULT, unset.skipAllRendering());
+        assertTrue(set.skipAllRendering().orElse(false));
+        assertFalse(new PackDirectives(PackRenderTargetDirectives.BASELINE_SUPPORTED_RENDER_TARGETS, unset).skipAllRendering());
+        assertTrue(new PackDirectives(PackRenderTargetDirectives.BASELINE_SUPPORTED_RENDER_TARGETS, set).skipAllRendering());
+    }
+
+    @Test
+    void parsesBreaksAnisotropy() throws IOException {
+        assertTrue(parse("breaksAnisotropy = true\n").getBreaksAnisotropy().orElse(false));
+        assertFalse(parse("breaksAnisotropy = false\n").getBreaksAnisotropy().orElse(true));
+        assertFalse(parse("sky=0\n").getBreaksAnisotropy().orElse(false));
+    }
+
     private ShaderProperties parse(String source) throws IOException {
         return parse(source, List.of());
     }
