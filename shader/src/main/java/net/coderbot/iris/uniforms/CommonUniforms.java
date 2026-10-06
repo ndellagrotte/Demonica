@@ -73,6 +73,7 @@ public final class CommonUniforms {
         }
 
         CommonUniforms.generalCommonUniforms(uniforms, updateNotifier, directives);
+        IrisInternalUniforms.addOtherUniforms(uniforms, updateNotifier, directives);
     }
 
 	// Needs to use a LocationalUniformHolder as we need it for the common uniforms
