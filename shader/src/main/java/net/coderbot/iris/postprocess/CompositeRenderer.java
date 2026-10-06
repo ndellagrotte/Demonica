@@ -22,6 +22,7 @@ import net.coderbot.iris.gl.program.ProgramBuilder;
 import net.coderbot.iris.gl.program.ProgramSamplers;
 import net.coderbot.iris.gl.program.ProgramUniforms;
 import net.coderbot.iris.gl.sampler.SamplerLimits;
+import net.coderbot.iris.gl.shader.ShaderCompileException;
 import net.coderbot.iris.gl.state.FogMode;
 import net.coderbot.iris.gl.texture.TextureAccess;
 import net.coderbot.iris.pipeline.PatchedShaderPrinter;
@@ -428,6 +429,8 @@ public class CompositeRenderer {
 		try {
 			builder = ProgramBuilder.begin(source.getName(), vertex, geometry, tessControl, tessEval, fragment,
 				IrisSamplers.COMPOSITE_RESERVED_TEXTURE_UNITS);
+		} catch (ShaderCompileException e) {
+			throw e;
 		} catch (RuntimeException e) {
 			// TODO: Better error handling
 			throw new RuntimeException("Shader compilation failed!", e);
@@ -478,6 +481,8 @@ public class CompositeRenderer {
 					String transformed = TransformPatcher.patchCompute(source.getName(), source.getSource().orElse(null), this.textureStage, pipeline != null ? pipeline.getTextureMap() : null);
 					PatchedShaderPrinter.debugPatchedShaders(source.getName() + "_compute", null, null, null, transformed);
 					builder = ProgramBuilder.beginCompute(source.getName(), transformed, IrisSamplers.COMPOSITE_RESERVED_TEXTURE_UNITS);
+				} catch (ShaderCompileException e) {
+					throw e;
 				} catch (RuntimeException e) {
 					// TODO: Better error handling
 					throw new RuntimeException("Shader compilation failed!", e);

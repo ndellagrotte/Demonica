@@ -3,11 +3,14 @@ package net.coderbot.iris.shaderpack.include;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import net.coderbot.iris.Iris;
+import net.coderbot.iris.config.IrisConfig;
 import net.coderbot.iris.shaderpack.error.RusticError;
 import net.coderbot.iris.shaderpack.transform.line.LineTransform;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -19,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A directed graph data structure that holds the loaded source of all shader programs
@@ -66,6 +71,20 @@ public class IncludeGraph {
 	}
 
 	public IncludeGraph(Path root, ImmutableList<AbsolutePackPath> startingPaths) {
+		// Demonica: upstream's constructor is (root, startingPaths, isZip) and reads
+		// Iris.getIrisConfig().areDebugOptionsEnabled() inline. Here the zip flag is derived from the root below and the
+		// config is read null-safely (unit tests build graphs without starting Iris), so ShaderPack and the tests keep
+		// this signature; the package-private overload lets a test set the debug-options gate directly.
+		this(root, startingPaths, debugOptionsEnabled());
+	}
+
+	IncludeGraph(Path root, ImmutableList<AbsolutePackPath> startingPaths, boolean debugOptionsEnabled) {
+		// Demonica: upstream is told isZip by Iris.loadExternalShaderpack through ShaderPack; Demonica's ShaderPack is
+		// not, so ask the root: a zip pack is opened on a zip FileSystem, a folder pack lives on the default one.
+		boolean isZip = root.getFileSystem() != FileSystems.getDefault();
+		// Demonica: directory listings read by the case check below, one per directory per graph.
+		Map<Path, List<String>> listings = new HashMap<>();
+
 		Map<AbsolutePackPath, AbsolutePackPath> cameFrom = new HashMap<>();
 		Map<AbsolutePackPath, Integer> lineNumberInclude = new HashMap<>();
 
@@ -81,7 +100,25 @@ public class IncludeGraph {
 			String source;
 
 			try {
-				source = readFile(next.resolved(root));
+				Path p = next.resolved(root);
+				// Demonica: upstream gates this on !isZip because Path.toFile() throws on a zip FileSystem. The listing
+				// check below would run on one, but the gate stays: a zip's entry names match case-sensitively on every
+				// OS, so a mismatched #include already fails for the author exactly as for every user and "file not
+				// found" says so, and listing a zip's directories per pack load would be work for no new hint.
+				if (debugOptionsEnabled && !isZip) {
+					// Demonica: upstream compares p.toAbsolutePath() with p.toFile().getCanonicalPath(), both cut after
+					// the last "shaders/". getCanonicalPath() folds case only on a case-insensitive file system (Windows,
+					// usually macOS); on Linux the mismatched file simply does not exist and upstream reports a bare
+					// "file not found". It also resolves symlinks, so a symlinked include would be reported missing.
+					// Walking the real directory listings from the pack root finds the on-disk spelling everywhere and
+					// leaves symlinks alone; `canonical` keeps upstream's form (relative to shaders/, no leading slash).
+					String canonical = findOnDiskSpelling(root, next, listings);
+
+					if (canonical != null && !canonical.equals(next.getPathString().substring(1))) {
+						throw new FileIncludeException("'" + next.getPathString() + "' doesn't exist, did you mean '" + canonical + "'?");
+					}
+				}
+				source = readFile(p);
 			} catch (IOException e) {
 				AbsolutePackPath src = cameFrom.get(next);
 
@@ -92,7 +129,10 @@ public class IncludeGraph {
 				String topLevelMessage;
 				String detailMessage;
 
-				if (e instanceof NoSuchFileException) {
+				if (e instanceof FileIncludeException) {
+					topLevelMessage = "failed to resolve #include directive\n" + e.getMessage();
+					detailMessage = "file not found";
+				} else if (e instanceof NoSuchFileException) {
 					topLevelMessage = "failed to resolve #include directive";
 					detailMessage = "file not found";
 				} else {
@@ -252,6 +292,70 @@ public class IncludeGraph {
 
 	public ImmutableMap<AbsolutePackPath, RusticError> getFailures() {
 		return failures;
+	}
+
+	// Demonica: the gate's config read, null-safe because Iris.getIrisConfig() is null until Iris has loaded its config
+	// (unit tests, and any graph built before then).
+	private static boolean debugOptionsEnabled() {
+		IrisConfig config = Iris.getIrisConfig();
+
+		return config != null && config.areDebugOptionsEnabled();
+	}
+
+	/**
+	 * Demonica: resolves {@code path} below {@code root} one segment at a time against the real directory listings,
+	 * taking the exact name when present and otherwise the first (sorted) name equal to it ignoring case.
+	 *
+	 * @return the on-disk spelling relative to {@code root} without a leading slash, or null when no file matches
+	 */
+	private static String findOnDiskSpelling(Path root, AbsolutePackPath path, Map<Path, List<String>> listings) {
+		String relative = path.getPathString().substring(1);
+
+		if (relative.isEmpty()) {
+			return null;
+		}
+
+		Path directory = root;
+		StringBuilder onDisk = new StringBuilder();
+
+		for (String segment : relative.split("/")) {
+			List<String> names = listings.computeIfAbsent(directory, IncludeGraph::listNames);
+			String match = names.contains(segment) ? segment : null;
+
+			if (match == null) {
+				for (String name : names) {
+					if (name.equalsIgnoreCase(segment)) {
+						match = name;
+						break;
+					}
+				}
+			}
+
+			if (match == null) {
+				return null;
+			}
+
+			if (onDisk.length() > 0) {
+				onDisk.append('/');
+			}
+
+			onDisk.append(match);
+			directory = directory.resolve(match);
+		}
+
+		return onDisk.toString();
+	}
+
+	private static List<String> listNames(Path directory) {
+		if (!Files.isDirectory(directory)) {
+			return Collections.emptyList();
+		}
+
+		try (Stream<Path> children = Files.list(directory)) {
+			return children.map(child -> child.getFileName().toString()).sorted().collect(Collectors.toList());
+		} catch (IOException | UncheckedIOException e) {
+			return Collections.emptyList();
+		}
 	}
 
 	private static String readFile(Path path) throws IOException {

@@ -27,6 +27,7 @@ import net.coderbot.iris.shaderpack.ProgramSource;
 import net.coderbot.iris.shaderpack.ShadowCullState;
 import net.coderbot.iris.shadow.ShadowMatrices;
 import net.coderbot.iris.shadows.CullingDataCache;
+import net.coderbot.iris.shadows.ShadowRenderCallbacks;
 import net.coderbot.iris.shadows.ShadowCompositeRenderer;
 import net.coderbot.iris.shadows.ShadowRenderTargets;
 import net.coderbot.iris.shadows.frustum.BoxCuller;
@@ -585,20 +586,11 @@ public class ShadowRenderer {
         GLStateManager.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
         GLStateManager.glPolygonOffset(1.0f, 1.0f);
 
-        savedMatrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
-        GLStateManager.glMatrixMode(GL11.GL_MODELVIEW);
-        GLStateManager.glPushMatrix();
-        MODELVIEW_BUFFER.clear().rewind();
-        modelView.peek().getModel().get(MODELVIEW_BUFFER);
-        GLStateManager.glLoadMatrix(MODELVIEW_BUFFER);
-        pushShadowRenderingState(modelView);
+        loadShadowModelView(modelView);
     }
 
     private void teardownEntityShadowState() {
-        GLStateManager.glMatrixMode(GL11.GL_MODELVIEW);
-        GLStateManager.glPopMatrix();
-        GLStateManager.glMatrixMode(savedMatrixMode);
-        popShadowRenderingState();
+        unloadShadowModelView();
 
         GLStateManager.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
         GLStateManager.glPolygonOffset(0.0f, 0.0f);
@@ -609,6 +601,41 @@ public class ShadowRenderer {
         renderManager.viewerPosY = savedViewerPosY;
         renderManager.viewerPosZ = savedViewerPosZ;
         renderManager.setRenderShadow(savedRenderShadow);
+    }
+
+    // Pushes GLSM's model-view stack with the shadow model-view (the projection stack already holds the shadow
+    // projection, from setupGlState) and points RenderingState at both, so a draw's gl_ModelViewMatrix and
+    // ftransform() are the shadow pass's. unloadShadowModelView undoes it.
+    private void loadShadowModelView(MatrixStack modelView) {
+        savedMatrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
+        GLStateManager.glMatrixMode(GL11.GL_MODELVIEW);
+        GLStateManager.glPushMatrix();
+        MODELVIEW_BUFFER.clear().rewind();
+        modelView.peek().getModel().get(MODELVIEW_BUFFER);
+        GLStateManager.glLoadMatrix(MODELVIEW_BUFFER);
+        pushShadowRenderingState(modelView);
+    }
+
+    private void unloadShadowModelView() {
+        GLStateManager.glMatrixMode(GL11.GL_MODELVIEW);
+        GLStateManager.glPopMatrix();
+        GLStateManager.glMatrixMode(savedMatrixMode);
+        popShadowRenderingState();
+    }
+
+    // Demonica: upstream (I shadows/ShadowRenderer.java:514-518) only sets the phase around the callbacks, which draw
+    // with a RenderPipeline assigned to a shadow program and take the matrices from the pass. Here they draw with the
+    // fixed-function matrix stacks, as entities do, so the shadow model-view is loaded around them the way
+    // setupEntityShadowState loads it (without its polygon offset and RenderManager position, which are entity-only).
+    // TERRAIN_CUTOUT, as upstream, picks the pack's shadow program (DeferredWorldRenderingPipeline.getShadowCondition).
+    private void renderShadowCallbacks(WorldRenderingPipeline pipeline, MatrixStack modelView, double cameraX, double cameraY, double cameraZ, float tickDelta) {
+        loadShadowModelView(modelView);
+        try {
+            TerrainPhaseScope.runCutout(pipeline,
+                () -> ShadowRenderCallbacks.invoke(MODELVIEW, PROJECTION, cameraX, cameraY, cameraZ, tickDelta));
+        } finally {
+            unloadShadowModelView();
+        }
     }
 
     private void pushShadowRenderingState(MatrixStack modelView) {
@@ -890,6 +917,14 @@ public class ShadowRenderer {
 		// Reset viewport in case terrain rendering changed it
 		GLStateManager.glViewport(0, 0, resolution, resolution);
 
+		// Demonica: after the viewport reset, which upstream does after the callbacks, so they draw into the whole
+		// shadow map whatever the terrain draw left; the render origin is the eye position the pass is centred on
+		// (upstream's camera position)
+		if (!ShadowRenderCallbacks.isEmpty()) {
+			profiler.endStartSection("iris_shadow_callbacks");
+			renderShadowCallbacks(renderingPipeline, modelView, renderOriginX, renderOriginY, renderOriginZ, tickDelta);
+		}
+
 		profiler.endStartSection("entities");
 
 		// Get the current tick delta. Normally this is the same as client.getTickDelta(), but when the game is paused,
@@ -1009,6 +1044,11 @@ public class ShadowRenderer {
 
 		static void runOpaque(WorldRenderingPipeline pipeline, Runnable action) {
 			run(pipeline, WorldRenderingPhase.TERRAIN_SOLID, action);
+		}
+
+		// The phase upstream sets around the shadow render callbacks
+		static void runCutout(WorldRenderingPipeline pipeline, Runnable action) {
+			run(pipeline, WorldRenderingPhase.TERRAIN_CUTOUT, action);
 		}
 
 		static void runTranslucent(WorldRenderingPipeline pipeline, Runnable action) {

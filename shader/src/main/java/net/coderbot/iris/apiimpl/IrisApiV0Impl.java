@@ -4,9 +4,11 @@ import net.coderbot.iris.Iris;
 import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.coderbot.iris.pipeline.FixedFunctionWorldRenderingPipeline;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
+import net.coderbot.iris.shadows.ShadowRenderCallbacks;
 import net.coderbot.iris.shadows.ShadowRenderingState;
 import net.irisshaders.iris.api.v0.IrisApi;
 import net.irisshaders.iris.api.v0.IrisApiConfig;
+import net.irisshaders.iris.api.v0.IrisShadowRenderCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 
@@ -17,7 +19,9 @@ public class IrisApiV0Impl implements IrisApi {
 
 	@Override
 	public int getMinorApiRevision() {
-		return 1;
+		// Demonica: 2 adds registerShadowRenderCallback (upstream returns 4: Demonica lacks upstream's
+		// createTextVertexSink, getSunPathRotation and the pipeline assignments of revisions 1-3)
+		return 2;
 	}
 
 	@Override
@@ -57,5 +61,10 @@ public class IrisApiV0Impl implements IrisApi {
 	@Override
 	public IrisApiConfig getConfig() {
 		return CONFIG;
+	}
+
+	@Override
+	public void registerShadowRenderCallback(IrisShadowRenderCallback callback) {
+		ShadowRenderCallbacks.register(callback);
 	}
 }
