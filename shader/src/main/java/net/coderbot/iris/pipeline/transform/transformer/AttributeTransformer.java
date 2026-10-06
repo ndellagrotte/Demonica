@@ -1,6 +1,7 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
 import net.coderbot.iris.gl.shader.ShaderType;
+import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.pipeline.transform.parameter.AttributeParameters;
 
 import java.util.HashMap;
@@ -31,6 +32,13 @@ public final class AttributeTransformer {
 
 	private static void transformCore(ShaderAst transformer, AttributeParameters parameters) {
 		CoreTransformHelper.injectMatrixUniforms(transformer);
+
+		// Iris 26.1 VanillaTransformer: "const float mc_chunkFade = -1.0;" in every stage, for packs that read it under
+		// IRIS_FEATURE_FADE_VARIABLE (-1.0: not a fading chunk). Demonica: declared only where the program reads it and
+		// does not declare it itself, so programs that never name it print as before (an unused const changes nothing).
+		if (transformer.containsCall("mc_chunkFade")) {
+			ShaderTransformer.addIfNotExists(transformer, "mc_chunkFade", "const float mc_chunkFade = -1.0;");
+		}
 
 		if (parameters.type == ShaderType.VERTEX) {
 			transformer.injectVariable("layout(location = 0) in vec4 iris_Vertex;");
@@ -75,6 +83,11 @@ public final class AttributeTransformer {
 			// gl_MultiTexCoord3 as Iris 26.1 handles it (Step 7b); the TauMC engine patched only a declared one, and
 			// declared mc_midTexCoord twice then.
 			CommonTransformer.patchMultiTexCoord3(transformer, parameters, "in vec4 mc_midTexCoord;");
+
+			// gl_MultiTexCoord0 and gl_MultiTexCoord1 are the only valid inputs (with
+			// gl_MultiTexCoord2 and gl_MultiTexCoord3 as aliases), other texture
+			// coordinates are not valid inputs.
+			CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 4, 7);
 		}
 	}
 }

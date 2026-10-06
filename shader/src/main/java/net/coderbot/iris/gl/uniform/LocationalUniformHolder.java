@@ -1,6 +1,7 @@
 package net.coderbot.iris.gl.uniform;
 
 import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix3fc;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector2f;
@@ -124,6 +125,13 @@ public interface LocationalUniformHolder extends UniformHolder {
 	@Override
 	default LocationalUniformHolder uniformMatrix(UniformUpdateFrequency updateFrequency, String name, Supplier<Matrix4fc> value) {
 		location(name, UniformType.MAT4).ifPresent(id -> addUniform(updateFrequency, new MatrixUniform(id, value)));
+
+		return this;
+	}
+
+	@Override
+	default LocationalUniformHolder uniformMatrix3(UniformUpdateFrequency updateFrequency, String name, Supplier<Matrix3fc> value) {
+		location(name, UniformType.MAT3).ifPresent(id -> addUniform(updateFrequency, new Matrix3Uniform(id, value)));
 
 		return this;
 	}

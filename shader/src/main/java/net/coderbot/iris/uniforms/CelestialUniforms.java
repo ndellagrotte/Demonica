@@ -34,7 +34,9 @@ public final class CelestialUniforms {
 			.uniformTruncated3f(PER_FRAME, "moonPosition", this::getMoonPosition)
 			.uniform1f(PER_FRAME, "shadowAngle", CelestialUniforms::getShadowAngle)
 			.uniformTruncated3f(PER_FRAME, "shadowLightPosition", this::getShadowLightPosition)
-			.uniformTruncated3f(PER_FRAME, "upPosition", CelestialUniforms::getUpPosition);
+			.uniformTruncated3f(PER_FRAME, "upPosition", CelestialUniforms::getUpPosition)
+			// Demonica: no End flash in 1.12.2, so the flash position is always the zero vector.
+			.uniformTruncated3f(PER_FRAME, "endFlashPosition", () -> new Vector4f(0.0F, 0.0F, 0.0F, 0.0F));
 	}
 
 	public static float getSunAngle() {

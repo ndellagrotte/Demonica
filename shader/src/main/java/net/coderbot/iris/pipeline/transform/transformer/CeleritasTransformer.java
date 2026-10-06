@@ -1,5 +1,6 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
+import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 
 import java.util.HashMap;
@@ -67,6 +68,14 @@ public final class CeleritasTransformer {
         vertexReplacements.put("gl_MultiTexCoord2", "iris_LightTexCoord");
         vertexReplacements.forEach(transformer::replaceExpression);
 
+        // gl_MultiTexCoord0 and gl_MultiTexCoord1 are the only valid inputs (with
+        // gl_MultiTexCoord2 and gl_MultiTexCoord3 as aliases), other texture
+        // coordinates are not valid inputs.
+        // Demonica: here, after the 0-2 replacements, where Iris calls it after patchMultiTexCoord3; Demonica patches
+        // gl_MultiTexCoord3 later, in ShaderTransformer.doTransform. The names do not overlap, so the order does not
+        // change the output.
+        CommonTransformer.replaceGlMultiTexCoordBounded(transformer, 4, 7);
+
         if (transformer.hasVariable("chunkOffset")) {
             transformer.removeVariable("chunkOffset");
         }
@@ -79,6 +88,18 @@ public final class CeleritasTransformer {
         transformer.rename(vertexRenames);
 
         transformer.injectVariable("in vec3 iris_Normal;");
+
+        // Iris 26.1 SodiumTransformer.injectVertInit:
+        //   String chunkFadeDeclaration = parameters.shadow ? "const float mc_chunkFade = -1.0;" : "float mc_chunkFade;";
+        // with mc_chunkFade = (chunkFade < 0) ? 1.0 : fade; from the section's fade-in time.
+        // Demonica: 1.12.2 chunks have no fade-in time, so every chunk is the upstream "no time" case, 1.0 (fully
+        // faded in); -1.0 here would read as a fading chunk to packs that test chunkFade < 1.0 (Complementary
+        // Reimagined r5.9.3's gbuffers_terrain and gbuffers_water). The parameters do not tell the shadow pass apart,
+        // so it gets 1.0 too, where upstream declares -1.0. Declared only where the program reads it and does not
+        // declare it itself, so programs that never name it print as before.
+        if (transformer.containsCall("mc_chunkFade")) {
+            ShaderTransformer.addIfNotExists(transformer, "mc_chunkFade", "const float mc_chunkFade = 1.0;");
+        }
     }
 
     public static void transformFragment(ShaderAst transformer, Parameters parameters) {

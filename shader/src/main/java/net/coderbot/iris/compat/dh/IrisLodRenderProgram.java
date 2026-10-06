@@ -2,7 +2,9 @@ package net.coderbot.iris.compat.dh;
 
 import com.google.common.primitives.Ints;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
+import com.gtnewhorizons.angelica.glsm.RenderSystem;
 import com.seibel.distanthorizons.api.DhApi;
+import com.seibel.distanthorizons.api.objects.DhApiResult;
 import com.seibel.distanthorizons.api.objects.math.DhApiVec3f;
 import net.coderbot.iris.gl.blending.AlphaTestOverride;
 import net.coderbot.iris.gl.blending.BlendModeOverride;
@@ -39,6 +41,9 @@ import java.util.List;
 import java.util.Map;
 
 public class IrisLodRenderProgram {
+    /** The unit Iris 26.1 binds DH's block atlas to (IrisSamplers.ALBEDO_TEXTURE_UNIT, reserved in world programs). */
+    private static final int DH_BLOCK_ATLAS_UNIT = 0;
+
     // Uniforms
     public final int modelOffsetUniform;
     public final int worldYOffsetUniform;
@@ -47,6 +52,7 @@ public class IrisLodRenderProgram {
     public final int modelViewInverseUniform;
     public final int projectionUniform;
     public final int projectionInverseUniform;
+    public final int dhBlockAtlas;
     public final int normalMatrix3fUniform;
     // Fog/Clip Uniforms
     public final int clipDistanceUniform;
@@ -139,6 +145,7 @@ public class IrisLodRenderProgram {
         modelViewUniform = tryGetUniformLocation2("iris_ModelViewMatrix");
         modelViewInverseUniform = tryGetUniformLocation2("iris_ModelViewMatrixInverse");
         normalMatrix3fUniform = tryGetUniformLocation2("iris_NormalMatrix");
+        dhBlockAtlas = tryGetUniformLocation2("dhBlockAtlas");
 
         // Fog/Clip Uniforms
         clipDistanceUniform = tryGetUniformLocation2("clipDistance");
@@ -244,6 +251,9 @@ public class IrisLodRenderProgram {
         setUniform(normalMatrix3fUniform, tempMat4a.set(modelView).invert().transpose3x3(tempMat3));
 
         setUniform(mircoOffsetUniform, 0.01f); // 0.01 block offset
+        // Demonica: glUniform1i. Iris writes setUniform(dhBlockAtlas, 0), which resolves to the float overload
+        // (glUniform1f on a sampler is GL_INVALID_OPERATION) and works only because a sampler uniform starts at unit 0.
+        if (dhBlockAtlas != -1) GLStateManager.glUniform1i(dhBlockAtlas, DH_BLOCK_ATLAS_UNIT);
 
         // setUniform(skyLightUniform, skyLight);
 
@@ -259,6 +269,19 @@ public class IrisLodRenderProgram {
         customUniforms.push(this);
 
         images.update();
+
+        // Iris 26.1: DH's block atlas, which the dh_sampleTexture() of DH_TERRAIN fragment stages reads through
+        // dhBlockAtlas (DHTerrainTransformer). DH 3.3.0 publishes its id in GlDhMetaRenderer.runRenderPassSetup, and
+        // only while its enableTexturedLods option is on (the default); until then the call fails.
+        // (DH binds it to unit 1 for its own program, GlBlockTextureAtlas.bind; Iris's programs read it from unit 0.)
+        DhApiResult<Integer> out = DhApi.Delayed.renderProxy.getDhBlockRatioAtlasTextureGlId();
+
+        if (out.success) {
+            RenderSystem.bindTextureToUnit(GL11.GL_TEXTURE_2D, DH_BLOCK_ATLAS_UNIT, out.payload);
+        }
+        // Demonica: no output on failure (Iris prints "WHY" each pass). Without the atlas DH gives every LOD texture-set
+        // id 0 (ColumnRenderSource keeps no texture palette while texturedLodsEnabledAtDetailLevel is false, as with the
+        // option off), so dh_hasTexture() is false and dh_sampleTexture() is never reached; unit 0 keeps what it held.
     }
 
     private void setUniform(int index, float value) {

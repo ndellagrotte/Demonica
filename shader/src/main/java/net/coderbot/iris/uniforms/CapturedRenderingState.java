@@ -28,7 +28,22 @@ public class CapturedRenderingState {
     private final Vector4f currentEntityColor = new Vector4f();
     private Runnable entityColorListener = null;
 
+	@Getter
+	private int textureReloadCount = 0;
+
+	@Setter
+	@Getter
+	private float cloudTime;
+
 	private CapturedRenderingState() {
+	}
+
+	public void incrementTextureReloadCount() {
+		this.textureReloadCount++;
+	}
+
+	public void resetTextureReloadCount() {
+		this.textureReloadCount = 0;
 	}
 
     public void setCurrentBlockEntity(int entity) {

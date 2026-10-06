@@ -127,6 +127,14 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         }
 
         CapturedRenderingState.INSTANCE.setTickDelta(partialTicks);
+        // Demonica: upstream sets cloudTime here (MixinLevelRenderer renderLevel HEAD) from the level's game time,
+        // wrapped at one period of the cloud texture (width * 400 ticks), and 0 when there is no cloud texture.
+        // 1.12.2's clouds scroll by RenderGlobal.cloudTickCounter (opened by the access transformer), so that is
+        // the clock packs need to line up with vanilla clouds. Fancy clouds map 256 cells to one texture repeat
+        // whatever the texture's size, so the period is the constant 256 * 400 ticks, and the texture always
+        // exists. Not set in renderClouds: that runs only while clouds are drawn, and packs that draw their own
+        // clouds turn vanilla's off (clouds=off), which would freeze the value.
+        CapturedRenderingState.INSTANCE.setCloudTime((this.mc.renderGlobal.cloudTickCounter % (256 * 400) + partialTicks) * 0.03F);
         SystemTimeUniforms.COUNTER.beginFrame();
         SystemTimeUniforms.TIMER.beginFrame(System.nanoTime());
 

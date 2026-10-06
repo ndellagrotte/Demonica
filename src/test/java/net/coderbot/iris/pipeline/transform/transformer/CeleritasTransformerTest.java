@@ -84,6 +84,56 @@ class CeleritasTransformerTest {
         assertFalse(tokens.contains("toClipSpace3 ( mat3 ( gbufferModelView )"), tokens.text());
     }
 
+    /**
+     * docs/IRIS_PORTING_PLAN.md, item 0.1: a vertex stage that reads {@code mc_chunkFade} (under
+     * {@code IRIS_FEATURE_FADE_VARIABLE}) gets Iris 1.11.4's value for a chunk with no fade-in time, 1.0, once.
+     */
+    @Test
+    void chunkFadeIsDeclaredFullyFadedInWhereItIsRead() {
+        final ShaderAst output = transformVertex("""
+            #version 430 compatibility
+            out float chunkFade;
+            void main() {
+                chunkFade = mc_chunkFade;
+                gl_Position = vec4(0.0);
+            }
+            """);
+        final GlslTokens tokens = GlslTokens.of(output.printBody());
+
+        assertEquals(1, occurrences(tokens, "const float mc_chunkFade = 1.0 ;"), tokens.text());
+        assertEquals(2, tokens.count("mc_chunkFade"), tokens.text());
+    }
+
+    @Test
+    void chunkFadeIsNotDeclaredWhereItIsNotRead() {
+        final ShaderAst output = transformVertex("""
+            #version 430 compatibility
+            void main() {
+                gl_Position = vec4(0.0);
+            }
+            """);
+        final GlslTokens tokens = GlslTokens.of(output.printBody());
+
+        assertEquals(0, tokens.count("mc_chunkFade"), tokens.text());
+    }
+
+    @Test
+    void aDeclaredChunkFadeIsKept() {
+        final ShaderAst output = transformVertex("""
+            #version 430 compatibility
+            uniform float mc_chunkFade;
+            out float chunkFade;
+            void main() {
+                chunkFade = mc_chunkFade;
+                gl_Position = vec4(0.0);
+            }
+            """);
+        final GlslTokens tokens = GlslTokens.of(output.printBody());
+
+        assertEquals(0, occurrences(tokens, "const float mc_chunkFade"), tokens.text());
+        assertEquals(1, occurrences(tokens, "uniform float mc_chunkFade ;"), tokens.text());
+    }
+
     /** Transforms, prints and parses again: the output must be a program glsl-transformer reads. */
     private static ShaderAst transformVertex(String source) {
         final ShaderAst ast = ShaderAst.parse(source);

@@ -1,22 +1,41 @@
 package net.coderbot.iris.pipeline.transform.transformer;
 
 import com.gtnewhorizons.angelica.glsm.GlslTransformUtils;
+import io.github.douira.glsl_transformer.ast.node.Identifier;
+import io.github.douira.glsl_transformer.ast.node.TranslationUnit;
+import io.github.douira.glsl_transformer.ast.node.abstract_node.ASTNode;
+import io.github.douira.glsl_transformer.ast.node.declaration.DeclarationMember;
+import io.github.douira.glsl_transformer.ast.node.declaration.TypeAndInitDeclaration;
+import io.github.douira.glsl_transformer.ast.node.expression.unary.FunctionCallExpression;
+import io.github.douira.glsl_transformer.ast.node.external_declaration.DeclarationExternalDeclaration;
+import io.github.douira.glsl_transformer.ast.node.external_declaration.ExternalDeclaration;
+import io.github.douira.glsl_transformer.ast.node.type.specifier.BuiltinFixedTypeSpecifier;
+import io.github.douira.glsl_transformer.ast.node.type.specifier.BuiltinFixedTypeSpecifier.BuiltinType.TypeKind;
+import io.github.douira.glsl_transformer.ast.node.type.specifier.TypeSpecifier;
+import io.github.douira.glsl_transformer.ast.query.Root;
+import io.github.douira.glsl_transformer.ast.query.match.Matcher;
+import io.github.douira.glsl_transformer.parser.ParseShape;
 import net.coderbot.iris.gl.shader.ShaderType;
 import net.coderbot.iris.pipeline.transform.Patch;
 import net.coderbot.iris.pipeline.transform.parameter.Parameters;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * The transformation every patch kind starts with, on {@link ShaderAst}: legacy built-ins ({@code gl_FogFragCoord},
  * {@code gl_FrontColor}, {@code gl_Color}, {@code gl_FragColor}, {@code gl_FragData}, {@code gl_Fog}) become
- * declared {@code iris_*} variables, a sampler named {@code texture} or {@code gcolor} becomes {@code gtexture}, the
- * legacy texture functions get their core names, {@code shadow2D}/{@code shadow2DLod} become wrapped
- * {@code texture}/{@code textureLod} calls, and recognized PCF shadow helpers get a bounds guard
+ * declared {@code iris_*} variables, the legacy texture functions get their core names,
+ * {@code shadow2D}/{@code shadow2DLod} become wrapped {@code texture}/{@code textureLod} calls, and recognized PCF shadow helpers get a bounds guard
  * ({@link AdaptiveShadowBoundsTransformer}, Step 7). Ported verb for verb from the TauMC engine's
  * {@code net.coderbot.iris.pipeline.transform.CommonTransformer} (Step 5 of
- * docs/glsl-transformer_adoption/ADOPTION_PLAN.md).
+ * docs/glsl-transformer_adoption/ADOPTION_PLAN.md). {@link #renameGtexture}, which {@code ShaderTransformer} runs after
+ * the patch transformer, makes a sampler named {@code texture} or {@code gcolor} {@code gtexture}.
  */
 public final class CommonTransformer {
 	private CommonTransformer() {
@@ -46,6 +65,24 @@ public final class CommonTransformer {
 			if (!declared) {
 				ast.injectVariable(declaration);
 			}
+		}
+	}
+
+	/**
+	 * Iris 26.1's {@code CommonTransformer.replaceGlMultiTexCoordBounded}: every {@code gl_MultiTexCoord<i>} with
+	 * {@code minimum <= i <= maximum} read as an expression becomes {@code vec4(0.0, 0.0, 0.0, 1.0)}, the initial value
+	 * of a texture coordinate the fixed-function pipeline never set. Iris calls it for 4-7 in its VANILLA and SODIUM
+	 * vertex shaders (Demonica's ATTRIBUTES and CELERITAS_TERRAIN) and both DH patches, and for 1-7 in COMPOSITE.
+	 */
+	public static void replaceGlMultiTexCoordBounded(ShaderAst ast, int minimum, int maximum) {
+		// Demonica: written with the ShaderAst verb (the loop DHTerrainTransformer and DHGenericTransformer had as
+		// private copies), not as Iris's root.replaceReferenceExpressions over a prefix query: every caller runs it
+		// between other verbs, which PORTING_GUIDE rule 3 keeps idiom code out of, and the verb leaves the DH output
+		// as it was (dh-terrain-legacy, dh-generic-legacy). Both replace only reference expressions, so a pack's own
+		// declaration of the name stays, as in Iris; the exact names also skip Iris's Integer.parseInt of the suffix,
+		// which throws on a name such as gl_MultiTexCoordX.
+		for (int i = minimum; i <= maximum; i++) {
+			ast.replaceExpression("gl_MultiTexCoord" + i, "vec4(0.0, 0.0, 0.0, 1.0)");
 		}
 	}
 
@@ -98,17 +135,9 @@ public final class CommonTransformer {
 			}
 		}
 
-		if (root.containsCall("texture") && root.hasVariable("texture")) {
-			root.rename("texture", "gtexture");
-		}
-
-		if (root.hasVariable("actinium_renamed_texture")) {
-			root.rename("actinium_renamed_texture", "gtexture");
-		}
-
-		if (root.containsCall("gcolor") && root.hasVariable("gcolor")) {
-			root.rename("gcolor", "gtexture");
-		}
+		// Demonica: the renaming of the texture and gcolor samplers to gtexture is renameGtexture, which
+		// ShaderTransformer.doTransform runs after the patch transformer's verbs (PORTING_GUIDE rule 3) and before
+		// TextureTransformer, as Iris runs it before its TextureTransformer.
 
 		root.rename("gl_Fog", "iris_Fog");
 		root.injectVariable("uniform float iris_FogDensity;");
@@ -138,5 +167,178 @@ public final class CommonTransformer {
 				+ "gl_ClipDistance[7] = dot(actinium_ClipPlane[7], _cp_ep); } }"
 			);
 		}
+	}
+
+	/**
+	 * The name {@code GlslTransformUtils.replaceTexture} gives every {@code texture} that is not a call before the parse
+	 * ({@code restoreReservedWords} gives it back at print), so the sampler a pack declares as {@code texture} is this
+	 * name in the AST.
+	 */
+	static final String RENAMED_TEXTURE = "actinium_renamed_texture";
+
+	/**
+	 * Iris 26.1's {@code gtexture} renaming ({@code CommonTransformer.transform} and {@code getGtextureRenameTargets},
+	 * {@link Upstream#renameGtexture}): a {@code uniform} sampler named {@code texture} or {@code gcolor} becomes
+	 * {@code gtexture} with every use of the name that is not a call, and a shader that declares both keeps one
+	 * declaration, {@code gcolor}'s (plan item 3.2; before it, both were renamed and the two {@code gtexture}
+	 * declarations did not compile). A name that some file-scope declaration declares as anything but a sampler
+	 * uniform is left alone, as is a name with no such declaration. Runs on the tree, under {@link ShaderAst#build},
+	 * after the patch transformer's verbs (PORTING_GUIDE rule 3).
+	 *
+	 * <p>Then, as before, a {@code texture} the merge left alone that is still declared somewhere (a local variable, a
+	 * file-scope declaration that is not a sampler uniform) becomes {@code gtexture} through the {@link ShaderAst#rename}
+	 * verb: restored to {@code texture} at print, such a variable would hide the {@code texture()} function that the
+	 * legacy calls are renamed to.</p>
+	 */
+	public static void renameGtexture(ShaderAst ast) {
+		ast.build(() -> {
+			Upstream.renameGtexture(ast.tree, ast.root);
+			return null;
+		});
+		// Demonica: the TauMC engine's branch for the pre-parse name, kept for a texture the merge does not take
+		// (Iris leaves it, and the restored name would hide the texture() builtin in its scope). After the merge took the
+		// name no identifier has it any more (the pre-pass leaves calls named texture), so this does nothing.
+		if (ast.hasVariable(RENAMED_TEXTURE)) {
+			ast.rename(RENAMED_TEXTURE, "gtexture");
+		}
+	}
+
+	/**
+	 * Iris 26.1's {@code gtexture} code, copied as Iris has it ({@code CommonTransformer.transform}'s "addition" block,
+	 * {@code getGtextureRenameTargets}, {@code RenameTargetResult} and the {@code sampler} matcher). Nested so that the
+	 * matcher, which glsl-transformer builds on its static build stack and which keeps the last match's nodes, is built
+	 * at the first use, inside {@link ShaderAst#BUILD_LOCK}; every caller holds it (PORTING_GUIDE rule 1).
+	 */
+	static final class Upstream {
+	public static final Matcher<ExternalDeclaration> sampler = new Matcher<>(
+		"uniform Type name;", ParseShape.EXTERNAL_DECLARATION) {
+		{
+			markClassedPredicateWildcard("type",
+				pattern.getRoot().identifierIndex.getUnique("Type").getAncestor(TypeSpecifier.class),
+				BuiltinFixedTypeSpecifier.class,
+				specifier -> specifier.type.kind == TypeKind.SAMPLER);
+			markClassWildcard("name*",
+				pattern.getRoot().identifierIndex.getUnique("name").getAncestor(DeclarationMember.class));
+		}
+	};
+
+	// Demonica: the block of Iris's CommonTransformer.transform, as a method of its own (Iris has the tree and root in
+	// transform's parameters).
+	static void renameGtexture(TranslationUnit tree, Root root) {
+		// addition: rename all uses of texture and gcolor to gtexture if it's *not*
+		// used as a function call.
+		// it only does this if they are declared as samplers and makes sure that there
+		// is only one sampler declaration.
+		RenameTargetResult gcolorResult = getGtextureRenameTargets("gcolor", tree, root);
+		// Demonica: the pre-parse name of texture (RENAMED_TEXTURE), the name the AST has; Iris parses texture itself.
+		RenameTargetResult textureResult = getGtextureRenameTargets(RENAMED_TEXTURE, tree, root);
+		DeclarationMember samplerDeclarationMember = null;
+		Stream<Identifier> targets = Stream.empty();
+		if (gcolorResult != null) {
+			samplerDeclarationMember = gcolorResult.samplerDeclarationMember;
+			targets = Stream.concat(targets, gcolorResult.targets);
+		}
+		if (textureResult != null) {
+			// if two exist, remove the member from the second one
+			if (samplerDeclarationMember == null) {
+				samplerDeclarationMember = textureResult.samplerDeclarationMember;
+			} else {
+				DeclarationMember secondDeclarationMember = textureResult.samplerDeclarationMember;
+				if (((TypeAndInitDeclaration) secondDeclarationMember.getParent()).getMembers().size() == 1) {
+					textureResult.samplerDeclaration.detachAndDelete();
+				} else {
+					secondDeclarationMember.detachAndDelete();
+				}
+			}
+			targets = Stream.concat(targets, textureResult.targets);
+		}
+		if (samplerDeclarationMember != null) {
+			samplerDeclarationMember.getName().setName("gtexture");
+		}
+		root.process(targets.filter(id -> !(id.getParent() instanceof FunctionCallExpression)),
+			id -> id.setName("gtexture"));
+	}
+
+	// Demonica: takes the tree for inDocumentOrder.
+	private static RenameTargetResult getGtextureRenameTargets(String name, TranslationUnit tree, Root root) {
+		List<Identifier> gtextureTargets = new ArrayList<>();
+		DeclarationExternalDeclaration samplerDeclaration = null;
+		DeclarationMember samplerDeclarationMember = null;
+
+		// collect targets until we find out if the name is a sampler or not
+		// Demonica: in document order (inDocumentOrder), not the index's.
+		for (Identifier id : inDocumentOrder(tree, root, name)) {
+			gtextureTargets.add(id);
+			if (samplerDeclaration != null) {
+				continue;
+			}
+			DeclarationExternalDeclaration externalDeclaration = (DeclarationExternalDeclaration) id.getAncestor(
+				3, 0, DeclarationExternalDeclaration.class::isInstance);
+			if (externalDeclaration == null) {
+				continue;
+			}
+			if (sampler.matchesExtract(externalDeclaration)) {
+				// check that any of the members match the name
+				boolean foundNameMatch = false;
+				for (DeclarationMember member : sampler
+					.getNodeMatch("name*", DeclarationMember.class)
+					.getAncestor(TypeAndInitDeclaration.class).getMembers()) {
+					if (member.getName().getName().equals(name)) {
+						foundNameMatch = true;
+					}
+				}
+				if (!foundNameMatch) {
+					return null;
+				}
+
+				// no need to check any more declarations
+				samplerDeclaration = externalDeclaration;
+				samplerDeclarationMember = id.getAncestor(DeclarationMember.class);
+
+				// remove since we are treating the declaration specially
+				gtextureTargets.removeLast();
+				continue;
+			}
+			// we found a declaration using this name, but it's not a sampler,
+			// renaming this name is disabled
+			return null;
+		}
+		if (samplerDeclaration == null) {
+			// no sampler declaration found, renaming this name is disabled
+			return null;
+		}
+		return new RenameTargetResult(samplerDeclaration, samplerDeclarationMember, gtextureTargets.stream());
+	}
+
+	// Demonica: Iris iterates root.identifierIndex.get(name), a HashSet in no fixed order (ShaderAst's root, as Iris's), and
+	// the first file-scope declaration of the name it meets decides: a name declared both as a sampler uniform and as
+	// something else would be renamed in one run and not in the next (PORTING_GUIDE rule 2). The identifiers are taken
+	// in the document order of the external declarations they sit in. Two identifiers in the same external declaration
+	// meet the same answer, so their order does not matter.
+	private static List<Identifier> inDocumentOrder(TranslationUnit tree, Root root, String name) {
+		List<Identifier> identifiers = new ArrayList<>(root.identifierIndex.get(name));
+		if (identifiers.size() < 2) {
+			return identifiers;
+		}
+		Map<ASTNode, Integer> positions = new IdentityHashMap<>();
+		List<ExternalDeclaration> children = tree.getChildren();
+		for (int i = 0; i < children.size(); i++) {
+			positions.put(children.get(i), i);
+		}
+		Map<Identifier, Integer> keys = new IdentityHashMap<>();
+		for (Identifier identifier : identifiers) {
+			ASTNode node = identifier;
+			while (node != null && !positions.containsKey(node)) {
+				node = node.getParent();
+			}
+			keys.put(identifier, node == null ? Integer.MAX_VALUE : positions.get(node));
+		}
+		identifiers.sort((a, b) -> Integer.compare(keys.get(a), keys.get(b)));
+		return identifiers;
+	}
+
+	private record RenameTargetResult(DeclarationExternalDeclaration samplerDeclaration,
+									  DeclarationMember samplerDeclarationMember, Stream<Identifier> targets) {
+	}
 	}
 }
