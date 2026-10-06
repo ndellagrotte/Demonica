@@ -10,11 +10,16 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import lombok.Getter;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.resources.I18n;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.features.FeatureFlags;
 import net.coderbot.iris.gl.buffer.ShaderStorageInfo;
 import net.coderbot.iris.gl.image.ImageInformation;
 import net.coderbot.iris.gl.texture.TextureDefinition;
+import net.coderbot.iris.gui.screen.FeatureMissingErrorScreen;
+import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.coderbot.iris.shaderpack.include.AbsolutePackPath;
 import net.coderbot.iris.shaderpack.include.IncludeGraph;
 import net.coderbot.iris.shaderpack.include.IncludeProcessor;
@@ -31,6 +36,7 @@ import net.coderbot.iris.shaderpack.texture.TextureFilteringData;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.irisshaders.iris.api.v0.IrisApi;
+import org.apache.commons.lang3.SystemUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
@@ -258,11 +264,27 @@ public class ShaderPack {
 		List<String> invalidFeatureFlags = invalidFlagList.stream().map(FeatureFlags::getHumanReadableName).collect(Collectors.toList());
 
 		if (!invalidFeatureFlags.isEmpty()) {
-            // TODO: GUI
-//			if (Minecraft.getMinecraft().screen instanceof ShaderPackScreen) {
-//				Minecraft.getMinecraft().setScreen(new FeatureMissingErrorScreen(Minecraft.getMinecraft().screen, I18n.format("iris.unsupported.pack"), I18n.format("iris.unsupported.pack.description", FeatureFlags.getInvalidStatus(invalidFlagList), invalidFeatureFlags.stream()
-//					.collect(Collectors.joining(", ", ": ", ".")))));
-//			}
+			// Demonica: upstream's screen, on the 1.12.2 GuiScreen. The pack loads while ShaderPackScreen's button
+			// handler runs (the main thread), but keep the thread check since displayGuiScreen is main-thread only.
+			// ShaderPackScreen.onClose skips its own displayGuiScreen(parent) when this screen has replaced it.
+			final Minecraft mc = Minecraft.getMinecraft();
+			final GuiScreen current = mc.currentScreen;
+			if (current instanceof ShaderPackScreen) {
+				// Demonica: our lang string is "List: %s", so the list is joined without upstream's ": " prefix.
+				String message = I18n.format("iris.unsupported.pack.description", FeatureFlags.getInvalidStatus(invalidFlagList),
+						String.join(", ", invalidFeatureFlags) + ".");
+				if (SystemUtils.IS_OS_MAC) {
+					// Demonica: upstream's key starts with "\n", but a .lang file without #PARSE_ESCAPES keeps
+					// "\n" literally, so the line break is added here (listFormattedStringToWidth breaks on it).
+					message = message + "\n" + I18n.format("iris.unsupported.pack.macos");
+				}
+				final FeatureMissingErrorScreen screen = new FeatureMissingErrorScreen(current, I18n.format("iris.unsupported.pack"), message);
+				if (mc.isCallingFromMinecraftThread()) {
+					mc.displayGuiScreen(screen);
+				} else {
+					mc.addScheduledTask(() -> mc.displayGuiScreen(screen));
+				}
+			}
 			IrisApi.getInstance().getConfig().setShadersEnabledAndApply(false);
 		}
 

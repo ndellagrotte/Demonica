@@ -512,7 +512,11 @@ public class ShaderPackScreen extends GuiScreen implements HudHideable {
             discardChanges();
         }
 
-        this.mc.displayGuiScreen(parent);
+        // Demonica: applying can show FeatureMissingErrorScreen over this screen (ShaderPack's required-feature
+        // check); do not replace it with the parent.
+        if (this.mc.currentScreen == this) {
+            this.mc.displayGuiScreen(parent);
+        }
     }
 
     private void dropChangesAndClose() {

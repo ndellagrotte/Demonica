@@ -11,6 +11,7 @@ iris.unsupported.iris=Iris
 iris.unsupported.pc=your PC
 iris.unsupported.pack=Shader pack incompatible!
 iris.unsupported.pack.description=The shader pack you are trying to load contains features unsupported by %s. Please try another pack. List: %s
+iris.unsupported.pack.macos=macOS is known to have issues with many shader packs.
 iris.shaders.loadFailed=Failed to load shader pack "%s", falling back to vanilla rendering. Check the log for details.
 iris.shaders.pipelineFailed=Failed to create the shader rendering pipeline, shaders disabled! Reason: %s
 iris.shaders.noPackSelected=Shaders could not be enabled: no valid shader pack is selected.
