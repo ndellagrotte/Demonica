@@ -16,7 +16,12 @@ public class ProgramSet {
 	private final PackDirectives packDirectives;
 
 	private final ProgramSource shadow;
+	private final ProgramSource shadowSolid;
+	private final ProgramSource shadowCutout;
 	private final ProgramSource shadowWater;
+	private final ProgramSource shadowEntities;
+	private final ProgramSource shadowLightning;
+	private final ProgramSource shadowBlock;
 	private final ComputeSource[] shadowCompute;
 
 	private final ProgramSource[] shadowcomp;
@@ -33,6 +38,9 @@ public class ProgramSet {
 	private final ProgramSource gbuffersTextured;
 	private final ProgramSource gbuffersTexturedLit;
 	private final ProgramSource gbuffersTerrain;
+	private final ProgramSource gbuffersTerrainSolid;
+	private final ProgramSource gbuffersTerrainCutout;
+	private final ProgramSource gbuffersTerrainCutoutMip;
 	private ProgramSource gbuffersDamagedBlock;
 	private final ProgramSource gbuffersSkyBasic;
 	private final ProgramSource gbuffersSkyTextured;
@@ -40,11 +48,15 @@ public class ProgramSet {
 	private final ProgramSource gbuffersWeather;
 	private final ProgramSource gbuffersEntities;
 	private final ProgramSource gbuffersEntitiesTrans;
+	private final ProgramSource gbuffersLightning;
+	private final ProgramSource gbuffersParticles;
+	private final ProgramSource gbuffersParticlesTrans;
 	private final ProgramSource gbuffersEntitiesGlowing;
 	private final ProgramSource gbuffersGlint;
 	private final ProgramSource gbuffersEntityEyes;
 	private final ProgramSource gbuffersBlock;
 	private final ProgramSource gbuffersBlockTrans;
+	private final ProgramSource gbuffersItem;
 	private final ProgramSource gbuffersHand;
 
 	private final ProgramSource[] deferred;
@@ -81,7 +93,17 @@ public class ProgramSet {
 		// - https://github.com/IrisShaders/Iris/issues/987
 		this.shadow = readProgramSource(directory, sourceProvider, "shadow", this, shaderProperties,
 				BlendModeOverride.OFF);
+		this.shadowSolid = readProgramSource(directory, sourceProvider, "shadow_solid", this, shaderProperties,
+				BlendModeOverride.OFF);
+		this.shadowCutout = readProgramSource(directory, sourceProvider, "shadow_cutout", this, shaderProperties,
+				BlendModeOverride.OFF);
 		this.shadowWater = readProgramSource(directory, sourceProvider, "shadow_water", this, shaderProperties,
+				BlendModeOverride.OFF);
+		this.shadowEntities = readProgramSource(directory, sourceProvider, "shadow_entities", this, shaderProperties,
+				BlendModeOverride.OFF);
+		this.shadowLightning = readProgramSource(directory, sourceProvider, "shadow_lightning", this, shaderProperties,
+				BlendModeOverride.OFF);
+		this.shadowBlock = readProgramSource(directory, sourceProvider, "shadow_block", this, shaderProperties,
 				BlendModeOverride.OFF);
 		this.shadowCompute = readComputeArray(directory, sourceProvider, "shadow");
 
@@ -112,6 +134,11 @@ public class ProgramSet {
 		this.gbuffersTextured = readProgramSource(directory, sourceProvider, "gbuffers_textured", this, shaderProperties);
 		this.gbuffersTexturedLit = readProgramSource(directory, sourceProvider, "gbuffers_textured_lit", this, shaderProperties);
 		this.gbuffersTerrain = readProgramSource(directory, sourceProvider, "gbuffers_terrain", this, shaderProperties);
+		this.gbuffersTerrainSolid = readProgramSource(directory, sourceProvider, "gbuffers_terrain_solid", this, shaderProperties);
+		this.gbuffersTerrainCutout = readProgramSource(directory, sourceProvider, "gbuffers_terrain_cutout", this, shaderProperties);
+		// Demonica: upstream no longer has TerrainCutoutMip; the id is kept (OptiFine's 1.12.2-era name), so its
+		// file is read too
+		this.gbuffersTerrainCutoutMip = readProgramSource(directory, sourceProvider, "gbuffers_terrain_cutout_mip", this, shaderProperties);
 		this.gbuffersDamagedBlock = readProgramSource(directory, sourceProvider, "gbuffers_damagedblock", this, shaderProperties);
 		this.gbuffersSkyBasic = readProgramSource(directory, sourceProvider, "gbuffers_skybasic", this, shaderProperties);
 		this.gbuffersSkyTextured = readProgramSource(directory, sourceProvider, "gbuffers_skytextured", this, shaderProperties);
@@ -119,11 +146,15 @@ public class ProgramSet {
 		this.gbuffersWeather = readProgramSource(directory, sourceProvider, "gbuffers_weather", this, shaderProperties);
 		this.gbuffersEntities = readProgramSource(directory, sourceProvider, "gbuffers_entities", this, shaderProperties);
 		this.gbuffersEntitiesTrans = readProgramSource(directory, sourceProvider, "gbuffers_entities_translucent", this, shaderProperties);
+		this.gbuffersLightning = readProgramSource(directory, sourceProvider, "gbuffers_lightning", this, shaderProperties);
+		this.gbuffersParticles = readProgramSource(directory, sourceProvider, "gbuffers_particles", this, shaderProperties);
+		this.gbuffersParticlesTrans = readProgramSource(directory, sourceProvider, "gbuffers_particles_translucent", this, shaderProperties);
 		this.gbuffersEntitiesGlowing = readProgramSource(directory, sourceProvider, "gbuffers_entities_glowing", this, shaderProperties);
 		this.gbuffersGlint = readProgramSource(directory, sourceProvider, "gbuffers_armor_glint", this, shaderProperties);
 		this.gbuffersEntityEyes = readProgramSource(directory, sourceProvider, "gbuffers_spidereyes", this, shaderProperties);
 		this.gbuffersBlock = readProgramSource(directory, sourceProvider, "gbuffers_block", this, shaderProperties);
 		this.gbuffersBlockTrans = readProgramSource(directory, sourceProvider, "gbuffers_block_translucent", this, shaderProperties);
+		this.gbuffersItem = readProgramSource(directory, sourceProvider, "gbuffers_item", this, shaderProperties);
 		this.gbuffersHand = readProgramSource(directory, sourceProvider, "gbuffers_hand", this, shaderProperties);
 		this.dhTerrain = readProgramSource(directory, sourceProvider, "dh_terrain", this, shaderProperties);
 		this.dhGeneric = readProgramSource(directory, sourceProvider, "dh_generic", this, shaderProperties);
@@ -221,15 +252,22 @@ public class ProgramSet {
 		List<ComputeSource> computes = new ArrayList<>();
 
 		programs.add(shadow);
+		programs.add(shadowSolid);
+		programs.add(shadowCutout);
 		programs.add(shadowWater);
+		programs.add(shadowEntities);
+		programs.add(shadowLightning);
+		programs.add(shadowBlock);
 		programs.addAll(Arrays.asList(shadowcomp));
 		programs.addAll(Arrays.asList(begin));
 		programs.addAll(Arrays.asList(prepare));
 
 		programs.addAll (Arrays.asList(
 				gbuffersBasic, gbuffersBeaconBeam, gbuffersTextured, gbuffersTexturedLit, gbuffersTerrain,
+				gbuffersTerrainSolid, gbuffersTerrainCutout, gbuffersTerrainCutoutMip,
 				gbuffersDamagedBlock, gbuffersSkyBasic, gbuffersSkyTextured, gbuffersClouds, gbuffersWeather,
-				gbuffersEntities, gbuffersEntitiesTrans, gbuffersEntitiesGlowing, gbuffersGlint, gbuffersEntityEyes, gbuffersBlock, gbuffersBlockTrans,
+				gbuffersEntities, gbuffersEntitiesTrans, gbuffersLightning, gbuffersParticles, gbuffersParticlesTrans,
+				gbuffersEntitiesGlowing, gbuffersGlint, gbuffersEntityEyes, gbuffersBlock, gbuffersBlockTrans, gbuffersItem,
 				gbuffersHand, dhShadow, dhTerrain, dhGeneric, dhWater
 		));
 
@@ -421,7 +459,12 @@ public class ProgramSet {
 	public Optional<ProgramSource> get(ProgramId programId) {
 		return switch (programId) {
 			case Shadow -> getShadow();
+			case ShadowSolid -> shadowSolid.requireValid();
+			case ShadowCutout -> shadowCutout.requireValid();
 			case ShadowWater -> first(getShadowWater(), getShadow());
+			case ShadowEntities -> shadowEntities.requireValid();
+			case ShadowLightning -> shadowLightning.requireValid();
+			case ShadowBlock -> shadowBlock.requireValid();
 			case Basic -> getGbuffersBasic();
 			case Line -> gbuffersLine.requireValid();
 			case Textured -> getGbuffersTextured();
@@ -430,12 +473,19 @@ public class ProgramSet {
 			case SkyTextured -> getGbuffersSkyTextured();
 			case Clouds -> getGbuffersClouds();
 			case Terrain -> getGbuffersTerrain();
+			case TerrainSolid -> gbuffersTerrainSolid.requireValid();
+			case TerrainCutoutMip -> gbuffersTerrainCutoutMip.requireValid();
+			case TerrainCutout -> gbuffersTerrainCutout.requireValid();
 			case DamagedBlock -> getGbuffersDamagedBlock();
 			case Block -> getGbuffersBlock();
             case BlockTrans -> getGbuffersBlockTrans();
 			case BeaconBeam -> getGbuffersBeaconBeam();
+			case Item -> gbuffersItem.requireValid();
 			case Entities -> getGbuffersEntities();
 			case EntitiesTrans -> getGbuffersEntitiesTrans();
+			case Lightning -> gbuffersLightning.requireValid();
+			case Particles -> gbuffersParticles.requireValid();
+			case ParticlesTrans -> gbuffersParticlesTrans.requireValid();
 			case EntitiesGlowing -> getGbuffersEntitiesGlowing();
 			case ArmorGlint -> getGbuffersGlint();
 			case SpiderEyes -> getGbuffersEntityEyes();
@@ -448,7 +498,8 @@ public class ProgramSet {
 			case DhGeneric -> getDhGeneric();
 			case DhWater -> getDhWater();
 			case DhShadow -> getDhShadow();
-			default -> Optional.empty();
+			// Demonica: no default, so the compiler flags a ProgramId this switch does not read (upstream keeps an
+			// EnumMap filled from ProgramId.values() instead)
 		};
 	}
 
