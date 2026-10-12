@@ -43,6 +43,12 @@ public abstract class MixinVoxelMapGLShim {
                 // cached HUD alpha outside it is preserved while the map area is prepared.
                 return;
             }
+            if (VoxelMapCompat.clearTargetsVoxelMapFbo()) {
+                // The radar is rendering a mob or helmet icon into VoxelMap's own off-screen FBO,
+                // which it clears before each model. That clear never reaches the HUD cache, and
+                // skipping it would stack every new icon on the previous one (#23).
+                return;
+            }
             // StellarCore renders the whole HUD (including the minimap, which is drawn on the
             // RenderGameOverlayEvent.Post) into a cached framebuffer that is later blitted to the
             // screen with an alpha-dependent blend. VoxelMap clears the color buffer (masked to

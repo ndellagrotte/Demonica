@@ -1,6 +1,6 @@
 package com.demonica.compat.voxelmap;
 
-import com.mamiyaotaru.voxelmap.util.GLShim;
+import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.mamiyaotaru.voxelmap.util.GLUtils;
 
 /**
@@ -20,6 +20,16 @@ import com.mamiyaotaru.voxelmap.util.GLUtils;
  * {@code hasAlphaBits} is false and VoxelMap selects the legacy FBO path, which produces a black
  * minimap on the core profile. {@link #forceCpuMinimapPath()} re-selects the direct CPU-texture
  * path, which is the same path vanilla VoxelMap uses on ordinary systems.</p>
+ *
+ * <p>{@code fboEnabled} is left as VoxelMap probed it. The minimap only consults it when
+ * {@code hasAlphaBits} is false, so forcing the latter is enough to keep the map on the CPU path;
+ * the radar, on the other hand, needs the flag true: it builds the icon of every mob it has no
+ * bundled picture for, and the icon of a worn helmet, by rendering the model's head parts into
+ * VoxelMap's own FBO and reading the texture back. Clearing the flag (as Actinium did) made every
+ * such mob fall back to the generic hostile/neutral/tame marker
+ * (<a href="https://github.com/ndellagrotte/Demonica/issues/23">#23</a>). GLSM's redirector routes
+ * the {@code EXT_framebuffer_object} calls that path makes through {@code GLStateManager}, so it
+ * works on either profile.</p>
  *
  * <p>That path also sets {@code GL_TEXTURE_MIN_FILTER} to {@code GL_LINEAR_MIPMAP_LINEAR} and relies
  * on the legacy {@code GL_GENERATE_MIPMAP} texture parameter to build the mipmap chain. Core
@@ -48,11 +58,26 @@ public final class VoxelMapCompat {
     /**
      * Forces VoxelMap onto the direct CPU-texture minimap path regardless of the probed
      * framebuffer capabilities. Safe on any context: this is the path VoxelMap uses by default
-     * whenever the framebuffer has alpha bits, and the FBO path is never required by it.
+     * whenever the framebuffer has alpha bits. {@code GLUtils.fboEnabled} is left alone: the
+     * minimap ignores it once {@code hasAlphaBits} is set, and the radar's auto-generated mob and
+     * helmet icons need it (see the class comment).
      */
     public static void forceCpuMinimapPath() {
         GLUtils.hasAlphaBits = true;
-        GLUtils.fboEnabled = false;
+    }
+
+    /**
+     * Whether the current draw framebuffer is VoxelMap's own off-screen FBO, the one its radar
+     * renders mob and helmet icons into. A clear issued while it is bound touches that private
+     * texture only, never the screen or a HUD cache, so the HUD-cache guard in
+     * {@code MixinVoxelMapGLShim} must let it through: the icon renderer clears the FBO before each
+     * model, and a skipped clear would stack every new icon on the previous one.
+     *
+     * @return true when a clear would target VoxelMap's FBO rather than the HUD
+     */
+    public static boolean clearTargetsVoxelMapFbo() {
+        int fbo = GLUtils.fboID;
+        return fbo != 0 && GLStateManager.getDrawFramebuffer() == fbo;
     }
 
     /**

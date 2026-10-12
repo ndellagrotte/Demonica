@@ -13,8 +13,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>VoxelMap probes {@code GLUtils.hasAlphaBits} / {@code GLUtils.fboEnabled} once during its
  * class initialization. Under Demonica's core-profile window (no alpha bits reported by the
  * LWJGL2 compatibility layer) it would select the legacy {@code EXT_framebuffer_object} path,
- * which renders black on the core profile. Overriding the flags right after initialization makes
- * it use the same direct texture path as on ordinary vanilla systems.</p>
+ * which renders black on the core profile. Setting {@code hasAlphaBits} right after initialization
+ * makes it use the same direct texture path as on ordinary vanilla systems. {@code fboEnabled}
+ * keeps its probed value: the minimap no longer reads it, and the radar renders its auto-generated
+ * mob and helmet icons through that FBO (see {@link VoxelMapCompat}).</p>
  */
 @Mixin(value = GLUtils.class, remap = false)
 public abstract class MixinVoxelMapGLUtils {
