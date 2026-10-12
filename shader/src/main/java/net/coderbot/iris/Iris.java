@@ -16,6 +16,7 @@ import net.coderbot.iris.client.IrisDebugScreenHandler;
 import net.coderbot.iris.gbuffer_overrides.matching.InputAvailability;
 import net.coderbot.iris.gl.shader.ShaderCompileException;
 import net.coderbot.iris.gl.shader.StandardMacros;
+import net.coderbot.iris.gui.screen.FeatureMissingErrorScreen;
 import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
 import net.coderbot.iris.pipeline.FixedFunctionWorldRenderingPipeline;
@@ -24,6 +25,7 @@ import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.pipeline.transform.TransformPatcher;
 import net.coderbot.iris.pipeline.transform.VersionNegotiation;
 import net.coderbot.iris.shaderpack.DimensionId;
+import net.coderbot.iris.shaderpack.MissingFeaturesException;
 import net.coderbot.iris.shaderpack.OptionalBoolean;
 import net.coderbot.iris.shaderpack.ProgramSet;
 import net.coderbot.iris.shaderpack.ShaderPack;
@@ -47,6 +49,7 @@ import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.InputEvent;
+import org.apache.commons.lang3.SystemUtils;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.input.Keyboard;
 
@@ -495,6 +498,12 @@ public class Iris {
         }
 
         if (!loadExternalShaderpack(externalName.get())) {
+            if (!irisConfig.areShadersEnabled()) {
+                // Demonica: the pack requires unsupported features (MissingFeaturesException): the load turned shaders
+                // off in the config and told the user, so this is a plain "shaders are disabled", not a failed load.
+                setShadersDisabled();
+                return;
+            }
             logger.warn("Falling back to normal rendering without shaders because the shaderpack could not be loaded");
             notifyPlayer(I18n.format("iris.shaders.loadFailed", externalName.get()));
             setShadersDisabled();
@@ -591,6 +600,13 @@ public class Iris {
             changedConfigsValues.getStringValues().forEach(configsToSave::setProperty);
 
             tryUpdateConfigPropertiesFile(shaderPackConfigTxt, configsToSave);
+        } catch (MissingFeaturesException e) {
+            // Demonica: upstream does this inside ShaderPack's constructor through setShadersEnabledAndApply(false),
+            // which reloads Iris under the load that is building the pack (docs/IRIS_PORTING_PLAN.md, section 11
+            // item 7). Here the load has ended; this reload's loadShaderpack sees the disabled config and ends too.
+            disableShadersForMissingFeatures(name, e);
+
+            return false;
         } catch (Exception e) {
             logger.error("Failed to load the shaderpack \"{}\"!", name);
             logger.error("", e);
@@ -627,6 +643,47 @@ public class Iris {
         // This makes it hard to determine what is the actual shaders dir
         try (Stream<Path> stream = Files.walk(root)) {
             return stream.filter(Files::isDirectory).filter(path -> path.endsWith("shaders")).findFirst();
+        }
+    }
+
+    /**
+     * Demonica: the pack's {@code iris.features.required} names a feature this mod or this PC lacks (upstream Iris
+     * 1.11.4 {@code ShaderPack}): shaders are turned off in the config, and the user sees upstream's
+     * {@link FeatureMissingErrorScreen} when the pack was chosen on the Shader Packs screen, or one chat line otherwise.
+     * No {@code Iris.reload()} here: this runs inside the reload that is loading the pack.
+     */
+    private static void disableShadersForMissingFeatures(String name, MissingFeaturesException e) {
+        logger.error("Shader pack \"{}\" requires features unsupported by {}: {}. Shaders are disabled.", name,
+            e.getInvalidStatus(), e.getFlagList());
+
+        irisConfig.setShadersEnabled(false);
+        try {
+            irisConfig.save();
+        } catch (IOException ex) {
+            logger.error("Failed to save the shaders configuration after disabling shaders", ex);
+        }
+
+        // Demonica: our lang string is "List: %s", so the list is joined without upstream's ": " prefix.
+        String description = I18n.format("iris.unsupported.pack.description", e.getInvalidStatus(), e.getFlagList() + ".");
+        final Minecraft mc = Minecraft.getMinecraft();
+        final GuiScreen current = mc.currentScreen;
+        if (current instanceof ShaderPackScreen) {
+            // The pack loads while ShaderPackScreen's button handler runs (the main thread), but keep the thread
+            // check since displayGuiScreen is main-thread only. ShaderPackScreen.onClose skips its own
+            // displayGuiScreen(parent) when this screen has replaced it.
+            if (SystemUtils.IS_OS_MAC) {
+                // Demonica: upstream's key starts with "\n", but a .lang file without #PARSE_ESCAPES keeps
+                // "\n" literally, so the line break is added here (listFormattedStringToWidth breaks on it).
+                description = description + "\n" + I18n.format("iris.unsupported.pack.macos");
+            }
+            final FeatureMissingErrorScreen screen = new FeatureMissingErrorScreen(current, I18n.format("iris.unsupported.pack"), description);
+            if (mc.isCallingFromMinecraftThread()) {
+                mc.displayGuiScreen(screen);
+            } else {
+                mc.addScheduledTask(() -> mc.displayGuiScreen(screen));
+            }
+        } else {
+            notifyPlayer(I18n.format("iris.unsupported.pack") + " " + description);
         }
     }
 
