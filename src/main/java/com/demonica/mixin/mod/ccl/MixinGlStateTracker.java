@@ -1,5 +1,6 @@
 package com.demonica.mixin.mod.ccl;
 
+import codechicken.lib.render.state.GlStateTracker;
 import com.demonica.compat.ccl.GlStateTrackerSnapshot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -16,6 +17,11 @@ import org.spongepowered.asm.mixin.Overwrite;
  * and restores the real GLSM tracked state instead (see
  * {@link GlStateTrackerSnapshot}). Loaded only when CodeChickenLib is present
  * (see MixinLate).
+ *
+ * <p>All four of CCL's entry points are replaced. The two that take a subset of
+ * {@link GlStateTracker.State} save the whole snapshot: CCL's own push of a subset
+ * would read the frozen cache (depth func {@code GL_LESS}, everything disabled) and
+ * leave the pop, which is this bridge's, to restore from the wrong stack.
  */
 @Mixin(targets = "codechicken.lib.render.state.GlStateTracker")
 public abstract class MixinGlStateTracker {
@@ -26,6 +32,24 @@ public abstract class MixinGlStateTracker {
      */
     @Overwrite
     public static void pushState() {
+        GlStateTrackerSnapshot.push();
+    }
+
+    /**
+     * @author Demonica
+     * @reason Save the real GLSM tracked state instead of the frozen vanilla field cache.
+     */
+    @Overwrite
+    public static void pushStates(GlStateTracker.State... states) {
+        GlStateTrackerSnapshot.push();
+    }
+
+    /**
+     * @author Demonica
+     * @reason Save the real GLSM tracked state instead of the frozen vanilla field cache.
+     */
+    @Overwrite
+    public static void pushState(GlStateTracker.State[] states) {
         GlStateTrackerSnapshot.push();
     }
 

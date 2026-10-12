@@ -42,11 +42,18 @@ public final class GuiGlStateBoundary {
 
     /**
      * Restores the neutral state expected when Minecraft starts rendering the HUD.
+     *
+     * <p>This includes vanilla's global depth function, {@code GL_LEQUAL}. {@code Minecraft.init}
+     * sets it once and nothing re-applies it per frame, yet the HUD depends on it: a chat line is
+     * {@code drawRect} followed by its text at the same depth, so a leaked {@code GL_LESS} (GLSM's
+     * and vanilla's field-cache default) blanks every chat line for the rest of the session
+     * (issue #21). Depth test and mask stay as they are: Forge's HUD manages them itself.
      */
     public static void restoreHudBaseline() {
         GLStateManager.glUseProgram(0);
         GLStateManager.disableLighting();
         GLStateManager.disableFog();
+        GLStateManager.glDepthFunc(GL11.GL_LEQUAL);
         GLStateManager.enableAlphaTest();
         GLStateManager.glAlphaFunc(GL11.GL_GREATER, 0.1F);
         GLStateManager.glBlendFuncSeparate(

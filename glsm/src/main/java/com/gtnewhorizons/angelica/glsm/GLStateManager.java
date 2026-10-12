@@ -1703,6 +1703,17 @@ public class GLStateManager {
         ctx().dirtyNormalAttrib = true;
     }
 
+    /**
+     * {@code -Ddemonica.debug.depthFunc=true} logs the first few callers that set the depth
+     * function to {@code GL_LESS}, with their stack. Vanilla sets {@code GL_LEQUAL} once at
+     * startup and never again, so a {@code GL_LESS} writer stays in effect for the session and
+     * blanks HUD text drawn at the same depth as its background (issue #21). The trace names
+     * the mod responsible; the HUD baseline restores {@code GL_LEQUAL} regardless.
+     */
+    private static final boolean TRACE_DEPTH_FUNC_LESS = Boolean.getBoolean("demonica.debug.depthFunc");
+    private static final int TRACE_DEPTH_FUNC_LESS_LIMIT = 5;
+    private static int traceDepthFuncLessCount;
+
     public static void glDepthFunc(int func) {
         final RecordMode mode = DisplayListManager.getRecordMode();
         if (mode != RecordMode.NONE) {
@@ -1710,6 +1721,12 @@ public class GLStateManager {
             if (mode == RecordMode.COMPILE) {
                 return;
             }
+        }
+        if (TRACE_DEPTH_FUNC_LESS && func == GL11.GL_LESS && traceDepthFuncLessCount < TRACE_DEPTH_FUNC_LESS_LIMIT) {
+            traceDepthFuncLessCount++;
+            LOGGER.info("glDepthFunc(GL_LESS) #{} of {} (previous {}); caller stack follows",
+                traceDepthFuncLessCount, TRACE_DEPTH_FUNC_LESS_LIMIT, GLDebug.getComparisonFuncName(ctx().depthState.getFunc()),
+                new Throwable("glDepthFunc(GL_LESS) trace"));
         }
         final boolean caching = isCachingEnabled();
         if (BYPASS_CACHE || !caching || func != ctx().depthState.getFunc()) {
