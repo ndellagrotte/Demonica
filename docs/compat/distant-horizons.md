@@ -28,7 +28,13 @@ tryCreateModCompatAccessor(new String[] { "actinium", "demonica" }, IIrisAccesso
 ## Until then
 
 Demonica ships a mixin, loaded only with Distant Horizons
-(`mixins.demonica.distanthorizons.json`), that replaces the `"actinium"` constant in
-`initializeModCompat` with `"demonica"` (`MixinCleanroomMain`). It becomes unnecessary
-once DH accepts `demonica`. It is optional (`require = 0`), so a DH release without that
-constant loads normally.
+(`mixins.demonica.distanthorizons.json`), that redirects the `tryCreateModCompatAccessor`
+calls in `initializeModCompat` (`MixinCleanroomMain`). It binds the `IIrisAccessor` for
+`demonica` exactly once: on DH 3.3.0 the lone `"actinium"` call is made as `"demonica"`; on a
+DH that names `"actinium"` and then `"demonica"` (the shape of the upstream change), the first
+call binds as `demonica` and the second is skipped; on a DH that names only `"demonica"` the
+call passes through. The guard matters because DH's `DependencyInjector.bind` throws
+`IllegalStateException("The dependency [IIrisAccessor] has already been bound.")` on a second
+bind, so rewriting `"actinium"` alone would stop the game on a DH that already accepts
+`demonica`. The redirect is optional (`require = 0`), so a DH release that registers its
+accessors elsewhere loads normally.
