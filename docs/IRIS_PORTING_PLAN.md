@@ -6,6 +6,11 @@ Date: 2026-09-29. Tree: `dev` at `9bac5226` (0.7.0-SNAPSHOT). Upstream: `.refere
 [glsl-transformer_adoption/PORTING_GUIDE.md](glsl-transformer_adoption/PORTING_GUIDE.md) (the workflow for
 transform-layer ports).
 
+**Status (2026-10-11): complete.** Every item is on `dev` (§9 merge record, PRs #3-#20), and the maintainer's
+decisions on the open checks landed as PRs #24-#26 (§9 follow-ups, §11 items 5, 7 and 9). The item reports are in
+[iris_porting/reports/](iris_porting/reports/README.md). §12 drafts the 0.7.0 release notes. Not run: V-prod, which
+belongs to the release.
+
 Path shorthands: **D** = `shader/src/main/java/net/coderbot/iris`, **I** =
 `.reference/Iris-26.1/common/src/main/java/net/irisshaders/iris`, **H** =
 `src/main/java/com/demonica/mixin/features/iris`, **G** = `glsm/src/main/java/com/gtnewhorizons/angelica/glsm`.
@@ -478,7 +483,7 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
 
   Not run: V-game.
 
-  Report: `run/iris-plan/3.2-gtexture-merge-report.md`.
+  Report: [iris_porting/reports/3.2-gtexture-merge-report.md](iris_porting/reports/3.2-gtexture-merge-report.md).
 
 ### 3.3 DH transformer deltas
 
@@ -585,7 +590,7 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   resolvable by eye at 1200x720: the textured look in BSL. Its on/off frames differ mostly where the near foliage
   moves. Not run: V-game, V-prod.
 
-  Report: `run/iris-plan/3.3-dh-transformer-deltas-report.md`.
+  Report: [iris_porting/reports/3.3-dh-transformer-deltas-report.md](iris_porting/reports/3.3-dh-transformer-deltas-report.md).
 
 ### 3.4 `gl_TextureMatrix[2]`
 
@@ -608,7 +613,8 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   vertex and fragment). Both compile and link before and after. A post-3.4 record of the mini-corpus differs from the
   post-3.1 record in exactly those three stage files. Pack corpora identical (no input reads `gl_TextureMatrix[2-7]`; only
   `[0]` and `[1]` occur): 424/424, 140/140, 175/175, `differing=0` each. Unit test `transformer/CoreTransformHelperTest`
-  (2 tests).
+  (2 tests). Report for 3.1 and 3.4:
+  [iris_porting/reports/3.1-multitexcoord-bounded-report.md](iris_porting/reports/3.1-multitexcoord-bounded-report.md).
 
 ## 8. Phase 4: API and robustness (lane E)
 
@@ -659,7 +665,10 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   quad; the box it covers (x 520-680, y 390-535 of 1200x720) has mean luminance 134.6 without a callback, 77.7 with the
   quad (78.6% of its pixels darker by >32), 134.6 with the callback registered but drawing nothing, 77.7 with the quad
   again; between the two callback-free frames 0.3% of the box (0.68% outside it, waving grass) is darker by >32. V-game
-  sweeps, V-dh and V-prod not run (not named by the item).
+  sweeps, V-dh and V-prod not run (not named by the item). Report:
+  [iris_porting/reports/4.1-shadow-render-callback-report.md](iris_porting/reports/4.1-shadow-render-callback-report.md).
+  **Follow-up (2026-10-11, PR #26):** `getMinorApiRevision()` now returns 4, upstream's number, so a mod gating on
+  `>= 4` finds the callback; the javadoc names the absent revision 1-3 methods, and the `@since` lines read `API v0.4`.
 
 ### 4.2 `ShaderCompileException`
 
@@ -698,7 +707,8 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   shaders disabled! Reason: composite.fsh: 0(28) : error C1503: ...`; the client rendered vanilla, ran `/say` and `/tp`, and
   exited normally. A true syntax error (missing `;`) never reaches the driver: the transformer rejects it
   (`ShaderAst$SyntaxException: line 7:0 missing ';' at '}'` inside "Shader transformation failed for 'composite'"), so no
-  one-liner; that path is unchanged. The probe's composite files were deleted afterwards.
+  one-liner; that path is unchanged. The probe's composite files were deleted afterwards. Report:
+  [iris_porting/reports/4.2-shader-compile-exception-report.md](iris_porting/reports/4.2-shader-compile-exception-report.md).
 
 ### 4.3 IncludeGraph "did you mean"
 
@@ -728,7 +738,8 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   `Failed to load shader pack "_demonica_probe_include", falling back to vanilla rendering. Check the log for details.`,
   the harness's later `/say` and a vanilla screenshot; with it false the same failure without the hint (0 "did you mean"
   lines). The probe pack and save were deleted and `config/shaders.properties` restored afterwards. No §11 open check
-  concerned this item. Follow-up `dd4b8b2c` fixed the symlink test's temp-dir leak (it wrote `/tmp/shared-lib` outside the JUnit temp dir) and the `UncheckedIOException` gap in `IncludeGraph.listNames`.
+  concerned this item. Follow-up `dd4b8b2c` fixed the symlink test's temp-dir leak (it wrote `/tmp/shared-lib` outside the JUnit temp dir) and the `UncheckedIOException` gap in `IncludeGraph.listNames`. Report:
+  [iris_porting/reports/4.3-include-did-you-mean-report.md](iris_porting/reports/4.3-include-did-you-mean-report.md).
 
 ### 4.4 `BuiltShaderStorageInfo` (optional)
 
@@ -743,6 +754,7 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   directories are domain buckets (`bsl`, `compat`, `complementary`, `vanilla`) whose `case.properties` name no pack, so no other
   `shaders.properties` exists to check. Revisit if a pack with a preload path is added to the corpus. Side fact from the check: Demonica's parser rejects
   an index above 8 (`ShaderProperties.java:736`) where upstream allows up to 12; the corpus packs use indices 0 and 3 only.
+  **Follow-up (2026-10-11, PR #26):** the limit is 12 now, with upstream's error text and a `ShaderPropertiesTest` case.
 
 ## 9. Order
 
@@ -773,7 +785,35 @@ Verification on the merged trees: `./gradlew build` and `:test --rerun` after ea
 D: 1119; E: 1137; 0 failures, 2 opt-in skips each); mini-corpus replay `failing=0 stale=0` throughout; after lane D the
 three pack-corpus replays (`run/transform-corpus` 424/423+1, `-dh` 140/138+2, `-s7-taumc` 175/175, `differing=0`),
 the same counts as before the merge. CI green on every PR. Sweep on the merged `dev` (`scripts/glsl-corpus/sweep.txt`, log `run/sweep-merged-dev.out`) against the 2026-10-05 lane C frames: every frame within the noise floor (>16/255: 0.015-0.69 % of pixels, the largest on I Like Vanilla, whose same-code floor on that frame is 0.80 %; mean luminance equal to 0.1), all three packs load, `Unknown variable: endFlashIntensity` is gone (0.2), no compile, link or GL error; the remaining warnings (`BIOME_SULFUR_CAVES`, `pi` shadowing) predate the port.
-Not run: V-prod (next release) and a DH run on the merged tree.
+Not run: V-prod (next release). The DH run on the merged tree was done on 2026-10-11 (below).
+
+### Follow-ups (2026-10-11)
+
+The maintainer's decisions on the open checks, one PR each into `dev`, merge commits, CI green on each:
+
+| PR | Branch | Merge | What | Verification |
+|---|---|---|---|---|
+| #24 | `fix/shaderpack-nested-disable` | `044fdc3a` | §11 item 7: `ShaderPack` throws `MissingFeaturesException`; `Iris.loadExternalShaderpack` disables shaders without a nested reload | `ShaderPackMissingFeaturesTest` 4/4; build 1141 tests; dev client probe (§11 item 7) |
+| #25 | `feat/shadow-blend-off` | `fd1cdbda` | §11 item 9: `Shadow`, `ShadowSolid`, `ShadowCutout` default to `BlendModeOverride.OFF` | `ProgramFallbackResolverTest` 6/6; build 1138 tests; sweep (§11 item 9) |
+| #26 | `chore/iris-leftovers` | `5d614ba9` | `bufferObject` up to 12, API revision 4, PORTING_GUIDE citation (§11 item 5), `.gitignore` | `ShaderPropertiesTest` 6/6; build 1142 tests |
+
+Final tree `dev` after #26 (`5d614ba9`), 2026-10-11: `./gradlew build` BUILD SUCCESSFUL; `:test --rerun` 147 classes,
+1143 tests, 0 failures, 0 errors, 2 skipped (the opt-in `GlslCorpusParseSurveyTest`, `PackResourceProbeTest`); pack-corpus
+replays (8 threads) `run/transform-corpus` 424: 423 identical + 1 accepted, `-dh` 140: 138 + 2, `-s7-taumc` 175: 175,
+`failing=0 stale=0` and concurrent `differing=0` each, the same counts as after lane D.
+
+DH run on the final tree (`-PwithCompatMods`, `run/client/scripts/dh33.txt`, `renderDistance:4`, textured LODs on):
+done 2026-10-11 (`run/iris-plan/merged-dh33.out`, log `merged-dh33-latest.log`, frames `merged-dh33-shots/`). Complementary
+and BSL loaded (`loaded: true`); `Transformed shader for DH_TERRAIN` 4 and `DH_GENERIC` 2; 0 lines matching
+`Shader compilation failed|failed to compile|link error|error C[0-9]`; LODs draw beyond the vanilla distance in every pack
+frame; near-black pixels 0.000 % in all five pack frames (0.248 % without a pack: the sky-less far horizon); against the
+3.3 frames of 2026-10-05 (`33-shots/on/`, same script), the share of pixels with a channel differing by more than 16/255 is
+0.066, 0.164, 0.810, 0.569, 0.310 and 0.053 % (mean luminance equal to 0.2), the foliage-movement floor the 3.3 report
+measured; the only custom-uniform warning left is `BIOME_SULFUR_CAVES` (pre-existing; `endFlashIntensity` is gone, 0.2).
+Two things the run taught (recorded in the dev-run notes): Distant Horizons' auto-updater opened its update screen over
+the main menu, which stalls the harness's `world` step, so `enableAutoUpdater = false` was set for the run and restored
+afterwards; and on this machine the 6 GB Gradle daemon is the kernel's OOM victim under a dev client, so client runs
+used `-Dorg.gradle.jvmargs=-Xmx2G`.
 
 ## 10. Not planned
 
@@ -808,7 +848,7 @@ Resolve during the item and record the answer here.
    - Same file: DH's `irisData` attribute (slot 2, bound by D as `irisExtra`) carries x the material, y the normal
      index, and zw the tile id, little-endian. `frag.frag`'s `blockFaceUv()` and tile sampling match upstream's
      `dh_blockFaceUv`/`dh_sampleTexture`.
-   - The read is in `run/iris-plan/dh-shader-check.md`.
+   - The read is in [iris_porting/reports/dh-shader-check.md](iris_porting/reports/dh-shader-check.md).
 2. Shadow-pass inverse (1.1): does GLSM's stack hold the shadow matrices during `ShadowRenderer`'s entity
    draws? If not, upload from `ShadowRenderer` as the seam does.
    **Answer (2026-10-05, item 1.1): yes, so no `ShadowRenderer` change.** `setupGlState` loads the shadow projection
@@ -880,6 +920,8 @@ Resolve during the item and record the answer here.
    nearest split is the per-particle depth layer (`fxLayers[i][0]` depth mask off, `[i][1]` on, by
    `Particle.shouldDisableDepth`).
 5. `PORTING_GUIDE.md:6-7`: stale reference path and version; fix on its next edit.
+   **Answer (2026-10-11, PR #26): fixed.** The guide cites `.reference/Iris-26.1/common/src/main/java/net/irisshaders/iris/pipeline/transform/`
+   and Iris 1.11.4+mc26.1.2.
 6. `heavyFog` and `logicalHeightLimit` sources (0.4). **Answer (2026-10-05, 0.4 verifier):** in 1.12.2 only
    `DragonFightManager.java:60` calls `BossInfo.setCreateFog(true)`; `EntityWither` only sets `setDarkenSky(true)`. So
    `heavyFog` is true during the dragon fight only (upstream's fog flag is also dragon-only), and its probe needs the End,
@@ -893,6 +935,22 @@ Resolve during the item and record the answer here.
    `enableShaders=false` and the frame is fixed-function only because the inner reload cached a FixedFunction pipeline.
    Candidate fix for a later item: leave the constructor (throw) after disabling, or defer the disable until after
    construction.
+   **Answer (2026-10-11, PR #24, the maintainer's choice to fix before the release): the constructor throws.**
+   `ShaderPack.checkRequiredFeatures` throws a new `D/shaderpack/MissingFeaturesException` (an `IllegalStateException`
+   carrying the flags; no `Minecraft` or `I18n` in the constructor, so it is unit-tested, `ShaderPackMissingFeaturesTest`).
+   `Iris.loadExternalShaderpack` catches it before its generic catch: logs the flags, sets `enableShaders=false` and
+   saves the config directly (no `setShadersEnabledAndApply`, since this runs inside the reload that is loading the
+   pack), shows `FeatureMissingErrorScreen` when the current screen is `ShaderPackScreen` (the display code moved there
+   from the constructor) or sends one chat line (`iris.unsupported.pack` + description) otherwise, and returns false;
+   `loadShaderpack` then sees the disabled config and ends with `setShadersDisabled()`, without the
+   `iris.shaders.loadFailed` line and without `fallback`. Upstream keeps the nested call; both sites carry a
+   `// Demonica:` comment. Probe (dev client, `run/client/scripts/pr1missing.txt`, a `BOGUS_FLAG` pack as folder and as
+   zip, each loaded with and without `ShaderPackScreen` open; `run/iris-plan/pr1-missing-latest.log`, frames in
+   `run/iris-plan/pr1-shots/`): each no-screen load gives one chat line ("Shader pack incompatible! ... List: Unknown.")
+   and `Dev shader pack: (off)`; each load under the pack screen shows `FeatureMissingErrorScreen` (`expect-screen`
+   passed, Back returns to `ShaderPackScreen`, Done to Video Settings); 0 `ClosedFileSystemException`, 0 "Failed to
+   load" lines; BSL loads afterwards. The remaining upstream-shaped wart: after Back, the pack screen's Shaders toggle
+   still shows the state it was opened with.
 8. Shadow-matrix rules and custom-uniform plumbing (1.2, 2026-10-05). **The `-1` rule in 1.2's Adaptation is not
    what landed.** D's shadow pass (`ShadowRenderer` ortho projection, `MatrixUniforms` `shadowProjection`) substitutes the
    DH/render distance for any *negative* plane and `D/compat/dh/DHCompat.getRenderDistance()` already returns blocks,
@@ -930,6 +988,18 @@ Resolve during the item and record the answer here.
    624.1/765.7 ms before, 722.3/695.5 ms after; nether 224.5/222.7 before, 292.8/212.4 after (noise). 170 cache misses and
    `cacheSize=170` both sides. The transform count fell: BSL ships no `shadow_water`, so the old four futures submitted
    `shadow` twice concurrently (172 transformer timing lines, 11161 locks); one future per distinct source gives 170/11011.
+   **Answer (2026-10-11, PR #25, the maintainer's choice): the enum is aligned.** `Shadow`, `ShadowSolid` and
+   `ShadowCutout` carry `BlendModeOverride.OFF` (upstream's `(group, name, blend)` constructor added for the
+   fallback-less `Shadow`), so the Celeritas shadow solid and cutout passes now disable blending, upstream's result for
+   a pack without a `blend.shadow*` directive; a pack's `blend.shadow*` directive still does not reach those passes
+   (upstream's `SodiumPrograms` reads it; noted in `CeleritasTerrainPipeline`'s comment). The program table is
+   unchanged (directive first, already `OFF`). `BlockTrans` is untouched. Test: `ProgramFallbackResolverTest.shadowIdsDefaultToBlendingOff`.
+   Sweep (`scripts/glsl-corpus/sweep.txt`, `run/iris-plan/sweep-shadow-blend.out`) against the merged-dev frames of
+   2026-10-06, share of pixels with a channel differing by more than 16/255 (`run/iris-plan/imgdiff-shadow-blend.txt`):
+   nopack 0.002, bsl 0.161, complementary 0.042, ilikevanilla 0.360, off 0.004, bsl-cached 0.096,
+   complementary-cached 0.104, ilikevanilla-cached 0.521 %; mean luminance equal to 0.1 on every frame; all three packs
+   load twice; no compile, link or GL error. All within the noise floor (I Like Vanilla's same-code floor is 0.80 %).
+   The alpha-test values of 2.2 (0.1 and 0.0001 against upstream's 0.5 and none) stay as they are.
 10. Shadow-pass program choice and phase (2.4, 2026-10-05). **Upstream's mapping, not the item's wording.** Upstream picks
     shadow programs by render pipeline (`I/pipeline/IrisPipelines.java:85-134`): every entity and block-entity pipeline
     (entity models, items, armour, glint, eyes, beacon beams via `SHADOW_BEACON_BEAM`, sign text via `SHADOW_TEXT*`) maps
@@ -962,3 +1032,58 @@ Resolve during the item and record the answer here.
     with `shadow`. Complementary ships `gbuffers_lightning` (all three dimensions); BSL and I Like Vanilla do not, so
     their bolts and the death ray keep `gbuffers_entities` (before 2.4 they matched `ENTITIES`: `SRC_ALPHA, ONE` is not
     the translucent blend).
+
+## 12. Release notes draft (0.7.0)
+
+Drafted 2026-10-11 for the maintainer; the recipe (release worktree, `build:` commits, tag, CI assets, Prism smoke
+test) is unchanged from 0.6.0. Before tagging: re-read `dev`, check that S8TNLib's latest release is still 0.3.0
+(`gh release view -R ndellagrotte/S8TNLib`; the bundled GTNHLib floats with it), and run V-prod on the release jars.
+Everything below the first paragraph is written in the shape of the 0.6.0 notes; the Requirements, Installing (apart
+from the update steps), What it does, Inside the jar, License and Provenance tags sections are the 0.6.0 text with the
+version numbers changed, so only "This release" and the update steps are drafted here.
+
+### This release
+
+- **The Iris 1.11.4 feature port.** Demonica's Iris pipeline (Angelica's backport, through Actinium) now carries what
+  Iris 1.11.4+mc26.1.2 added since that backport, where 1.12.2 has a counterpart
+  ([`docs/IRIS_PORTING_PLAN.md`](https://github.com/ndellagrotte/Demonica/blob/v0.7.0/docs/IRIS_PORTING_PLAN.md)):
+  - **Packs that require `FADE_VARIABLE` or `TEXTURE_FILTERING` load** instead of turning shaders off (BSL 10.1.8 and
+    Complementary Reimagined r5.9.3 declare `FADE_VARIABLE`); `mc_chunkFade` is a constant, since 1.12.2 chunks do not
+    fade in. A pack that uses SSBOs or custom images without declaring the flag is rejected, as upstream does. The
+    `endFlashShadows` directive is accepted and the end-flash uniforms read zero, so Complementary's custom uniforms no
+    longer log `Unknown variable: endFlashIntensity`.
+  - **31 uniforms and 5 internal matrices** packs can read: `currentDate`, `currentTime`, `currentYearTime`; `seaLevel`,
+    `logicalHeightLimit`, `heavyFog`, `isRightHanded`, `currentPlayerArmor`, `maxPlayerArmor`, `isRiding`,
+    `isElytraFlying`, `constantMood`, `currentColorSpace`; `playerLookVector`, `playerBodyVector`, `vehicleId`,
+    `vehicleLookVector`, `relativeVehiclePosition`, `vehicleInWater`, `feetInWater`, `inSwimmingAnimation`;
+    `currentSelectedBlockId`, `currentSelectedBlockPos`; `cloudTime`, `textureReloadCount`; `textureFilteringMode`,
+    `chunkFadeTimeInv`, `anisotropicFiltering`; `endFlashIntensity`, `previousEndFlashIntensity`, `endFlashPosition`;
+    `iris_DefaultModelViewMatrixInverse`, `iris_DefaultProjectionMatrixInverse`, `iris_DefaultNormalMat`,
+    `iris_ShadowModelViewMatrixInverse`, `iris_ShadowProjectionMatrixInverse`. `gl_ModelViewMatrixInverse` and
+    `gl_ProjectionMatrixInverse` in gbuffers and composite programs now read real values (they read an unset uniform
+    before).
+  - **Every program file is read and used.** The terrain passes split into `gbuffers_terrain_solid` and
+    `gbuffers_terrain_cutout` (`shadow_solid`, `shadow_cutout` in the shadow pass), particles draw with
+    `gbuffers_particles`, lightning bolts and the dragon's death ray with `gbuffers_lightning`, and in the shadow pass
+    entities and block entities with `shadow_entities`, the end portal with `shadow_block`, lightning with
+    `shadow_lightning` (bolts now cast shadows at all), each through Iris's fallback chain. `skipAllRendering` is
+    honoured. The `voxelDistance`, `shadowcolor0-7*` and `shadowHardwareFiltering0-7` const options are editable.
+  - **Transforms:** a pack declaring both `texture` and `gcolor` samplers gets one `gtexture`; `gl_MultiTexCoord4-7`
+    read zero everywhere (`1-7` in composites); `gl_TextureMatrix[2]` is the lightmap matrix. Distant Horizons LODs are
+    textured under packs that use DH's block atlas (`dh_hasTexture`, `dh_sampleTexture`, `DISTANT_HORIZONS_TEXTURES`).
+  - **For mod and pack authors:** `IrisApi.registerShadowRenderCallback` (API revision 4) lets a mod draw into the shadow
+    pass; a shader compile error is one log line with the file name and the driver's message, and the chat line names
+    the file; with `enableDebugOptions=true` a case-mismatched `#include` says which file it meant; `bufferObject.<n>`
+    goes up to 12.
+- **A pack with missing required features no longer breaks its own load.** It used to reload Iris from inside the
+  pack's constructor (a zip pack then failed twice; a folder pack ended up loaded with shaders off). Now shaders are
+  turned off cleanly, with the "Shader pack incompatible" screen on the Shader Packs screen or one chat line in game.
+- **Blending is off in the shadow terrain passes**, as upstream.
+- **Modern Splash:** the loading-screen text keeps its colour (Actinium issue #31).
+
+### When updating from 0.6.0
+
+1. Replace the Demonica jar (and the diagnostics jar, if you use it).
+
+Nothing else changes: the Celeritas pin is still upstream `9b661b70` (2.5.0), GTNHLib is still inside the jar, no
+S8TNLib jar. Provenance tags unchanged.
