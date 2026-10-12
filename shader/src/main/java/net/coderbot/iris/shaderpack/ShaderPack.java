@@ -10,16 +10,11 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import lombok.Getter;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.resources.I18n;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.features.FeatureFlags;
 import net.coderbot.iris.gl.buffer.ShaderStorageInfo;
 import net.coderbot.iris.gl.image.ImageInformation;
 import net.coderbot.iris.gl.texture.TextureDefinition;
-import net.coderbot.iris.gui.screen.FeatureMissingErrorScreen;
-import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.coderbot.iris.shaderpack.include.AbsolutePackPath;
 import net.coderbot.iris.shaderpack.include.IncludeGraph;
 import net.coderbot.iris.shaderpack.include.IncludeProcessor;
@@ -35,8 +30,6 @@ import net.coderbot.iris.shaderpack.texture.CustomTextureData;
 import net.coderbot.iris.shaderpack.texture.TextureFilteringData;
 import net.coderbot.iris.shaderpack.texture.TextureStage;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
-import net.irisshaders.iris.api.v0.IrisApi;
-import org.apache.commons.lang3.SystemUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
@@ -60,7 +53,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ShaderPack {
 	private static final Gson GSON = new Gson();
@@ -114,6 +106,7 @@ public class ShaderPack {
 	 *             this path in any form; once the constructor exits, all disk I/O needed to load this shader pack will
 	 *             have completed, and there is no need to hold on to the path for that reason.
 	 * @throws IOException if there are any IO errors during shader pack loading.
+	 * @throws MissingFeaturesException if {@code iris.features.required} names an unsupported feature (Demonica).
 	 */
 	public ShaderPack(Path root, Map<String, String> changedConfigs, Iterable<StringPair> environmentDefines) throws IOException, IllegalStateException {
 		// A null path is not allowed.
@@ -260,33 +253,7 @@ public class ShaderPack {
 			throw new IllegalStateException("Custom images are being used, but the feature flag for custom images hasn't been set! Please set either a requirement or check for custom images' feature flag using \"iris.features.required/optional = CUSTOM_IMAGES\".");
 		}
 
-		List<FeatureFlags> invalidFlagList = shaderProperties.getRequiredFeatureFlags().stream().filter(FeatureFlags::isInvalid).map(FeatureFlags::getValue).collect(Collectors.toList());
-		List<String> invalidFeatureFlags = invalidFlagList.stream().map(FeatureFlags::getHumanReadableName).collect(Collectors.toList());
-
-		if (!invalidFeatureFlags.isEmpty()) {
-			// Demonica: upstream's screen, on the 1.12.2 GuiScreen. The pack loads while ShaderPackScreen's button
-			// handler runs (the main thread), but keep the thread check since displayGuiScreen is main-thread only.
-			// ShaderPackScreen.onClose skips its own displayGuiScreen(parent) when this screen has replaced it.
-			final Minecraft mc = Minecraft.getMinecraft();
-			final GuiScreen current = mc.currentScreen;
-			if (current instanceof ShaderPackScreen) {
-				// Demonica: our lang string is "List: %s", so the list is joined without upstream's ": " prefix.
-				String message = I18n.format("iris.unsupported.pack.description", FeatureFlags.getInvalidStatus(invalidFlagList),
-						String.join(", ", invalidFeatureFlags) + ".");
-				if (SystemUtils.IS_OS_MAC) {
-					// Demonica: upstream's key starts with "\n", but a .lang file without #PARSE_ESCAPES keeps
-					// "\n" literally, so the line break is added here (listFormattedStringToWidth breaks on it).
-					message = message + "\n" + I18n.format("iris.unsupported.pack.macos");
-				}
-				final FeatureMissingErrorScreen screen = new FeatureMissingErrorScreen(current, I18n.format("iris.unsupported.pack"), message);
-				if (mc.isCallingFromMinecraftThread()) {
-					mc.displayGuiScreen(screen);
-				} else {
-					mc.addScheduledTask(() -> mc.displayGuiScreen(screen));
-				}
-			}
-			IrisApi.getInstance().getConfig().setShadersEnabledAndApply(false);
-		}
+		checkRequiredFeatures(shaderProperties.getRequiredFeatureFlags());
 
 		ProfileSet profiles = ProfileSet.fromTree(shaderProperties.getProfiles(), this.shaderPackOptions.getOptionSet());
 		this.profile = profiles.scan(this.shaderPackOptions.getOptionSet(), this.shaderPackOptions.getOptionValues());
@@ -614,6 +581,27 @@ public class ShaderPack {
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(mcMetaPath), StandardCharsets.UTF_8))) {
 			JsonReader jsonReader = new JsonReader(reader);
 			return GSON.getAdapter(JsonObject.class).read(jsonReader);
+		}
+	}
+
+	/**
+	 * Demonica: upstream shows FeatureMissingErrorScreen and calls setShadersEnabledAndApply(false) here, inside the
+	 * constructor; that runs Iris.reload() under the load that is building this pack (a zip pack's file system is
+	 * closed under it). The constructor throws instead, and Iris.loadExternalShaderpack shows the screen and disables
+	 * shaders once the load has ended (docs/IRIS_PORTING_PLAN.md, section 11 item 7). Package-private for its test.
+	 *
+	 * @throws MissingFeaturesException when a required flag is unknown or unusable here
+	 */
+	static void checkRequiredFeatures(Iterable<String> requiredFeatureFlags) {
+		List<FeatureFlags> invalidFlagList = new ArrayList<>();
+		for (String flag : requiredFeatureFlags) {
+			if (FeatureFlags.isInvalid(flag)) {
+				invalidFlagList.add(FeatureFlags.getValue(flag));
+			}
+		}
+
+		if (!invalidFlagList.isEmpty()) {
+			throw new MissingFeaturesException(invalidFlagList);
 		}
 	}
 
