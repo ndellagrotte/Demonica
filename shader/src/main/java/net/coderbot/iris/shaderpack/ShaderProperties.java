@@ -745,8 +745,9 @@ public class ShaderProperties {
 		try {
 			final int index = Integer.parseInt(indexStr);
 
-			if (index > 8) {
-				Iris.logger.error("SSBO index " + index + " exceeds maximum of 8, buffers 9+ are reserved");
+			// Upstream Iris 1.11.4 ShaderProperties: indices above 12 are reserved (Demonica stopped at 8 before).
+			if (index > 12) {
+				Iris.logger.error("SSBO's cannot use buffer numbers higher than 12, they're reserved! (bufferObject." + index + ")");
 				return;
 			}
 
