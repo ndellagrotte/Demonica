@@ -38,3 +38,7 @@ addon.late.local.gradle.kts
 local/
 
 .reference/
+/docs/ctm_chat.md
+# Claude Code transcripts saved into the checkout
+/2026-*.txt
+/diagnostics/logs/

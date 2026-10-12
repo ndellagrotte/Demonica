@@ -19,9 +19,10 @@ public class IrisApiV0Impl implements IrisApi {
 
 	@Override
 	public int getMinorApiRevision() {
-		// Demonica: 2 adds registerShadowRenderCallback (upstream returns 4: Demonica lacks upstream's
-		// createTextVertexSink, getSunPathRotation and the pipeline assignments of revisions 1-3)
-		return 2;
+		// Demonica: upstream's number (Iris 1.11.4), so mods gating registerShadowRenderCallback on >= 4 find it.
+		// Upstream's createTextVertexSink, getSunPathRotation and pipeline assignment (revisions 1-3) are absent;
+		// see the javadoc of IrisApi.getMinorApiRevision.
+		return 4;
 	}
 
 	@Override

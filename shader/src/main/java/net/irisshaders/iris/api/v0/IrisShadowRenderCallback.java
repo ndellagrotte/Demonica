@@ -32,7 +32,7 @@ import org.joml.Matrix4f;
  *   needs.</li>
  * </ul>
  *
- * @since Demonica API v0.2 (upstream Iris: API v0.4)
+ * @since API v0.4
  */
 
 @FunctionalInterface

@@ -45,6 +45,22 @@ class ShaderPropertiesTest {
     }
 
     @Test
+    void bufferObjectIndicesUpTo12AreAccepted() throws IOException {
+        // Upstream Iris 1.11.4 reserves SSBO indices above 12; Demonica used to stop at 8.
+        ShaderProperties properties = parse("""
+            bufferObject.0 = 1024
+            bufferObject.8 = 2048
+            bufferObject.12 = 16
+            bufferObject.13 = 16
+            """);
+
+        assertEquals(1024, properties.getBufferObjects().get(0).size());
+        assertEquals(2048, properties.getBufferObjects().get(8).size());
+        assertEquals(16, properties.getBufferObjects().get(12).size());
+        assertFalse(properties.getBufferObjects().containsKey(13));
+    }
+
+    @Test
     void preprocessorSelectsTheActivePropertyBranch() throws IOException {
         ShaderProperties properties = parse("""
             #ifdef ACTINIUM_TEST

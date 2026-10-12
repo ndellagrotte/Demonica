@@ -3,8 +3,8 @@
 How to take a change from upstream Iris's GLSL transform code into Demonica, and how to check it. Written in Step 12
 of [the adoption plan](ADOPTION_PLAN.md) (2026-09-29), after the demonstrated port of Iris 26.1's
 `CompatibilityTransformer` code; the [Step 12 report](reports/S12-payoff.md) has its numbers. Iris 26.1 is the local
-copy at `/home/nick/IdeaProjects/schmaloogium-clean/reference-src/Iris-26.1/common/src/main/java/net/irisshaders/iris/pipeline/transform/`
-(mod 1.11.2, Minecraft 26.1.2); both code bases use glsl-transformer 3.0.0-pre3.
+copy at `.reference/Iris-26.1/common/src/main/java/net/irisshaders/iris/pipeline/transform/` (gitignored; Iris
+**1.11.4+mc26.1.2**, Minecraft 26.1.2); both code bases use glsl-transformer 3.0.0-pre3.
 
 ## Where things are
 
