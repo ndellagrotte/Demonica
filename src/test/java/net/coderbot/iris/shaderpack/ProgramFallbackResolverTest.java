@@ -7,6 +7,7 @@ import net.coderbot.iris.shaderpack.include.AbsolutePackPath;
 import net.coderbot.iris.shaderpack.include.IncludeGraph;
 import net.coderbot.iris.shaderpack.include.IncludeProcessor;
 import net.coderbot.iris.shaderpack.include.ShaderPackSourceNames;
+import net.coderbot.iris.shaderpack.loading.ProgramGroup;
 import net.coderbot.iris.shaderpack.loading.ProgramId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -114,6 +115,18 @@ class ProgramFallbackResolverTest {
             assertTrue(blend.isPresent(), id.name());
             assertSame(BlendModeOverride.OFF, blend.get(), id.name());
         }
+    }
+
+    @Test
+    void shadowIdsDefaultToBlendingOff() {
+        // Upstream Iris 1.11.4 ProgramId: every shadow id carries BlendModeOverride.OFF. CeleritasTerrainPipeline reads
+        // this default for the shadow terrain passes (docs/IRIS_PORTING_PLAN.md section 11 item 9).
+        for (ProgramId id : ProgramId.values()) {
+            if (id.getGroup() == ProgramGroup.Shadow) {
+                assertSame(BlendModeOverride.OFF, id.getBlendModeOverride(), id.name());
+            }
+        }
+        assertEquals(7, java.util.Arrays.stream(ProgramId.values()).filter(id -> id.getGroup() == ProgramGroup.Shadow).count());
     }
 
     private static Map<ProgramId, String> expectedFixtureResolutions() {

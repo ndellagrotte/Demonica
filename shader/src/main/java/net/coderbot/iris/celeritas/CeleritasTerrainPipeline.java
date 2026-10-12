@@ -117,8 +117,9 @@ public class CeleritasTerrainPipeline {
 
             // Set up framebuffer, blend mode, and buffer blend overrides
             // Demonica: the shadow passes keep taking their blend from the id's default and not from the source's
-            // directives (upstream SodiumPrograms uses the directive). ShadowSolid and ShadowCutout have no default
-            // here, as Shadow had, so the split leaves shadow terrain blending unchanged.
+            // directives (upstream SodiumPrograms uses the directive). Since the ProgramId shadow defaults are OFF
+            // (docs/IRIS_PORTING_PLAN.md section 11 item 9), that is upstream's result for a pack without a
+            // blend.shadow* directive; a pack's blend.shadow* directive still does not reach these passes.
             final ProgramId programId = pass.getProgramId();
 
             if (pass.isShadow()) {

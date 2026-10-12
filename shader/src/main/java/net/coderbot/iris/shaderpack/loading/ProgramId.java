@@ -11,9 +11,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 public enum ProgramId {
-	Shadow(ProgramGroup.Shadow, ""),
-	ShadowSolid(ProgramGroup.Shadow, "solid", Shadow),
-	ShadowCutout(ProgramGroup.Shadow, "cutout", Shadow),
+	// Blending off by default for every shadow program, as upstream (Iris 1.11.4 ProgramId). The Celeritas shadow
+	// terrain passes (CeleritasTerrainPipeline) read this default; the program table takes the shadow directive,
+	// which ProgramSet also fills with OFF. docs/IRIS_PORTING_PLAN.md section 11 item 9.
+	Shadow(ProgramGroup.Shadow, "", BlendModeOverride.OFF),
+	ShadowSolid(ProgramGroup.Shadow, "solid", Shadow, BlendModeOverride.OFF),
+	ShadowCutout(ProgramGroup.Shadow, "cutout", Shadow, BlendModeOverride.OFF),
 	ShadowWater(ProgramGroup.Shadow, "water", Shadow, BlendModeOverride.OFF),
 	ShadowEntities(ProgramGroup.Shadow, "entities", Shadow, BlendModeOverride.OFF),
 	// Demonica: alpha test off by default, as upstream's ShaderKey.SHADOW_LIGHTNING (AlphaTests.OFF); see Lightning
@@ -77,6 +80,14 @@ public enum ProgramId {
 		this.sourceName = name.isEmpty() ? group.getBaseName() : group.getBaseName() + "_" + name;
 		this.fallback = null;
 		this.defaultBlendOverride = null;
+		this.defaultAlphaTestOverride = null;
+	}
+
+	ProgramId(ProgramGroup group, String name, BlendModeOverride defaultBlendOverride) {
+		this.group = group;
+		this.sourceName = name.isEmpty() ? group.getBaseName() : group.getBaseName() + "_" + name;
+		this.fallback = null;
+		this.defaultBlendOverride = defaultBlendOverride;
 		this.defaultAlphaTestOverride = null;
 	}
 
