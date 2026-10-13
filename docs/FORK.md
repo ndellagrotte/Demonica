@@ -12,7 +12,8 @@ From the fork point on:
   first. Actinium is no longer synced.
 - **Demonica becomes the mod.** It takes over Actinium's role as a shader mod
   for 1.12.2 on Cleanroom. Instead of vendoring a renderer, it runs on the
-  separately installed upstream Celeritas mod (mod id `celeritas`), pinned in
+  upstream Celeritas mod (mod id `celeritas`), which its jar bundles unmodified
+  and which overrides an installed copy, pinned in
   [`celeritas/PIN.md`](celeritas/PIN.md).
 - **Packages may be renamed.** Actinium's own `com.dhj.actinium` code becomes
   `com.demonica`. Upstream-derived packages keep their names: `net.coderbot`,
@@ -35,7 +36,7 @@ From the fork point on:
 | Mod id | `actinium` | `demonica` |
 | Root package | `com.dhj.actinium` | `com.demonica` |
 | Options file | `config/actinium-options.json` | `config/demonica-options.json`, migrated once from `actinium-options.json` |
-| Terrain renderer | vendored Celeritas fork (`dhj.embeddedt.*`) | upstream Celeritas, installed separately |
+| Terrain renderer | vendored Celeritas fork (`dhj.embeddedt.*`) | upstream Celeritas, bundled unmodified in the mod jar |
 
 Demonica refuses to start alongside Actinium and says why. Both mods patch the
 same classes, and Actinium carries a second renderer.

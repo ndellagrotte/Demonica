@@ -74,6 +74,42 @@ class QuarantineGuardTest {
     }
 
     @Test
+    void aJarLoadedInsteadOfTheBundledCopyIsNamedForRemoval() {
+        String bundled = "0-demonica-bundled-celeritas-9b661b70-20260926T020851.jar";
+        QuarantineGuard.Verdict verdict = QuarantineGuard.decide(PIN, null, "celeritas-newer.jar", FOREIGN, false, bundled, true);
+        assertFalse(verdict.accepted());
+        assertTrue(verdict.shaderReason().contains("celeritas-newer.jar was loaded instead of the Celeritas bundled with Demonica"),
+            verdict.shaderReason());
+        assertFalse(verdict.shaderReason().contains("Install"), "nothing is to be installed: " + verdict.shaderReason());
+    }
+
+    /** With the bundled copy skipped or not extracted, the jar that loaded may be the only Celeritas the player has. */
+    @Test
+    void withoutTheBundledCopyTheLoadedJarIsNotNamedForRemoval() {
+        String bundled = "0-demonica-bundled-celeritas-9b661b70-20260926T020851.jar";
+        QuarantineGuard.Verdict verdict = QuarantineGuard.decide(PIN, null, "celeritas-newer.jar", FOREIGN, false, bundled, false);
+        assertFalse(verdict.accepted());
+        assertFalse(verdict.shaderReason().contains("remove it"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("mods/1.12.2/" + bundled + ") was not extracted"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("-Dfml.skipContainedDeps"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("9b661b70"), verdict.shaderReason());
+
+        QuarantineGuard.Verdict damaged = QuarantineGuard.decide(PIN, null, bundled, FOREIGN, false, bundled, false);
+        assertTrue(damaged.shaderReason().contains("damaged"), "a damaged bundled copy is still named: " + damaged.shaderReason());
+    }
+
+    @Test
+    void aDamagedBundledCopyIsToBeExtractedAgain() {
+        String bundled = "0-demonica-bundled-celeritas-9b661b70-20260926T020851.jar";
+        QuarantineGuard.Verdict verdict = QuarantineGuard.decide(PIN, null, bundled, FOREIGN, false, bundled, true);
+        assertFalse(verdict.accepted());
+        assertTrue(verdict.shaderReason().contains("damaged"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("mods/1.12.2/" + bundled), verdict.shaderReason());
+
+        assertTrue(QuarantineGuard.decide(PIN, null, bundled, PINNED, false, bundled, true).accepted(), "the pinned bundled copy is accepted");
+    }
+
+    @Test
     void withoutThePinNothingButTheFogPatchApplies() {
         QuarantineGuard.Verdict verdict = QuarantineGuard.decide(null, QuarantineGuard.RESOURCE + " is missing from the Demonica jar",
             "celeritas.jar", PINNED, true);

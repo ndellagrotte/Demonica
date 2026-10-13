@@ -1,6 +1,7 @@
 package com.demonica.celeritas.guard;
 
 import com.demonica.loading.Environment;
+import com.demonica.loading.bundle.BundledCeleritasHook;
 import net.minecraft.launchwrapper.Launch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -161,7 +162,8 @@ public final class QuarantineGuard {
                 }
             }
             return decide(pin, pinProblem, jar != null ? jar.getName() : null, sha256,
-                isDevelopment() && !Boolean.getBoolean(PINS_ONLY_PROPERTY));
+                isDevelopment() && !Boolean.getBoolean(PINS_ONLY_PROPERTY), BundledCeleritasHook.bundledJarName(),
+                bundledInUse());
         } catch (RuntimeException | LinkageError e) {
             LOGGER.error("The Celeritas version gate failed; shaders are off, and only the fog patch (S15) applies", e);
             return new Verdict(false, "Shaders are off: Demonica could not check the installed Celeritas (" + e + ").");
@@ -174,6 +176,19 @@ public final class QuarantineGuard {
      */
     static Verdict decide(@Nullable Pin pin, @Nullable String pinProblem, @Nullable String jarName, @Nullable String jarSha256,
                           boolean development) {
+        return decide(pin, pinProblem, jarName, jarSha256, development, null, false);
+    }
+
+    /**
+     * {@link #decide(Pin, String, String, String, boolean)} for a Demonica that carries Celeritas: {@code bundledName} is
+     * the name of the nested jar ({@link BundledCeleritasHook#bundledJarName()}), null for a build without one. It only
+     * changes the advice on a rejection: the player installs nothing, but removes a jar that was loaded instead of the
+     * bundled copy, or has a damaged bundled copy extracted again. {@code bundledInUse}: whether the bundled copy is the
+     * Celeritas this launch was meant to load; when it was skipped or not extracted, the jar that loaded may be the
+     * player's only Celeritas, and the player is never told to remove it.
+     */
+    static Verdict decide(@Nullable Pin pin, @Nullable String pinProblem, @Nullable String jarName, @Nullable String jarSha256,
+                          boolean development, @Nullable String bundledName, boolean bundledInUse) {
         String jar = jarName != null ? jarName : "Celeritas (not loaded from a jar)";
         if (pin == null) {
             String problem = pinProblem != null ? pinProblem : RESOURCE + " is missing";
@@ -184,6 +199,7 @@ public final class QuarantineGuard {
         String sha = jarSha256 != null ? jarSha256.toLowerCase(Locale.ROOT) : null;
         if (sha != null && pin.accepted().contains(sha)) {
             LOGGER.info("{} is the Celeritas build this Demonica was made for (upstream {}, SHA-256 {})", jar, upstream, abbreviate(sha));
+            logBundleReport();
             return new Verdict(true, null);
         }
         if (sha != null && development && sha.equals(pin.devSha256())) {
@@ -191,7 +207,21 @@ public final class QuarantineGuard {
                 abbreviate(sha), upstream);
             return new Verdict(true, null);
         }
-        String install = " Install the Celeritas build of upstream commit " + upstream + ".";
+        String install;
+        if (bundledName == null) {
+            install = " Install the Celeritas build of upstream commit " + upstream + ".";
+        } else if (bundledName.equals(jarName)) {
+            install = " The Celeritas bundled with Demonica is damaged; delete mods/1.12.2/" + bundledName
+                + " so it is extracted again.";
+        } else if (jarName != null && bundledInUse) {
+            install = " " + jarName + " was loaded instead of the Celeritas bundled with Demonica; remove it from the mods folder.";
+        } else if (jarName != null) {
+            install = " The Celeritas bundled with Demonica (mods/1.12.2/" + bundledName + ") was not extracted; check that "
+                + "-Dfml.skipContainedDeps does not name it, or install the Celeritas build of upstream commit " + upstream + ".";
+        } else {
+            install = " Delete mods/1.12.2/" + bundledName + ", if it is there, so the Celeritas bundled with Demonica is "
+                + "extracted again.";
+        }
         if (jarName == null) {
             LOGGER.error("Cannot find the Celeritas jar to compare with the build this Demonica was made for (upstream commit {}, "
                 + "SHA-256 {}). Shaders are off, and only the fog patch (S15) applies.", pin.upstreamCommit(), String.join(" or ", pin.accepted()));
@@ -206,6 +236,30 @@ public final class QuarantineGuard {
             + "found SHA-256 {}. Shaders are off, and only the fog patch (S15) applies.", jar, pin.upstreamCommit(),
             String.join(" or ", pin.accepted()), sha);
         return new Verdict(false, "Shaders are off: " + jar + " is not the Celeritas build this Demonica was made for." + install);
+    }
+
+    /**
+     * Whether the bundled copy is the Celeritas this launch was meant to load: what the hook decided, or, when it did
+     * not run, true, since the fallback in {@code MixinEarly} then uses the bundled copy whenever it was extracted.
+     */
+    private static boolean bundledInUse() {
+        BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
+        return decision == null || decision.useBundled();
+    }
+
+    /**
+     * Says once, next to the accepted jar, which installed Celeritas the bundled copy made way for: the hook logged it
+     * long before, among the loader's own lines, where it is easy to miss.
+     */
+    private static void logBundleReport() {
+        try {
+            BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
+            if (decision != null && !decision.droppedExternal().isEmpty()) {
+                LOGGER.info(decision.report());
+            }
+        } catch (RuntimeException | LinkageError e) {
+            // Only a log line is lost.
+        }
     }
 
     static String sha256(File file) throws IOException {
