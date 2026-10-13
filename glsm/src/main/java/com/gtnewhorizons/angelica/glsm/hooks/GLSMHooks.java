@@ -24,6 +24,11 @@ public final class GLSMHooks {
     public static ShaderWorkSubmitter shaderWorkSubmitter;
     public static PerFrameUniformBlock perFrameUniformBlock;
     public static PerFrameUniformBlock perPassUniformBlock;
+    /**
+     * Computes mc_midTexCoord and at_tangent for vanilla quad geometry (entity models and items); null until the root
+     * project installs it, and display lists compiled before that carry no side attributes.
+     */
+    public static QuadSideAttributeWriter quadSideAttributes;
 
     /** Escape hatch: -Ddemonica.glsmHooksAlwaysActive=true forces the consumer gate on. */
     private static final boolean ALWAYS_ACTIVE = Boolean.getBoolean("demonica.glsmHooksAlwaysActive");
