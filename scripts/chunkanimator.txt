@@ -1,0 +1,23 @@
+# Chunk Animator under Demonica (C2). Run with -PwithCompatMods. A fresh world; once terrain has settled, teleport
+# 96 blocks so new sections enter the render distance and animate (Chunk Animator's default: rise from below, 1 s).
+wait 20
+world chunkanimator 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 6000
+cmd /weather clear
+cmd /tp @p ~ ~ ~ 0 20
+chunks 1200
+wait 40
+stats
+shot chunkanimator-settled
+log teleport
+glide 0 96 1
+wait 8
+shot chunkanimator-anim-a
+wait 6
+shot chunkanimator-anim-b
+wait 80
+shot chunkanimator-after
+stats
+exit

@@ -23,7 +23,7 @@ propose them upstream is the maintainer's decision.
   patch whose anchor moved does nothing instead of crashing the game.
   `QuarantinePlugin` logs one line per applied mixin and names every injector
   that found no target: `Applied <mixin> to <class>: n of n injectors found
-  their targets`. A dev run that loads a world lists all 19 lines (a mixin is
+  their targets`. A dev run that loads a world lists all 21 lines (a mixin is
   applied when its target class loads); anything short
   of `n of n` is a moved anchor, and in a dev run it stops the game (see the
   guard below). MixinExtras applies `@ModifyExpressionValue`,
@@ -55,7 +55,7 @@ the guard (below) turns every group off except BASE.
 | SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shader packs draw terrain into their shadow map. |
 | MESHING | S10, S11, S13 | Shader packs get block IDs from terrain (plants wave, blocks get the pack's materials), and water is drawn in the pack's water pass. |
 | DEGRADE | S4, S17, S19, S20 | One feature each; see the row. |
-| COMPAT | C1 | The mods it serves; see the row. |
+| COMPAT | C1, C2 | The mods it serves; see the rows. |
 
 BASE applies on any Celeritas: each of S15's seven getters stands alone, Mixin
 skips any that no longer match, and every one that still applies keeps fog right.
@@ -129,6 +129,7 @@ saying so. Production only logs the miss.
 | [S19](patches/S19.md) | `internal.ChunkTrackerMixin` | `ChunkTracker.requiredNeighborRadius` | `@Shadow` read behind `ChunkTrackerAccess` | DEGRADE: Distant Horizons' neighbour-radius uniform falls back to its default | not proposed |
 | [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderBlock` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
 | [C1](patches/C1.md) | `seam.ChunkBuilderMeshingTaskCompatMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): the whole method, its `canRenderInLayer` call, its `convertVanillaDataToCeleritasData` call | Only while the mod is installed: the Component Model Hider's build flag around the build (`@WrapMethod`) and no geometry for its hidden positions; LittleTiles' cached tile geometry appended to the vanilla-format buffers before they are converted | COMPAT: hidden multiblock parts are drawn, or LittleTiles blocks that are not full blocks are invisible | not proposed |
+| [C2](patches/C2.md) | `internal.DefaultChunkRendererCompatMixin`, `internal.RenderSectionManagerCompatMixin` | the `BatchAssembler.createCachedBatch` call in `DefaultChunkRenderer.render`; `RenderSectionManager.onSectionAdded` (TAIL) | Only while Chunk Animator is installed (`ChunkAnimatorCompat` sets a `ChunkAnimationProvider`): a region whose sections are animating gets its cached batch built from the static sections, and the animating ones are drawn one by one with the animation offset added to the region offset (`@WrapOperation`); a new section is reported to the provider, the counterpart of vanilla's `RenderChunk.setOrigin` | COMPAT: Chunk Animator's chunk animations never play | not proposed |
 | [I1](patches/I1.md) | `seam.VintageRenderSectionManagerShadowMixin` | `VintageRenderSectionManager.getAsyncOcclusionMode` | RETURN: "Everything" becomes "Only Shadows" when the manager gets a shadow pass | SHADOW | a question for upstream |
 | [I2](patches/I2.md) | `internal.SimpleWorldRendererMixin` | `SimpleWorldRenderer.setupTerrain`, `setupShadowTerrain` | `@ModifyVariable(HEAD)` of `frame` to `DemonicaFrameClock.next()` | SHADOW | not proposed |
 
@@ -284,7 +285,7 @@ Actinium classes that changed shape on the way to upstream Celeritas.
 | Distant Horizons (`CleanroomMain.initializeModCompat` binds its Iris accessor only for mod id `actinium`) | `mixins.demonica.distanthorizons.json` (`MixinCleanroomMain`, optional) and an issue draft (docs/compat/distant-horizons.md) | A `@ModifyConstant` asks for `demonica` instead; `require = 0`, so a DH release without that constant still loads. |
 | iChunUtil's world portals (`MixinPortalFrustum`, `MixinWorldPortalRenderer`, `MixinRenderGlobalProxy`, `PortalRenderState`, `PortalViewportFactory`) | ported (`mixins.demonica.ichunutil.json`), plus `AccessorActiveRenderInfo` in the core config | iChunUtil's portal frustum implements `ICamera` directly, so upstream's `setupTerrain` overwrite would fail to cast it to a `ViewportProvider`; the frustum now is one (its viewport through `CeleritasJoml`). The camera state is put back after each portal render, and the portal's own `RenderGlobal` reloads its Celeritas renderer. |
 | Actinium's portal-camera `@WrapMethod` on `setupTerrain` and `PortalChunkRenderMatrices` | not ported | The wrapper ran vanilla's `setupTerrain` for portal cameras, and that body no longer exists under upstream's overwrite: vanilla's `renderInfos` stays empty for iChunUtil's portal `RenderGlobal`, whose entity loop reads it, so portal views draw terrain but not the entities and tile entities of that loop. The portal matrices are not needed: upstream takes terrain matrices from `ActiveRenderInfo`'s buffers, which the portal render sets and `MixinWorldPortalRenderer` restores. |
-| `ChunkAnimatorCompat` | not ported (Chunk Animator has no effect) | It fed the fork's chunk animation API, which upstream does not have. Chunk Animator's own hooks are on vanilla's `RenderChunk`, which Celeritas does not use, so its animations do not run; nothing breaks. Upstream's chunk fade-in is the alternative. |
+| `ChunkAnimatorCompat`, the fork's `ChunkAnimationProvider` API (Actinium PR #44) | ported in 0.8.0 as C2: the API in `com.demonica.celeritas.api.animation`, the compat class as it was, the renderer hooks as two quarantine mixins | It fed the fork's chunk animation API, which upstream does not have. Chunk Animator's own hooks are on vanilla's `RenderChunk`, which Celeritas does not use, so until C2 its animations did not run (nothing broke). Upstream's renderer caches each region's multi-draw batch, so C2 cannot filter the batch per frame as the fork did; it has upstream build the batch from the static sections while any section animates (docs/compat/chunkanimator.md). |
 | `DepthsUpdateCompat` | not ported | Depths Update ships its own mixins on upstream Celeritas's classes. |
 | `FluxLoadingCompat`, `FluxLoadingNotifyForwarder` | not ported | FluxLoading applies its own mixin on upstream's `RenderSectionManager.updateChunks` whenever the `celeritas` mod is loaded (seen in the Checkpoint 9 run). Actinium had to forward the signal only because its fork had another mod id. |
 | The fork's Fluidlogged API classes (`FluidloggedCompat`, `FluidloggedBlockAccess`, `FluidStateStorage`) | not ported | Upstream has its own. Fluids it draws still mesh without a block context (see `VintageChunkBuildContext.beginVanillaFluidRender` above). |

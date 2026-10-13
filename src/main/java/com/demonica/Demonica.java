@@ -3,6 +3,7 @@ package com.demonica;
 import com.demonica.celeritas.guard.InjectionAuditDevCheck;
 import com.demonica.celeritas.guard.QuarantineGuard;
 import com.demonica.celeritas.terrain.CeleritasWorldRendererCompat;
+import com.demonica.compat.chunkanimator.ChunkAnimatorCompat;
 import com.demonica.compat.kirino.KirinoCompat;
 import com.demonica.config.DemonicaOptions;
 import com.demonica.config.DemonicaRuntimeOptions;
@@ -97,6 +98,10 @@ public class Demonica {
             InjectionAuditDevCheck.register();
         }
         KirinoCompat.install();
+        if (Mods.CHUNKANIMATOR) {
+            // Chunk Animator built its animation handler in pre-init; the provider feeds patch C2.
+            ChunkAnimatorCompat.install();
+        }
         if (Iris.enabled) {
             IrisGLSMBridge.register();
             Iris.INSTANCE.fmlInitEvent();
