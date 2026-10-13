@@ -5,6 +5,7 @@ import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredAlphaHandler;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredBlendHandler;
 import com.gtnewhorizons.angelica.glsm.hooks.DeferredDepthColorHandler;
+import com.demonica.render.vertex.QuadSideAttributes;
 import com.gtnewhorizons.angelica.glsm.hooks.GLSMHooks;
 import com.gtnewhorizons.angelica.glsm.hooks.VanillaBooleanLayer;
 import com.gtnewhorizons.angelica.glsm.hooks.VanillaStateLayer;
@@ -104,6 +105,10 @@ public final class IrisGLSMBridge {
         IrisGlDebug.logDebugInfo("glsm-bridge register defaultTexUnit={} lightmapTexUnit={}", OpenGlHelper.defaultTexUnit, OpenGlHelper.lightmapTexUnit);
 
         IrisSamplers.initRenderer();
+
+        // Per-quad mc_midTexCoord and at_tangent for entity models and items (the display-list compiler reads the hook;
+        // VanillaBufferBuilderRenderer calls the writer directly).
+        GLSMHooks.quadSideAttributes = QuadSideAttributes.INSTANCE;
 
         GLSMHooks.blendHandler = new DeferredBlendHandler() {
             @Override

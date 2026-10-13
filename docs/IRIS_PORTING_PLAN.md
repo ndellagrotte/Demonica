@@ -822,6 +822,16 @@ and `*CoreTransformer`s, the colour-space pathway, octahedral normals and `IrisV
 render-state overhaul, the `mc_chunkFade` runtime (the const fallback in 0.1 is the whole port), the
 `iris_overlay` path, wholesale mixins, `UpdateChecker` and modern GUI widgets.
 
+One piece of `IrisVertexFormats` came back after 0.7.2: Insanity (BSL with `ADVANCED_MATERIALS` on by default)
+reads `at_tangent` and `mc_midTexCoord` per vertex in `gbuffers_entities`, and the constants of
+`GbufferPrograms.setBlockEntityDefaults` broke its parallax on every entity face and its tangent frame on the faces
+parallel to the constant tangent. `com.demonica.render.vertex.QuadSideAttributes` (installed as
+`GLSMHooks.quadSideAttributes`) now computes both per quad, as the terrain encoder does, for every `GL_QUADS` draw
+with a position, a texture coordinate and a normal: the streaming path keeps a second vertex array per format with a
+side buffer (`VanillaBufferBuilderRenderer`), display lists get a side buffer per format group when they compile
+(`DisplayListVBOBuilder`). The encoding is Iris's entity format (two floats, four normalized bytes); the rest of the
+list above stays unplanned.
+
 Removed by verification: the custom-texture flip snapshot and image clearing (present), the Intel HD 4000
 workaround (present), the texture-function renames and `shadow2D` wrapping (AST already), `dhMaterialId`
 (present), `patchIntegerAttribute` (not applicable, §1 row 16), a `separateEntityDraws` runtime (no pack
