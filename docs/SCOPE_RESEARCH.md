@@ -1088,6 +1088,7 @@ will find more.
 | `mixins.demonica.lumenized.json` (`MixinDepthTextureUtil`) | GregTech CEu / Lumenized | 1 | Shader integration |
 | `mixins.demonica.kirino.json`, `KirinoCompat` | Kirino Engine (Cleanroom) | 1 | Platform |
 | `seam.ChunkBuilderMeshingTaskCompatMixin` (C1), `LittleTilesCompat`, `ComponentModelHiderCompat`/`Bridge` | LittleTiles, Component Model Hider | 1 | Celeritas mesher |
+| `internal.DefaultChunkRendererCompatMixin`, `internal.RenderSectionManagerCompatMixin` (C2), `ChunkAnimatorCompat`, `AnimatedSectionRenderer` | Chunk Animator | 2 | Celeritas renderer |
 | `mixins.demonica.littletiles.json` | LittleTiles | 1 | Celeritas mesher |
 | `mixins.demonica.extrautils2.json` (`MixinXUBlockStaticLazyQuads`) | Extra Utilities 2 | 1 | Celeritas mesher (threads) |
 | `mixins.demonica.ichunutil.json`, `PortalRenderState`, `PortalViewportFactory`, `PortalViewportProvider`, `WorldBoxVisibility` | iChunUtil | 3 | Celeritas viewport contract |

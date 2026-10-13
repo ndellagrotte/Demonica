@@ -281,6 +281,11 @@ repositories {
     mavenCentral()
     maven { url = 'https://maven.cleanroommc.com' }
     maven { url = 'https://cursemaven.com' }
+    maven {
+        // The MCP stable_39 CSVs that prepareChunkAnimatorMcpMappings unpacks for Chunk Animator's dev-run coremod.
+        url = 'https://maven.minecraftforge.net'
+        content { includeGroup('de.oceanlabs.mcp') }
+    }
     maven { url = 'https://api.modrinth.com/maven' }
     maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
 }
@@ -440,9 +445,28 @@ unimined.minecraft {
     }
 }
 
+// Chunk Animator's coremod reads SRG-to-MCP names in a deobfuscated workspace (its MCPNames, IN_MCP) from
+// ./../mcp/methods.csv and ./../mcp/fields.csv relative to the client's working directory, run/client, and its class
+// transformer crashes at class init when they are missing. They are the MCP stable_39 CSVs Unimined already maps
+// with (mcp 'stable', '39-1.12'); -PwithCompatMods unpacks them into run/mcp before the client runs. run/ is ignored.
+def chunkAnimatorMcpMappings = configurations.detachedConfiguration(
+    dependencies.create('de.oceanlabs.mcp:mcp_stable:39-1.12@zip')
+)
+def prepareChunkAnimatorMcpMappings = tasks.register('prepareChunkAnimatorMcpMappings', Copy) {
+    group = 'build'
+    description = "Unpacks the MCP stable_39 CSVs that Chunk Animator's coremod reads in a dev run into run/mcp."
+    from({ zipTree(chunkAnimatorMcpMappings.singleFile) }) {
+        include 'methods.csv', 'fields.csv'
+    }
+    into layout.projectDirectory.dir('run/mcp')
+}
+
 tasks.named('preRunClient').configure {
     dependsOn tasks.named('classes')
     dependsOn syncDiagnosticsDev
+    if (project.findProperty('withCompatMods') != null) {
+        dependsOn prepareChunkAnimatorMcpMappings
+    }
 }
 
 tasks.named('assemble').configure {
@@ -507,6 +531,7 @@ dependencies {
     // Mod compat (com.demonica.compat, com.demonica.mixin.mod), compiled against and loaded only when the mod is
     // present: mixin configs through MixinLate and mixins.demonica.conditions.properties, classes behind Mods flags.
     modCompileOnly 'curse.maven:botania-ceu-1179448:8706250'
+    modCompileOnly 'curse.maven:chunk-animator-236484:3850023'  // Chunk Animator 1.12.2-1.2.1 (ChunkAnimatorCompat, C2)
     modCompileOnly 'curse.maven:cofh-core-69162:2920433'
     modCompileOnly 'curse.maven:extra-utilities-2-225561:2678374'
     modCompileOnly 'curse.maven:ichunutil-229060:2801262'
@@ -549,6 +574,7 @@ dependencies {
     // RLFoliage, which needs FermiumBooter.
     if (project.findProperty('withCompatMods') != null) {
         modRuntimeOnly 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons
+        modRuntimeOnly 'curse.maven:chunk-animator-236484:3850023'  // needs run/mcp: prepareChunkAnimatorMcpMappings
         modRuntimeOnly 'curse.maven:ichunutil-229060:2801262'
         modRuntimeOnly 'curse.maven:creativecore-257814:4722163'
         modRuntimeOnly 'curse.maven:littletiles-257818:5180387'

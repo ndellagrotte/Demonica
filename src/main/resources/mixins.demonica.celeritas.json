@@ -10,8 +10,10 @@
   "server": [],
   "client": [
     "internal.ChunkTrackerMixin",
+    "internal.DefaultChunkRendererCompatMixin",
     "internal.DefaultChunkRendererMixin",
     "internal.GlProgramMixin",
+    "internal.RenderSectionManagerCompatMixin",
     "internal.RenderSectionManagerMixin",
     "internal.ShaderChunkRendererMixin",
     "internal.SimpleWorldRendererAccessMixin",
