@@ -10,7 +10,7 @@ while it is drawn. Celeritas draws no `RenderChunk` and never calls
 Actinium PR #44 bridged the mod into its vendored renderer. Demonica forked after
 that PR but dropped the bridge when it moved to upstream Celeritas, which has no
 chunk animation API ([the ledger's port decisions](../celeritas/LEDGER.md#port-decisions)).
-Since 0.8.0 the bridge is back as quarantine patch C2
+Since 0.7.3 the bridge is back as quarantine patch C2
 ([`C2.md`](../celeritas/patches/C2.md)).
 
 ## How it works
