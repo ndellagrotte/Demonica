@@ -1,0 +1,26 @@
+# Issue #22: RenderLib + EntityCulling (meldexun) under Demonica. A cow behind a one-block stone wall (its head shows
+# above it, so EntityCulling keeps it) and one beside the player; with the compat off the far cow's body shows through
+# the wall and the near cow renders inside out, both from the depth test the restore turned off. Run with -PwithCompatMods -PdevProps=demonica.debug.depthFunc=true.
+wait 20
+world renderlib 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /gamerule doMobSpawning false
+cmd /time set 6000
+cmd /weather clear
+cmd /kill @e[type=!player]
+cmd /tp @p ~ ~ ~ 0 12
+wait 5
+cmd /fill ~-6 ~-1 ~-3 ~6 ~8 ~10 minecraft:air
+cmd /fill ~-6 ~-1 ~-3 ~6 ~-1 ~10 minecraft:stone
+cmd /fill ~-5 ~ ~3 ~5 ~ ~3 minecraft:stone
+cmd /summon minecraft:cow ~ ~ ~5 {NoAI:1b}
+cmd /summon minecraft:cow ~2 ~ ~1 {NoAI:1b}
+chunks 600
+wait 60
+stats
+shot renderlib-first
+third 1
+wait 10
+shot renderlib-third
+exit

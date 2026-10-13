@@ -46,6 +46,11 @@ class MixinLateTest {
         );
 
         assertEquals(
+            Set.of("mixins.demonica.renderlib.json"),
+            Set.copyOf(MixinLate.configsFor("renderlib"::equals, className -> false))
+        );
+
+        assertEquals(
             Set.of(
                 "mixins.demonica.ichunutil.json",
                 "mixins.demonica.lumenized.json",
@@ -60,7 +65,8 @@ class MixinLateTest {
                 "mixins.demonica.scannable.json",
                 "mixins.demonica.littletiles.json",
                 "mixins.demonica.obscuretooltips.json",
-                "mixins.demonica.distanthorizons.json"
+                "mixins.demonica.distanthorizons.json",
+                "mixins.demonica.renderlib.json"
             ),
             Set.copyOf(MixinLate.configsFor(modId -> true, className -> true))
         );

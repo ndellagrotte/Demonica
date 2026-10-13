@@ -564,6 +564,12 @@ dependencies {
         modRuntimeOnly 'curse.maven:baubles-227083:2518667'
         modRuntimeOnly 'curse.maven:botania-ceu-1179448:8706250'
         modRuntimeOnly 'curse.maven:obscure-tooltips-715660:8522661'
+        // RenderLib and EntityCulling (meldexun): EntityCulling's GL culling runs RenderLib's GL state save/restore
+        // every entity pass, which the renderlib compat bridges to GLSM (#22). From Modrinth, which names the jars by
+        // project id: in a deobf workspace EntityCulling's coremod drops every reparseable coremod jar whose file name
+        // contains "renderlib", and FML then never finds the renderlib mod that EntityCulling itself requires.
+        modRuntimeOnly 'maven.modrinth:U0xnRzCg:vB2R8SDX'  // RenderLib 1.12.2-1.4.5
+        modRuntimeOnly 'maven.modrinth:MwYnBlwK:o94FuFEx'  // EntityCulling 1.12.2-6.5.0
     }
     // -PwithHudCache=stellarcore|gnetum: the dev client also loads one of the two HUD-caching mods whose caches
     // StellarCoreHudCachingCompatTransformer and GnetumHudCachingCompatTransformer bridge to GLSM. One at a time, and
