@@ -81,9 +81,9 @@ SHA-256 is its only identity.
 **The pin.** The build writes `META-INF/demonica/celeritas-pin` into the mod jar
 (`generateCeleritasPin`): the upstream commit, the version and the accepted
 SHA-256s from `gradle.properties`. In the workspace it also holds `dev_sha256`,
-the hash of the `deobf`'d (MCP-named) copy of the pin that the compile classpath
-and the tests use; the dev client runs the raw pinned jar, which the pins match
-([`PIN.md`](PIN.md#in-demonicas-build)). The `jar` task drops that line, and
+the hash of `remapCeleritasForDev`'s mixin-aware MCP remap of the pinned jar,
+which the dev client runs (`devRuntimeMods`) and the compile and test classpaths
+read ([`PIN.md`](PIN.md#in-demonicas-build)). The `jar` task drops that line, and
 `verifyDistributedJar` fails if the distributed jar has it.
 
 **The gate.** Before Mixin applies anything from the quarantine,

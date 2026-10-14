@@ -81,8 +81,11 @@ Demonica's jar again, as they were up to 0.2.0.
   dev runs see them in MCP names with the rest of the mod, and `reobfJar`
   maps them back to SRG with the rest. (The other mods Demonica compiles
   against are `deobf`'d the same way but run in the dev client as their raw
-  SRG jars, `devRuntimeMods`, which Cleanroom remaps as it loads them;
-  S8TNLib's jar never runs on its own.) It leaves out what makes
+  SRG jars, `devRuntimeMods`, which Cleanroom remaps as it loads them, except
+  Celeritas: the compile and test classpaths and the dev client all get
+  `remapCeleritasForDev`'s mixin-aware MCP remap of the pinned jar
+  ([`celeritas/PIN.md`](celeritas/PIN.md#in-demonicas-build)). S8TNLib's jar
+  never runs on its own.) It leaves out what makes
   S8TNLib a mod of its own: `com/s8tnlib/**` (its `@Mod` and no-op
   coremod), its `mcmod.info`, manifest, `LICENSE` and notices. Demonica's
   coremod needs GTNHLib's classes while coremods load (`GLSMRedirector`,

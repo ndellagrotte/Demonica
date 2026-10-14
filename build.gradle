@@ -84,7 +84,8 @@ configurations {
     // Libraries shipped as nested jars (ContainedDeps) inside the mod jar.
     contain
     implementation.extendsFrom(contain)
-    // Mods compiled against, declared through deobf(...): their MCP-named copies.
+    // Mods compiled against, as MCP-named jars: deobf(...) copies, Celeritas's dev remap (remapCeleritasForDev) and
+    // CodeChickenLib's -dev jar.
     modCompileOnly
     compileOnly.extendsFrom(modCompileOnly)
     // The mod jars the dev client loads through -Dcrl.dev.extrapath: the raw (SRG-named) jars of the optional mods,
@@ -1131,7 +1132,8 @@ tasks.named('jar', Jar).configure {
         }
     }
 
-    // The deobf'd jar's hash is for dev runs only: a distributed jar trusts exactly the pins (QuarantineGuard).
+    // The dev remap's hash (remapCeleritasForDev) is for dev runs only: a distributed jar trusts exactly the pins
+    // (QuarantineGuard).
     filesMatching('META-INF/demonica/celeritas-pin') {
         filter { String line -> line.startsWith('dev_sha256=') ? null : line }
     }

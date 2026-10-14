@@ -18,8 +18,11 @@ the throwaway branch `spike/celeritas-runtime` (commit `eed38ca1`) on
 *Note, 2026-10-14:* the spike ran on the setup above. Since 0.8 the dev
 environment is Cleanroom 0.7.4-alpha (SDL 3, LWJGL 3.4.3, lwjgly) with
 CleanroomGradle 0.22.0's userdev workspace instead of Unimined. The dev client
-now runs the raw, SRG-named pinned jar, which Cleanroom remaps as it loads it,
-and the compile classpath gets a `deobf()` copy ([`PIN.md`](PIN.md#in-demonicas-build)).
+and the compile and test classpaths all use `remapCeleritasForDev`'s mixin-aware
+MCP remap of the pinned jar: Cleanroom renames an SRG jar's classes as it loads
+it, but not the injector targets of Celeritas's refmap-less mixins
+([`PIN.md`](PIN.md#in-demonicas-build)). The other mods are compiled against as
+`deobf()` copies and run as their raw SRG jars.
 The rules of section 3 still hold.
 
 ## 1. Celeritas alone
@@ -108,7 +111,8 @@ at Checkpoint 3.
   mods on the JavaExec classpath by default (the main runtime classpath). Demonica
   filters its own outputs (`sourceSets.main.output`) off it in
   `cleanroom.runs.client.configure {}` and passes them, the diagnostics' classes
-  and the raw `devRuntimeMods` jars through `-Dcrl.dev.extrapath`, which
+  and the `devRuntimeMods` jars (Celeritas's dev remap and the optional mods'
+  raw jars) through `-Dcrl.dev.extrapath`, which
   Cleanroom 0.7.4 still honours. `runClient` depends on `classes` by itself, so
   `preRunClient` is gone. `verifyRunClasspath` (part of `check`) fails if a mod
   output, the diagnostics or an S8TNLib jar is on the class path, if S8TNLib's jar
