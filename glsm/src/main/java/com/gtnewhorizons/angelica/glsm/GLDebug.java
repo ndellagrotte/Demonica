@@ -659,7 +659,7 @@ public final class GLDebug {
      * <p>Reflection is required here because the callback's delivery entry point is not statically
      * reachable: the runtime {@code org.lwjgl.opengl.KHRDebugCallback} shape depends on the LWJGL
      * shim in use (an {@code invoke(int,int,int,int,int,long,long)} SAM on lwjgl3-style runtimes,
-     * while lwjglx ships a final Handler-based class whose handler getter is package-private), so no
+     * while lwjglx and lwjgly ship a final Handler-based class whose handler getter is package-private), so no
      * normal entry point exists across runtimes. Classes without the expected {@code invoke} method
      * get a warning and no delivery.
      */

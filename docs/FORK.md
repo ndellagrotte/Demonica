@@ -52,8 +52,8 @@ Up to S8TNLib's `v0.1.1`, its 60 files were byte-identical to `GTNHLib/` at
 on its own: 0.2.0 fixed the `PointerBuffer` path of `bytebuf`, dropped its
 Java 8 branches, freed a thread's capture buffers once the thread ends, and
 no longer carried the two moved types. 0.3.0 drops `bytebuf` for LWJGL's own
-`org.lwjgl.system` (Cleanroom 0.6.12 ships LWJGL 3.4.1), which Demonica now
-imports directly, and makes the jar a mod, so 47 files remain. From
+`org.lwjgl.system` (Cleanroom 0.6.12 shipped LWJGL 3.4.1; 0.7.4 ships
+3.4.3), which Demonica now imports directly, and makes the jar a mod, so 47 files remain. From
 Demonica 0.3.0 to 0.5.0 players installed S8TNLib as a separate mod, pinned
 by its jar's SHA-256; since 0.6.0 its GTNHLib classes are merged into
 Demonica's jar again, as they were up to 0.2.0.
@@ -70,11 +70,22 @@ Demonica's jar again, as they were up to 0.2.0.
   `verifyDistributedJar` requires both. `-Ps8tnlibDir=<dir>` takes the jar
   from a local directory instead, such as S8TNLib's `build/libs`, with the
   version of the `s8tnlib-<version>.jar` there (`-Ps8tnlibVersion=<version>`
-  chooses one when there are several).
-- **Merging.** The merge takes Unimined's MCP remap of the release jar (it
-  is `modCompileOnly`), so the classes join `:glsm`'s and `:shader`'s in
-  `mergeEmbeddedLibraryClasses`, dev runs see them in MCP names, and
-  `remapJar` maps them to SRG with the rest. It leaves out what makes
+  chooses one when there are several). The release workflow
+  (`.github/workflows/release.yml`, CleanroomMC Conventions' reusable
+  workflow) passes no `GITHUB_TOKEN` to its Gradle step, so there the lookup
+  runs unauthenticated; `build.yml` passes one.
+- **Merging.** The release jar is SRG-named, like any mod. The build declares
+  it `modCompileOnly deobf(...)`: CleanroomGradle's `deobf()` renames it to MCP
+  names for the compile classpath (`s8tnlib-<version>-deobf.jar`), so its
+  classes join `:glsm`'s and `:shader`'s in `mergeEmbeddedLibraryClasses`,
+  dev runs see them in MCP names with the rest of the mod, and `reobfJar`
+  maps them back to SRG with the rest. (The other mods Demonica compiles
+  against are `deobf`'d the same way but run in the dev client as their raw
+  SRG jars, `devRuntimeMods`, which Cleanroom remaps as it loads them, except
+  Celeritas: the compile and test classpaths and the dev client all get
+  `remapCeleritasForDev`'s mixin-aware MCP remap of the pinned jar
+  ([`celeritas/PIN.md`](celeritas/PIN.md#in-demonicas-build)). S8TNLib's jar
+  never runs on its own.) It leaves out what makes
   S8TNLib a mod of its own: `com/s8tnlib/**` (its `@Mod` and no-op
   coremod), its `mcmod.info`, manifest, `LICENSE` and notices. Demonica's
   coremod needs GTNHLib's classes while coremods load (`GLSMRedirector`,

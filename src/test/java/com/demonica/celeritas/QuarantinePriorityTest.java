@@ -83,6 +83,11 @@ class QuarantinePriorityTest {
             }
         }
         assertFalse(upstreamOverwrites.isEmpty(), "found no @Overwrite in upstream's mixins");
+        // The comparison is by name, so both sides must be in MCP names (remapCeleritasForDev's jar): with upstream in
+        // SRG names nothing could ever match, and the test would pass without checking anything.
+        assertTrue(upstreamOverwrites.contains("net/minecraft/client/renderer/RenderGlobal#renderBlockLayer"
+                + "(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I"),
+            "upstream's overwrites are not in MCP names (no RenderGlobal#renderBlockLayer): " + upstreamOverwrites);
         List<String> duplicates = new ArrayList<>();
         for (String name : allDemonicaMixins()) {
             ClassNode mixin = read(name);

@@ -14,9 +14,13 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -82,12 +86,25 @@ class GlsmRedirectLinkageTest {
 
     @Test
     void celeritasJarIsTheDevRemap() {
-        // The dev remap renames SRG members to MCP; the anchors and the linkage above are checked in MCP names.
+        // remapCeleritasForDev's mixin-aware remap: the tests, like the dev client, read Celeritas in MCP names, mixin
+        // members and injector targets included, which is what lets QuarantinePriorityTest compare overwrites by name.
+        // CleanroomGradle's deobf() would leave the mixins' members in SRG names (func_174977_a).
+        assertTrue(CeleritasJar.get().file().getName().endsWith("-dev.jar"),
+            "the Celeritas on the test classpath is not remapCeleritasForDev's jar: " + CeleritasJar.get().file());
         ClassNode renderGlobalMixin = CeleritasJar.get().node("org/taumc/celeritas/mixin/core/terrain/RenderGlobalMixin");
         Set<String> names = new HashSet<>();
         renderGlobalMixin.methods.forEach(m -> names.add(m.name));
         assertTrue(names.contains("renderBlockLayer"), "RenderGlobalMixin should carry the MCP name renderBlockLayer");
         assertFalse(names.contains("func_174977_a"), "RenderGlobalMixin still carries the SRG name func_174977_a");
+        ClassNode minecraftMixin = CeleritasJar.get().node("org/taumc/celeritas/mixin/core/MinecraftMixin");
+        List<String> targets = new ArrayList<>();
+        minecraftMixin.methods.forEach(m -> Stream.of(m.visibleAnnotations, m.invisibleAnnotations)
+            .filter(Objects::nonNull).flatMap(List::stream)
+            .filter(a -> a.desc.equals("Lorg/spongepowered/asm/mixin/injection/Inject;"))
+            .forEach(a -> targets.add(String.valueOf(a.values))));
+        assertFalse(targets.isEmpty(), "MinecraftMixin has no @Inject; the jar changed shape");
+        assertTrue(targets.stream().allMatch(t -> t.contains("runTick()V") && !t.contains("func_71407_l")),
+            "MinecraftMixin's @Inject targets are not in MCP names (runTick()V): " + targets);
     }
 
     private static Set<String> declaredMethods(String internalName) throws IOException {

@@ -15,6 +15,16 @@ the throwaway branch `spike/celeritas-runtime` (commit `eed38ca1`) on
 | Celeritas | the pin in [`PIN.md`](PIN.md), remapped SRG → MCP by Unimined |
 | Driver | `com.demonica.dev.DevHarness` with a script: seed 1234567, spectator, `/time set 6000` and `13000`, `/tp` for the views, a screenshot after terrain finishes building |
 
+*Note, 2026-10-14:* the spike ran on the setup above. Since 0.8 the dev
+environment is Cleanroom 0.7.4-alpha (SDL 3, LWJGL 3.4.3, lwjgly) with
+CleanroomGradle 0.22.0's userdev workspace instead of Unimined. The dev client
+and the compile and test classpaths all use `remapCeleritasForDev`'s mixin-aware
+MCP remap of the pinned jar: Cleanroom renames an SRG jar's classes as it loads
+it, but not the injector targets of Celeritas's refmap-less mixins
+([`PIN.md`](PIN.md#in-demonicas-build)). The other mods are compiled against as
+`deobf()` copies and run as their raw SRG jars.
+The rules of section 3 still hold.
+
 ## 1. Celeritas alone
 
 **Passed.**
@@ -97,6 +107,16 @@ at Checkpoint 3.
   classes are merged into the mod classes, which dev runs load from the
   extrapath, and `verifyRunClasspath` keeps S8TNLib's jar off both the app
   classpath and the extrapath.
+- *Note, 2026-10-14 (CleanroomGradle):* CleanroomGradle's `runClient` puts the
+  mods on the JavaExec classpath by default (the main runtime classpath). Demonica
+  filters its own outputs (`sourceSets.main.output`) off it in
+  `cleanroom.runs.client.configure {}` and passes them, the diagnostics' classes
+  and the `devRuntimeMods` jars (Celeritas's dev remap and the optional mods'
+  raw jars) through `-Dcrl.dev.extrapath`, which
+  Cleanroom 0.7.4 still honours. `runClient` depends on `classes` by itself, so
+  `preRunClient` is gone. `verifyRunClasspath` (part of `check`) fails if a mod
+  output, the diagnostics or an S8TNLib jar is on the class path, if S8TNLib's jar
+  is on the extrapath, or if a `devRuntimeMods` jar is missing from it.
 - `-Dmixin.env.ignoreConstraints` is not needed.
 - Only the client run is enabled. Celeritas's coremod registers client-only
   mixin targets, and `runServer` is not used.

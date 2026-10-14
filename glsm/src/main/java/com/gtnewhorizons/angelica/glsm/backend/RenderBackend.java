@@ -41,7 +41,14 @@ public abstract class RenderBackend {
     /** Stops queueing dropped file paths and releases any native callback. Must be idempotent. */
     public void stopFileDrop() {}
 
-    /** Returns the file paths dropped on the window since the last call, on the calling (main) thread. */
+    /**
+     * Returns the file paths dropped on the window since the last call; call it on the main thread.
+     *
+     * <p>Threading contract: drops are captured by an SDL event watch, which SDL runs inside
+     * {@code SDL_PushEvent} while the window's events are pumped, i.e. on the client main thread
+     * during {@code Display.update()} under Cleanroom. SDL allows a watch to run on any thread,
+     * so implementations hand paths over through a concurrent queue.
+     */
     public List<String> pollDroppedFiles() { return Collections.emptyList(); }
 
     public abstract int getMinGLSLVersion();

@@ -34,7 +34,8 @@ public class FramebufferIrisMixin implements IRenderTargetExt {
     @Shadow
     public boolean useDepth;
 
-    @Shadow
+    // Forge's field: no SRG name.
+    @Shadow(remap = false)
     private boolean stencilEnabled;
 
     @Unique

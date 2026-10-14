@@ -12,14 +12,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+// MCP names only: the refmap carries their SRG names. The notch and SRG aliases these used to list have no mapping, so
+// the annotation processor rejects them, and Cleanroom never runs notch names.
 @Mixin(RenderLivingBase.class)
 public abstract class RenderLivingBaseIrisMixin<T extends EntityLivingBase> {
     @WrapOperation(
-        method = {
-            "setBrightness(Lnet/minecraft/entity/EntityLivingBase;FZ)Z",
-            "func_177092_a(Lnet/minecraft/entity/EntityLivingBase;FZ)Z",
-            "a(Lvp;FZ)Z"
-        },
+        method = "setBrightness(Lnet/minecraft/entity/EntityLivingBase;FZ)Z",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/client/renderer/entity/RenderLivingBase;getColorMultiplier(Lnet/minecraft/entity/EntityLivingBase;FF)I"
@@ -44,11 +42,7 @@ public abstract class RenderLivingBaseIrisMixin<T extends EntityLivingBase> {
     }
 
     @Inject(
-        method = {
-            "doRender(Lnet/minecraft/entity/EntityLivingBase;DDDFF)V",
-            "func_76986_a(Lnet/minecraft/entity/EntityLivingBase;DDDFF)V",
-            "a(Lvp;DDDFF)V"
-        },
+        method = "doRender(Lnet/minecraft/entity/EntityLivingBase;DDDFF)V",
         at = @At("RETURN"),
         require = 0
     )
@@ -66,11 +60,7 @@ public abstract class RenderLivingBaseIrisMixin<T extends EntityLivingBase> {
     }
 
     @Inject(
-        method = {
-            "renderLayers(Lnet/minecraft/entity/EntityLivingBase;FFFFFFF)V",
-            "func_177093_a(Lnet/minecraft/entity/EntityLivingBase;FFFFFFF)V",
-            "a(Lvp;FFFFFFF)V"
-        },
+        method = "renderLayers(Lnet/minecraft/entity/EntityLivingBase;FFFFFFF)V",
         at = @At("RETURN"),
         require = 0
     )

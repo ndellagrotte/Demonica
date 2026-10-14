@@ -198,7 +198,10 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
 
     @Inject(
         method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/ActiveRenderInfo;updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V", shift = At.Shift.AFTER)
+        // Forge's updateRenderInfo(Entity, boolean) overload, which has no SRG name and keeps its MCP name in production
+        // (ActiveRenderInfoIrisMixin): named as is, remap = false.
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/ActiveRenderInfo;updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V",
+            shift = At.Shift.AFTER, remap = false)
     )
     private void demonica$captureCameraState(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
         if (RenderWorldRecursionGuard.isNested()) {

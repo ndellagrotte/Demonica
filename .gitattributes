@@ -1,44 +1,45 @@
-* text eol=lf
+# Managed by CleanroomMC/Conventions. Do not edit locally.
+# Change it there and bump the convention plugin version instead.
 
-*.[jJ][aA][rR]          binary
+# Normalise on commit, check out LF everywhere. Windows contributors included.
+* text=auto eol=lf
 
-*.[pP][nN][gG]          binary
-*.[jJ][pP][gG]          binary
-*.[jJ][pP][eE][gG]      binary
-*.[gG][iI][fF]          binary
-*.[tT][iI][fF]          binary
-*.[tT][iI][fF][fF]      binary
-*.[iI][cC][oO]          binary
-*.[sS][vV][gG]          text
-*.[eE][pP][sS]          binary
-*.[xX][cC][fF]          binary
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+*.sh text eol=lf
 
-*.[kK][aA][rR]          binary
-*.[mM]4[aA]             binary
-*.[mM][iI][dD]          binary
-*.[mM][iI][dD][iI]      binary
-*.[mM][pP]3             binary
-*.[oO][gG][gG]          binary
-*.[rR][aA]              binary
+*.java text
+*.gradle text
+*.groovy text
+*.kt text
+*.kts text
+*.scala text
+*.properties text
+*.json text
+*.json5 text
+*.toml text
+*.xml text
+*.yml text
+*.yaml text
+*.md text
 
-*.7[zZ]                 binary
-*.[gG][zZ]              binary
-*.[tT][aA][rR]          binary
-*.[tT][gG][zZ]          binary
-*.[zZ][iI][pP]          binary
+*.jar binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ogg binary
+*.wav binary
+*.nbt binary
+*.dat binary
+*.class binary
+*.ttf binary
+*.otf binary
+*.so binary
+*.dll binary
+*.dylib binary
 
-*.[tT][cC][nN]          binary
-*.[sS][oO]              binary
-*.[dD][lL][lL]          binary
-*.[dD][yY][lL][iI][bB]  binary
-*.[pP][sS][dD]          binary
-*.[tT][tT][fF]          binary
-*.[oO][tT][fF]          binary
-
-*.[pP][aA][tT][cC][hH]  -text
-
-*.[bB][aA][tT]          text eol=crlf
-*.[cC][mM][dD]          text eol=crlf
-*.[pP][sS]1             text eol=crlf
-
-*[aA][uU][tT][oO][gG][eE][nN][eE][rR][aA][tT][eE][dD]* binary
+# Keep the wrapper jar out of diffs, it is verified by checksum
+**/gradle/wrapper/gradle-wrapper.jar binary linguist-vendored linguist-generated

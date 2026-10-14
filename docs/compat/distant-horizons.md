@@ -38,3 +38,13 @@ call passes through. The guard matters because DH's `DependencyInjector.bind` th
 bind, so rewriting `"actinium"` alone would stop the game on a DH that already accepts
 `demonica`. The redirect is optional (`require = 0`), so a DH release that registers its
 accessors elsewhere loads normally.
+
+## Not in the dev compat set on Cleanroom 0.7
+
+2026-10-14: `-PwithCompatMods` no longer loads Distant Horizons. DH 3.3.0
+(`maven.modrinth:uCdwusMi:Sa0ttGJr`) calls GLFW, which Cleanroom 0.7 does not ship: the
+client reaches the main menu, then crashes on a world's first frame with
+`NoClassDefFoundError: org/lwjgl/glfw/GLFW` (`GLProxy.runningOnRenderThread`, from
+`ClientApi.renderLods`). That is a DH/Cleanroom incompatibility, not Demonica's. Demonica
+still compiles against DH (`modCompileOnly`), so `MixinCleanroomMain` keeps building; put
+`devRuntimeMods` back in `build.gradle` once a DH build for Cleanroom 0.7 exists.

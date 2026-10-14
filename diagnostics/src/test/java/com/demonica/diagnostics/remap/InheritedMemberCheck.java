@@ -25,8 +25,12 @@ import java.util.stream.Stream;
 /**
  * verifyDiagnosticsRemap: finds every field or method instruction in the diagnostics classes whose owner is a root
  * project class but whose member is not declared by a root class and is reached through a Minecraft class, and every
- * diagnostics class that extends or implements a root class with a Minecraft supertype. The diagnostics jar's remap
- * does not see the root classes, so such a reference would keep its MCP name.
+ * diagnostics class that extends or implements a root class with a Minecraft supertype. Such a reference keeps its MCP
+ * name unless the diagnostics jar's remap resolves the inherited member through the root classes. Its reobfJar does see
+ * them today (its libraries are the compile classpath, which holds the root project's classes directory, and the
+ * renamer reads directories), but the diagnostics are kept independent of that: they reach Minecraft members only
+ * through Minecraft-typed references, and this check stays as the guard. It does not look at the :shader classes, which
+ * the diagnostics also compile against.
  *
  * <p>Arguments: the root project's classes directory, then the diagnostics classes directories.
  */

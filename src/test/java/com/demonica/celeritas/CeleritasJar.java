@@ -16,8 +16,9 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 /**
- * The pinned Celeritas mod jar as the tests see it: the dev (MCP-named) remap that Unimined puts on the
- * compile classpath. Tests read class bytes only; nothing here loads a Celeritas class.
+ * The pinned Celeritas mod jar as the tests see it: remapCeleritasForDev's mixin-aware MCP-named copy of the Maven jar,
+ * the same jar the dev client runs, on the compile and test classpaths. Tests read class bytes only; nothing here loads
+ * a Celeritas class.
  */
 public final class CeleritasJar {
     private static final String JAR_PREFIX = "celeritas-forge-mc12.2-";
@@ -72,7 +73,8 @@ public final class CeleritasJar {
         }
         if (candidates.size() != 1) {
             throw new IllegalStateException("Expected exactly one " + JAR_PREFIX + "*.jar on the test classpath, found "
-                + candidates + ". The pinned Celeritas mod is declared as modCompileOnly in build.gradle.");
+                + candidates + ". The pinned Celeritas mod is declared as modCompileOnly remapCeleritasForDev's jar in"
+                + " build.gradle; no other copy (the raw Maven jar, a deobf(...) one) may join it on the test classpath.");
         }
         return candidates.get(0);
     }

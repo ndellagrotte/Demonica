@@ -4,7 +4,6 @@ import com.demonica.DemonicaIrisBridge;
 import com.demonica.loading.Environment;
 import com.demonica.loading.bundle.BundledCeleritasHook;
 import com.demonica.loading.fml.transformers.GnetumHudCachingCompatTransformer;
-import com.demonica.loading.fml.transformers.MacDisplayForwardCompatTransformer;
 import com.demonica.loading.fml.transformers.StellarCoreHudCachingCompatTransformer;
 import net.coderbot.iris.debug.IrisDebugOptions;
 import net.minecraft.launchwrapper.Launch;
@@ -96,7 +95,6 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
             return new String[0];
         }
         return new String[] {
-            MacDisplayForwardCompatTransformer.class.getName(),
             // StellarCore's and Gnetum's HUD caches, bridged to GLSM; each touches only its one target class.
             StellarCoreHudCachingCompatTransformer.class.getName(),
             GnetumHudCachingCompatTransformer.class.getName(),
