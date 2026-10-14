@@ -761,7 +761,9 @@ cleanroom {
                 systemProperty 'crl.dev.extrapath', devExtraPath
                 systemProperty 'fml.coreMods.load', coremod_plugin_class +
                     (withDiagnostics ? ',com.demonica.diagnostics.DiagnosticsCoremod' : '')
-                dependsOn syncDiagnosticsDev
+                if (withDiagnostics) {
+                    dependsOn syncDiagnosticsDev
+                }
                 // The jars of the extrapath that a task builds (remapCeleritasForDev).
                 dependsOn configurations.devRuntimeMods
                 if (project.findProperty('withCompatMods') != null) {

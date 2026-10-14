@@ -95,11 +95,12 @@ rootProject.ext.useMixinReobfMappings(project)
 // The root project's runClient loads the diagnostics (syncDiagnosticsDev); this project has no runs of its own. An
 // unqualified `./gradlew runClient` still selects this one, disabled or not, so it must not pull in anything: its
 // natives (CleanroomGradle's extractNatives, which writes the same shared directory the root project's runClient reads,
-// and Gradle refuses that unordered overlap), assets or other dependencies.
+// and Gradle refuses that unordered overlap), assets, or this project's classes through its classpath input.
 tasks.named('runClient').configure {
     enabled = false
     setDependsOn([])
     natives.set((Directory) null)
+    classpath = files()
 }
 // CleanroomGradle's deobf transform reads its renamer classpath off a task (deobfRenamerClasspath) that it realizes only
 // when the transform first needs it. Here that is while :diagnostics:compileJava resolves its classpath, and the task's
