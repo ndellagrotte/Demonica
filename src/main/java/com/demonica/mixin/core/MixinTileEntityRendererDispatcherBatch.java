@@ -18,23 +18,24 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Forge's shared tile-entity batch ({@code preDrawBatch} ... {@code drawBatch}): each batch runs inside a
  * {@link TileEntityGlStateGuard}, and a batch that a nested renderer already flushed is not drawn a second time.
+ * Forge's own methods have no SRG names, so the injectors that name them take {@code remap = false}.
  */
 @Mixin(TileEntityRendererDispatcher.class)
 public class MixinTileEntityRendererDispatcherBatch {
     @Unique
     private static boolean demonica$warnedFinishedBatch;
 
-    @Inject(method = "preDrawBatch", at = @At("RETURN"))
+    @Inject(method = "preDrawBatch", at = @At("RETURN"), remap = false)
     private void demonica$saveStateForBatch(CallbackInfo ci) {
         TileEntityGlStateGuard.onBatchOpened();
     }
 
-    @Inject(method = "drawBatch", at = @At("HEAD"))
+    @Inject(method = "drawBatch", at = @At("HEAD"), remap = false)
     private void demonica$restoreStateForBatchDraw(int pass, CallbackInfo ci) {
         TileEntityGlStateGuard.onBatchDrawing();
     }
 
-    @Inject(method = "drawBatch", at = @At("RETURN"))
+    @Inject(method = "drawBatch", at = @At("RETURN"), remap = false)
     private void demonica$restoreStateAfterBatch(int pass, CallbackInfo ci) {
         TileEntityGlStateGuard.onBatchDrawn();
     }

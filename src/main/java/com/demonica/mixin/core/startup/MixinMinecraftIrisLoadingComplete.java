@@ -19,7 +19,9 @@ public class MixinMinecraftIrisLoadingComplete {
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraftforge/fml/client/SplashProgress;drawVanillaScreen(Lnet/minecraft/client/renderer/texture/TextureManager;)V",
-            shift = At.Shift.BEFORE
+            shift = At.Shift.BEFORE,
+            // FML's method: no SRG name.
+            remap = false
         )
     )
     private void demonica$onLoadingComplete(CallbackInfo ci) {

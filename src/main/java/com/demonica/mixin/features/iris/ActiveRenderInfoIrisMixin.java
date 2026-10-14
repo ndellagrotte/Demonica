@@ -18,7 +18,13 @@ public class ActiveRenderInfoIrisMixin {
     @Shadow
     private static FloatBuffer PROJECTION;
 
-    @Inject(method = "updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V", at = @At("TAIL"))
+    // updateRenderInfo(Entity, boolean) is an overload Forge added (the vanilla EntityPlayer method, func_74583_a, now
+    // delegates to it). It has no SRG name and keeps its MCP name in production too, so it is named as is, remap = false.
+    @Inject(
+        method = "updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V",
+        at = @At("TAIL"),
+        remap = false
+    )
     private static void demonica$captureRenderMatrices(CallbackInfo ci) {
         RenderingState.INSTANCE.setProjectionMatrix(PROJECTION);
         RenderingState.INSTANCE.setModelViewMatrix(MODELVIEW);

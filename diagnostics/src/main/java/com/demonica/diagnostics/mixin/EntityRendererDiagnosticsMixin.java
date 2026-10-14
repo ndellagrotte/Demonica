@@ -98,7 +98,10 @@ public class EntityRendererDiagnosticsMixin {
 
     @Inject(
         method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/ActiveRenderInfo;updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V", shift = At.Shift.AFTER)
+        // updateRenderInfo(Entity, boolean) is an overload Forge added beside the vanilla EntityPlayer method
+        // (func_74583_a). It has no SRG name and keeps its MCP name in production too: named as is, remap = false.
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/ActiveRenderInfo;updateRenderInfo(Lnet/minecraft/entity/Entity;Z)V",
+            shift = At.Shift.AFTER, remap = false)
     )
     private void demonica$checkAfterActiveRenderInfo(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
         IrisGlDiagnostics.recordWorldPassStage("active-render-info-to-frustum");
@@ -162,7 +165,9 @@ public class EntityRendererDiagnosticsMixin {
 
     @Inject(
         method = "renderWorldPass(IFJ)V",
-        at = @At(value = "INVOKE", target = "Lorg/lwjgl/util/glu/Project;gluPerspective(FFFF)V", ordinal = 0, shift = At.Shift.AFTER)
+        // LWJGL's method: no SRG name.
+        at = @At(value = "INVOKE", target = "Lorg/lwjgl/util/glu/Project;gluPerspective(FFFF)V", ordinal = 0, shift = At.Shift.AFTER,
+            remap = false)
     )
     private void demonica$checkAfterSkyPerspective(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
         IrisGlDiagnostics.recordWorldPassStage("sky-perspective-to-modelview");

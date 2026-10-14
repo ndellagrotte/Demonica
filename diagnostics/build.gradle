@@ -26,7 +26,10 @@ def rootClasses = rootProject.files(rootProject.tasks.named('compileJava', JavaC
 dependencies {
     // The workspace with the root project's access transformer, so that the same members are visible as in the root
     // project. The rest of the root project's compile classpath (Celeritas and the other deobf'd mods, S8TNLib, the
-    // annotations) comes through sharedMinecraftCompileClasspath, without the root project's copy of the workspace.
+    // annotations) comes through sharedMinecraftCompileClasspath, which also carries the root project's userdev jars
+    // (minecraft-patched.jar, cleanroom-userdev.jar). They are the same files as this project's own, because both
+    // projects transform the workspace with the same access transformer; if the two ever differed, :diagnostics would
+    // compile and reobf against two different patched Minecraft jars.
     compileOnly cleanroom.userdev(cleanroom_version) {
         accessTransformers.from(rootProject.file('src/main/resources/META-INF/demonica_at.cfg'))
     }
@@ -86,11 +89,24 @@ tasks.named('reobfJar').configure {
     // No fernflower_abstract_parameter_names.txt in the jar (the root project's reobfJar has the same flag).
     additionalArgs.add('--disable-abstract-param')
 }
+// The mixins' @Shadow/@Overwrite members in reobfJar's map, as in the root project (build.gradle).
+rootProject.ext.useMixinReobfMappings(project)
 
-// The root project's runClient loads the diagnostics (syncDiagnosticsDev); this project has no runs of its own.
+// The root project's runClient loads the diagnostics (syncDiagnosticsDev); this project has no runs of its own. An
+// unqualified `./gradlew runClient` still selects this one, disabled or not, so it must not pull in anything: its
+// natives (CleanroomGradle's extractNatives, which writes the same shared directory the root project's runClient reads,
+// and Gradle refuses that unordered overlap), assets or other dependencies.
 tasks.named('runClient').configure {
     enabled = false
+    setDependsOn([])
+    natives.set((Directory) null)
 }
+// CleanroomGradle's deobf transform reads its renamer classpath off a task (deobfRenamerClasspath) that it realizes only
+// when the transform first needs it. Here that is while :diagnostics:compileJava resolves its classpath, and the task's
+// constructor reads the Project service then, which Gradle 9 deprecates ("Reading injected service of type Project at
+// execution time", an error in Gradle 10). Realizing it now, at configuration time, keeps that read out of execution.
+tasks.named('deobfRenamerClasspath').get()
+
 tasks.named('runServer').configure {
     enabled = false
 }

@@ -201,22 +201,27 @@ precedence, and the bundled copy steps aside.
   that is not a `.jar`, an asset hash missing from `celeritas_sha256`. When the
   only tasks requested are `celeritasPinCandidate` or Gradle's help tasks, it
   warns instead, so the helper still runs halfway through a move.
-- The Maven jar is used twice. For compiling and the tests it is declared
-  `modCompileOnly deobf(...)`: CleanroomGradle's `deobf()` renames the classes and
-  members the Minecraft hierarchy reaches from SRG to MCP and writes
-  `celeritas-forge-mc12.2-<version>-deobf.jar`. It touches no mixin annotation,
-  refmap or access transformer, so that copy never runs. The dev client runs the
-  raw pinned jar instead, from `devRuntimeMods` through `-Dcrl.dev.extrapath`;
-  Cleanroom remaps its SRG classes as it loads them, and its CleanMix remapper
-  resolves the refmap-less SRG mixins.
+- The Maven jar is used once, through `remapCeleritasForDev`, which renames it
+  from SRG to MCP names the way Unimined's mixin-aware remap did: tiny-remapper
+  with its Mixin extension renames the classes' member references, the mixins'
+  `@Shadow`/`@Overwrite` members and the target strings of their injectors in
+  place, and the access transformer's names. It writes
+  `build/celeritas-dev/celeritas-forge-mc12.2-<version>-dev.jar`, byte for byte
+  the same from the same input. That jar is everything the build uses: the
+  compile classpath (`modCompileOnly`), the tests, and the dev client
+  (`devRuntimeMods`, through `-Dcrl.dev.extrapath`). Neither the raw jar nor a
+  `deobf(...)` copy can run there: Cleanroom renames the SRG classes as it loads
+  them, but its CleanMix remapper does not rename an injector's target in a mixin
+  without a refmap (`MinecraftMixin`'s `func_71407_l()V`), and `deobf()` renames
+  no mixin annotation at all.
 - `verifyCeleritasPin` (part of `check`) hashes the resolved Maven jar and fails
   unless it is one of `celeritas_sha256`. `verifyBundledCeleritasPin` (part of
   `check`, and a dependency of `jar`) hashes the release asset and fails unless it
   is exactly `celeritas_asset_sha256`, so a replaced asset is never packaged.
 - `generateCeleritasPin` writes `META-INF/demonica/celeritas-pin`: the upstream
   commit, the version and the accepted SHA-256s, plus `dev_sha256`, the hash of
-  the `deobf`'d jar on the compile classpath, which the tests read. The task fails
-  unless the raw jar the dev client runs (`devRuntimeMods`) hashes to one of
+  `remapCeleritasForDev`'s jar, which the dev client runs and the tests read. The
+  task fails unless the Maven jar that remap starts from hashes to one of
   `celeritas_sha256`. The guard reads the pin at runtime (below).
 - The `jar` task drops `dev_sha256`, and `verifyDistributedJar` (part of `check`)
   fails unless the distributed jar's pin names exactly the upstream commit, the
@@ -227,21 +232,20 @@ precedence, and the bundled copy steps aside.
   `celeritas_sha` in full. It still forbids any top-level Celeritas class or asset,
   a renamed copy or JOML: the jar carries Celeritas only as the nested asset.
 - `QuarantineGuardTest` checks that the pin on the test classpath matches
-  `gradle.properties`, and that its `dev_sha256` is the `deobf`'d jar the tests
+  `gradle.properties`, and that its `dev_sha256` is the remapped jar the tests
   read.
   `QuarantinePriorityTest` reads upstream's mixin priorities and `@Overwrite`s from
   the pinned jar, and fails if forge122 overrides what S2 patches or S3 adds.
 - `GlsmRedirectLinkageTest` runs GLSM's redirector over every class in the jar and
   checks that each rewritten call exists in `GLStateManager`.
-- **Known gap (since the CleanroomGradle move, 0.8).** `deobf()` leaves the SRG
-  member names of Celeritas's mixin classes alone (`RenderGlobalMixin.func_174977_a`),
-  where Unimined's mixin-aware remap renamed them. Two checks lost their teeth:
-  `GlsmRedirectLinkageTest.celeritasJarIsTheDevRemap`, which asserted that remap,
-  is excluded in `build.gradle`'s `test` filter, and the `@Overwrite` check of
-  `QuarantinePriorityTest` (`noDemonicaMixinOverwritesWhatUpstreamOverwrites`)
-  compares Demonica's MCP-named members with upstream's SRG-named ones, so it
-  passes without matching anything. A follow-up fix is planned; until then, check
-  upstream's `@Overwrite`s by hand when moving the pin.
+  `celeritasJarIsTheDevRemap` checks that the jar on the test classpath is the
+  mixin-aware remap: `RenderGlobalMixin` has `renderBlockLayer`, not
+  `func_174977_a`, and `MinecraftMixin`'s injectors target `runTick()V`, not
+  `func_71407_l()V`. `QuarantinePriorityTest` has a canary for the same: upstream's
+  `@Overwrite`s include `RenderGlobal#renderBlockLayer`, so its `@Overwrite` check
+  compares MCP names with MCP names. Upstream's `RenderItemMixin` keeps one SRG
+  name, `func_175032_a`, which has no MCP name in the mappings (Unimined's remap
+  left it too).
 
 ## At runtime
 
@@ -261,10 +265,10 @@ says which jar it was and what to do about it:
 
 Details in [`LEDGER.md`](LEDGER.md#the-guard).
 
-The dev client runs the raw pinned Maven jar (`devRuntimeMods`), which the pins
-themselves match; `generateCeleritasPin` fails the build otherwise. The guard
-still accepts `dev_sha256`, the `deobf`'d copy's hash, only in a deobfuscated
-environment; `-PdevProps=demonica.celeritas.pinsOnly=true` turns that off.
+The dev client runs `remapCeleritasForDev`'s MCP remap of the pinned Maven jar
+(`devRuntimeMods`), whose hash no pin matches. The guard accepts `dev_sha256`, that
+jar's hash, only in a deobfuscated environment;
+`-PdevProps=demonica.celeritas.pinsOnly=true` turns that off.
 
 ## Moving the pin
 

@@ -17,7 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @SuppressWarnings("deprecation")
-@Mixin(targets = "net/minecraftforge/fml/client/SplashProgress")
+// FML's class: no SRG names to map (remap = false).
+@Mixin(targets = "net/minecraftforge/fml/client/SplashProgress", remap = false)
 public class MixinSplashProgress {
     @Unique
     private static final Logger demonica$LOGGER = LogManager.getLogger("Demonica");

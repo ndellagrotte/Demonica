@@ -23,7 +23,8 @@ import org.spongepowered.asm.mixin.Overwrite;
  * would read the frozen cache (depth func {@code GL_LESS}, everything disabled) and
  * leave the pop, which is this bridge's, to restore from the wrong stack.
  */
-@Mixin(targets = "codechicken.lib.render.state.GlStateTracker")
+// CodeChickenLib runs in its own (MCP-like) names, which no SRG mapping covers: remap = false.
+@Mixin(targets = "codechicken.lib.render.state.GlStateTracker", remap = false)
 public abstract class MixinGlStateTracker {
 
     /**

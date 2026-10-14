@@ -102,7 +102,10 @@ public class MinecraftDiagnosticsMixin {
 
     @Inject(
         method = "runGameLoop",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/audio/SoundHandler;setListener(Lnet/minecraft/entity/Entity;F)V")
+        // setListener(Entity, float) is an overload Forge added beside the vanilla EntityPlayer method (func_147691_a),
+        // which Minecraft.runGameLoop calls instead. It has no SRG name and keeps its MCP name in production too: named
+        // as is, remap = false.
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/audio/SoundHandler;setListener(Lnet/minecraft/entity/Entity;F)V", remap = false)
     )
     private void demonica$finishPreRenderGlErrorAndStartSoundTiming(CallbackInfo ci) {
         IrisGlDiagnostics.recordGameLoopStageTiming("pre-render-gl-error", this.demonica$preRenderGlErrorStart);

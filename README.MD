@@ -127,9 +127,12 @@ with full history.
 `./gradlew runClient` starts the client in `run/client` (1280x720, 6 GB heap).
 Cleanroom loads the mods from `-Dcrl.dev.extrapath`, never from the JVM's class
 path: Demonica's own classes (with the merged GLSM, Iris and GTNHLib classes),
-the diagnostics' classes, and the raw jars of the `devRuntimeMods`
-configuration, which Cleanroom remaps from SRG to MCP names as it loads them
-([`docs/celeritas/SPIKE.md`](docs/celeritas/SPIKE.md#dev-class-loading)).
+the diagnostics' classes, and the jars of the `devRuntimeMods` configuration.
+Cleanroom renames an SRG-named jar's classes to MCP names as it loads them
+([`docs/celeritas/SPIKE.md`](docs/celeritas/SPIKE.md#dev-class-loading)), but not
+the injector targets of a mixin without a refmap, so Celeritas runs from
+`remapCeleritasForDev`'s mixin-aware MCP remap of the pinned jar
+([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md#in-demonicas-build)).
 `runClient` takes:
 
 | Property | Effect |
@@ -150,7 +153,9 @@ A mod reaches the build in one of two ways, both in `build.gradle`'s
   `devRuntimeMods`, for example
   `devRuntimeMods 'curse.maven:<slug>-<project id>:<file id>'`. Never pass it
   through `deobf(...)` there: the dev client needs the jar as players have it,
-  with its mixin refmaps and SRG names, which Cleanroom remaps at load time.
+  with its mixin refmaps and SRG names, which Cleanroom remaps at load time. A
+  mod whose mixins have no refmap (Celeritas) needs a mixin-aware remap instead,
+  as `remapCeleritasForDev` does.
 - **To compile against it**, add `modCompileOnly deobf('<coordinate>')`.
   `deobf(...)` renames the jar's classes and members to MCP names for the compile
   and test classpaths only; a jar that is already MCP-named (CodeChickenLib's
