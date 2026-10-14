@@ -37,7 +37,7 @@ repository and in the jars ([`docs/FORK.md`](docs/FORK.md#license)).
 ## Bundled mod
 
 Demonica carries Celeritas, the 1.12.2 mod `celeritas`, unmodified, as a nested
-jar in the mod jar (`0-demonica-bundled-celeritas-<sha8>-<timestamp>.jar`, listed
+jar in the mod jar (`zz-demonica-bundled-celeritas-<sha8>-<timestamp>.jar`, listed
 in `ContainedDeps`). `verifyDistributedJar` fails the build unless that jar's
 bytes are the pinned release asset, and unless the mod jar holds no Celeritas
 class, renamed copy or JOML at its own top level. (From 0.3.0 to 0.5.0 S8TNLib was
@@ -45,7 +45,7 @@ installed separately; its GTNHLib classes are part of the mod jar again, above.)
 
 | Mod | Upstream | Terms | Relationship |
 |---|---|---|---|
-| Celeritas, the 1.12.2 mod `celeritas` | https://git.taumc.org/embeddedt/celeritas at commit `9b661b70ecaf84c39052e8fbc51c875ba37e739d` (https://git.taumc.org/embeddedt/celeritas/commit/9b661b70ecaf84c39052e8fbc51c875ba37e739d), as built by kappa-maintainer/Celeritas-auto-build (https://github.com/kappa-maintainer/Celeritas-auto-build). The commit is `celeritas_sha` in `gradle.properties`; inside the mod jar it is recorded in the manifest's `Demonica-Celeritas-Release` and in `META-INF/demonica/celeritas-pin` ([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md)) | LGPL-3.0 (the `COPYING.LESSER` in its jar); the JOML it relocates is MIT. The binary is the auto-build release asset, unmodified. Its complete corresponding source is that upstream git tree at that commit, built with `./gradlew -Pceleritas_target_versions=1.12.2 :forge122:packageJar`. The `-sources.jar` of the same build on `https://maven.outlands.top/releases` (`org.embeddedt:celeritas-forge-mc12.2`) covers only `forge122/src/main/java`, not the shaded `common` or the build | Required, and bundled. Demonica compiles against the pinned jar and patches its classes at runtime through `mixins.demonica.celeritas.json` ([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)). A Celeritas installed by the player is ignored in favour of the bundled one |
+| Celeritas, the 1.12.2 mod `celeritas` | https://git.taumc.org/embeddedt/celeritas at commit `9b661b70ecaf84c39052e8fbc51c875ba37e739d` (https://git.taumc.org/embeddedt/celeritas/commit/9b661b70ecaf84c39052e8fbc51c875ba37e739d), as built by kappa-maintainer/Celeritas-auto-build (https://github.com/kappa-maintainer/Celeritas-auto-build). The commit is `celeritas_sha` in `gradle.properties`; inside the mod jar it is recorded in the manifest's `Demonica-Celeritas-Release` and in `META-INF/demonica/celeritas-pin` ([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md)) | LGPL-3.0 (the `COPYING.LESSER` in its jar); the JOML it relocates is MIT. The binary is the auto-build release asset, unmodified. Its complete corresponding source is that upstream git tree at that commit, built with `./gradlew -Pceleritas_target_versions=1.12.2 :forge122:packageJar`. The `-sources.jar` of the same build on `https://maven.outlands.top/releases` (`org.embeddedt:celeritas-forge-mc12.2`) covers only `forge122/src/main/java`, not the shaded `common` or the build | Required, and bundled. Demonica compiles against the pinned jar and patches its classes at runtime through `mixins.demonica.celeritas.json` ([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)). A Celeritas installed by the player takes precedence, and the bundled copy is then not loaded |
 
 ## Contained libraries
 

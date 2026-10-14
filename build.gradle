@@ -6,10 +6,10 @@
  * against (celeritas_version), the Celeritas-auto-build GitHub release and asset the mod jar carries
  * (celeritas_release, celeritas_release_asset, celeritas_asset_sha256), and the SHA-256 of every accepted jar
  * (celeritas_sha256). The asset is nested unmodified at the jar's root as
- * 0-demonica-bundled-celeritas-<sha8>-<timestamp>.jar and listed in ContainedDeps, so Cleanroom extracts it to
- * mods/1.12.2; BundledCeleritasHook, named by the manifest's Bansoukou attribute, then keeps the bundled copy in place of
- * any installed one. verifyBundledCeleritasPin checks the asset, and celeritasPinCandidate prints the values for another
- * auto-build.
+ * zz-demonica-bundled-celeritas-<sha8>-<timestamp>.jar and listed in ContainedDeps, so Cleanroom extracts it to
+ * mods/1.12.2; BundledCeleritasHook, named by the manifest's Bansoukou attribute, then uses the bundled copy unless the
+ * player installed a Celeritas, which takes precedence. verifyBundledCeleritasPin checks the asset, and
+ * celeritasPinCandidate prints the values for another auto-build.
  *
  * The root project holds the mod: com.demonica.* and Actinium's com.gtnewhorizons.angelica.* glue, derived from
  * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar, and so is GTNHLib, from the latest
@@ -310,12 +310,14 @@ if (!celeritasPinProblems.isEmpty()) {
 // The asset's name inside the mod jar, and so in mods/1.12.2 once Cleanroom extracts it. It must start with
 // BundledCeleritasHook.BUNDLED_PREFIX, which is how the hook tells its own copies from an installed Celeritas. It names
 // the pin because Cleanroom never extracts over a file that exists: a fixed name would keep the first pin a player ever
-// had. The 0- makes it sort before every other Celeritas jar (01-celeritas-..., celeritas-...), and Cleanroom's
-// candidates are sorted by file name.
+// had. The zz- makes it sort after the jars a player installs (01-celeritas-..., celeritas-..., demonica-...), since
+// Cleanroom's candidates are sorted by lower-cased file name: an installed Celeritas takes precedence over the bundled
+// copy, and when Demonica's hook did not run, the installed jar's classes win whenever it also sorts before Demonica's
+// own jar (docs/celeritas/PIN.md, "Bundled copy").
 // celeritasReleaseParts is null only when the check above merely warned, and then nothing packages the name.
 def bundledCeleritasTimestamp = celeritasReleaseParts?.getAt(1) ?: 'invalid'
 def bundledCeleritasJarName =
-    "0-demonica-bundled-celeritas-${pinnedCeleritasSha.take(8)}-${bundledCeleritasTimestamp}.jar".toString()
+    "zz-demonica-bundled-celeritas-${pinnedCeleritasSha.take(8)}-${bundledCeleritasTimestamp}.jar".toString()
 // The release as an ivy module: the asset's name without .jar is the module, the release tag the revision.
 def celeritasAssetModule = celeritasReleaseAsset.replaceFirst(/\.jar$/, '')
 def bundledCeleritasCoordinate = "io.github.kappa-maintainer:${celeritasAssetModule}:${celeritasRelease}@jar".toString()
@@ -834,10 +836,13 @@ jar {
                 'FMLAT': 'demonica_at.cfg',
                 'ContainedDeps': (configurations.contain.collect { it.name } + bundledCeleritasJarName).join(' '),
                 // The libraries need it. It also adds the extracted Celeritas to the class path, which is harmless
-                // when it is used and which MixinEarly's reconciliation answers when it is not.
+                // when it is used. When an installed Celeritas takes precedence, the hook deletes the extracted file
+                // so that it never reaches the class path; when the hook did not run, MixinEarly's reconciliation
+                // keeps FML from identifying it as a second Celeritas.
                 'NonModDeps': 'true',
                 // Cleanroom calls this class's bansoukou(List) with the mod candidates before it scans any coremod; it
-                // drops every Celeritas jar but the bundled one (docs/celeritas/PIN.md, "Bundled copy").
+                // drops the bundled Celeritas when the player installed one, and stale bundled copies of earlier pins
+                // (docs/celeritas/PIN.md, "Bundled copy").
                 'Bansoukou': 'com.demonica.loading.bundle.BundledCeleritasHook',
                 // The bundled Celeritas: its name in the jar and in mods/1.12.2, its SHA-256, and its release.
                 'Demonica-Celeritas-Jar': bundledCeleritasJarName,
@@ -1057,7 +1062,7 @@ tasks.register('celeritasPinCandidate') {
             || SHA-256, Maven jar | `${mavenSha256 ?: 'not published'}` |
             || SHA-256, release asset `${asset.name}` | `${assetSha256}` |
             || Version string inside the jar | `${jarVersion}` |
-            || Bundled as | the release asset, byte for byte, nested in the mod jar as `0-demonica-bundled-celeritas-${commit.take(8)}-${tagParts[1]}.jar` |
+            || Bundled as | the release asset, byte for byte, nested in the mod jar as `zz-demonica-bundled-celeritas-${commit.take(8)}-${tagParts[1]}.jar` |
             |""".stripMargin())
         if (mavenProblem != null) {
             // The build compiles against the Maven jar (verifyCeleritasPin, generateCeleritasPin), so the pin cannot
@@ -1139,8 +1144,8 @@ def verifyRunClasspath = tasks.register('verifyRunClasspath') {
 
 /**
  * The distributed (remapped) jar: a mod on upstream Celeritas that vendors no renderer. It must carry the mod, its
- * configs, S8TNLib's GTNHLib classes, its license files and contained libraries, and the hook that keeps the bundled
- * Celeritas in place of an installed one. It carries Celeritas only as the pinned release asset, unmodified (its exact
+ * configs, S8TNLib's GTNHLib classes, its license files and contained libraries, and the hook that decides between the
+ * bundled Celeritas and an installed one. It carries Celeritas only as the pinned release asset, unmodified (its exact
  * SHA-256), nested at the root under bundledCeleritasJarName and listed in ContainedDeps; every jar at the root must
  * be in ContainedDeps. It must never carry Celeritas's classes, services or assets at the top level, a renamed copy of
  * Celeritas, JOML, S8TNLib's own mod classes, or anything that would replace or shadow upstream's classes, services or

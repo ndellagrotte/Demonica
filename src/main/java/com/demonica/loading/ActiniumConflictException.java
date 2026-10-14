@@ -16,7 +16,7 @@ public final class ActiniumConflictException extends CustomModLoadingErrorDispla
         "",
         "Remove one of them from the mods folder.",
         "To keep using Actinium, remove Demonica, and the Celeritas it extracted",
-        "to mods/1.12.2 (0-demonica-bundled-celeritas-...jar)."
+        "to mods/1.12.2 (zz-demonica-bundled-celeritas-...jar)."
     };
 
     public ActiniumConflictException() {

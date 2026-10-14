@@ -13,7 +13,7 @@ From the fork point on:
 - **Demonica becomes the mod.** It takes over Actinium's role as a shader mod
   for 1.12.2 on Cleanroom. Instead of vendoring a renderer, it runs on the
   upstream Celeritas mod (mod id `celeritas`), which its jar bundles unmodified
-  and which overrides an installed copy, pinned in
+  (a copy the player installed takes precedence), pinned in
   [`celeritas/PIN.md`](celeritas/PIN.md).
 - **Packages may be renamed.** Actinium's own `com.dhj.actinium` code becomes
   `com.demonica`. Upstream-derived packages keep their names: `net.coderbot`,

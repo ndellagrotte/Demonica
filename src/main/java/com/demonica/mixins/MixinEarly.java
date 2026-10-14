@@ -20,7 +20,6 @@ import zone.rong.mixinbooter.IEarlyMixinLoader;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -30,8 +29,9 @@ import java.util.Map;
  * conflict ({@link com.demonica.Demonica}). It never loads a Celeritas class: Celeritas's jar may reach the class
  * loader after this coremod is constructed.
  *
- * <p>Celeritas normally comes from Demonica's own jar ({@link BundledCeleritasHook}); {@link #injectData} makes sure
- * FML identifies only one Celeritas mod even when that hook did not run.
+ * <p>Celeritas comes from Demonica's own jar unless the player installed one, which takes precedence
+ * ({@link BundledCeleritasHook}); {@link #injectData} makes sure FML identifies only one Celeritas mod even when that
+ * hook did not run.
  */
 @IFMLLoadingPlugin.Name("Demonica")
 @IFMLLoadingPlugin.MCVersion("1.12.2")
@@ -140,13 +140,11 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
     /**
      * Makes FML identify exactly one Celeritas mod. FML calls this after every coremod is discovered and before mods
      * are identified, and identifies a jar unless its name is on {@link CoreModManager#getIgnoredMods()} and not on
-     * {@link CoreModManager#getReparseableCoremods()}. The bundled copy's hook normally keeps every other Celeritas off
-     * the loader's list of candidates, and these lists are made to agree with it; when another mod's
-     * {@code Bansoukou} hook sorted first, the hook never ran at all, and these lists are all that is left. Its
-     * decision is used when there is one; otherwise the bundled copy is used on a client whenever it was extracted.
-     * Its name sorts before any jar a player installs, so it also won the class path, but not necessarily over a copy
-     * an earlier Demonica extracted: those names differ only in a hash. Without the hook, those copies are deleted
-     * here, so that the next launch is right.
+     * {@link CoreModManager#getReparseableCoremods()}. The bundled copy's hook normally sorts the Celeritas jars out on
+     * the loader's list of candidates, and these lists are made to agree with it. When another mod's {@code Bansoukou}
+     * hook sorted first, the hook never ran at all, and these lists are all that is left: the same rules are applied to
+     * the mods folders ({@link BundledCeleritasHook#decideWithoutHook}). A Celeritas the player installed takes
+     * precedence either way, and the bundled copy is then the one ignored.
      */
     private static void reconcileCeleritas() {
         String bundled = BundledCeleritasHook.bundledJarName();
@@ -157,45 +155,84 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
         List<File> jars = Environment.celeritasJarsInModsFolders();
         List<String> present = jars.stream().map(File::getName).toList();
-        boolean useBundled = decision != null ? decision.useBundled() : FMLLaunchHandler.side().isClient() && present.contains(bundled);
-        List<String> changed = BundledCeleritasHook.reconcile(CoreModManager.getReparseableCoremods(),
-            CoreModManager.getIgnoredMods(), present, bundled, useBundled);
-        if (decision == null) {
-            // The hook deletes stale copies itself; without it they would stay, and win the class path again next time.
-            removeStaleCopies(jars, bundled, useBundled);
+        boolean hookRan = decision != null;
+        if (!hookRan) {
+            // Deletes stale copies too: the hook deletes them itself, and without it they would stay.
+            decision = BundledCeleritasHook.decideWithoutHook(jars, bundled, FMLLaunchHandler.side().isClient());
         }
-        if (changed.isEmpty()) {
+        List<String> changed = BundledCeleritasHook.reconcile(CoreModManager.getReparseableCoremods(),
+            CoreModManager.getIgnoredMods(), present, bundled, decision.useBundled(), decision.droppedStale());
+        if (hookRan) {
+            if (!changed.isEmpty()) {
+                // The hook already reported what it decided.
+                LOGGER.debug("Ignoring {} so that FML identifies only one Celeritas mod", changed);
+            }
             return;
         }
-        if (decision == null && useBundled) {
-            LOGGER.warn("Demonica's Celeritas hook did not run (another mod's Bansoukou hook ran first, or it failed); ignoring "
-                + "{} so FML does not load two Celeritas mods. Remove them from the mods folder.", changed);
+        String demonica = BundledCeleritasHook.demonicaJarName();
+        // When the bundled copy won the class path, the report's "Using the installed ..." is the opposite of what
+        // loaded; warnAboutTheClassPath says what did.
+        boolean bundledWon = bundledWonOverTheInstalledJar(jars, bundled, decision, demonica);
+        if (changed.isEmpty()) {
+            if (bundledWon) {
+                LOGGER.info("Demonica's Celeritas hook did not run (another mod's Bansoukou hook ran first, or it failed).");
+            } else {
+                LOGGER.info("Demonica's Celeritas hook did not run (another mod's Bansoukou hook ran first, or it failed); {}",
+                    decision.report());
+            }
+        } else if (bundledWon) {
+            LOGGER.warn("Demonica's Celeritas hook did not run (another mod's Bansoukou hook ran first, or it failed). "
+                + "Ignoring {} so that FML identifies only one Celeritas mod.", changed);
         } else {
-            // The hook already reported these, or the bundled copy is the one left out (a dedicated server, which needs
-            // no advice).
-            LOGGER.debug("Ignoring {} so that FML identifies only one Celeritas mod", changed);
+            LOGGER.warn("Demonica's Celeritas hook did not run (another mod's Bansoukou hook ran first, or it failed); {} "
+                + "Ignoring {} so that FML identifies only one Celeritas mod.", decision.report(), changed);
+        }
+        warnAboutTheClassPath(jars, bundled, decision, demonica, bundledWon);
+    }
+
+    /**
+     * Says which Celeritas classes this launch loaded when the hook did not run, if they are not the decided ones. The
+     * loader adds jars to the class path in lower-cased file name order, and the first jar added wins a class. Demonica's
+     * {@code NonModDeps} adds the bundled copy at the place of Demonica's own jar, so an installed Celeritas wins only if
+     * its name sorts before Demonica's, and a stale copy whose name sorts before Demonica's wins over the bundled one.
+     * Nothing can change that any more; the version gate judges whichever jar loaded.
+     */
+    private static void warnAboutTheClassPath(List<File> jars, String bundled, BundledCeleritasHook.Decision decision,
+                                              @Nullable String demonica, boolean bundledWon) {
+        if (!FMLLaunchHandler.side().isClient()) {
+            // Celeritas is client-only: on a dedicated server no copy loads, so none won a race.
+            return;
+        }
+        if (demonica == null || jars.stream().noneMatch(jar -> jar.getName().equals(bundled))) {
+            // Without Demonica's own jar there is nothing to compare with, and without the bundled copy it never raced.
+            return;
+        }
+        if (!decision.externals().isEmpty()) {
+            if (bundledWon) {
+                String external = String.join(" and ", decision.externals());
+                LOGGER.warn("This launch loaded the bundled Celeritas classes although {} is installed, because another mod's "
+                    + "Bansoukou hook ran first and {} sorts after {}.", external, external, demonica);
+            }
+        } else if (decision.useBundled()) {
+            List<String> first = BundledCeleritasHook.sortedBefore(decision.droppedStale(), demonica);
+            if (!first.isEmpty()) {
+                LOGGER.warn("{} sorted before {}: this launch's Celeritas classes came from a copy an earlier Demonica "
+                    + "extracted. That copy was deleted (or is deleted when the game exits); restart the game to use the "
+                    + "bundled Celeritas.", first, demonica);
+            }
         }
     }
 
     /**
-     * Deletes the copies of Celeritas an earlier Demonica extracted, when the hook did not run. The loader orders the
-     * class path by lower-cased file name, so a stale copy whose name sorts before the bundled one already supplied
-     * this launch's Celeritas classes; that cannot be undone, and the player has to restart.
+     * Whether, with the hook not run, the bundled copy's classes loaded although an installed Celeritas was chosen: on a
+     * client, with the bundled copy in the mods folders, Demonica's own jar known, and every installed jar sorting after
+     * it ({@link #warnAboutTheClassPath}).
      */
-    private static void removeStaleCopies(List<File> jars, String bundled, boolean useBundled) {
-        List<String> removed = BundledCeleritasHook.deleteStaleCopies(jars, bundled);
-        if (removed.isEmpty()) {
-            return;
-        }
-        String bundledKey = bundled.toLowerCase(Locale.ROOT);
-        List<String> first = removed.stream().filter(name -> name.toLowerCase(Locale.ROOT).compareTo(bundledKey) < 0).toList();
-        if (useBundled && !first.isEmpty()) {
-            LOGGER.warn("Demonica's Celeritas hook did not run, and {} sorted before the Celeritas bundled with Demonica, {}: "
-                + "this launch's Celeritas classes came from a copy an earlier Demonica extracted. That copy was deleted (or "
-                + "is deleted when the game exits); restart the game to use the bundled Celeritas.", first, bundled);
-        } else {
-            LOGGER.info("Removed {} copies of Celeritas an earlier Demonica extracted: {}", removed.size(), removed);
-        }
+    private static boolean bundledWonOverTheInstalledJar(List<File> jars, String bundled, BundledCeleritasHook.Decision decision,
+                                                         @Nullable String demonica) {
+        return FMLLaunchHandler.side().isClient() && demonica != null && !decision.externals().isEmpty()
+            && jars.stream().anyMatch(jar -> jar.getName().equals(bundled))
+            && BundledCeleritasHook.sortedBefore(decision.externals(), demonica).isEmpty();
     }
 
     @Override

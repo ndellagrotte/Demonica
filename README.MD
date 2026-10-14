@@ -12,7 +12,9 @@ carries no copy of the terrain renderer.
 comes with Demonica: its jar bundles the build pinned in
 [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md), upstream commit `9b661b70` as
 published by the Celeritas auto-build (the release asset
-`01-celeritas-forge-mc12.2-2.5.0-dev.jar`), unmodified. GTNHLib's classes, from
+`01-celeritas-forge-mc12.2-2.5.0-dev.jar`), unmodified. A Celeritas you install
+yourself takes precedence over the bundled one; shaders need the pinned build
+(below). GTNHLib's classes, from
 [S8TNLib](https://github.com/ndellagrotte/S8TNLib), are part of Demonica's jar too.
 
 Demonica does not run next to Actinium. It is client-only: on a dedicated server
@@ -41,15 +43,22 @@ shader pack screen say why
 
 Download `Demonica-<version>.jar` from the
 [releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
-`mods/`. That is the only jar to install. A Celeritas jar you installed before is
-ignored in favour of the bundled one (the log names it, and it can be removed; its
-file is left alone). On first start Demonica extracts the bundled copy to
-`mods/1.12.2/0-demonica-bundled-celeritas-<commit>-<timestamp>.jar` and deletes
-the copies of earlier Demonica versions there. Demonica 0.3.0 to 0.5.0 needed
+`mods/`. That is the only jar to install. On start Demonica extracts the bundled
+Celeritas to `mods/1.12.2/zz-demonica-bundled-celeritas-<commit>-<timestamp>.jar`
+and deletes the copies of earlier Demonica versions there.
+
+A Celeritas jar you installed yourself takes precedence: Demonica uses it, leaves
+its file alone, deletes the extracted bundled copy and logs which jar it uses
+(unless another mod's Bansoukou hook runs first; see
+[`docs/celeritas/PIN.md`](docs/celeritas/PIN.md)).
+Shaders need the pinned build, so with any other build of Celeritas installed
+they are off, and the log and the shader pack screen name that jar. Remove it
+from `mods/` to use the bundled build (it is extracted again on the next start),
+or install the pinned build. Demonica 0.3.0 to 0.5.0 needed
 `s8tnlib-<version>.jar` beside them; it can go now (Demonica logs a warning while
 it is there).
 
-**To uninstall Demonica, also delete `mods/1.12.2/0-demonica-bundled-celeritas-*.jar`.**
+**To uninstall Demonica, also delete `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar`.**
 Otherwise it keeps loading as a standalone Celeritas.
 
 Demonica runs on Cleanroom's own OpenGL context. `advanced.opengl_profile`
