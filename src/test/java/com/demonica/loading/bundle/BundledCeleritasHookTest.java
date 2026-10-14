@@ -47,13 +47,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * reconciliation of FML's lists in {@code MixinEarly}, and the constraints that come from running before any coremod.
  */
 class BundledCeleritasHookTest {
-    private static final String BUNDLED = "zz-demonica-bundled-celeritas-9b661b70-20260926T020851.jar";
+    private static final String BUNDLED = "zz-demonica-bundled-celeritas-d94ec1e5-20261014T021746.jar";
     private static final String STALE = "zz-demonica-bundled-celeritas-06999aab-20260901T000000.jar";
     private static final String OTHER_DEMONICAS = "zz-demonica-bundled-celeritas-12345678-20261001T000000.jar";
     private static final String INSTALLED = "01-celeritas-forge-mc12.2-2.5.0-dev.jar";
     private static final String DEMONICA = "Demonica-0.8.0.jar";
     private static final String CELERITAS_CLASS = BundledCeleritasHook.CELERITAS_MARKER;
-    private static final String RELEASE = "commit-9b661b70ecaf84c39052e8fbc51c875ba37e739d-20260926T020851";
+    private static final String RELEASE = "commit-d94ec1e59df7b5fe38ee76f1bdcb03f851587aa4-20261014T021746";
 
     @TempDir
     Path home;
@@ -724,7 +724,7 @@ class BundledCeleritasHookTest {
         attributes.putValue("NonModDeps", "true");
         attributes.putValue(BundledCeleritasHook.BANSOUKOU_ATTRIBUTE, BundledCeleritasHook.class.getName());
         attributes.putValue(BundledCeleritasHook.JAR_ATTRIBUTE, bundledName);
-        attributes.putValue(BundledCeleritasHook.SHA256_ATTRIBUTE, "80f07935d86d364fd9b80297f4bc87d47f3a49209f589091b554a7332b56a909");
+        attributes.putValue(BundledCeleritasHook.SHA256_ATTRIBUTE, "7d380743016c3c12a473a48ef15fba87812f66acf6ac19cd6251ab3055ba4471");
         attributes.putValue(BundledCeleritasHook.RELEASE_ATTRIBUTE, RELEASE);
         return jar(path, manifest, bundledName, "not read by the hook");
     }

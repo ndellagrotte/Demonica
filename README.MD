@@ -10,7 +10,7 @@ carries no copy of the terrain renderer.
 
 **Requires:** Cleanroom (0.6.12 and 0.6.13 are tested). Celeritas's 1.12.2 mod
 comes with Demonica: its jar bundles the build pinned in
-[`docs/celeritas/PIN.md`](docs/celeritas/PIN.md), upstream commit `9b661b70` as
+[`docs/celeritas/PIN.md`](docs/celeritas/PIN.md), upstream commit `d94ec1e5` as
 published by the Celeritas auto-build (the release asset
 `01-celeritas-forge-mc12.2-2.5.0-dev.jar`), unmodified. A Celeritas you install
 yourself takes precedence over the bundled one; shaders need the pinned build

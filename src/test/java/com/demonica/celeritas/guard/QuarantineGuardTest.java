@@ -31,13 +31,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * shaders off and applies only the BASE group, and the pin the build writes is the one gradle.properties names.
  */
 class QuarantineGuardTest {
-    private static final String PINNED = "5bf123a6da6190f6e061cd3fd069a2bddcbf6ebf57894381b6c888c06a94f982";
+    private static final String PINNED = "7c159117fe23e4545bf499a708276ccd624905bba97063bd5c01b90d7b00afdb";
     private static final String DEV = "0c2b9b77a756af2b2f4a8bec25a1e8e4d483cd9dedd180d5168ebe1c10dbb423";
     private static final String FOREIGN = "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffff0000000011111111";
-    private static final String BUNDLED = "zz-demonica-bundled-celeritas-9b661b70-20260926T020851.jar";
+    private static final String BUNDLED = "zz-demonica-bundled-celeritas-d94ec1e5-20261014T021746.jar";
     private static final String STALE = "zz-demonica-bundled-celeritas-06999aab-20260901T000000.jar";
-    private static final QuarantineGuard.Pin PIN = new QuarantineGuard.Pin("9b661b70ecaf84c39052e8fbc51c875ba37e739d",
-        "2.5.0-autobuild.9b661b70", Set.of(PINNED), DEV);
+    private static final QuarantineGuard.Pin PIN = new QuarantineGuard.Pin("d94ec1e59df7b5fe38ee76f1bdcb03f851587aa4",
+        "2.5.0-autobuild.d94ec1e5", Set.of(PINNED), DEV);
     private static final String TERRAIN_MIXIN = "com.demonica.mixin.celeritas.seam.CeleritasWorldRendererMixin";
     private static final String FOG_MIXIN = "com.demonica.mixin.celeritas.seam.GLStateManagerFogServiceMixin";
     private static final QuarantineGuard.GroupLookup GROUPS =
@@ -60,7 +60,7 @@ class QuarantineGuardTest {
         assertFalse(verdict.shadersAllowed());
         assertNotNull(verdict.shaderReason());
         assertTrue(verdict.shaderReason().contains("celeritas-newer.jar"), verdict.shaderReason());
-        assertTrue(verdict.shaderReason().contains("9b661b70"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("d94ec1e5"), verdict.shaderReason());
         assertFalse(verdict.shouldApply(TERRAIN_MIXIN, GROUPS));
         assertTrue(verdict.shouldApply(FOG_MIXIN, GROUPS));
         assertFalse(verdict.shouldApply(FOG_MIXIN, mixin -> null), "a mixin whose group cannot be read must not apply");
@@ -84,7 +84,7 @@ class QuarantineGuardTest {
             QuarantineGuard.Bundle.INSTALLED_TAKES_PRECEDENCE);
         assertFalse(verdict.accepted());
         assertTrue(verdict.shaderReason().contains("celeritas-newer.jar is installed in the mods folder and takes precedence over "
-            + "the Celeritas bundled with Demonica; remove it to use the bundled build of upstream commit 9b661b70, or install "
+            + "the Celeritas bundled with Demonica; remove it to use the bundled build of upstream commit d94ec1e5, or install "
             + "that build."), verdict.shaderReason());
         assertFalse(verdict.shaderReason().contains("was not extracted"), verdict.shaderReason());
 
@@ -114,7 +114,7 @@ class QuarantineGuardTest {
         assertFalse(verdict.shaderReason().contains("takes precedence"), verdict.shaderReason());
         assertTrue(verdict.shaderReason().contains("mods/1.12.2/" + BUNDLED + ") was not extracted"), verdict.shaderReason());
         assertTrue(verdict.shaderReason().contains("-Dfml.skipContainedDeps"), verdict.shaderReason());
-        assertTrue(verdict.shaderReason().contains("9b661b70"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("d94ec1e5"), verdict.shaderReason());
 
         QuarantineGuard.Verdict damaged = QuarantineGuard.decide(PIN, null, BUNDLED, FOREIGN, false, BUNDLED,
             QuarantineGuard.Bundle.NOT_EXTRACTED);

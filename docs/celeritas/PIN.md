@@ -12,36 +12,44 @@ move it.
 | | |
 |---|---|
 | Upstream | https://git.taumc.org/embeddedt/celeritas, branch `stonecutter` |
-| Commit | `9b661b70ecaf84c39052e8fbc51c875ba37e739d` |
-| Built by | [kappa-maintainer/Celeritas-auto-build](https://github.com/kappa-maintainer/Celeritas-auto-build), release `commit-9b661b70ecaf84c39052e8fbc51c875ba37e739d-20260926T020851` |
-| Maven | `org.embeddedt:celeritas-forge-mc12.2:2.5.0-autobuild.9b661b70` on `https://maven.outlands.top/releases` |
-| SHA-256, Maven jar | `5bf123a6da6190f6e061cd3fd069a2bddcbf6ebf57894381b6c888c06a94f982` |
-| SHA-256, release asset `01-celeritas-forge-mc12.2-2.5.0-dev.jar` | `80f07935d86d364fd9b80297f4bc87d47f3a49209f589091b554a7332b56a909` |
+| Commit | `d94ec1e59df7b5fe38ee76f1bdcb03f851587aa4` |
+| Built by | [kappa-maintainer/Celeritas-auto-build](https://github.com/kappa-maintainer/Celeritas-auto-build), release `commit-d94ec1e59df7b5fe38ee76f1bdcb03f851587aa4-20261014T021746` |
+| Maven | `org.embeddedt:celeritas-forge-mc12.2:2.5.0-autobuild.d94ec1e5` on `https://maven.outlands.top/releases` |
+| SHA-256, Maven jar | `7c159117fe23e4545bf499a708276ccd624905bba97063bd5c01b90d7b00afdb` |
+| SHA-256, release asset `01-celeritas-forge-mc12.2-2.5.0-dev.jar` | `7d380743016c3c12a473a48ef15fba87812f66acf6ac19cd6251ab3055ba4471` |
 | Version string inside the jar | `2.5.0-dev` (the same for every upstream dev build of 2.5.0) |
-| Bundled as | the release asset, byte for byte, nested in the mod jar as `zz-demonica-bundled-celeritas-9b661b70-20260926T020851.jar` |
+| Bundled as | the release asset, byte for byte, nested in the mod jar as `zz-demonica-bundled-celeritas-d94ec1e5-20261014T021746.jar` |
 
 `gradle.properties` holds the same values (`celeritas_sha`, `celeritas_version`,
 `celeritas_sha256`) and three more for the bundled copy:
 
 | Key | Value |
 |---|---|
-| `celeritas_release` | `commit-9b661b70ecaf84c39052e8fbc51c875ba37e739d-20260926T020851`, the auto-build release tag |
+| `celeritas_release` | `commit-d94ec1e59df7b5fe38ee76f1bdcb03f851587aa4-20261014T021746`, the auto-build release tag |
 | `celeritas_release_asset` | `01-celeritas-forge-mc12.2-2.5.0-dev.jar`, the asset bundled |
-| `celeritas_asset_sha256` | `80f07935d86d364fd9b80297f4bc87d47f3a49209f589091b554a7332b56a909`, that asset's hash (also listed in `celeritas_sha256`) |
+| `celeritas_asset_sha256` | `7d380743016c3c12a473a48ef15fba87812f66acf6ac19cd6251ab3055ba4471`, that asset's hash (also listed in `celeritas_sha256`) |
 
 **Two hashes, one build.** The auto-build publishes the release assets and the
 Maven artifact from two Gradle invocations with different version strings. The
-two jars have the same 708 files, byte for byte, except `META-INF/MANIFEST.MF`,
+two jars have the same 710 files, byte for byte, except `META-INF/MANIFEST.MF`,
 whose `Class-Path` line names the version (`common-2.5.0-dev-…` against
-`common-2.5.0-autobuild.9b661b70-…`). FML ignores that line, and no jar it names
+`common-2.5.0-autobuild.d94ec1e5-…`). FML ignores that line, and no jar it names
 exists. Demonica bundles the release asset, so the build holds it to its exact
 hash (`celeritas_asset_sha256`). The Maven hash stays accepted for the compile
 classpath, and because a player may still have installed either jar.
 
-**Provenance, checked on 2026-09-29.**
-- The Maven `-sources.jar`'s Java files match `forge122/src/main/java` of a clone
-  of upstream at `9b661b70` file for file. (At the previous pin, `06999aab`, the
-  release's sources jar was also checked and was identical to the Maven one.)
+**Provenance, checked on 2026-10-14 (and on 2026-09-29 for the previous pin).**
+- At `d94ec1e5`: the release asset and the Maven jar were compared entry for entry
+  (710 each, the manifest alone differing). Against the `9b661b70` asset, the ten
+  class files that differ or are new (`ChunkBufferBuilder`,
+  `BlockRendererDispatcherMixin`, `VintageBlockRenderer`, `ChunkBuilderMeshingTask`,
+  `VintageChunkBuildContext`, `TextureAtlasSpriteMixin`, `SpriteTransparencyLevel`,
+  `SectionLattice`, the two bitraster rasterizers) are exactly the classes the six
+  upstream commits between the pins touch (`git.taumc.org` compare
+  `9b661b70...d94ec1e5`): no class changed that no commit explains.
+- At `9b661b70`: the Maven `-sources.jar`'s Java files matched `forge122/src/main/java`
+  of a clone of upstream at that commit file for file. (At `06999aab`, the release's
+  sources jar was also checked and was identical to the Maven one.)
 - The auto-build's workflow (`.github/workflows/build.yaml` in that repository)
   clones upstream at `HEAD`, checks the commit, and runs
   `./gradlew -Pceleritas_target_versions=1.12.2 :forge122:packageJar`: an
@@ -58,8 +66,11 @@ classpath, and because a player may still have installed either jar.
   become stubs), and relocates JOML to `org.embeddedt.embeddium.impl.shadow.joml`.
 - The coremod `org.taumc.celeritas.core.CeleritasLoadingPlugin` is a MixinBooter
   `IEarlyMixinLoader` that registers only `mixins.celeritas.json`. That config lists
-  no mixins: its plugin, `CeleritasVintageMixinPlugin`, returns all 27 classes of
-  `org.taumc.celeritas.mixin`, and none can be switched off individually.
+  no mixins: its plugin, `CeleritasVintageMixinPlugin`, returns all 28 classes of
+  `org.taumc.celeritas.mixin` (since `26ab2175`, `core.terrain.BlockRendererDispatcherMixin`
+  among them: it wraps the `BlockModelRenderer.renderModel` call in vanilla's
+  `BlockRendererDispatcher.renderBlock`, which is how the fast block renderer is
+  reached), and none can be switched off individually.
 - `META-INF/celeritas_at.cfg` (SRG names) is its access transformer.
   `META-INF/celeritas.accesswidener` is a Fabric leftover that Forge ignores.
 - No `META-INF/services`: since 2.5.0 upstream loads no service by `ServiceLoader`.

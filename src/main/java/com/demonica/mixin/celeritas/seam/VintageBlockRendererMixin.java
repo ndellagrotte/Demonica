@@ -13,6 +13,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -32,7 +33,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.taumc.celeritas.impl.render.terrain.compile.VintageChunkBuildContext;
 import org.taumc.celeritas.impl.render.terrain.compile.pipeline.VintageBlockRenderer;
 import org.taumc.celeritas.impl.world.cloned.CeleritasBlockAccess;
@@ -45,9 +46,11 @@ import org.taumc.celeritas.impl.world.cloned.CeleritasBlockAccess;
  * off, and the ambient occlusion in the colour's alpha if it wants it separate. Whether the fast renderer runs at all
  * is ChunkBuilderMeshingTaskMixin's switch.
  *
- * <p>Relies on, though no injector names it: {@code ChunkBuilderMeshingTask.execute} still calls
- * {@code VintageBlockRenderer.renderBlock}, so the fast renderer patched here is the one that meshes. A pin move
- * must check that call by hand.
+ * <p>Since upstream {@code 26ab2175} the fast renderer is reached only from vanilla's
+ * {@code BlockRendererDispatcher.renderBlock}, whose {@code renderModel} call Demonica's
+ * {@link BlockRendererDispatcherMixin} routes here per block, so {@code renderModel} receives the actual, extended state
+ * and the model already resolved. {@link ShaderBlockContexts#of} reads only the block, its metadata, material, light
+ * and tile entity, which an extended state answers like the plain one does, so a block's ID is the same on both paths.
  */
 @Patch(value = "S13", group = PatchGroup.MESHING)
 @Mixin(value = VintageBlockRenderer.class, remap = false, priority = 1100)
@@ -63,19 +66,21 @@ public abstract class VintageBlockRendererMixin {
     @Unique
     private final BlockRenderContext demonica$renderContext = new BlockRenderContext();
 
-    @Inject(method = "renderBlock", at = @At("HEAD"))
-    private void demonica$beginBlock(IBlockState state, BlockPos pos, CeleritasBlockAccess world, BlockRenderLayer layer, CallbackInfo ci) {
+    @Inject(method = "renderModel", at = @At("HEAD"))
+    private void demonica$beginBlock(IBakedModel model, IBlockState state, BlockPos pos, CeleritasBlockAccess world, BlockRenderLayer layer,
+                                     CallbackInfoReturnable<Boolean> cir) {
         boolean shaderBuild = ShaderPassConfigurations.isShaderConfiguration(this.context.buffers.getRenderPassConfiguration());
         this.demonica$blockContext = shaderBuild ? ShaderBlockContexts.of(state, pos, world) : null;
     }
 
-    @Inject(method = "renderBlock", at = @At("RETURN"))
-    private void demonica$endBlock(IBlockState state, BlockPos pos, CeleritasBlockAccess world, BlockRenderLayer layer, CallbackInfo ci) {
+    @Inject(method = "renderModel", at = @At("RETURN"))
+    private void demonica$endBlock(IBakedModel model, IBlockState state, BlockPos pos, CeleritasBlockAccess world, BlockRenderLayer layer,
+                                   CallbackInfoReturnable<Boolean> cir) {
         this.demonica$blockContext = null;
     }
 
     // Actinium rendered such blocks with renderBlock(..., false).
-    @ModifyArg(method = "renderBlock", at = @At(value = "INVOKE",
+    @ModifyArg(method = "renderModel", at = @At(value = "INVOKE",
         target = "Lorg/embeddedt/embeddium/impl/render/chunk/compile/pipeline/BakedQuadGroupAnalyzer;setDefaultRenderingFlags(I)V"))
     private int demonica$keepPackLayer(int flags, @Local(argsOnly = true) IBlockState state) {
         if (this.demonica$blockContext != null && ShaderBlockContexts.layerOverride(state.getBlock()) != null) {
@@ -84,7 +89,7 @@ public abstract class VintageBlockRendererMixin {
         return flags;
     }
 
-    @ModifyExpressionValue(method = "renderBlock", at = @At(value = "INVOKE",
+    @ModifyExpressionValue(method = "renderModel", at = @At(value = "INVOKE",
         target = "Lorg/embeddedt/embeddium/impl/render/chunk/RenderPassConfiguration;getMaterialForRenderType(Ljava/lang/Object;)"
             + "Lorg/embeddedt/embeddium/impl/render/chunk/terrain/material/Material;"))
     private Material demonica$fluidMaterial(Material material) {

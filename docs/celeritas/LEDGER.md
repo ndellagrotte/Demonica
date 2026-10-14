@@ -23,7 +23,7 @@ propose them upstream is the maintainer's decision.
   patch whose anchor moved does nothing instead of crashing the game.
   `QuarantinePlugin` logs one line per applied mixin and names every injector
   that found no target: `Applied <mixin> to <class>: n of n injectors found
-  their targets`. A dev run that loads a world lists all 21 lines (a mixin is
+  their targets`. A dev run that loads a world lists all 22 lines (a mixin is
   applied when its target class loads); anything short
   of `n of n` is a moved anchor, and in a dev run it stops the game (see the
   guard below). MixinExtras applies `@ModifyExpressionValue`,
@@ -121,13 +121,13 @@ saying so. Production only logs the miss.
 | [S9](patches/S9.md) | `seam.CeleritasWorldRendererMixin` | `CeleritasWorldRenderer.renderBlockEntities(TileEntityRenderContext)` | HEAD/RETURN: Iris's block-entity phase (and perf-debug timing) | CORE_TERRAIN | not proposed |
 | [S10](patches/S10.md) | `seam.ChunkBuilderMeshingTaskMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): its `canRenderInLayer` and vanilla `renderBlock` calls | In a build for the shader passes: `@WrapOperation`s that render a block the pack moves only in the pack's layer, and attach each vanilla-path block's context (`ShaderBlockContexts`) to the quads it draws | MESHING | not proposed |
 | [S11](patches/S11.md) | `seam.VintageChunkBuildContextMixin` | `VintageChunkBuildContext.convertVanillaDataToCeleritasData`, `copyBlockData` | `@WrapOperation`s: the layer's quad contexts go to `copyBlockData`, which prepares the extended vertex encoder with each quad's context; translucent fluid quads go to the pack's water pass | MESHING | not proposed |
-| [S13](patches/S13.md) | `seam.ChunkBuilderMeshingTaskMixin`, `seam.VintageBlockRendererMixin` | the `USE_NEW_BLOCK_RENDERER` read in `execute`; `VintageBlockRenderer.renderBlock`, `renderQuadList`, `getVertexLight`, `writeGeometry` | The fast block renderer is Demonica's option (off by default), per block: blocks that mods render or hide through vanilla's dispatcher stay on the vanilla path (`FastBlockRendererCompat`). Under a pack it writes each block's context, keeps fluids' material and the pack's layers, and applies the pack's directional-shading and separate-AO settings | MESHING | not proposed |
+| [S13](patches/S13.md) | `seam.ChunkBuilderMeshingTaskMixin`, `seam.BlockRendererDispatcherMixin`, `seam.VintageBlockRendererMixin` | `ChunkBuilderMeshingTask.<clinit>` (TAIL); the `BlockModelRenderer.renderModel` call in vanilla's `BlockRendererDispatcher.renderBlock`; `VintageBlockRenderer.renderModel`, `renderQuadList`, `getVertexLight`, `writeGeometry` | The fast block renderer is Demonica's option (off by default), per block: upstream's `USE_NEW_BLOCK_RENDERER` is held false so its own dispatcher wrapper passes through, and Demonica's `@WrapOperation` of the same call hands a `ChunkBufferBuilder`'s model to the fast renderer unless a mod renders or hides the block through vanilla's dispatcher (`FastBlockRendererCompat`). Under a pack the fast renderer writes each block's context, keeps fluids' material and the pack's layers, and applies the pack's directional-shading and separate-AO settings | MESHING | not proposed |
 | [S14](patches/S14.md) | `seam.VintageRenderPassConfigurationBuilderMixin` | `VintageRenderPassConfigurationBuilder.build` | HEAD-cancel while a pack is active: `ShaderPassConfigurations` (separate water pass, semantic and depth-write defines) | CORE_TERRAIN | not proposed |
 | [S15](patches/S15.md) | `seam.GLStateManagerFogServiceMixin` | `GLStateManagerFogService` (all 7 getters) | HEAD-cancel: GLSM's fog state, planar shape | BASE | not proposed |
 | [S16](patches/S16.md) | `internal.DefaultChunkRendererMixin` | the `useBlockFaceCulling()` call in `DefaultChunkRenderer.render` | `@ModifyExpressionValue`: no face culling in the shadow pass | SHADOW | not proposed |
 | [S17](patches/S17.md) | `internal.GlProgramMixin` | `GlProgram.<init>(int, Function)`, `destroyInternal` | Register every linked program with Iris's `DepthColorStorage` | DEGRADE: Iris re-applies its pass after each terrain draw | no upstream change needed; candidate for removal |
 | [S19](patches/S19.md) | `internal.ChunkTrackerMixin` | `ChunkTracker.requiredNeighborRadius` | `@Shadow` read behind `ChunkTrackerAccess` | DEGRADE: Distant Horizons' neighbour-radius uniform falls back to its default | not proposed |
-| [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderBlock` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
+| [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderModel` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
 | [C1](patches/C1.md) | `seam.ChunkBuilderMeshingTaskCompatMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): the whole method, its `canRenderInLayer` call, its `convertVanillaDataToCeleritasData` call | Only while the mod is installed: the Component Model Hider's build flag around the build (`@WrapMethod`) and no geometry for its hidden positions; LittleTiles' cached tile geometry appended to the vanilla-format buffers before they are converted | COMPAT: hidden multiblock parts are drawn, or LittleTiles blocks that are not full blocks are invisible | not proposed |
 | [C2](patches/C2.md) | `internal.DefaultChunkRendererCompatMixin`, `internal.RenderSectionManagerCompatMixin` | the `BatchAssembler.createCachedBatch` call in `DefaultChunkRenderer.render`; `RenderSectionManager.onSectionAdded` (TAIL) | Only while Chunk Animator is installed (`ChunkAnimatorCompat` sets a `ChunkAnimationProvider`): a region whose sections are animating gets its cached batch built from the static sections, and the animating ones are drawn one by one with the animation offset added to the region offset (`@WrapOperation`); a new section is reported to the provider, the counterpart of vanilla's `RenderChunk.setOrigin` | COMPAT: Chunk Animator's chunk animations never play | not proposed |
 | [I1](patches/I1.md) | `seam.VintageRenderSectionManagerShadowMixin` | `VintageRenderSectionManager.getAsyncOcclusionMode` | RETURN: "Everything" becomes "Only Shadows" when the manager gets a shadow pass | SHADOW | a question for upstream |
@@ -148,6 +148,48 @@ injector found its target in 0 of 1 methods, and the game runs on. The bytecode
 exported with `-PmixinExport` shows S16's injection in
 `DefaultChunkRenderer.render`, S8's `@ModifyArg` before `drawChunkLayer`, and
 I2's `@ModifyVariable` at the head of both searches.
+
+Verified on 2026-10-14 at pin `d94ec1e5` (2.5.0, `feat/celeritas-d94ec1e5`). Upstream
+`26ab2175` ("Route the fast block renderer through BlockRendererDispatcher") moved
+the fast renderer behind vanilla's dispatcher: `execute` lost its
+`USE_NEW_BLOCK_RENDERER` branch and calls `dispatcher.renderBlock` for every block
+into a `ChunkBufferBuilder`, `VintageBlockRenderer.renderBlock` became
+`renderModel(IBakedModel, …)`, and upstream's new `BlockRendererDispatcherMixin`
+wraps the `renderModel` call in `renderBlock`. S13 and S20 were re-derived: the
+switch is now a `<clinit>` injection that holds upstream's flag false plus
+`seam.BlockRendererDispatcherMixin`, a `@WrapOperation` of the same call that
+decides per block; the six `renderBlock` injectors of S13 and S20 moved to
+`renderModel`. S10, S11 and C1 kept their anchors (checked with `javap` on both
+jars). The other five commits (bitraster near clip, `SectionLattice` world height,
+an Oculus-only mixin, `CLAUDE.md`, the sprite transparency loop) touch nothing
+Demonica patches. Dev client (`gate-accepted.txt`, on Mesa's llvmpipe that day: the
+NVIDIA user space had been updated under the running kernel module): the remap
+accepted by `dev_sha256`, all 22 mixins applied with 49 of 49 injectors (the
+`<clinit>` injection among them), fog at the render distance without a pack, the
+pack list through the Shader Packs tab, BSL with terrain shadows (199 shadow
+sections). A temporary trace in the dispatcher wrapper, removed afterwards,
+showed the switch at work: with the option off every chunk-build block took the
+vanilla path although the dev environment had set `USE_NEW_BLOCK_RENDERER` (the
+injection had made it false); with the option on, the fast path; with
+`-PwithCompatMods` and the option on (`cp9b.txt`), Snow! Real Magic!'s snow
+layers were forced to the vanilla path and stone took the fast path, C1's three
+injectors applied, and GL debug showed the extended vertex encoder receiving
+block IDs from the fast renderer. With `pinsOnly` (`gate-rejected.txt`): 21
+mixins not applied, S15 at 7 of 7, `ShadersUnavailableScreen` naming
+`d94ec1e5`. Prism `demonica-bundle-smoke` (Cleanroom 0.6.13-alpha, the
+0.8.0-SNAPSHOT jars of this branch, NVIDIA GL): A, alone with a stale
+`zz-…-9b661b70-…jar` in `mods/1.12.2`: "Using the Celeritas bundled with
+Demonica, zz-…-d94ec1e5-20261014T021746.jar", the stale copy removed, the guard
+accepts `7d380743`, 22 mixins with 49 of 49, BSL with 426 shadow sections, 0
+errors; B, the new release asset installed as `01-celeritas-…jar`: "Using the
+installed mods/01-…", only that jar examined as a coremod, the extracted bundled
+copy deleted, no `DuplicateModsFoundException`, accepted, 49 of 49, BSL shadows;
+C, the `9b661b70` asset installed instead: the installed jar is used and
+rejected (`80f07935`), 21 mixins not applied, S15 at 7 of 7, and the Shader
+Packs tab opens `ShadersUnavailableScreen` saying the jar takes precedence over
+the bundled Celeritas and to remove it or install the build of `d94ec1e5`; D,
+the installed jar removed: the bundled copy is extracted again and used, as in
+A. Logs and shots in that instance's `smoke-runs/pin-d94ec1e5/run-{a,b,c,d}/`.
 
 Verified on 2026-09-29 at pin `9b661b70` (2.5.0, `feat/celeritas-2.5.0`). Only S4
 changed: upstream removed `ChunkShaderFogComponent.FOG_SERVICE`, so the mixin shadows
@@ -299,8 +341,9 @@ Actinium classes that changed shape on the way to upstream Celeritas.
 ## Lost fork fixes
 
 Behaviour of Actinium's fork (at `4a19c959`) that lived in code upstream owns,
-and was lost when Demonica moved to upstream Celeritas. Upstream lacks all six
-at the pin (checked against the pinned jar's bytecode). They are candidates to
+and was lost when Demonica moved to upstream Celeritas. Upstream lacks five of the
+six at the pin (checked against the pinned jar's bytecode); the first, the sprite
+transparency loop, upstream fixed in `d94ec1e5`. The five are candidates to
 propose upstream; none is drafted yet. Two are features rather than fixes.
 
 ### The sprite transparency loop under ZGC (Actinium #171)
@@ -312,14 +355,16 @@ propose upstream; none is drafted yet. Two are features rather than fixes.
 - **Actinium's fix:** `features/mipmaps/MixinTextureAtlasSprite` keeps an int
   ordinal maximum inside the loop and maps it back to the enum once
   afterwards; the result is the same.
-- **Upstream:** forge122's `TextureAtlasSpriteMixin` (lines 56-82) still calls
-  `chooseNextLevel` per pixel, and forge1710 and modern have the same loop.
-  Whether upstream alone reproduces the crash is unverified: every run in #171
-  had Actinium installed.
-- **Why Demonica cannot carry it:** the loop is a private method of upstream's
+- **Upstream:** fixed in `d94ec1e5` ("Avoid carrying the transparency level
+  enum through pixel loops", the pin since 2026-10-14): the loop keeps two
+  booleans (`hasTransparent`, `hasTranslucent`) and calls `chooseNextLevel`
+  once, with the new `SpriteTransparencyLevel.of(boolean, boolean)`, in all
+  loaders. Up to `9b661b70`, forge122's `TextureAtlasSpriteMixin` (lines 56-82)
+  called `chooseNextLevel` per pixel. Whether upstream alone reproduced the
+  crash was never verified: every run in #171 had Actinium installed.
+- **Why Demonica could not carry it:** the loop is a private method of upstream's
   mixin (`embeddium$processTransparentImages`), called from its HEAD injection
   on `generateMipmaps`.
-- **Proposal:** the same int-ordinal rewrite in all three loaders.
 
 ### Stale build results that keep their cancellation token (Actinium #113)
 

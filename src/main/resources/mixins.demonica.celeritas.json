@@ -18,6 +18,7 @@
     "internal.ShaderChunkRendererMixin",
     "internal.SimpleWorldRendererAccessMixin",
     "internal.SimpleWorldRendererMixin",
+    "seam.BlockRendererDispatcherMixin",
     "seam.CeleritasWorldRendererMixin",
     "seam.CeleritasWorldRendererShadowMixin",
     "seam.ChunkBuilderMeshingTaskCompatMixin",
