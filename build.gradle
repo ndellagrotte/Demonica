@@ -1072,8 +1072,10 @@ tasks.named('jar', Jar).configure {
     // reobfJar's SRG jar, the diagnostics jar and the sources jar.
     destinationDirectory = layout.buildDirectory.dir('devlibs')
     duplicatesStrategy = DuplicatesStrategy.FAIL
-    // The manifest is written in doFirst; declare the inputs or the build cache can restore a stale one.
-    inputs.property('version', project.version.toString())
+    // The manifest is written in doFirst; declare the inputs or the build cache can restore a stale one. The version is
+    // read here, while the task is configured: Task.project at execution time is deprecated (Gradle 10).
+    def modVersion = project.version.toString()
+    inputs.property('version', modVersion)
     inputs.property('s8tnlibVersion', s8tnlibVersion)
     inputs.files(s8tnlibJar).withPropertyName('s8tnlibJar')
     inputs.files(configurations.bundledCeleritas).withPropertyName('bundledCeleritas')
@@ -1099,11 +1101,11 @@ tasks.named('jar', Jar).configure {
             attributes(
                 'ModType': 'CRL',
                 'Implementation-Title': mod_name,
-                'Implementation-Version': project.version.toString(),
+                'Implementation-Version': modVersion,
                 'Implementation-Vendor': mod_authors,
                 'Implementation-Vendor-Id': root_package,
                 'Specification-Title': mod_name,
-                'Specification-Version': project.version.toString(),
+                'Specification-Version': modVersion,
                 'Specification-Vendor': mod_authors,
                 'FMLCorePlugin': coremod_plugin_class,
                 'FMLCorePluginContainsFMLMod': 'true',
