@@ -144,6 +144,11 @@ Approximate, by package; some classes straddle two rows.
 | Options, config, lifecycle, bridges | `config/`, `gui/` minus RSO, `Demonica`, `loading/`, `runtime/`, `mixins/` | ~2,300 | Yes |
 | S8TNLib | merged | 10,389 | Partly: tessellator capture, VAO/VBO helpers and vertex formats used by GLSM and the fast paths (3.7) |
 
+*Note, 2026-10-14:* `MacDisplayForwardCompatTransformer` and the
+forward-compatible hint describe Cleanroom 0.6.x (GLFW, LWJGLXX). Both were
+removed in the move to Cleanroom 0.7 (0.8), where SDL 3 picks the macOS core
+profile from the profile mask alone.
+
 Read the other way: the Iris pipeline plus its vanilla hooks plus the seam is
 about 56,000 lines, 41% of what ships.
 
@@ -384,6 +389,13 @@ Cleanroom's own again: Demonica writes it only on the core path, to put back
 what LWJGLXX synced, and after a debug-context run. The macOS forward-compatible
 hint is gated on a system property that only the core path sets, since GLFW
 rejects it on the 2.1 request a compatibility context degrades to.
+
+*Note, 2026-10-14:* this paragraph, and the `[LWJGLXX]` log lines below,
+describe Cleanroom 0.6.x. The move to Cleanroom 0.7 (0.8) removed the
+forward-compatible hint, its system property and
+`MacDisplayForwardCompatTransformer`: Cleanroom 0.7 creates an SDL 3 window
+(no GLFW, lwjgly instead of LWJGLXX), and SDL picks the macOS core profile
+from the profile mask alone.
 
 E's premise was wrong in these places:
 - Nothing in GLSM goes cold on a compatibility context. The only profile
@@ -1110,3 +1122,7 @@ will find more.
 | `mixins.demonica.revoui.json`, `RevoScreenEffectsGradient` | Revo UI | 3 | GUI GL state boundary, HUD cache |
 | `mixins.demonica.obscuretooltips.json` | Obscure Tooltips | 1 | GUI GL state boundary (Iris armor state in tooltips) |
 | `MixinReEntranceLockFix` | Techguns and other legacy coremods | 0 | Cleanroom Mixin bug |
+
+*Note, 2026-10-14:* `MacDisplayForwardCompatTransformer` belonged to Cleanroom
+0.6.x (GLFW) and was removed in the move to Cleanroom 0.7 (0.8);
+`CoreProfileContextAttributes` remains.

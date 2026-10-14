@@ -55,9 +55,10 @@ easing, duration and "disable around player" are Chunk Animator's own settings.
 workspace and reads `./../mcp/methods.csv` and `./../mcp/fields.csv` relative
 to the client's working directory, `run/client`; without them its class
 transformer fails at class init (`ExceptionInInitializerError`). The
-`prepareChunkAnimatorMcpMappings` task, which `preRunClient` depends on under
+`prepareChunkAnimatorMcpMappings` task, which `runClient` depends on under
 that property, unpacks the two CSVs from the `de.oceanlabs.mcp:mcp_stable:39-1.12`
-zip Unimined maps with into `run/mcp/`.
+zip (resolved from Cleanroom's Maven) into `run/mcp/`. The mod itself runs as
+its raw SRG jar (`devRuntimeMods`), which Cleanroom remaps as it loads it.
 `scripts/chunkanimator.txt` is the scene: a fresh world, then a teleport of 96
 blocks so new sections enter the render distance; the shots a few ticks after it
 show the terrain below the player rising into place.

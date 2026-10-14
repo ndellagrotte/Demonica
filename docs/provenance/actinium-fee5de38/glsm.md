@@ -108,7 +108,7 @@
 - `com/gtnewhorizons/angelica/glsm/GpuCommandDiagnostics.java`
 - `com/gtnewhorizons/angelica/glsm/LTWWorkaround.java`
 - `com/gtnewhorizons/angelica/glsm/backend/GLDebugMessageListener.java`
-- `com/gtnewhorizons/angelica/glsm/backend/GlfwFileDropWatcher.java`
+- `com/gtnewhorizons/angelica/glsm/backend/GlfwFileDropWatcher.java` (renamed `SdlFileDropWatcher` on 2026-10-14, in the move to Cleanroom 0.7's SDL 3 window)
 - `com/gtnewhorizons/angelica/glsm/debug/GLSMDebug.java`
 - `com/gtnewhorizons/angelica/glsm/debug/GLSMPerfDebug.java`
 - `com/gtnewhorizons/angelica/glsm/debug/GLSMPerfDebugHooks.java`

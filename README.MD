@@ -8,7 +8,8 @@ the role of [Actinium](https://github.com/DHJComical/Actinium), from which it
 forked at `4a19c959` ([`docs/FORK.md`](docs/FORK.md)); unlike Actinium, it
 carries no copy of the terrain renderer.
 
-**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested). Celeritas's 1.12.2 mod
+**Requires:** Cleanroom 0.7.4 or later (its SDL 3 window; Java 25). Cleanroom
+0.6.x is no longer supported. Celeritas's 1.12.2 mod
 comes with Demonica: its jar bundles the build pinned in
 [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md), upstream commit `d94ec1e5` as
 published by the Celeritas auto-build (the release asset
@@ -67,8 +68,10 @@ which macOS gets automatically.
 
 ## Building
 
-JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
-1.12.2/Cleanroom workspace through Unimined and downloads the pinned Celeritas
+JDK 25. The build uses [CleanroomGradle](https://github.com/CleanroomMC/CleanroomGradle)'s
+userdev workspace (`cleanroom.userdev(cleanroom_version)`, Cleanroom 0.7.4 with
+MCP names) and CleanroomMC's Conventions plugin; the Unimined setup of
+Demonica 0.7 and earlier is gone. The first build downloads that workspace and the pinned Celeritas
 from `maven.outlands.top`, which `verifyCeleritasPin` checks by SHA-256, and the
 same build's release asset from the Celeritas auto-build's GitHub releases, which
 `verifyBundledCeleritasPin` checks against its exact hash and the jar bundles. GTNHLib
@@ -80,8 +83,9 @@ reached, the build uses the last answer, cached in
 `.gradle/demonica/s8tnlib-latest`.
 
 ```sh
-./gradlew build      # compile, test, and check the pin and the mod jar
-./gradlew runClient  # dev client with Celeritas and Demonica
+./gradlew build             # compile, test, and check the pin and the jars
+./gradlew -q printVersion   # the version this checkout builds
+./gradlew runClient         # dev client with Celeritas and Demonica
 ```
 
 To try an S8TNLib build that has no release yet, pass its `build/libs` with
@@ -95,8 +99,37 @@ and must be renamed, while `build/tmp/celeritasPinCandidate/` already has the ri
 name. `./gradlew celeritasPinCandidate -PceleritasCandidate=<tag|latest>` prints the
 `gradle.properties` lines for a new pin ([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md#moving-the-pin)).
 
-The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
-normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<version>.jar`.
+`build/libs` holds what is distributed:
+
+| Jar | What it is |
+|---|---|
+| `build/libs/Demonica-<version>.jar` | the mod, `reobfJar`'s SRG rename of the dev jar, for a normal install |
+| `build/libs/Demonica-diagnostics-<version>.jar` | the diagnostics jar (SRG, from `:diagnostics:reobfJar`) |
+| `build/libs/Demonica-<version>-sources.jar` | the sources, the merged GLSM, Iris and GTNHLib sources included |
+| `build/devlibs/*-mcp.jar` | the MCP-named jars `jar` writes, for dev use only |
+
+### Versions and branches
+
+The version comes from git tags (Conventions' Versioning), not from
+`gradle.properties`; `./gradlew -q printVersion` prints it. A release is a tag
+`vX.Y.Z` (a suffix such as `-beta` sets the release type) on `main`, the release
+branch; pushing the tag runs the release workflow, which attaches the jars of
+`build/libs` to a GitHub release. Between tags `main` builds the next patch
+version, `<X.Y.Z+1>-dev.N`. `develop/0.8` is the next minor version and builds
+`0.8.0-dev.N`; feature branches are cut from `develop/0.8` and build
+`0.8.0-<branch>.N` (`feat/x` becomes `feat-x`). N counts the commits since the
+last tag. A commit that is not pushed adds `.local`, modified or untracked files
+add `.dirty`, and CI adds `+run.<run number>`. Versioning needs the tags: clone
+with full history.
+
+### The dev client
+
+`./gradlew runClient` starts the client in `run/client` (1280x720, 6 GB heap).
+Cleanroom loads the mods from `-Dcrl.dev.extrapath`, never from the JVM's class
+path: Demonica's own classes (with the merged GLSM, Iris and GTNHLib classes),
+the diagnostics' classes, and the raw jars of the `devRuntimeMods`
+configuration, which Cleanroom remaps from SRG to MCP names as it loads them
+([`docs/celeritas/SPIKE.md`](docs/celeritas/SPIKE.md#dev-class-loading)).
 `runClient` takes:
 
 | Property | Effect |
@@ -105,9 +138,23 @@ normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<ver
 | `-PdevProps=key=value,...` | pass system properties, for example `demonica.celeritas.pinsOnly=true` to see what a Celeritas that is not the pin gets, or `demonica.openglProfile=core` to start on a core context |
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for (Chunk Animator among them: its coremod's MCP name tables are unpacked into `run/mcp` first) |
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
+| `-PwithModernSplash` | also load Modern Splash, a coremod that replaces FML's loading screen |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
 | `-PwithoutDiagnostics` | leave the diagnostics jar out, as a player without it runs |
 | `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |
+
+A mod reaches the build in one of two ways, both in `build.gradle`'s
+`dependencies`:
+
+- **To run it in the dev client**, add its normal (SRG-named) jar to
+  `devRuntimeMods`, for example
+  `devRuntimeMods 'curse.maven:<slug>-<project id>:<file id>'`. Never pass it
+  through `deobf(...)` there: the dev client needs the jar as players have it,
+  with its mixin refmaps and SRG names, which Cleanroom remaps at load time.
+- **To compile against it**, add `modCompileOnly deobf('<coordinate>')`.
+  `deobf(...)` renames the jar's classes and members to MCP names for the compile
+  and test classpaths only; a jar that is already MCP-named (CodeChickenLib's
+  `-dev` jar) goes in without it.
 
 ## The diagnostics jar
 

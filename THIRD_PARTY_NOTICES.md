@@ -62,16 +62,17 @@ Packaged unmodified as nested jars in the mod jar, and listed in its manifest's
 
 These are resolved at build time, never bundled, and each is governed by its
 own license:
-- Minecraft 1.12.2 and Cleanroom, with the libraries they bring (log4j among
-  them);
-- LWJGL 3.4.1, lwjglx, JOML, fastutil, Gson, ASM, Lombok and the JetBrains
+- Minecraft 1.12.2 and Cleanroom 0.7.4, with the libraries they bring (log4j
+  among them);
+- LWJGL 3.4.3 (with SDL 3 for the window and input; no GLFW), lwjgly 1.0.2,
+  JOML, fastutil, Gson, ASM, Lombok, and the JetBrains and JSpecify
   annotations;
 - the mods Demonica has compatibility code for: Distant Horizons, Botania,
   CoFH Core, Extra Utilities 2, iChunUtil, CreativeCore, LittleTiles,
   GregTech CEu, CodeChickenLib, Obscure Tooltips, OldResearchReborn, Scannable,
   VoxelMap, Fluidlogged API, RevoUI, the Component Model Hider, StellarCore and
   Gnetum (whose classes the HUD-cache transformers and their tests read);
-- what only the tests use: JUnit, Guava and JourneyMap.
+- what only the tests use: JUnit, Mockito, AssertJ, Guava and JourneyMap.
 
 See `build.gradle` for the exact coordinates.
 
