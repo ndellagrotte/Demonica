@@ -888,7 +888,9 @@ dependencies {
     // (MixinLate's configs, C1, the fast renderer's gates). The heaviest (HBM, GregTech, Thaumcraft) are left out, and
     // RLFoliage, which needs FermiumBooter. Raw jars: Cleanroom remaps them as it loads them.
     if (project.findProperty('withCompatMods') != null) {
-        devRuntimeMods 'maven.modrinth:uCdwusMi:Sa0ttGJr'  // Distant Horizons
+        // Not Distant Horizons (uCdwusMi:Sa0ttGJr, still compiled against above): it calls GLFW, which Cleanroom 0.7
+        // does not ship, so a world crashes on its first frame (NoClassDefFoundError: org/lwjgl/glfw/GLFW). Restore
+        // with a Cleanroom 0.7 build of DH (docs/compat/distant-horizons.md).
         devRuntimeMods 'curse.maven:chunk-animator-236484:3850023'  // needs run/mcp: prepareChunkAnimatorMcpMappings
         devRuntimeMods 'curse.maven:ichunutil-229060:2801262'
         devRuntimeMods 'curse.maven:creativecore-257814:4722163'
@@ -898,10 +900,11 @@ dependencies {
         devRuntimeMods 'curse.maven:scannable-266784:3146549'
         devRuntimeMods 'curse.maven:fluxloading-1207328:7601634'
         devRuntimeMods 'curse.maven:extra-utilities-2-225561:2678374'
-        devRuntimeMods 'curse.maven:codechicken-lib-cre-1328922:6898525'
+        // CodeChickenLib CRE 6898525 needs com.cleanroommc.hackery.ReflectionHackery, which Cleanroom 0.7 removed;
+        // CoFH Core/World need CCL. Restore with a Cleanroom 0.7 CCL build, which in a dev run also needs the system
+        // properties net.minecraftforge.gradle.GradleStart.srg.notch-srg (the Cleanroom universal jar's
+        // deobf_data-1.12.2.tsrg) and net.minecraftforge.gradle.GradleStart.csvDir (run/mcp) on runClient.
         devRuntimeMods 'curse.maven:redstone-flux-270789:2920436'
-        devRuntimeMods 'curse.maven:cofh-core-69162:2920433'
-        devRuntimeMods 'curse.maven:cofh-world-271384:2920434'
         devRuntimeMods 'curse.maven:baubles-227083:2518667'
         devRuntimeMods 'curse.maven:botania-ceu-1179448:8706250'
         devRuntimeMods 'curse.maven:obscure-tooltips-715660:8522661'
