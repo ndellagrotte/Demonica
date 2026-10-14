@@ -5,12 +5,8 @@ import com.demonica.celeritas.guard.Patch;
 import com.demonica.celeritas.guard.PatchGroup;
 import com.demonica.celeritas.terrain.ShaderBlockContexts;
 import com.demonica.celeritas.terrain.ShaderPassConfigurations;
-import com.demonica.compat.FastBlockRendererCompat;
-import com.demonica.runtime.DemonicaRuntime;
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.BlockRendererDispatcher;
@@ -25,6 +21,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.taumc.celeritas.impl.render.terrain.compile.task.ChunkBuilderMeshingTask;
 
@@ -34,11 +31,16 @@ import org.taumc.celeritas.impl.render.terrain.compile.task.ChunkBuilderMeshingT
  *   <li>S10 (docs/celeritas/patches/S10.md): in a build for the shader passes, a block the pack moves to another
  *   layer renders in that layer only, and the quads of each block that takes the vanilla path carry its
  *   {@link ShaderBlockContexts context} into the buffer, for S11 to hand to the extended vertex encoder.</li>
- *   <li>S13 (docs/celeritas/patches/S13.md): Demonica's option picks Celeritas's fast block renderer, which upstream
- *   turns on in dev only, except for the blocks mods render through vanilla's dispatcher
- *   ({@link FastBlockRendererCompat}).</li>
+ *   <li>S13 (docs/celeritas/patches/S13.md), the switch: upstream's {@code USE_NEW_BLOCK_RENDERER} is held false, so
+ *   upstream's wrapper of vanilla's {@code BlockModelRenderer.renderModel} call always passes through, and
+ *   {@link BlockRendererDispatcherMixin} decides per block from Demonica's option. Since upstream {@code 26ab2175}
+ *   the loop has no fast-renderer branch of its own: every block goes through {@code dispatcher.renderBlock}.</li>
  * </ul>
  * The method selectors carry the full descriptor: an erased bridge {@code execute(...)Object} calls this one.
+ *
+ * <p>Relies on, though no injector names it: {@code execute} calls {@code BlockRendererDispatcher.renderBlock} for every
+ * block, into the {@code ChunkBufferBuilder} that {@code BlockRendererDispatcherMixin} recognises, and
+ * {@code USE_NEW_BLOCK_RENDERER} is a non-final static. A pin move must check both by hand.
  */
 @Patch(value = {"S10", "S13"}, group = PatchGroup.MESHING)
 @Mixin(value = ChunkBuilderMeshingTask.class, remap = false, priority = 1100)
@@ -72,6 +74,8 @@ public abstract class ChunkBuilderMeshingTaskMixin {
         return true;
     }
 
+    // Also brackets the blocks the fast renderer meshes (the dispatcher is their entry too, since 26ab2175); harmless,
+    // since the fast renderer writes nothing into the vanilla buffer, so no quad records that context.
     @WrapOperation(method = EXECUTE, at = @At(value = "INVOKE",
         target = "Lnet/minecraft/client/renderer/BlockRendererDispatcher;renderBlock(Lnet/minecraft/block/state/IBlockState;"
             + "Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/world/IBlockAccess;Lnet/minecraft/client/renderer/BufferBuilder;)Z",
@@ -89,11 +93,10 @@ public abstract class ChunkBuilderMeshingTaskMixin {
         }
     }
 
-    // Per block: blocks that a mod renders or hides from inside vanilla's dispatcher always take the vanilla path.
-    @ModifyExpressionValue(method = EXECUTE, at = @At(value = "FIELD",
-        target = "Lorg/taumc/celeritas/impl/render/terrain/compile/task/ChunkBuilderMeshingTask;USE_NEW_BLOCK_RENDERER:Z"))
-    private boolean demonica$fastBlockRenderer(boolean upstreamDefault, @Local Block block, @Local BlockPos.MutableBlockPos pos) {
-        return DemonicaRuntime.options().performance.useFastBlockRenderer
-            && !FastBlockRendererCompat.requiresVanillaRenderer(block, pos);
+    // Upstream's switch, true in a deobfuscated environment (or with -Dceleritas.useVintageFastBlockRenderer), would make
+    // its own dispatcher wrapper mesh every model block with the fast renderer, before Demonica's option is asked.
+    @Inject(method = "<clinit>", at = @At("TAIL"))
+    private static void demonica$upstreamSwitchOff(CallbackInfo ci) {
+        ChunkBuilderMeshingTask.USE_NEW_BLOCK_RENDERER = false;
     }
 }

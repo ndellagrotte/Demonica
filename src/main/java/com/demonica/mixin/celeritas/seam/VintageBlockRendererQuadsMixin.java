@@ -28,7 +28,7 @@ import java.util.List;
 @Patch(value = "S20", group = PatchGroup.DEGRADE)
 @Mixin(value = VintageBlockRenderer.class, remap = false, priority = 1100)
 public abstract class VintageBlockRendererQuadsMixin {
-    @WrapOperation(method = "renderBlock", at = @At(value = "INVOKE",
+    @WrapOperation(method = "renderModel", at = @At(value = "INVOKE",
         target = "Lnet/minecraft/client/renderer/block/model/IBakedModel;getQuads(Lnet/minecraft/block/state/IBlockState;"
             + "Lnet/minecraft/util/EnumFacing;J)Ljava/util/List;",
         remap = true))
