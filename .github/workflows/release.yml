@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+jobs:
+  release:
+    # The reusable workflow commits CHANGELOG.md to the repository's default branch (only when the
+    # tag is an ancestor of it). Its Gradle step gets no GITHUB_TOKEN, so the S8TNLib latest-release
+    # lookup runs unauthenticated there.
+    uses: CleanroomMC/Conventions/.github/workflows/release.yml@1.4.1
+    with:
+      publish-maven: false
+      publish-mods: false
+      # Only the mod jars; the default **/build/libs/*.jar would also attach the glsm/ and shader/ library jars.
+      artifact-path: 'build/libs/*.jar'
+    secrets: inherit
