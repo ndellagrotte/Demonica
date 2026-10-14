@@ -7908,6 +7908,16 @@ public class GLStateManager {
         params.put(params.position(), imageBindingOrBackend(pname, index));
     }
 
+    /**
+     * The LWJGL 3 array form of {@code glGetIntegeri_v}: like that binding, it writes the single indexed value to
+     * {@code params[0]}. The redirector keeps the caller's descriptor, so without this overload a redirected array call
+     * fails to link. Cleanroom's built-in Kirino renderer ({@code com.cleanroommc.kirino.gl.GLDeviceInfo.captureSnapshot})
+     * makes this call on every client.
+     */
+    public static void glGetIntegeri_v(int pname, int index, int[] params) {
+        params[0] = imageBindingOrBackend(pname, index);
+    }
+
     public static void glGetBooleani_v(int pname, int index, ByteBuffer params) {
         params.put(params.position(), (byte) (imageBindingOrBackend(pname, index) != 0 ? GL11.GL_TRUE : GL11.GL_FALSE));
     }
