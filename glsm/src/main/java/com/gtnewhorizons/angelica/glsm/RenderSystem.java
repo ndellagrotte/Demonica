@@ -76,8 +76,9 @@ public class RenderSystem {
         } catch (NoSuchFieldError ignored) {
         }
         try {
-            // lwjglx's ContextCapabilities has no GL_ARB_direct_state_access field, so probe
-            // the extension string instead of the capability flag Angelica uses.
+            // Probe the extension string rather than a capability flag: Cleanroom 0.6's lwjglx
+            // ContextCapabilities had no GL_ARB_direct_state_access field (lwjgly's has one), and the
+            // string probe works on every runtime without depending on the shim's field set.
             if (dsaState == null && hasExtension("GL_ARB_direct_state_access")) {
                 dsaState = new DSAARB();
                 GLStateManager.LOGGER.info("ARB_direct_state_access detected, enabling DSA.");

@@ -4,96 +4,78 @@ import net.minecraftforge.common.ForgeEarlyConfig;
 import net.minecraftforge.common.config.ConfigManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.lwjgl.opengl.ContextAttribs;
-
-import java.util.function.Consumer;
 
 /**
- * Creates the core-profile context attributes required during early Minecraft startup.
- * Keeping this logic outside every Mixin configuration package allows transformed classes to load it normally.
+ * Writes the OpenGL context request that Cleanroom reads from {@code ForgeEarlyConfig} during early Minecraft startup,
+ * and puts the user's values back afterwards.
+ *
+ * <p>Cleanroom 0.7.4 creates the SDL window and its OpenGL context in the patched {@code Minecraft.init}, before
+ * {@code createDisplay}: the version, profile and debug flag are read from {@code ForgeEarlyConfig.OPENGL_*} when
+ * {@code Window.GLConfig} is built there. lwjgly's {@code Display.create} only validates that existing context, so
+ * these fields are the only way to choose the context. Keeping this logic outside every Mixin configuration package
+ * allows transformed classes to load it normally.
  */
 public final class CoreProfileContextAttributes {
     private static final Logger LOGGER = LogManager.getLogger("Demonica");
 
     /**
-     * Set while Demonica requests a core context. {@code MacDisplayForwardCompatTransformer} gives GLFW the
-     * forward-compatible hint only while it is {@code true}.
-     */
-    public static final String FORWARD_COMPAT_PROPERTY = "demonica.gl.forwardCompat";
-
-    /**
-     * Prevents instantiation because context attribute construction is stateless.
+     * Prevents instantiation; every helper is static.
      */
     private CoreProfileContextAttributes() {
     }
 
     /**
-     * Configures one context attribute object in place.
+     * Requests a core-profile context from Cleanroom's window creation.
      *
-     * <p>The lwjglx compatibility implementation returns {@code null} from these mutator methods, so their
-     * return values must not be chained or retained.</p>
-     *
-     * @param major requested OpenGL major version
-     * @param minor requested OpenGL minor version
-     * @param lwjglDebug whether the debug context was requested at startup
-     * @return configured context attributes
-     */
-    public static ContextAttribs create(int major, int minor, boolean lwjglDebug) {
-        ContextAttribs attributes = new ContextAttribs(major, minor);
-        return configure(
-            attributes,
-            value -> value.withProfileCore(true),
-            value -> value.withForwardCompatible(true),
-            value -> value.withDebug(lwjglDebug)
-        );
-    }
-
-    /**
-     * Configures the Forge early OpenGL context used by Cleanroom's LWJGLXX implementation.
-     *
-     * <p>LWJGLXX ignores {@code Display.create(PixelFormat, ContextAttribs)} and reads the desired version,
-     * profile, and debug state from {@code ForgeEarlyConfig}. Without this override, macOS can downgrade a
-     * requested modern compatibility-profile context to the legacy 2.1 Metal context.</p>
+     * <p>Must run before {@code Window.GLConfig} is built in {@code Minecraft.init}. Cleanroom walks down from the
+     * requested version itself, and SDL picks the macOS core profile from the profile mask alone, so no
+     * forward-compatible flag is needed. Without this override macOS, whose compatibility profile stops at
+     * OpenGL 2.1, gets a legacy context.</p>
      *
      * @param major requested OpenGL major version
      * @param minor requested OpenGL minor version
-     * @param lwjglDebug whether the debug context was requested at startup
+     * @param debug whether to request a debug context
      */
-    public static void applyForgeEarlyCoreProfile(int major, int minor, boolean lwjglDebug) {
+    public static void applyForgeEarlyCoreProfile(int major, int minor, boolean debug) {
         ForgeEarlyConfig.OPENGL_VERSION_MAJOR = major;
         ForgeEarlyConfig.OPENGL_VERSION_MINOR = minor;
         ForgeEarlyConfig.OPENGL_COMPAT_PROFILE = false;
-        ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = lwjglDebug;
-        System.setProperty(FORWARD_COMPAT_PROPERTY, "true");
+        ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = debug;
     }
 
     /**
      * Restores the Forge early OpenGL config after the core-profile context was created.
      *
-     * <p>LWJGLXX reads these fields when creating the context and Cleanroom persists them back to
-     * forge_early.cfg. Leaving the core-profile request in place breaks startup without Demonica
-     * (Cleanroom's own default path expects the compatibility profile), so restore the requested
-     * version/debug state and force the compatibility profile back on. The compatibility flag is
-     * restored unconditionally: Demonica is the only writer that sets it to false.
+     * <p>Leaving the core-profile request in place would break a later launch without Demonica (Cleanroom's own
+     * startup code expects the compatibility profile once it is written to {@code forge_early.cfg}), so every field
+     * goes back to the value it had before {@link #applyForgeEarlyCoreProfile}. The compatibility flag is restored to
+     * its original value, not forced on: it is user-editable in Forge's config GUI, and a user who chose the core
+     * profile there keeps that choice.</p>
      *
      * @param originalMajor OpenGL major version before Demonica's request
      * @param originalMinor OpenGL minor version before Demonica's request
+     * @param originalCompatProfile compatibility-profile flag before Demonica's request
      * @param originalDebug debug-context flag before Demonica's request
      */
-    public static void restoreForgeEarlyCompatProfile(int originalMajor, int originalMinor, boolean originalDebug) {
+    public static void restoreForgeEarlyProfile(
+        int originalMajor,
+        int originalMinor,
+        boolean originalCompatProfile,
+        boolean originalDebug
+    ) {
         ForgeEarlyConfig.OPENGL_VERSION_MAJOR = originalMajor;
         ForgeEarlyConfig.OPENGL_VERSION_MINOR = originalMinor;
-        ForgeEarlyConfig.OPENGL_COMPAT_PROFILE = true;
+        ForgeEarlyConfig.OPENGL_COMPAT_PROFILE = originalCompatProfile;
         ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT = originalDebug;
-        System.clearProperty(FORWARD_COMPAT_PROPERTY);
     }
 
     /**
      * Asks Cleanroom's own context creation for a debug context when the LWJGL debug option is on.
      *
-     * <p>With the compatibility profile Demonica leaves {@code createDisplay} to Cleanroom, which reads
-     * {@code OPENGL_DEBUG_CONTEXT} from {@code ForgeEarlyConfig}. Raising it for this one creation keeps the
-     * "LWJGL Debug Context" option working without Demonica owning the file.
+     * <p>With the compatibility profile Demonica leaves the context request to Cleanroom, which reads
+     * {@code OPENGL_DEBUG_CONTEXT} from {@code ForgeEarlyConfig} when it builds the window in {@code Minecraft.init}.
+     * Raising it for this one creation keeps the "LWJGL Debug Context" option working without Demonica owning the
+     * file.
      *
      * @param lwjglDebug whether the debug context was requested at startup
      * @return whether the flag was raised here, from {@code false} to {@code true}
@@ -107,8 +89,8 @@ public final class CoreProfileContextAttributes {
     }
 
     /**
-     * Lowers the debug flag that {@link #raiseForgeEarlyDebugContext} raised, and writes it back to
-     * {@code forge_early.cfg}, which LWJGLXX synced with the raised flag while creating the context.
+     * Lowers the debug flag that {@link #raiseForgeEarlyDebugContext} raised, and writes the restored state back to
+     * {@code forge_early.cfg} (see {@link #persistForgeEarlyConfig}).
      *
      * @param raised what {@link #raiseForgeEarlyDebugContext} returned
      */
@@ -121,47 +103,24 @@ public final class CoreProfileContextAttributes {
     }
 
     /**
-     * Persists the restored fields back to {@code forge_early.cfg}. The core profile needs it for the reason below;
-     * the compatibility profile uses it only after {@link #raiseForgeEarlyDebugContext} raised the debug flag.
+     * Writes the restored fields to {@code forge_early.cfg}, as insurance that the file never keeps Demonica's
+     * temporary request.
      *
-     * <p>LWJGLXX calls {@code ConfigManager.sync(ForgeEarlyConfig.class)} while creating the
-     * core-profile context, which writes the in-memory core-profile request (compatibility profile
-     * disabled) to the file before {@link #restoreForgeEarlyCompatProfile} can undo it in memory.
-     * Without this follow-up sync the file stays on the core profile and a later launch without
-     * Demonica creates a core context whose fixed-pipeline startup code (SplashProgress texture
-     * setup) fails with {@code GL_INVALID_ENUM}, kills the splash thread, and aborts the JVM on the
-     * first {@code glAlphaFunc}. Sync again now that the fields are restored so the file always
-     * matches the compatibility profile.</p>
+     * <p>Cleanroom 0.6's LWJGLXX called {@code ConfigManager.sync(ForgeEarlyConfig.class)} while creating the
+     * context, which wrote the in-memory core-profile request to the file before it could be restored; a later launch
+     * without Demonica then created a core context whose fixed-pipeline startup code (SplashProgress texture setup)
+     * failed with {@code GL_INVALID_ENUM} and aborted the JVM on the first {@code glAlphaFunc}. Cleanroom 0.7.4 does
+     * not sync during window creation (the only syncs are its config GUI and Forge's preInit, which runs after
+     * {@code createDisplay}, by which time the fields are restored), so this sync only guarantees the file matches
+     * the restored state should a sync ever slip in between.</p>
      */
     public static void persistForgeEarlyConfig() {
         try {
             ConfigManager.sync(ForgeEarlyConfig.class);
         } catch (RuntimeException syncFailure) {
             // The in-memory state is already restored and this run is unaffected; only the file
-            // would keep Demonica's request (a core profile would break the next launch without Demonica).
+            // could keep Demonica's request (a core profile would break the next launch without Demonica).
             LOGGER.error("Failed to persist the restored OpenGL context settings to forge_early.cfg", syncFailure);
         }
-    }
-
-    /**
-     * Applies context mutations without retaining compatibility-layer return values.
-     *
-     * @param attributes context object mutated by every operation
-     * @param coreProfile enables the core profile
-     * @param forwardCompatible enables forward-compatible behavior
-     * @param debug configures the requested debug state
-     * @param <T> concrete context attribute type
-     * @return the original context object
-     */
-    static <T> T configure(
-        T attributes,
-        Consumer<T> coreProfile,
-        Consumer<T> forwardCompatible,
-        Consumer<T> debug
-    ) {
-        coreProfile.accept(attributes);
-        forwardCompatible.accept(attributes);
-        debug.accept(attributes);
-        return attributes;
     }
 }

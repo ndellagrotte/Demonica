@@ -2,9 +2,8 @@ package com.gtnewhorizons.angelica.lwjgl3;
 
 import com.gtnewhorizons.angelica.glsm.backend.DebugMessageHandler;
 import com.gtnewhorizons.angelica.glsm.backend.GLDebugMessageListener;
-import com.gtnewhorizons.angelica.glsm.backend.GlfwFileDropWatcher;
 import com.gtnewhorizons.angelica.glsm.backend.RenderBackend;
-import org.lwjgl.glfw.GLFW;
+import com.gtnewhorizons.angelica.glsm.backend.SdlFileDropWatcher;
 import org.lwjgl.opengl.ARBClearTexture;
 import org.lwjgl.opengl.ARBPolygonOffsetClamp;
 import org.lwjgl.opengl.EXTDirectStateAccess;
@@ -28,6 +27,7 @@ import org.lwjgl.opengl.GL45C;
 import org.lwjgl.opengl.GL46C;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.GLDebugMessageCallback;
+import org.lwjgl.sdl.SDLVideo;
 import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
@@ -66,17 +66,17 @@ public final class Lwjgl3GLRenderBackend extends RenderBackend {
 
     @Override
     public void startFileDrop() {
-        GlfwFileDropWatcher.start();
+        SdlFileDropWatcher.start();
     }
 
     @Override
     public void stopFileDrop() {
-        GlfwFileDropWatcher.stop();
+        SdlFileDropWatcher.stop();
     }
 
     @Override
     public List<String> pollDroppedFiles() {
-        return GlfwFileDropWatcher.pollDroppedFiles();
+        return SdlFileDropWatcher.pollDroppedFiles();
     }
 
     @Override
@@ -1242,7 +1242,7 @@ public final class Lwjgl3GLRenderBackend extends RenderBackend {
 
     @Override
     public long getContextHandle() {
-        return GLFW.glfwGetCurrentContext();
+        return SDLVideo.SDL_GL_GetCurrentContext();
     }
 
     @Override

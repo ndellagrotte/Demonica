@@ -111,7 +111,7 @@ class MixinConfigurationTest {
     @Test
     void everyCoremodTransformerIsRegistered() throws IOException, URISyntaxException {
         ClassLoader classLoader = MixinConfigurationTest.class.getClassLoader();
-        String anchorResource = "com/demonica/loading/fml/transformers/MacDisplayForwardCompatTransformer.class";
+        String anchorResource = "com/demonica/loading/fml/transformers/StellarCoreHudCachingCompatTransformer.class";
         URL anchorUrl = Objects.requireNonNull(classLoader.getResource(anchorResource), "Missing " + anchorResource);
         assertEquals("file", anchorUrl.getProtocol(), "Compiled transformers must be available as files during tests");
 

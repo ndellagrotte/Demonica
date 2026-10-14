@@ -1,43 +1,103 @@
 // Demonica's diagnostics: the GL debug logs and timing tables, the GL flight recorder, the GL state probe, GLSM's
 // draw logs, the PBR and regression logs, and the scripted dev harness. Built into a companion mod jar,
-// Demonica-diagnostics-<version>.jar, by the root project (diagnosticsJar, remapDiagnosticsJar), and never merged
-// into Demonica's own jar. The release jar reaches this code only through no-op facades (net.coderbot.iris.debug.
-// Diagnostics); dev runs load it unless -PwithoutDiagnostics.
+// Demonica-diagnostics-<version>.jar, and never merged into Demonica's own jar. The release jar reaches this code only
+// through no-op facades (net.coderbot.iris.debug.Diagnostics); dev runs load it unless -PwithoutDiagnostics.
 //
-// It compiles against the root project's classes, but the root project's remap of this jar cannot see them, so a
-// Minecraft member reached through a root class stays in MCP names in production. Call Minecraft members only through
-// Minecraft-typed references; verifyDiagnosticsRemap enforces it.
+// A userdev project of its own, so that its mixins get their own refmap (mixins.demonica.diagnostics-refmap.json) and
+// its jar its own SRG rename (reobfJar). `jar` writes the MCP-named jar to the root project's build/devlibs, reobfJar
+// the distributed one to the root project's build/libs, where the root project's verifyDiagnosticsJar checks it.
+//
+// It compiles against the root project's classes. Call Minecraft members only through Minecraft-typed references, never
+// through a root class that inherits them; verifyDiagnosticsRemap enforces it.
 plugins {
-    id 'java-library'
+    id 'java'
+    id 'com.cleanroommc.cleanroomgradle'
+    // JUnit, Mockito and AssertJ, as in the root project. Not the umbrella plugin: Versioning refuses a project whose
+    // version the root project already set.
+    id 'com.cleanroommc.conventions.testing'
+}
+
+base {
+    archivesName = 'Demonica-diagnostics'
 }
 
 def rootClasses = rootProject.files(rootProject.tasks.named('compileJava', JavaCompile).flatMap { it.destinationDirectory })
 
 dependencies {
+    // The workspace with the root project's access transformer, so that the same members are visible as in the root
+    // project. The rest of the root project's compile classpath (Celeritas and the other deobf'd mods, S8TNLib, the
+    // annotations) comes through sharedMinecraftCompileClasspath, without the root project's copy of the workspace.
+    compileOnly cleanroom.userdev(cleanroom_version) {
+        accessTransformers.from(rootProject.file('src/main/resources/META-INF/demonica_at.cfg'))
+    }
     compileOnly project(':shader')
     compileOnly rootClasses
-    compileOnly 'org.jetbrains:annotations:24.1.0'
+    compileOnly rootProject.ext.sharedMinecraftCompileClasspath()
 
-    testImplementation 'org.junit.jupiter:junit-jupiter:6.0.3'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation project(':shader')
     testImplementation rootClasses
     testImplementation rootProject.ext.sharedMinecraftCompileClasspath()
 }
 
-repositories {
-    mavenCentral()
-    // The GLSL transformation library that :glsm brings onto the test classpath.
-    maven { url = 'https://nexus.gtnewhorizons.com/repository/public/' }
+// cg.userdev.refmap is read from the root project's gradle.properties only (mixins.demonica-refmap.json, the mod's).
+// The diagnostics' mixin config names its own refmap.
+tasks.named('compileJava', JavaCompile).configure {
+    def refmap = destinationDirectory.file('mixins.demonica.diagnostics-refmap.json')
+    def providers = options.compilerArgumentProviders.findAll {
+        it instanceof com.cleanroommc.gradle.env.UserDevTasks.RefmapArguments
+    }
+    if (providers.size() != 1) {
+        throw new GradleException("Expected CleanroomGradle's refmap arguments on ${path}, found ${providers}")
+    }
+    providers.each { it.refmap.set(refmap) }
+}
+
+tasks.named('jar', Jar).configure {
+    destinationDirectory = rootProject.layout.buildDirectory.dir('devlibs')
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    def version = project.version.toString()
+    inputs.property('version', version)
+
+    // Only in the jar: on the dev client's extrapath, a second mcmod.info would hide Demonica's own.
+    from(file('src/jar/mcmod.info')) {
+        expand(version: version)
+    }
+    // The license texts and notices, as in the mod jar (THIRD_PARTY_NOTICES.md, "In the jars").
+    from rootProject.files('LICENSE', 'LICENSE-GPL-3.0.txt', 'LICENSE-LGPL-3.0.txt', 'THIRD_PARTY_NOTICES.md')
+
+    manifest {
+        attributes(
+            'ModType': 'CRL',
+            'Implementation-Title': 'Demonica diagnostics',
+            'Implementation-Version': version,
+            'Implementation-Vendor': mod_authors,
+            'FMLCorePlugin': 'com.demonica.diagnostics.DiagnosticsCoremod',
+            'FMLCorePluginContainsFMLMod': 'true',
+            'ForceLoadAsMod': 'true'
+        )
+    }
+}
+
+// The distributed jar, next to the mod's in the root project's build/libs.
+tasks.named('reobfJar').configure {
+    output = rootProject.layout.buildDirectory.file("libs/Demonica-diagnostics-${project.version}.jar")
+    // No fernflower_abstract_parameter_names.txt in the jar (the root project's reobfJar has the same flag).
+    additionalArgs.add('--disable-abstract-param')
+}
+
+// The root project's runClient loads the diagnostics (syncDiagnosticsDev); this project has no runs of its own.
+tasks.named('runClient').configure {
+    enabled = false
+}
+tasks.named('runServer').configure {
+    enabled = false
 }
 
 test {
-    useJUnitPlatform()
     // Log4j writes logs/ into the working directory.
     def testRunDirectory = layout.buildDirectory.dir('test-run')
     workingDir = testRunDirectory.get().asFile
     doFirst { mkdir(testRunDirectory) }
-    javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
 }

@@ -6,90 +6,131 @@ import com.demonica.debug.DemonicaStartupConfig;
 import com.demonica.debug.OpenGlContextReport;
 import com.demonica.debug.OpenGlVersion;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.client.ForgeHooksClient;
 import net.minecraftforge.common.ForgeEarlyConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.LWJGLException;
 import org.lwjgl.LWJGLUtil;
-import org.lwjgl.opengl.ContextAttribs;
-import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL32;
-import org.lwjgl.opengl.PixelFormat;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Creates the display on the configured OpenGL profile ({@code advanced.opengl_profile}).
+ * Requests the OpenGL context on the configured profile ({@code advanced.opengl_profile}).
  *
- * <p>Compatibility (the default on Windows and Linux): Cleanroom's own {@code createDisplay} runs untouched and
- * creates the context {@code forge_early.cfg} asks for, a 4.6 compatibility context by default. Demonica only raises
- * the debug flag for the LWJGL debug option beforehand, and afterwards checks for OpenGL 3.3 and records the context.
+ * <p>Cleanroom 0.7.4 creates the SDL window and its context in {@code Minecraft.init}, from
+ * {@code ForgeEarlyConfig.OPENGL_*}, before {@code createDisplay}; lwjgly's {@code Display.create} in
+ * {@code createDisplay} only validates that context. So Demonica writes its request into those fields just before
+ * {@code SDL.createWindow()}, puts the user's values back at {@code createDisplay} HEAD, and lets Cleanroom's own
+ * {@code createDisplay} run for both profiles (a second window would be refused; Cleanroom walks down the versions
+ * itself).
  *
- * <p>Core (the default on macOS, whose compatibility profile stops at OpenGL 2.1): Demonica replaces
- * {@code createDisplay} and walks down from 4.6 (4.1 on macOS) to 3.3 until a core context is created.
+ * <p>Compatibility (the default on Windows and Linux): the user's {@code forge_early.cfg} request stands, a 4.6
+ * compatibility context by default. Demonica only raises the debug flag for the LWJGL debug option.
+ *
+ * <p>Core (the default on macOS, whose compatibility profile stops at OpenGL 2.1): Demonica requests a 4.6 (4.1 on
+ * macOS) core context; Cleanroom walks down from there.
+ *
+ * <p>Both: afterwards Demonica checks for OpenGL 3.3 and records the context.
  */
 @Mixin(Minecraft.class)
 public abstract class MixinMinecraftDisplay {
     @Unique
     private static final Logger demonica$LOGGER = LogManager.getLogger("Demonica");
 
+    /** Whether the core-profile request replaced the fields below, which createDisplay HEAD puts back. */
+    @Unique
+    private static boolean demonica$coreProfileApplied;
+    @Unique
+    private static int demonica$originalMajor;
+    @Unique
+    private static int demonica$originalMinor;
+    @Unique
+    private static boolean demonica$originalCompatProfile;
+    @Unique
+    private static boolean demonica$originalDebug;
+
+    /** Whether the compatibility path raised the debug flag, which createDisplay HEAD lowers again. */
     @Unique
     private static boolean demonica$debugContextRaised;
 
-    @Shadow
-    private boolean fullscreen;
+    /** The profile and debug flag actually requested from Cleanroom, for the context record. */
+    @Unique
+    private static OpenGlProfile demonica$requested;
+    @Unique
+    private static boolean demonica$requestedDebug;
 
-    @Inject(method = "createDisplay", at = @At("HEAD"), cancellable = true)
-    private void demonica$onCreateDisplay(CallbackInfo ci) throws LWJGLException {
+    /**
+     * Writes Demonica's request into {@code ForgeEarlyConfig} right before Cleanroom builds the window: its
+     * {@code Window.GLConfig} reads the fields when {@code SDL.createWindow()...openGL()} runs.
+     */
+    @Inject(
+        method = "init",
+        at = @At(
+            value = "INVOKE",
+            target = "Lcom/cleanroommc/client/sdl/SDL;createWindow()Lcom/cleanroommc/client/sdl/Window$Builder;",
+            remap = false
+        )
+    )
+    private void demonica$requestContext(CallbackInfo ci) {
         OpenGlProfile requested = demonica$requestedProfile();
-        if (requested != OpenGlProfile.CORE) {
-            boolean lwjglDebug = DemonicaStartupConfig.enableLwjglDebug();
+        boolean lwjglDebug = DemonicaStartupConfig.enableLwjglDebug();
+        demonica$requested = requested;
+        if (requested == OpenGlProfile.CORE) {
+            demonica$originalMajor = ForgeEarlyConfig.OPENGL_VERSION_MAJOR;
+            demonica$originalMinor = ForgeEarlyConfig.OPENGL_VERSION_MINOR;
+            demonica$originalCompatProfile = ForgeEarlyConfig.OPENGL_COMPAT_PROFILE;
+            demonica$originalDebug = ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT;
+            // Keep a debug context the user asked for in forge_early.cfg as well as the LWJGL debug option's.
+            boolean debug = lwjglDebug || demonica$originalDebug;
+            boolean macos = LWJGLUtil.getPlatform() == LWJGLUtil.PLATFORM_MACOSX;
+            CoreProfileContextAttributes.applyForgeEarlyCoreProfile(4, macos ? 1 : 6, debug);
+            demonica$coreProfileApplied = true;
+        } else {
             demonica$debugContextRaised = CoreProfileContextAttributes.raiseForgeEarlyDebugContext(lwjglDebug);
-            demonica$LOGGER.info(
-                "Requesting Cleanroom's OpenGL context (configured={}, profile={}, forge_early.cfg={}.{} compat={}, debug={})",
-                DemonicaStartupConfig.openGlProfile().id(),
-                requested.id(),
-                ForgeEarlyConfig.OPENGL_VERSION_MAJOR,
-                ForgeEarlyConfig.OPENGL_VERSION_MINOR,
-                ForgeEarlyConfig.OPENGL_COMPAT_PROFILE,
-                ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT
-            );
-            return;
         }
-
-        final int originalMajor = ForgeEarlyConfig.OPENGL_VERSION_MAJOR;
-        final int originalMinor = ForgeEarlyConfig.OPENGL_VERSION_MINOR;
-        final boolean originalDebug = ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT;
-        try {
-            demonica$createCoreProfileDisplayInner(ci);
-        } finally {
-            // Don't leave the core-profile request persisted in forge_early.cfg: without Demonica,
-            // Cleanroom's default path expects the compatibility profile and fails to create a context.
-            // LWJGLXX syncs the request to the file while creating the context, so restore the fields
-            // and sync them back (see CoreProfileContextAttributes.persistForgeEarlyConfig).
-            CoreProfileContextAttributes.restoreForgeEarlyCompatProfile(originalMajor, originalMinor, originalDebug);
-            CoreProfileContextAttributes.persistForgeEarlyConfig();
-        }
+        demonica$requestedDebug = ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT;
+        demonica$LOGGER.info(
+            "Requesting Cleanroom's OpenGL context (configured={}, profile={}, forge_early.cfg={}.{} compat={}, debug={})",
+            DemonicaStartupConfig.openGlProfile().id(),
+            requested.id(),
+            ForgeEarlyConfig.OPENGL_VERSION_MAJOR,
+            ForgeEarlyConfig.OPENGL_VERSION_MINOR,
+            ForgeEarlyConfig.OPENGL_COMPAT_PROFILE,
+            ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT
+        );
     }
 
     /**
-     * Checks the context Cleanroom created. TAIL is the method's own last return, not the one the HEAD injector's
-     * cancel inserts, so the core path never gets here; the guard only makes that explicit.
+     * The window and context exist by now; put the user's {@code ForgeEarlyConfig} values back before anything can
+     * write them to {@code forge_early.cfg}.
      */
+    @Inject(method = "createDisplay", at = @At("HEAD"))
+    private void demonica$restoreForgeEarlyConfig(CallbackInfo ci) {
+        if (demonica$coreProfileApplied) {
+            demonica$coreProfileApplied = false;
+            // Without Demonica, a core-profile request left in forge_early.cfg breaks Cleanroom's startup.
+            CoreProfileContextAttributes.restoreForgeEarlyProfile(
+                demonica$originalMajor,
+                demonica$originalMinor,
+                demonica$originalCompatProfile,
+                demonica$originalDebug
+            );
+            CoreProfileContextAttributes.persistForgeEarlyConfig();
+        } else {
+            CoreProfileContextAttributes.restoreForgeEarlyDebugContext(demonica$debugContextRaised);
+            demonica$debugContextRaised = false;
+        }
+    }
+
+    /** Checks the context Cleanroom created, for both profiles. */
     @Inject(method = "createDisplay", at = @At("TAIL"))
     private void demonica$checkCleanroomDisplay(CallbackInfo ci) throws LWJGLException {
-        OpenGlProfile requested = demonica$requestedProfile();
-        if (requested == OpenGlProfile.CORE) {
-            return;
-        }
-        CoreProfileContextAttributes.restoreForgeEarlyDebugContext(demonica$debugContextRaised);
-        demonica$debugContextRaised = false;
+        OpenGlProfile requested = demonica$requested != null ? demonica$requested : demonica$requestedProfile();
 
         String versionString = GL11.glGetString(GL11.GL_VERSION);
         OpenGlVersion version;
@@ -99,10 +140,14 @@ public abstract class MixinMinecraftDisplay {
             throw new LWJGLException("Cleanroom's OpenGL context reports an unusable GL_VERSION: " + versionString, e);
         }
         if (!version.isAtLeast(3, 3)) {
+            if (requested == OpenGlProfile.CORE) {
+                throw new LWJGLException("Demonica needs OpenGL 3.3 or newer, but no OpenGL 3.3+ core profile context "
+                    + "could be created; Cleanroom's context reports " + versionString);
+            }
             throw new LWJGLException("Demonica needs OpenGL 3.3 or newer, but the compatibility context Cleanroom created reports "
                 + versionString + "; set advanced.opengl_profile to core");
         }
-        demonica$recordContext(requested, version, versionString, ForgeEarlyConfig.OPENGL_DEBUG_CONTEXT || DemonicaStartupConfig.enableLwjglDebug());
+        demonica$recordContext(requested, version, versionString, demonica$requestedDebug);
     }
 
     @Unique
@@ -132,98 +177,5 @@ public abstract class MixinMinecraftDisplay {
             demonica$LOGGER.warn("Requested a {} profile context but the driver created a {} one", requested.id(), actual);
         }
         OpenGlContextReport.record(new OpenGlContextReport(configured, requested, actual, version, versionString));
-    }
-
-    @Unique
-    private void demonica$createCoreProfileDisplayInner(CallbackInfo ci) throws LWJGLException {
-        Display.setResizable(true);
-        Display.setTitle("Cleanroom");
-
-        PixelFormat format = new PixelFormat().withDepthBits(24).withStencilBits(8);
-        int maxMajor = 4;
-        boolean macos = LWJGLUtil.getPlatform() == LWJGLUtil.PLATFORM_MACOSX;
-        int maxMinor = macos ? 1 : 6;
-        boolean lwjglDebug = DemonicaStartupConfig.enableLwjglDebug();
-        Exception lastException = null;
-
-        for (int major = maxMajor; major >= 3; --major) {
-            int startMinor = major == 4 ? maxMinor : 3;
-            int endMinor = major == 3 ? 3 : 0;
-
-            for (int minor = startMinor; minor >= endMinor; --minor) {
-                // LWJGLXX ignores ContextAttribs and reads these fields instead, so keep them in sync on every platform.
-                CoreProfileContextAttributes.applyForgeEarlyCoreProfile(major, minor, lwjglDebug);
-                ContextAttribs attribs = CoreProfileContextAttributes.create(major, minor, lwjglDebug);
-                try {
-                    demonica$createDisplay(format, attribs);
-                } catch (Exception e) {
-                    lastException = e;
-                    demonica$LOGGER.debug(
-                        "Failed to create requested OpenGL {}.{} core profile context (debug={})",
-                        major,
-                        minor,
-                        lwjglDebug,
-                        e
-                    );
-                    demonica$destroyDisplayAfterFailure();
-                    continue;
-                }
-
-                String actualVersionString = null;
-                OpenGlVersion actualVersion;
-                try {
-                    actualVersionString = GL11.glGetString(GL11.GL_VERSION);
-                    actualVersion = OpenGlVersion.parse(actualVersionString);
-                    if (!actualVersion.isAtLeast(3, 3)) {
-                        throw new IllegalStateException(
-                            "OpenGL 3.3 or newer is required, but the created context reports " + actualVersion
-                        );
-                    }
-                } catch (RuntimeException e) {
-                    lastException = demonica$createContextValidationFailure(e);
-                    demonica$LOGGER.warn(
-                        "Created requested OpenGL {}.{} core profile context, but actual GL_VERSION is unusable: {}",
-                        major,
-                        minor,
-                        actualVersionString,
-                        e
-                    );
-                    demonica$destroyDisplayAfterFailure();
-                    continue;
-                }
-
-                demonica$recordContext(OpenGlProfile.CORE, actualVersion, actualVersionString, lwjglDebug);
-                ForgeHooksClient.initializeWindowsInformation();
-                ForgeHooksClient.setWindowStyle(this.fullscreen);
-                ForgeHooksClient.initializeTaskbarAPI();
-                ci.cancel();
-                return;
-            }
-        }
-
-        throw new LWJGLException("Failed to create an OpenGL 3.3+ core profile context", lastException);
-    }
-
-    @Unique
-    private static Exception demonica$createContextValidationFailure(RuntimeException e) {
-        // Keep the return type as Exception so CleanMix can still resolve the lastException frame during transformation.
-        return new LWJGLException("Created context does not provide valid OpenGL 3.3+", e);
-    }
-
-    @Unique
-    private static void demonica$createDisplay(PixelFormat format, ContextAttribs attribs) throws LWJGLException {
-        Display.create(format, attribs);
-        if (!Display.isCreated()) {
-            throw new LWJGLException("Display.create returned without creating an OpenGL context");
-        }
-    }
-
-    @Unique
-    private static void demonica$destroyDisplayAfterFailure() {
-        try {
-            Display.destroy();
-        } catch (RuntimeException destroyFailure) {
-            demonica$LOGGER.warn("Failed to destroy an unsuccessful OpenGL context", destroyFailure);
-        }
     }
 }
