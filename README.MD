@@ -2,21 +2,23 @@
 
 Demonica brings shader packs to Minecraft 1.12.2 on Cleanroom. It is the
 [Iris](https://github.com/IrisShaders/Iris) shader pipeline, the GLSM GL state
-manager and a compatibility layer, running on top of the separately installed
-[Celeritas](https://git.taumc.org/embeddedt/celeritas) renderer. It takes over
+manager and a compatibility layer, running on top of the
+[Celeritas](https://git.taumc.org/embeddedt/celeritas) renderer, which its jar carries. It takes over
 the role of [Actinium](https://github.com/DHJComical/Actinium), from which it
 forked at `4a19c959` ([`docs/FORK.md`](docs/FORK.md)); unlike Actinium, it
 carries no copy of the terrain renderer.
 
-**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested), and Celeritas's
-1.12.2 mod, the build pinned in [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md):
-upstream commit `9b661b70`, as published by the Celeritas auto-build (the
-release asset `01-celeritas-forge-mc12.2-2.5.0-dev.jar` or the Maven jar; both
-are accepted). GTNHLib's classes, from
-[S8TNLib](https://github.com/ndellagrotte/S8TNLib), are part of Demonica's jar.
+**Requires:** Cleanroom (0.6.12 and 0.6.13 are tested). Celeritas's 1.12.2 mod
+comes with Demonica: its jar bundles the build pinned in
+[`docs/celeritas/PIN.md`](docs/celeritas/PIN.md), upstream commit `9b661b70` as
+published by the Celeritas auto-build (the release asset
+`01-celeritas-forge-mc12.2-2.5.0-dev.jar`), unmodified. A Celeritas you install
+yourself takes precedence over the bundled one; shaders need the pinned build
+(below). GTNHLib's classes, from
+[S8TNLib](https://github.com/ndellagrotte/S8TNLib), are part of Demonica's jar too.
 
-Demonica does not run next to Actinium, and does nothing without Celeritas, so
-that the game can tell you it is missing.
+Demonica does not run next to Actinium. It is client-only: on a dedicated server
+it stays inactive.
 
 ## What it does
 
@@ -32,7 +34,7 @@ that the game can tell you it is missing.
 Demonica patches Celeritas's own classes in one place only, and each patch is
 recorded with a draft of the upstream change that would make it unnecessary
 ([`docs/celeritas/LEDGER.md`](docs/celeritas/LEDGER.md)). Before applying
-any of them, Demonica hashes the installed Celeritas jar. On any build but the
+any of them, Demonica hashes the Celeritas jar the game loads. On any build but the
 pinned one, only the fog patch applies and shaders are off, and the log and the
 shader pack screen say why
 ([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md#at-runtime)).
@@ -41,9 +43,23 @@ shader pack screen say why
 
 Download `Demonica-<version>.jar` from the
 [releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
-`mods/`, next to the Celeritas jar named above. Without Celeritas, Forge says
-it is missing. Demonica 0.3.0 to 0.5.0 needed `s8tnlib-<version>.jar` beside
-them; it can go now (Demonica logs a warning while it is there).
+`mods/`. That is the only jar to install. On start Demonica extracts the bundled
+Celeritas to `mods/1.12.2/zz-demonica-bundled-celeritas-<commit>-<timestamp>.jar`
+and deletes the copies of earlier Demonica versions there.
+
+A Celeritas jar you installed yourself takes precedence: Demonica uses it, leaves
+its file alone, deletes the extracted bundled copy and logs which jar it uses
+(unless another mod's Bansoukou hook runs first; see
+[`docs/celeritas/PIN.md`](docs/celeritas/PIN.md)).
+Shaders need the pinned build, so with any other build of Celeritas installed
+they are off, and the log and the shader pack screen name that jar. Remove it
+from `mods/` to use the bundled build (it is extracted again on the next start),
+or install the pinned build. Demonica 0.3.0 to 0.5.0 needed
+`s8tnlib-<version>.jar` beside them; it can go now (Demonica logs a warning while
+it is there).
+
+**To uninstall Demonica, also delete `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar`.**
+Otherwise it keeps loading as a standalone Celeritas.
 
 Demonica runs on Cleanroom's own OpenGL context. `advanced.opengl_profile`
 (Video Settings → Advanced → OpenGL Profile) selects a core context instead,
@@ -53,7 +69,9 @@ which macOS gets automatically.
 
 JDK 25 (compiling with `--release 21`). The first build sets up the Minecraft
 1.12.2/Cleanroom workspace through Unimined and downloads the pinned Celeritas
-from `maven.outlands.top`, which `verifyCeleritasPin` checks by SHA-256. GTNHLib
+from `maven.outlands.top`, which `verifyCeleritasPin` checks by SHA-256, and the
+same build's release asset from the Celeritas auto-build's GitHub releases, which
+`verifyBundledCeleritasPin` checks against its exact hash and the jar bundles. GTNHLib
 comes from the latest release of S8TNLib: every build asks GitHub's API which
 release that is (`GITHUB_TOKEN`, when set, authenticates the call), downloads
 its jar and merges its classes into the mod jar. The jar's manifest records
@@ -68,7 +86,14 @@ reached, the build uses the last answer, cached in
 
 To try an S8TNLib build that has no release yet, pass its `build/libs` with
 `-Ps8tnlibDir=<dir>`; the version is that of the `s8tnlib-<version>.jar` there
-(`-Ps8tnlibVersion=<version>` chooses one when there are several).
+(`-Ps8tnlibVersion=<version>` chooses one when there are several). Likewise,
+`-PceleritasAssetDir=<dir>` takes the Celeritas release asset from a local folder
+instead of GitHub, for a pruned release or an offline build. The file there must be
+named exactly the value of `celeritas_release_asset` and hash to
+`celeritas_asset_sha256`: the copy in Gradle's cache has the release tag appended
+and must be renamed, while `build/tmp/celeritasPinCandidate/` already has the right
+name. `./gradlew celeritasPinCandidate -PceleritasCandidate=<tag|latest>` prints the
+`gradle.properties` lines for a new pin ([`docs/celeritas/PIN.md`](docs/celeritas/PIN.md#moving-the-pin)).
 
 The mod jar is `build/libs/Demonica-<version>.jar`, remapped to SRG names for a
 normal install, and the diagnostics jar is `build/libs/Demonica-diagnostics-<version>.jar`.

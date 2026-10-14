@@ -1,5 +1,6 @@
 package com.demonica.loading;
 
+import com.demonica.loading.bundle.BundledCeleritasHook;
 import net.minecraft.launchwrapper.Launch;
 import org.jetbrains.annotations.Nullable;
 
@@ -8,6 +9,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.ZipFile;
 
 /**
@@ -18,7 +21,7 @@ import java.util.zip.ZipFile;
  * comes after Demonica's is not on the class path yet when Demonica's coremod starts. The mods folder is searched too.
  */
 public final class Environment {
-    private static final String CELERITAS_MARKER = "org/taumc/celeritas/CeleritasVintage.class";
+    private static final String CELERITAS_MARKER = BundledCeleritasHook.CELERITAS_MARKER;
     // S8TNLib's @Mod: a separate S8TNLib jar has it, and Demonica's jar, which merges only S8TNLib's GTNHLib classes,
     // never does.
     private static final String S8TNLIB_MOD_MARKER = "com/s8tnlib/S8TNLib.class";
@@ -40,7 +43,7 @@ public final class Environment {
      * none.
      */
     public static @Nullable File staleS8tnlibJar() {
-        return modsFolderJarContaining(S8TNLIB_MOD_MARKER);
+        return modsFolderJarsContaining(S8TNLIB_MOD_MARKER).stream().findFirst().orElse(null);
     }
 
     /**
@@ -50,7 +53,15 @@ public final class Environment {
     public static @Nullable File celeritasJar() {
         URL marker = resource(CELERITAS_MARKER);
         File jar = marker != null ? jarOf(marker) : null;
-        return jar != null ? jar : modsFolderJarContaining(CELERITAS_MARKER);
+        return jar != null ? jar : modsFolderJarsContaining(CELERITAS_MARKER).stream().findFirst().orElse(null);
+    }
+
+    /**
+     * Every Celeritas mod jar in {@code mods} and {@code mods/1.12.2}: the bundled copy Demonica extracted, one the player
+     * installed, and copies older Demonica versions extracted. A jar that only shades Celeritas's classes is not one.
+     */
+    public static List<File> celeritasJarsInModsFolders() {
+        return modsFolderJarsContaining(CELERITAS_MARKER).stream().filter(BundledCeleritasHook::isCeleritasJar).toList();
     }
 
     /**
@@ -59,7 +70,7 @@ public final class Environment {
      */
     public static synchronized boolean isActiniumPresent() {
         if (actiniumPresent == null) {
-            actiniumPresent = hasResource(ACTINIUM_MARKER) || modsFolderJarContaining(ACTINIUM_MARKER) != null;
+            actiniumPresent = hasResource(ACTINIUM_MARKER) || !modsFolderJarsContaining(ACTINIUM_MARKER).isEmpty();
         }
         return actiniumPresent;
     }
@@ -91,7 +102,9 @@ public final class Environment {
         }
     }
 
-    private static @Nullable File modsFolderJarContaining(String entry) {
+    /** The jars in {@code mods}, then {@code mods/1.12.2}, that have the entry. */
+    private static List<File> modsFolderJarsContaining(String entry) {
+        List<File> found = new ArrayList<>();
         File home = Launch.minecraftHome != null ? Launch.minecraftHome : new File(".");
         for (File dir : new File[] {new File(home, "mods"), new File(home, "mods/1.12.2")}) {
             File[] jars = dir.listFiles((parent, name) -> name.endsWith(".jar"));
@@ -101,13 +114,13 @@ public final class Environment {
             for (File jar : jars) {
                 try (ZipFile zip = new ZipFile(jar)) {
                     if (zip.getEntry(entry) != null) {
-                        return jar;
+                        found.add(jar);
                     }
                 } catch (IOException ignored) {
                     // Not a readable jar; FML will complain about it on its own.
                 }
             }
         }
-        return null;
+        return found;
     }
 }

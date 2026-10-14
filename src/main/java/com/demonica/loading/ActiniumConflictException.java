@@ -11,11 +11,12 @@ public final class ActiniumConflictException extends CustomModLoadingErrorDispla
         "Demonica and Actinium are both installed.",
         "",
         "Demonica replaces Actinium: it is the same shader mod, running on",
-        "the separately installed Celeritas mod instead of a copy built into it.",
+        "upstream Celeritas instead of Actinium's renamed copy of it.",
         "The two patch the same parts of the game and cannot run together.",
         "",
         "Remove one of them from the mods folder.",
-        "To keep using Actinium, remove Demonica (and Celeritas, if nothing else needs it)."
+        "To keep using Actinium, remove Demonica, and the Celeritas it extracted",
+        "to mods/1.12.2 (zz-demonica-bundled-celeritas-...jar)."
     };
 
     public ActiniumConflictException() {

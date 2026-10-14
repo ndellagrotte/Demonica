@@ -27,17 +27,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # Fetches the pinned Celeritas jar from maven.outlands.top and checks its SHA-256
-      # (docs/celeritas/PIN.md), so an unreachable or moved pin fails here, by name. Every Gradle
-      # step asks GitHub's API for S8TNLib's latest release (docs/FORK.md); the token lifts the
-      # anonymous rate limit.
+      # (docs/celeritas/PIN.md), so an unreachable or moved pin fails here, by name. It also
+      # downloads the release asset the mod jar bundles from the Celeritas-auto-build GitHub
+      # release and checks that it is exactly celeritas_asset_sha256. Every Gradle step asks
+      # GitHub's API for S8TNLib's latest release (docs/FORK.md); the token lifts the anonymous
+      # rate limit.
       - name: Check the Celeritas pin
-        run: ./gradlew verifyCeleritasPin
+        run: ./gradlew verifyCeleritasPin verifyBundledCeleritasPin
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      # Compiles and tests, then checks the mod jar and its Celeritas pin (verifyDistributedJar), the
-      # diagnostics jar (verifyDiagnosticsJar, verifyDiagnosticsRemap) and that the dev client gets
-      # GTNHLib only from the merged mod classes, not from an S8TNLib jar (verifyRunClasspath).
+      # Compiles and tests, then checks the mod jar, its Celeritas pin and the Celeritas it bundles
+      # (verifyDistributedJar), the diagnostics jar (verifyDiagnosticsJar, verifyDiagnosticsRemap)
+      # and that the dev client gets GTNHLib only from the merged mod classes, not from an S8TNLib
+      # jar (verifyRunClasspath).
       - name: Build
         run: ./gradlew build
         env:

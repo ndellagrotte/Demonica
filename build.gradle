@@ -1,6 +1,15 @@
 /*
- * Demonica: a shader mod for Minecraft 1.12.2 on Cleanroom, running on the separately installed upstream
- * Celeritas mod (docs/FORK.md, docs/celeritas/PIN.md).
+ * Demonica: a shader mod for Minecraft 1.12.2 on Cleanroom, running on the upstream Celeritas mod, which its jar
+ * bundles (docs/FORK.md, docs/celeritas/PIN.md).
+ *
+ * Celeritas is pinned in gradle.properties: the upstream commit (celeritas_sha), the Maven build the mod compiles
+ * against (celeritas_version), the Celeritas-auto-build GitHub release and asset the mod jar carries
+ * (celeritas_release, celeritas_release_asset, celeritas_asset_sha256), and the SHA-256 of every accepted jar
+ * (celeritas_sha256). The asset is nested unmodified at the jar's root as
+ * zz-demonica-bundled-celeritas-<sha8>-<timestamp>.jar and listed in ContainedDeps, so Cleanroom extracts it to
+ * mods/1.12.2; BundledCeleritasHook, named by the manifest's Bansoukou attribute, then uses the bundled copy unless the
+ * player installed a Celeritas, which takes precedence. verifyBundledCeleritasPin checks the asset, and
+ * celeritasPinCandidate prints the values for another auto-build.
  *
  * The root project holds the mod: com.demonica.* and Actinium's com.gtnewhorizons.angelica.* glue, derived from
  * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar, and so is GTNHLib, from the latest
@@ -44,6 +53,13 @@ configurations {
     // S8TNLib's sources jar, which sourcesJar merges. Nothing compiles against it.
     s8tnlibSources {
         transitive = false
+    }
+    // The Celeritas release asset the jar nests unmodified (bundledCeleritasCoordinate). It extends nothing and nothing
+    // extends it: the asset is SRG-named and must stay off the compile and runtime classpaths, which get Unimined's
+    // remap of the Maven jar instead. (contain, which extends implementation, is for libraries only.)
+    bundledCeleritas {
+        transitive = false
+        canBeConsumed = false
     }
 }
 
@@ -243,6 +259,72 @@ def resolveS8tnlibVersion = {
 }
 ext.s8tnlibVersion = resolveS8tnlibVersion()
 
+/*
+ * The Celeritas the mod jar bundles: the asset celeritas_release_asset of the Celeritas-auto-build GitHub release
+ * celeritas_release, whose tag names the upstream commit and the build time. The pin is six properties that must agree
+ * with each other, so a half-moved pin fails here, while the build is configured, rather than as a jar that bundles one
+ * build and checks for another.
+ */
+def pinnedCeleritasSha = property('celeritas_sha').toString().trim()
+def pinnedCeleritasVersion = property('celeritas_version').toString().trim()
+def celeritasRelease = property('celeritas_release').toString().trim()
+def celeritasReleaseAsset = property('celeritas_release_asset').toString().trim()
+def celeritasAssetSha256 = property('celeritas_asset_sha256').toString().trim().toLowerCase()
+def celeritasReleaseParts = (celeritasRelease =~ /^commit-([0-9a-f]{40})-([0-9]{8}T[0-9]{6})$/).with {
+    it.matches() ? [it.group(1), it.group(2)] : null
+}
+def celeritasPinProblems = []
+if (celeritasReleaseParts == null) {
+    celeritasPinProblems << "celeritas_release = ${celeritasRelease} is not commit-<40-digit commit>-<yyyyMMddTHHmmss>, " +
+        "the tag Celeritas-auto-build gives its releases"
+} else if (celeritasReleaseParts[0] != pinnedCeleritasSha) {
+    celeritasPinProblems << "celeritas_release = ${celeritasRelease} is a build of ${celeritasReleaseParts[0]}, not of " +
+        "celeritas_sha = ${pinnedCeleritasSha}"
+}
+if (!pinnedCeleritasVersion.endsWith(".${pinnedCeleritasSha.take(8)}")) {
+    celeritasPinProblems << "celeritas_version = ${pinnedCeleritasVersion} does not end in " +
+        ".${pinnedCeleritasSha.take(8)}, the commit of celeritas_sha"
+}
+if (!(celeritasReleaseAsset ==~ /[^\/]+\.jar/)) {
+    celeritasPinProblems << "celeritas_release_asset = ${celeritasReleaseAsset} is not the file name of a jar"
+}
+if (!(celeritasAssetSha256 in (property('celeritas_sha256').toString().split(',')*.trim()*.toLowerCase()))) {
+    celeritasPinProblems << "celeritas_asset_sha256 = ${celeritasAssetSha256} is not one of celeritas_sha256, the " +
+        "hashes QuarantineGuard accepts"
+}
+// Gradle configures the whole project before it runs any task, so a throw here would also stop celeritasPinCandidate,
+// the helper that prints the lines for a new pin, halfway through moving it. When only that helper or Gradle's help
+// tasks are requested, the problems are a warning instead; anything that could package the jar still fails.
+def celeritasPinHelperTasks = ['celeritasPinCandidate', 'help', 'tasks', 'properties']
+def onlyCeleritasPinHelpers = !gradle.startParameter.taskNames.isEmpty() &&
+    gradle.startParameter.taskNames.every { task -> celeritasPinHelperTasks.any { task == it || task.endsWith(":${it}") } }
+if (!celeritasPinProblems.isEmpty()) {
+    def message = "The Celeritas pin is inconsistent (gradle.properties; docs/celeritas/PIN.md, \"Moving the pin\"):" +
+        "\n - ${celeritasPinProblems.join('\n - ')}"
+    if (onlyCeleritasPinHelpers) {
+        logger.warn(message)
+    } else {
+        throw new GradleException(message)
+    }
+}
+// The asset's name inside the mod jar, and so in mods/1.12.2 once Cleanroom extracts it. It must start with
+// BundledCeleritasHook.BUNDLED_PREFIX, which is how the hook tells its own copies from an installed Celeritas. It names
+// the pin because Cleanroom never extracts over a file that exists: a fixed name would keep the first pin a player ever
+// had. The zz- makes it sort after the jars a player installs (01-celeritas-..., celeritas-..., demonica-...), since
+// Cleanroom's candidates are sorted by lower-cased file name: an installed Celeritas takes precedence over the bundled
+// copy, and when Demonica's hook did not run, the installed jar's classes win whenever it also sorts before Demonica's
+// own jar (docs/celeritas/PIN.md, "Bundled copy").
+// celeritasReleaseParts is null only when the check above merely warned, and then nothing packages the name.
+def bundledCeleritasTimestamp = celeritasReleaseParts?.getAt(1) ?: 'invalid'
+def bundledCeleritasJarName =
+    "zz-demonica-bundled-celeritas-${pinnedCeleritasSha.take(8)}-${bundledCeleritasTimestamp}.jar".toString()
+// The release as an ivy module: the asset's name without .jar is the module, the release tag the revision.
+def celeritasAssetModule = celeritasReleaseAsset.replaceFirst(/\.jar$/, '')
+def bundledCeleritasCoordinate = "io.github.kappa-maintainer:${celeritasAssetModule}:${celeritasRelease}@jar".toString()
+// -PceleritasAssetDir=<dir>: take the asset from a local directory instead of GitHub (a pruned release, or no network),
+// as -Ps8tnlibDir does for S8TNLib. The file there must still have the pinned name and hash.
+def celeritasAssetDir = project.findProperty('celeritasAssetDir')
+
 repositories {
     // Celeritas's 1.12.2 mod, built from upstream commits by kappa-maintainer/Celeritas-auto-build
     // (docs/celeritas/PIN.md). Nothing else resolves from this repository.
@@ -276,6 +358,28 @@ repositories {
         }
         filter {
             includeGroup('com.s8tnlib')
+        }
+    }
+    // The Celeritas the mod jar bundles: the asset of a Celeritas-auto-build GitHub release, at
+    // releases/download/<celeritas_release>/<celeritas_release_asset> (bundledCeleritasCoordinate).
+    // -PceleritasAssetDir=<dir> takes it from a local directory instead.
+    exclusiveContent {
+        forRepository {
+            ivy {
+                if (celeritasAssetDir != null) {
+                    name = 'CeleritasAssetLocal'
+                    url = file(celeritasAssetDir)
+                    patternLayout { artifact '[artifact].[ext]' }
+                } else {
+                    name = 'CeleritasAutoBuildReleases'
+                    url = 'https://github.com/kappa-maintainer/Celeritas-auto-build/releases/download'
+                    patternLayout { artifact '[revision]/[artifact].[ext]' }
+                }
+                metadataSources { artifact() }
+            }
+        }
+        filter {
+            includeGroup('io.github.kappa-maintainer')
         }
     }
     mavenCentral()
@@ -563,6 +667,8 @@ dependencies {
     // The pinned upstream Celeritas mod (gradle.properties, docs/celeritas/PIN.md).
     modCompileOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
     modRuntimeOnly "org.embeddedt:celeritas-forge-mc12.2:${property('celeritas_version')}"
+    // The same build's GitHub release asset, which the mod jar nests unmodified (bundledCeleritas, jar).
+    bundledCeleritas bundledCeleritasCoordinate
     // GTNHLib, from the latest S8TNLib release (s8tnlibVersion, docs/FORK.md). :glsm and :shader compile against it
     // through the root project's compile classpath; mergeEmbeddedLibraryClasses puts its classes into the mod, so it is
     // never a runtime dependency of its own.
@@ -700,9 +806,19 @@ jar {
     inputs.property('version', project.version.toString())
     inputs.property('s8tnlibVersion', s8tnlibVersion)
     inputs.files(s8tnlibJar).withPropertyName('s8tnlibJar')
+    inputs.files(configurations.bundledCeleritas).withPropertyName('bundledCeleritas')
+    inputs.property('bundledCeleritasJarName', bundledCeleritasJarName)
+    inputs.property('celeritasRelease', celeritasRelease)
+    inputs.property('celeritasAssetSha256', celeritasAssetSha256)
+    // A release asset can be replaced after the fact: never package one that is not exactly the pinned build.
+    dependsOn 'verifyBundledCeleritasPin'
 
     into('/') {
         from configurations.contain
+        // Byte for byte, under the name that encodes the pin (bundledCeleritasJarName).
+        from(configurations.bundledCeleritas) {
+            rename { bundledCeleritasJarName }
+        }
     }
 
     // The license texts and the notices a binary copy must carry (THIRD_PARTY_NOTICES.md, "In the jars").
@@ -718,8 +834,20 @@ jar {
                 'FMLCorePluginContainsFMLMod': 'true',
                 'ForceLoadAsMod': 'true',
                 'FMLAT': 'demonica_at.cfg',
-                'ContainedDeps': configurations.contain.collect { it.name }.join(' '),
+                'ContainedDeps': (configurations.contain.collect { it.name } + bundledCeleritasJarName).join(' '),
+                // The libraries need it. It also adds the extracted Celeritas to the class path, which is harmless
+                // when it is used. When an installed Celeritas takes precedence, the hook deletes the extracted file
+                // so that it never reaches the class path; when the hook did not run, MixinEarly's reconciliation
+                // keeps FML from identifying it as a second Celeritas.
                 'NonModDeps': 'true',
+                // Cleanroom calls this class's bansoukou(List) with the mod candidates before it scans any coremod; it
+                // drops the bundled Celeritas when the player installed one, and stale bundled copies of earlier pins
+                // (docs/celeritas/PIN.md, "Bundled copy").
+                'Bansoukou': 'com.demonica.loading.bundle.BundledCeleritasHook',
+                // The bundled Celeritas: its name in the jar and in mods/1.12.2, its SHA-256, and its release.
+                'Demonica-Celeritas-Jar': bundledCeleritasJarName,
+                'Demonica-Celeritas-SHA256': celeritasAssetSha256,
+                'Demonica-Celeritas-Release': celeritasRelease,
                 // The S8TNLib release whose GTNHLib classes are merged in, and the commit it was built from.
                 'S8TNLib-Version': s8tnlibVersion,
                 'S8TNLib-Commit': new java.util.jar.JarFile(s8tnlibJar.singleFile).withCloseable {
@@ -789,10 +917,12 @@ def celeritasCoordinate = "org.embeddedt:celeritas-forge-mc12.2:${property('cele
 /**
  * A pinned mod jar must be exactly the pinned build, which only its SHA-256 identifies: Celeritas's version string
  * ("2.4.0-dev") is the same for every upstream dev build, and a release asset could be replaced. Registers a task that
- * resolves the coordinate and checks the jar against the comma-separated SHA-256 list in gradle.properties.
+ * resolves the coordinate and checks the jar against the comma-separated SHA-256 list in gradle.properties, and, when
+ * exact is given, that it is that one of them: a jar that is shipped must be one build, not any accepted one.
  */
-def registerPinCheck = { String taskName, String label, String coordinate, String pinsProperty, String doc ->
-    def pins = property(pinsProperty).toString().split(',')*.trim() as Set
+def registerPinCheck = { String taskName, String label, String coordinate, String pinsProperty, String doc,
+                         String exact = null ->
+    def pins = property(pinsProperty).toString().split(',')*.trim()*.toLowerCase() as Set
     tasks.register(taskName) {
         group = 'verification'
         description = "Checks that the resolved ${label} jar matches the SHA-256 pin in gradle.properties."
@@ -802,6 +932,7 @@ def registerPinCheck = { String taskName, String label, String coordinate, Strin
         }
         inputs.files(pinnedJar)
         inputs.property('pinned', pins)
+        inputs.property('exact', exact ?: '')
 
         doLast {
             def jar = pinnedJar.singleFile
@@ -810,6 +941,10 @@ def registerPinCheck = { String taskName, String label, String coordinate, Strin
                 throw new GradleException("${jar.name} has SHA-256 ${digest}, which is not pinned in gradle.properties " +
                     "(${pinsProperty} = ${pins.join(', ')}). See ${doc} for how to move the pin.")
             }
+            if (exact && digest != exact) {
+                throw new GradleException("${jar.name} has SHA-256 ${digest}, which is pinned, but this jar must be " +
+                    "exactly ${exact}. See ${doc} for how to move the pin.")
+            }
             logger.lifecycle("${label} pin OK: ${jar.name} ${digest}")
         }
     }
@@ -817,6 +952,126 @@ def registerPinCheck = { String taskName, String label, String coordinate, Strin
 
 def verifyCeleritasPin = registerPinCheck('verifyCeleritasPin', 'Celeritas', celeritasCoordinate, 'celeritas_sha256',
     'docs/celeritas/PIN.md')
+
+// The release asset the mod jar bundles (celeritas_asset_sha256), from GitHub or -PceleritasAssetDir.
+def verifyBundledCeleritasPin = registerPinCheck('verifyBundledCeleritasPin', 'Bundled Celeritas (release asset)',
+    bundledCeleritasCoordinate, 'celeritas_sha256', 'docs/celeritas/PIN.md', celeritasAssetSha256)
+
+/*
+ * The pin's values for another Celeritas-auto-build release, to move the pin (docs/celeritas/PIN.md, "Moving the
+ * pin"). -PceleritasCandidate=<tag> names the release, and latest, the default, asks GitHub for its latest one. The task
+ * downloads the release's asset and the Maven jar of the same build into build/tmp/celeritasPinCandidate, hashes both,
+ * and prints the gradle.properties lines and PIN.md rows. It edits nothing: the pin moves only when the properties do,
+ * and the checks then judge the new values as they judge these.
+ */
+tasks.register('celeritasPinCandidate') {
+    group = 'help'
+    description = 'Prints the Celeritas pin for a Celeritas-auto-build release (-PceleritasCandidate=<tag|latest>).'
+    def candidate = (project.findProperty('celeritasCandidate') ?: 'latest').toString().trim()
+    def downloadDir = layout.buildDirectory.dir('tmp/celeritasPinCandidate')
+    def autoBuildApi = 'https://api.github.com/repos/kappa-maintainer/Celeritas-auto-build/releases'
+    def mavenBase = 'https://maven.outlands.top/releases/org/embeddedt/celeritas-forge-mc12.2'
+    // It asks the network every time; nothing it prints may come from an earlier run.
+    outputs.upToDateWhen { false }
+
+    doLast {
+        def tagPattern = /^commit-([0-9a-f]{40})-([0-9]{8}T[0-9]{6})$/
+        if (candidate != 'latest' && !(candidate ==~ tagPattern)) {
+            throw new GradleException("-PceleritasCandidate=${candidate} is neither latest nor a Celeritas-auto-build " +
+                "tag (commit-<40-digit commit>-<yyyyMMddTHHmmss>).")
+        }
+        // As resolveS8tnlibVersion asks GitHub. GITHUB_TOKEN, when set, goes to GitHub's API only, never to the hosts
+        // the downloads redirect to.
+        def connect = { String url ->
+            def connection = (HttpURLConnection) URI.create(url).toURL().openConnection()
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 60_000
+            connection.setRequestProperty('User-Agent', 'Demonica-build')
+            if (url.startsWith('https://api.github.com/')) {
+                connection.setRequestProperty('Accept', 'application/vnd.github+json')
+                def token = System.getenv('GITHUB_TOKEN')
+                if (token) {
+                    connection.setRequestProperty('Authorization', "Bearer ${token}")
+                }
+            }
+            return connection
+        }
+        def download = { String url, File target ->
+            def connection = connect(url)
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                return "${url} answered HTTP ${connection.responseCode}".toString()
+            }
+            target.bytes = connection.inputStream.withCloseable { it.bytes }
+            return null
+        }
+        def sha256 = { File jar -> java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString() }
+
+        def releaseUrl = candidate == 'latest' ? "${autoBuildApi}/latest" : "${autoBuildApi}/tags/${candidate}"
+        def releaseConnection = connect(releaseUrl.toString())
+        if (releaseConnection.responseCode != HttpURLConnection.HTTP_OK) {
+            throw new GradleException("${releaseUrl} answered HTTP ${releaseConnection.responseCode}.")
+        }
+        def release = releaseConnection.inputStream.withCloseable { new groovy.json.JsonSlurper().parse(it) }
+        def tag = release.tag_name?.toString()
+        def tagParts = ((tag ?: '') =~ tagPattern).with { it.matches() ? [it.group(1), it.group(2)] : null }
+        if (tagParts == null) {
+            throw new GradleException("The release ${tag} is not named commit-<40-digit commit>-<yyyyMMddTHHmmss>; " +
+                "the auto-build changed its tags, and celeritas_release's check in build.gradle must follow.")
+        }
+        def assets = (release.assets ?: []).findAll { it.name ==~ /^01-celeritas-forge-mc12\.2-.*\.jar$/ }
+        if (assets.size() != 1) {
+            throw new GradleException("The release ${tag} has ${assets*.name ?: 'no asset'} for " +
+                "01-celeritas-forge-mc12.2-*.jar, not exactly one.")
+        }
+        def asset = assets[0]
+        def commit = tagParts[0]
+        // The asset is named for upstream's version (2.5.0-dev), the Maven artifact for the auto-build's
+        // (2.5.0-autobuild.<sha8>).
+        def jarVersion = (asset.name =~ /^01-celeritas-forge-mc12\.2-(.+)\.jar$/)[0][1]
+        def baseVersion = jarVersion.replaceFirst(/-dev$/, '')
+        def mavenVersion = "${baseVersion}-autobuild.${commit.take(8)}".toString()
+
+        def dir = downloadDir.get().asFile
+        delete(dir)
+        dir.mkdirs()
+        def assetFile = new File(dir, asset.name.toString())
+        def assetProblem = download(asset.browser_download_url.toString(), assetFile)
+        if (assetProblem != null) {
+            throw new GradleException("Cannot download the release asset: ${assetProblem}.")
+        }
+        def mavenFile = new File(dir, "celeritas-forge-mc12.2-${mavenVersion}.jar")
+        def mavenProblem = download("${mavenBase}/${mavenVersion}/${mavenFile.name}".toString(), mavenFile)
+        def assetSha256 = sha256(assetFile)
+        def mavenSha256 = mavenProblem == null ? sha256(mavenFile) : null
+
+        logger.lifecycle("""\
+            |Celeritas-auto-build release ${tag} (upstream ${commit}), downloaded to ${dir}.
+            |
+            |gradle.properties:
+            |celeritas_sha = ${commit}
+            |celeritas_version = ${mavenVersion}
+            |celeritas_sha256 = ${[mavenSha256, assetSha256].findAll().join(',')}
+            |celeritas_release = ${tag}
+            |celeritas_release_asset = ${asset.name}
+            |celeritas_asset_sha256 = ${assetSha256}
+            |
+            |docs/celeritas/PIN.md, "Current pin":
+            || Commit | `${commit}` |
+            || Built by | [kappa-maintainer/Celeritas-auto-build](https://github.com/kappa-maintainer/Celeritas-auto-build), release `${tag}` |
+            || Maven | `org.embeddedt:celeritas-forge-mc12.2:${mavenVersion}` on `https://maven.outlands.top/releases` |
+            || SHA-256, Maven jar | `${mavenSha256 ?: 'not published'}` |
+            || SHA-256, release asset `${asset.name}` | `${assetSha256}` |
+            || Version string inside the jar | `${jarVersion}` |
+            || Bundled as | the release asset, byte for byte, nested in the mod jar as `zz-demonica-bundled-celeritas-${commit.take(8)}-${tagParts[1]}.jar` |
+            |""".stripMargin())
+        if (mavenProblem != null) {
+            // The build compiles against the Maven jar (verifyCeleritasPin, generateCeleritasPin), so the pin cannot
+            // move to a build the auto-build has not published there.
+            logger.warn("The Maven jar of this build is not available (${mavenProblem}): the pin cannot move to it " +
+                "until it is.")
+        }
+    }
+}
 
 def verifyModuleBoundaries = tasks.register('verifyModuleBoundaries') {
     group = 'verification'
@@ -889,9 +1144,12 @@ def verifyRunClasspath = tasks.register('verifyRunClasspath') {
 
 /**
  * The distributed (remapped) jar: a mod on upstream Celeritas that vendors no renderer. It must carry the mod, its
- * configs, S8TNLib's GTNHLib classes, its license files and contained libraries, and must never carry Celeritas, a
- * renamed copy of it, JOML, S8TNLib's own mod classes, or anything that would replace or shadow upstream's classes,
- * services or assets.
+ * configs, S8TNLib's GTNHLib classes, its license files and contained libraries, and the hook that decides between the
+ * bundled Celeritas and an installed one. It carries Celeritas only as the pinned release asset, unmodified (its exact
+ * SHA-256), nested at the root under bundledCeleritasJarName and listed in ContainedDeps; every jar at the root must
+ * be in ContainedDeps. It must never carry Celeritas's classes, services or assets at the top level, a renamed copy of
+ * Celeritas, JOML, S8TNLib's own mod classes, or anything that would replace or shadow upstream's classes, services or
+ * assets: the forbidden patterns are anchored at the root, so they do not reach into the nested jar.
  */
 def verifyDistributedJar = tasks.register('verifyDistributedJar') {
     group = 'verification'
@@ -899,7 +1157,12 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
     dependsOn tasks.named('remapJar')
 
     def remappedJar = tasks.named('remapJar').flatMap { it.archiveFile }
-    def containedJars = provider { configurations.contain.collect { it.name } }
+    def containedJars = provider { configurations.contain.collect { it.name } + bundledCeleritasJarName }
+    def bundledCeleritas = [
+        jar: bundledCeleritasJarName,
+        sha256: celeritasAssetSha256,
+        release: celeritasRelease
+    ]
     def celeritasPin = [
         celeritas_sha: project.property('celeritas_sha').toString().trim(),
         celeritas_version: project.property('celeritas_version').toString().trim(),
@@ -907,6 +1170,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
     ]
     inputs.file(remappedJar)
     inputs.property('celeritasPin', celeritasPin.toString())
+    inputs.property('bundledCeleritas', bundledCeleritas.toString())
 
     doLast {
         def jarFile = remappedJar.get().asFile
@@ -944,6 +1208,8 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'META-INF/demonica_at.cfg',
                 'com/demonica/Demonica.class',
                 'com/demonica/mixins/MixinEarly.class',
+                // The manifest's Bansoukou class, which Cleanroom loads before any coremod.
+                'com/demonica/loading/bundle/BundledCeleritasHook.class',
                 'net/coderbot/iris/Iris.class',
                 'com/gtnewhorizons/angelica/glsm/GLStateManager.class',
                 'com/gtnewhorizon/gtnhlib/asm/ClassConstantPoolParser.class',
@@ -975,7 +1241,11 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'FMLCorePluginContainsFMLMod': 'true',
                 'ForceLoadAsMod': 'true',
                 'FMLAT': 'demonica_at.cfg',
-                'NonModDeps': 'true'
+                'NonModDeps': 'true',
+                'Bansoukou': 'com.demonica.loading.bundle.BundledCeleritasHook',
+                'Demonica-Celeritas-Jar': bundledCeleritas.jar,
+                'Demonica-Celeritas-SHA256': bundledCeleritas.sha256,
+                'Demonica-Celeritas-Release': bundledCeleritas.release
             ]
             expected.each { key, value ->
                 if (manifest.getValue(key) != value) {
@@ -990,6 +1260,32 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
             def contained = (manifest.getValue('ContainedDeps') ?: '').tokenize(' ') as Set
             if (contained != (containedJars.get() as Set)) {
                 problems << "manifest ContainedDeps is ${contained}, expected ${containedJars.get()}"
+            }
+            // No jar at the root that Cleanroom would not extract: a stray one would be a Celeritas nobody checks.
+            def rootJars = names.findAll { !it.contains('/') && it.endsWith('.jar') } as Set
+            if (rootJars != contained) {
+                problems << "the jars at the root are ${rootJars}, but ContainedDeps lists ${contained}"
+            }
+            // The bundled Celeritas byte for byte: exactly the pinned release asset, not merely an accepted build.
+            def bundledEntry = jar.getEntry(bundledCeleritas.jar)
+            if (bundledEntry != null) {
+                def bundledSha256 = jar.getInputStream(bundledEntry).withCloseable {
+                    java.security.MessageDigest.getInstance('SHA-256').digest(it.bytes).encodeHex().toString()
+                }
+                if (bundledSha256 != bundledCeleritas.sha256) {
+                    problems << "${bundledCeleritas.jar} has SHA-256 ${bundledSha256}, expected celeritas_asset_sha256 " +
+                        "${bundledCeleritas.sha256}"
+                }
+            }
+            // The notices name the bundled Celeritas's source by its full commit, because gradle.properties is not in
+            // the jar. Checking the copy the jar carries keeps that literal hash from going stale when the pin moves.
+            def noticesEntry = jar.getEntry('THIRD_PARTY_NOTICES.md')
+            if (noticesEntry != null) {
+                def notices = jar.getInputStream(noticesEntry).withReader('UTF-8') { it.text }
+                if (!notices.contains(celeritasPin.celeritas_sha)) {
+                    problems << "THIRD_PARTY_NOTICES.md does not name the bundled Celeritas's commit, celeritas_sha " +
+                        "${celeritasPin.celeritas_sha}"
+                }
             }
 
             def metadata = new groovy.json.JsonSlurper().parse(jar.getInputStream(jar.getEntry('mcmod.info')))
@@ -1137,6 +1433,7 @@ tasks.named('check').configure {
     dependsOn verifyDiagnosticsJar
     dependsOn verifyDiagnosticsRemap
     dependsOn verifyCeleritasPin
+    dependsOn verifyBundledCeleritasPin
     dependsOn verifyModuleBoundaries
     dependsOn verifyRunClasspath
     dependsOn verifyDistributedJar
