@@ -6,7 +6,8 @@ name: Release
 # commit on either does not belong. The GitHub Release body carries the notes instead. Left out, besides that step and
 # the CHANGELOG.md it generated: the Gradle wrapper search (it is at the root), the git-cliff config fallback (cliff.toml
 # is committed), and the Maven, Plugin Portal and mod-site publishing with its preflight (none of them is used). Diff
-# against a newer Conventions tag by hand before taking its changes.
+# against a newer Conventions tag by hand before taking its changes. The release is created as a draft, named
+# Demonica <version>.
 #
 # The Gradle build gets no GITHUB_TOKEN, as in the reusable workflow; when GitHub's API refuses the anonymous S8TNLib
 # latest-release lookup, the build reads the release from its releases/latest page instead (docs/FORK.md).
@@ -165,4 +166,6 @@ jobs:
             echo "::error::No release artifacts matched '${ARTIFACT_PATH}'."
             exit 1
           fi
-          gh release create "$TAG" --title "$TAG" --notes-file "${RUNNER_TEMP}/RELEASE_NOTES.md" "${files[@]}"
+          # A draft, unlike Conventions': the hand-written notes replace git-cliff's before it is published.
+          gh release create "$TAG" --draft --title "Demonica ${TAG#v}" --notes-file "${RUNNER_TEMP}/RELEASE_NOTES.md" \
+            "${files[@]}"
