@@ -206,9 +206,13 @@ public class GLSMRedirector {
             .add("glLoadIdentity")
             .add("glLoadMatrix")
             .add("glLoadMatrixf", "glLoadMatrix")
+            .add("glLoadMatrixd", "glLoadMatrix")
             .add("glLogicOp")
             .add("glMatrixMode")
             .add("glMultMatrix")
+            // LWJGL 3's names, which Cleanroom 0.7's lwjgly exposes; Forge's multiplyCurrentGlMatrix calls glMultMatrixf
+            .add("glMultMatrixf", "glMultMatrix")
+            .add("glMultMatrixd", "glMultMatrix")
             .add("glNewList")
             .add("glNormal3b")
             .add("glNormal3d")
