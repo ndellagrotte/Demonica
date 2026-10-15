@@ -72,6 +72,44 @@ class RedirectedCallLinkageTest {
         scan.assertLinks(jar.file().getName());
     }
 
+    /**
+     * Forge applies an item model's perspective transform (the GUI's 30/225 degree pose among them) in
+     * {@code ForgeHooksClient.multiplyCurrentGlMatrix}. Cleanroom 0.6 called {@code GL11.glMultMatrix} there and 0.7
+     * calls LWJGL 3's {@code GL11.glMultMatrixf}; while the redirector knew only the first name, the call reached the real
+     * GL, GLSM's matrix stack never saw the transform, and every block item drew flat in the GUI.
+     */
+    @Test
+    void forgeItemTransformReachesGlsm() throws IOException {
+        String forgeHooks = "net/minecraftforge/client/ForgeHooksClient";
+        byte[] bytes;
+        try (InputStream in = RedirectedCallLinkageTest.class.getClassLoader().getResourceAsStream(forgeHooks + ".class")) {
+            assertNotNull(in, forgeHooks + ".class is not on the test classpath; the Cleanroom userdev jar should be");
+            bytes = in.readAllBytes();
+        }
+        AngelicaRedirector redirector = new AngelicaRedirector();
+        ClassNode node = new ClassNode();
+        new ClassReader(bytes).accept(node, 0);
+        assertTrue(redirector.shouldTransform(bytes) && redirector.transformClassNode(forgeHooks.replace('/', '.'), node),
+            "the redirector did not rewrite " + forgeHooks);
+        MethodNode multiply = node.methods.stream()
+            .filter(method -> method.name.equals("multiplyCurrentGlMatrix"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(forgeHooks + " has no multiplyCurrentGlMatrix; Forge changed shape"));
+        Set<String> glCalls = new TreeSet<>();
+        boolean reachesGlsm = false;
+        for (AbstractInsnNode insn : multiply.instructions) {
+            if (insn instanceof MethodInsnNode call) {
+                if (call.owner.startsWith("org/lwjgl/opengl/")) {
+                    glCalls.add(call.owner + "." + call.name + call.desc);
+                } else if (call.owner.equals(GL_STATE_MANAGER) && call.name.equals("glMultMatrix")) {
+                    reachesGlsm = true;
+                }
+            }
+        }
+        assertTrue(glCalls.isEmpty(), "multiplyCurrentGlMatrix still calls the real GL, bypassing GLSM's matrix stack: " + glCalls);
+        assertTrue(reachesGlsm, "multiplyCurrentGlMatrix does not call GLStateManager.glMultMatrix");
+    }
+
     /** The jar on the test classpath that holds {@code internalName}. */
     private static File jarOf(String internalName) throws IOException {
         URL url = RedirectedCallLinkageTest.class.getClassLoader().getResource(internalName + ".class");
