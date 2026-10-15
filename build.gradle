@@ -871,9 +871,11 @@ dependencies {
     modCompileOnly deobf('curse.maven:creativecore-257814:4722163')
     modCompileOnly deobf('curse.maven:littletiles-257818:5180387')
     // Lumenized: GregTech CEu's bloom and depth utilities, and CodeChickenLib's shader classes they use. Cleanroom's
-    // Maven publishes CodeChickenLib MCP-named already (its -dev jar), so it is not deobf'd.
+    // Maven publishes CodeChickenLib MCP-named already (its -dev jar), so it is not deobf'd. The classifier names that jar:
+    // the POM republished on 2026-10-15 lost the marker that sent Gradle to the module metadata (which names -dev.jar),
+    // and without one the POM resolves CodeChickenLib-3.3.8.jar, which was never published.
     modCompileOnly deobf('curse.maven:gregtech-ce-unofficial-557242:5519022')
-    modCompileOnly 'codechicken:CodeChickenLib:3.3.8'
+    modCompileOnly 'codechicken:CodeChickenLib:3.3.8:dev'
     modCompileOnly deobf('curse.maven:obscure-tooltips-715660:8522661')
     modCompileOnly deobf('curse.maven:oldresearchreborn-1632015:8642028')
     modCompileOnly deobf('curse.maven:scannable-266784:3146549')
