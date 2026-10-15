@@ -60,8 +60,10 @@ Demonica's jar again, as they were up to 0.2.0.
 
 - **The latest release, unpinned.** Each build asks GitHub's API for
   S8TNLib's latest release (`releases/latest`, which skips drafts and
-  prereleases; `GITHUB_TOKEN`, when set, authenticates the call) and
-  downloads `s8tnlib-<version>.jar` and its sources jar from the release's
+  prereleases; `GITHUB_TOKEN`, when set, authenticates the call; when the
+  API refuses, as it does past the anonymous rate limit, the build takes the
+  tag that `github.com/ndellagrotte/S8TNLib/releases/latest` redirects to)
+  and downloads `s8tnlib-<version>.jar` and its sources jar from the release's
   assets. The answer is cached in `.gradle/demonica/s8tnlib-latest`, which
   `--offline` builds and builds that cannot reach GitHub use. So a build
   takes a new S8TNLib release as soon as it is published, and two builds of
@@ -71,9 +73,10 @@ Demonica's jar again, as they were up to 0.2.0.
   from a local directory instead, such as S8TNLib's `build/libs`, with the
   version of the `s8tnlib-<version>.jar` there (`-Ps8tnlibVersion=<version>`
   chooses one when there are several). The release workflow
-  (`.github/workflows/release.yml`, CleanroomMC Conventions' reusable
-  workflow) passes no `GITHUB_TOKEN` to its Gradle step, so there the lookup
-  runs unauthenticated; `build.yml` passes one.
+  (`.github/workflows/release.yml`, vendored from CleanroomMC Conventions'
+  reusable workflow) passes no `GITHUB_TOKEN` to its Gradle step and relies
+  on that redirect when the anonymous lookup is refused; `build.yml` passes
+  one.
 - **Merging.** The release jar is SRG-named, like any mod. The build declares
   it `modCompileOnly deobf(...)`: CleanroomGradle's `deobf()` renames it to MCP
   names for the compile classpath (`s8tnlib-<version>-deobf.jar`), so its

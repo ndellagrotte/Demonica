@@ -463,11 +463,14 @@ subprojects {
 
 def s8tnlibDir = project.findProperty('s8tnlibDir')
 def s8tnlibLatestRelease = 'https://api.github.com/repos/ndellagrotte/S8TNLib/releases/latest'
+def s8tnlibLatestPage = 'https://github.com/ndellagrotte/S8TNLib/releases/latest'
 
 /*
  * S8TNLib's version: its latest published GitHub release (drafts and prereleases are not "latest"), asked of GitHub's
- * API while the build is configured. The answer is cached in .gradle/demonica/s8tnlib-latest, which --offline builds
- * and builds that cannot reach GitHub fall back to. GITHUB_TOKEN, when set (CI), authenticates the call. With
+ * API while the build is configured. GITHUB_TOKEN, when set (CI), authenticates the call. When the API refuses it (the
+ * anonymous rate limit, as in the release workflow), the version comes from the tag that the releases/latest page
+ * redirects to, which needs no token. The answer is cached in .gradle/demonica/s8tnlib-latest, which --offline builds
+ * and builds that cannot reach GitHub fall back to. With
  * -Ps8tnlibDir=<dir>, the version is that of the s8tnlib-<version>.jar in the directory, or -Ps8tnlibVersion=<version>
  * when it holds several.
  */
@@ -508,17 +511,34 @@ def resolveS8tnlibVersion = {
         if (token) {
             connection.setRequestProperty('Authorization', "Bearer ${token}")
         }
-        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-            return fromCache("${s8tnlibLatestRelease} answered HTTP ${connection.responseCode}")
+        def tag
+        def source = ''
+        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+            tag = connection.inputStream.withCloseable { new groovy.json.JsonSlurper().parse(it).tag_name }?.toString()
+        } else {
+            def refused = "${s8tnlibLatestRelease} answered HTTP ${connection.responseCode}"
+            def page = (HttpURLConnection) URI.create(s8tnlibLatestPage).toURL().openConnection()
+            page.instanceFollowRedirects = false
+            page.connectTimeout = 10_000
+            page.readTimeout = 10_000
+            page.setRequestProperty('User-Agent', 'Demonica-build')
+            // With no release, the page redirects to /releases instead.
+            def location = page.responseCode in 300..399 ? page.getHeaderField('Location') : null
+            def tagMatch = location ? location =~ /\/releases\/tag\/([^\/?#]+)$/ : null
+            tag = tagMatch?.find() ? URLDecoder.decode(tagMatch.group(1), 'UTF-8') : null
+            if (tag == null) {
+                return fromCache("${refused}, and ${s8tnlibLatestPage} answered HTTP ${page.responseCode}" +
+                    (location ? " to ${location}" : ''))
+            }
+            source = " (from ${s8tnlibLatestPage}; ${refused})"
         }
-        def tag = connection.inputStream.withCloseable { new groovy.json.JsonSlurper().parse(it).tag_name }?.toString()
         def version = tag?.replaceFirst(/^v/, '')
         if (!(version ==~ /[0-9][0-9A-Za-z.+-]*/)) {
             throw new GradleException("S8TNLib's latest release has the tag ${tag}, which is not v<version>.")
         }
         cache.parentFile.mkdirs()
         cache.text = "${version}\n"
-        logger.lifecycle("S8TNLib: latest release v${version}")
+        logger.lifecycle("S8TNLib: latest release v${version}${source}")
         return version
     } catch (IOException e) {
         return fromCache(e.toString())
