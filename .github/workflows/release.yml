@@ -1,5 +1,16 @@
 name: Release
 
+# Vendored from CleanroomMC/Conventions' reusable .github/workflows/release.yml at 1.4.1 (2027dfeb), with Demonica's
+# inputs filled in. The reusable workflow ends by committing CHANGELOG.md to the repository's default branch, which no
+# input turns off: here the default branch is develop/0.8, and main only ever fast-forwards to release tags, so a bot
+# commit on either does not belong. The GitHub Release body carries the notes instead. Left out, besides that step and
+# the CHANGELOG.md it generated: the Gradle wrapper search (it is at the root), the git-cliff config fallback (cliff.toml
+# is committed), and the Maven, Plugin Portal and mod-site publishing with its preflight (none of them is used). Diff
+# against a newer Conventions tag by hand before taking its changes.
+#
+# The Gradle build gets no GITHUB_TOKEN, as in the reusable workflow; when GitHub's API refuses the anonymous S8TNLib
+# latest-release lookup, the build reads the release from its releases/latest page instead (docs/FORK.md).
+
 on:
   push:
     tags:
@@ -12,15 +23,146 @@ permissions:
   issues: read
   pull-requests: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
-    # The reusable workflow commits CHANGELOG.md to the repository's default branch (only when the
-    # tag is an ancestor of it). Its Gradle step gets no GITHUB_TOKEN, so the S8TNLib latest-release
-    # lookup runs unauthenticated there.
-    uses: CleanroomMC/Conventions/.github/workflows/release.yml@1.4.1
-    with:
-      publish-maven: false
-      publish-mods: false
-      # Only the mod jars; the default **/build/libs/*.jar would also attach the glsm/ and shader/ library jars.
-      artifact-path: 'build/libs/*.jar'
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Check Tag Number
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nocasematch
+          # A stage suffix does not make a new number, so 0.5.0-beta after 0.5.0-alpha would release 0.5.0 twice.
+          number() {
+            local name="${1#[vV]}"
+            echo "${name%%-*}"
+          }
+          while read -r other; do
+            [[ "${other}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc|release))?$ ]] || continue
+            if [ "${other}" != "${TAG}" ] && [ "$(number "${other}")" = "$(number "${TAG}")" ]; then
+              echo "::error::Tag '${TAG}' releases $(number "${TAG}"), which tag '${other}' already released."
+              exit 1
+            fi
+          done < <(git tag --list)
+
+      - name: Setup Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          validate-wrappers: true
+          cache-read-only: true
+          cache-provider: basic
+
+      - name: Build
+        run: ./gradlew build --no-configuration-cache
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          config: cliff.toml
+          args: --latest --strip all
+        env:
+          OUTPUT: ${{ runner.temp }}/RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Attach Any Issue Authors
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import os
+          import re
+          import subprocess
+
+          path = f"{os.environ['RUNNER_TEMP']}/RELEASE_NOTES.md"
+          line_re = re.compile(
+              r'^(\s*)\*\[Fixes issue ((?:[\w.-]+/[\w.-]+)?#\d+)(?: by (.+))?\]\*\s*$'
+          )
+          default_repo = os.environ['GITHUB_REPOSITORY']
+          authors = {}
+
+          def lookup(ref):
+              if ref in authors:
+                  return authors[ref]
+              if '/' in ref.split('#', 1)[0]:
+                  repo, number = ref.split('#', 1)
+              else:
+                  repo, number = default_repo, ref[1:]
+              result = subprocess.run(
+                  ['gh', 'api', f'repos/{repo}/issues/{number}', '--jq', '.user.login'],
+                  capture_output=True,
+                  text=True,
+              )
+              login = result.stdout.strip() if result.returncode == 0 else ''
+              authors[ref] = login
+              return login
+
+          if os.path.isfile(path):
+              with open(path, encoding='utf-8') as handle:
+                  original = handle.read()
+              rewritten = []
+              changed = False
+              bullet = None
+              for line in original.splitlines(keepends=True):
+                  newline = '\n' if line.endswith('\n') else ''
+                  match = line_re.match(line.rstrip('\n'))
+                  if match is None or match.group(3):
+                      if line.startswith('- '):
+                          bullet = len(rewritten)
+                      rewritten.append(line)
+                      continue
+                  indent, ref = match.group(1), match.group(2)
+                  login = lookup(ref)
+                  if not login:
+                      rewritten.append(line)
+                      continue
+                  changed = True
+                  who = f'@{login}'
+                  parent = rewritten[bullet].rstrip('\n') if bullet is not None else ''
+                  # The commit subject already names the issue, so credit the reporter in
+                  # the byline rather than repeating the reference on its own line.
+                  if parent.endswith(']*') and ref in parent.split(' *[', 1)[0]:
+                      credit = f', {who}' if ', issue by ' in parent else f', issue by {who}'
+                      rewritten[bullet] = parent[:-2] + credit + ']*' + rewritten[bullet][len(parent):]
+                      continue
+                  rewritten.append(f'{indent}*[Fixes issue {ref} by {who}]*{newline}')
+              if changed:
+                  with open(path, 'w', encoding='utf-8') as handle:
+                      handle.write(''.join(rewritten))
+          PY
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          # Only the mod jars; **/build/libs/*.jar would also attach the glsm/ and shader/ library jars.
+          ARTIFACT_PATH: 'build/libs/*.jar'
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          files=($ARTIFACT_PATH)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No release artifacts matched '${ARTIFACT_PATH}'."
+            exit 1
+          fi
+          gh release create "$TAG" --title "$TAG" --notes-file "${RUNNER_TEMP}/RELEASE_NOTES.md" "${files[@]}"
