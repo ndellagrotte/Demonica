@@ -696,7 +696,7 @@ repositories {
             includeGroup('codechicken')
         }
     }
-    // Modrinth's Maven: every coordinate in group maven.modrinth (Distant Horizons, Fluidlogged API, RenderLib,
+    // Modrinth's Maven: every coordinate in group maven.modrinth (Fluidlogged API, RenderLib,
     // EntityCulling, Gnetum).
     exclusiveContent {
         forRepository {
@@ -860,7 +860,7 @@ dependencies {
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
-    modCompileOnly deobf('maven.modrinth:uCdwusMi:Sa0ttGJr')  // Distant Horizons 3.3.0-1.12.2
+    modCompileOnly deobf('curse.maven:distant-horizons-508933:9004743')  // Distant Horizons 3.3.3-1.12.2-forge
     // Mod compat (com.demonica.compat, com.demonica.mixin.mod), compiled against and loaded only when the mod is
     // present: mixin configs through MixinLate and mixins.demonica.conditions.properties, classes behind Mods flags.
     modCompileOnly deobf('curse.maven:botania-ceu-1179448:8706250')
@@ -911,9 +911,8 @@ dependencies {
     // (MixinLate's configs, C1, the fast renderer's gates). The heaviest (HBM, GregTech, Thaumcraft) are left out, and
     // RLFoliage, which needs FermiumBooter. Raw jars: Cleanroom remaps them as it loads them.
     if (project.findProperty('withCompatMods') != null) {
-        // Not Distant Horizons (uCdwusMi:Sa0ttGJr, still compiled against above): it calls GLFW, which Cleanroom 0.7
-        // does not ship, so a world crashes on its first frame (NoClassDefFoundError: org/lwjgl/glfw/GLFW). Restore
-        // with a Cleanroom 0.7 build of DH (docs/compat/distant-horizons.md).
+        // Not Distant Horizons: 3.3.0 called GLFW, which Cleanroom 0.7 does not ship. 3.3.3 (compiled against above)
+        // runs on Cleanroom 0.7.4 in Prism, but not yet tried in the dev client (docs/compat/distant-horizons.md).
         devRuntimeMods 'curse.maven:chunk-animator-236484:3850023'  // needs run/mcp: prepareChunkAnimatorMcpMappings
         devRuntimeMods 'curse.maven:ichunutil-229060:2801262'
         devRuntimeMods 'curse.maven:creativecore-257814:4722163'

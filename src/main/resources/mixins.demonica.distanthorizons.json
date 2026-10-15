@@ -8,7 +8,7 @@
   "mixins": [],
   "server": [],
   "client": [
-    "MixinCleanroomMain"
+    "MixinAbstractModInitializer"
   ],
   "injectors": {
     "defaultRequire": 1
