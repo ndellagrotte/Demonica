@@ -746,7 +746,7 @@ def withDiagnostics = project.findProperty('withoutDiagnostics') == null
  * The dev client's mods: Cleanroom loads them from -Dcrl.dev.extrapath, as in production where no mod jar is on
  * java.class.path (docs/celeritas/SPIKE.md). They are the mod's own output (the merged GLSM, Iris and S8TNLib classes
  * included), the jars of devRuntimeMods (the pinned Celeritas's dev remap, and the raw jars of the
- * -PwithCompatMods/-PwithHudCache/-PwithModernSplash mods), and the diagnostics' classes unless -PwithoutDiagnostics. Resolved when the client starts.
+ * -PwithCompatMods/-PwithHudCache/-PwithModernSplash/-PwithOpenComputers mods), and the diagnostics' classes unless -PwithoutDiagnostics. Resolved when the client starts.
  */
 def devExtraPath = provider {
     def extraPaths = new LinkedHashSet<String>(sourceSets.main.output.files.collect { it.absolutePath })
@@ -951,6 +951,27 @@ dependencies {
         devRuntimeMods 'maven.modrinth:gnetum:1.4.3'
     } else if (hudCache != null) {
         throw new GradleException("-PwithHudCache takes stellarcore or gnetum, not '${hudCache}'")
+    }
+    // -PwithOpenComputers: the dev client also loads OpenComputers 1.8.10, whose screens draw their text through
+    // display lists (script run/client/scripts/ocscreen.txt), with the Scala runtimes it needs on Cleanroom (Scalar,
+    // Scalar Legacy) and Fugue, the same files as the Prism instance opencomputers-testing.
+    if (project.findProperty('withOpenComputers') != null) {
+        devRuntimeMods 'curse.maven:opencomputers-223008:8582726'
+        devRuntimeMods 'curse.maven:scalar-legacy-1235372:6842491'
+        devRuntimeMods 'curse.maven:scalar-1012168:8800375'
+        devRuntimeMods 'curse.maven:fugue-1005815:9202433'
+        // The Scala libraries the two Scalar jars nest (ContainedDeps). FML extracts those only from the mods
+        // folder, into mods/1.12.2, never from the extrapath, so the dev client gets them unpacked here.
+        def scalar = project.configurations.detachedConfiguration(
+            project.dependencies.create('curse.maven:scalar-legacy-1235372:6842491'),
+            project.dependencies.create('curse.maven:scalar-1012168:8800375'))
+        scalar.transitive = false
+        def scalarLibraries = project.layout.buildDirectory.dir('dev-scalar-libraries')
+        def extractScalarLibraries = project.tasks.register('extractScalarLibraries', Sync) {
+            from { scalar.files.collect { project.zipTree(it).matching { include '*.jar' } } }
+            into scalarLibraries
+        }
+        devRuntimeMods project.files({ project.fileTree(scalarLibraries).files }).builtBy(extractScalarLibraries)
     }
     // -PwithModernSplash: the dev client also loads Modern Splash 1.5.3, a coremod that replaces FML's SplashProgress
     // and draws its text with colour 0 after a raw glColor4f (MixinFontRendererSplashColor).

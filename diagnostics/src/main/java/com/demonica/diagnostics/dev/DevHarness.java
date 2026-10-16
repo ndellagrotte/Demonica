@@ -12,8 +12,21 @@ import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.inventory.GuiContainerCreative;
 import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.inventory.IInventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.play.client.CPacketEntityAction;
+import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumActionResult;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.NonNullList;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.ScreenShotHelper;
 import net.minecraft.world.GameType;
 import net.minecraft.world.WorldSettings;
@@ -50,7 +63,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * Drives a dev client through a scripted session so rendering can be checked without input tools: load a
@@ -64,6 +80,14 @@ import java.util.function.BiFunction;
  *   <li>{@code world <folder> <seed>}: from the main menu, recreate the creative world {@code folder} from {@code seed}</li>
  *   <li>{@code wait <ticks>}: wait for client ticks</li>
  *   <li>{@code cmd <command>}: send a chat command as the player</li>
+ *   <li>{@code scmd <command>}: run a command on the integrated server as the player, without chat's 256-character
+ *   limit (long NBT)</li>
+ *   <li>{@code insert <x> <y> <z> <item>}: put one {@code item} into the first empty slot of the inventory block at
+ *   {@code x y z} that accepts it ({@code ~} coordinates are relative to the player). {@code item} is a registry name,
+ *   with {@code @meta} if needed, or the display name of a creative-tab stack (which keeps the stack's NBT)</li>
+ *   <li>{@code use [<x> <y> <z>] [sneak]}: right-click with the main hand, sneaking if asked, the block at
+ *   {@code x y z} (on its face towards the player; {@code ~} coordinates are relative to the player) or else the block
+ *   in view</li>
  *   <li>{@code chunks <maxTicks>}: wait until no terrain is left to build, or for at most {@code maxTicks}</li>
  *   <li>{@code shot <name> [hud]}: save {@code screenshots/<name>.png} after the next frame, with the HUD hidden
  *   unless {@code hud} is given</li>
@@ -105,6 +129,7 @@ public final class DevHarness {
     private boolean shotPending;
     private String shotName;
     private boolean savedHideGui;
+    private Future<?> serverTask;
 
     private DevHarness(List<String> steps) {
         this.steps = new ArrayDeque<>(steps);
@@ -231,6 +256,81 @@ public final class DevHarness {
                     return false;
                 }
                 mc.player.sendChatMessage(command);
+                return true;
+            }
+            case "scmd" -> {
+                String command = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                return this.onServer(mc, server -> {
+                    int result = server.getCommandManager().executeCommand(server.getPlayerList().getPlayerByUUID(
+                        mc.player.getUniqueID()), command);
+                    if (result <= 0) {
+                        throw new IllegalStateException("Command failed: " + command);
+                    }
+                });
+            }
+            case "insert" -> {
+                if (mc.player == null) {
+                    return false;
+                }
+                BlockPos base = new BlockPos(mc.player);
+                BlockPos pos = new BlockPos(coordinate(args[1], base.getX()), coordinate(args[2], base.getY()),
+                    coordinate(args[3], base.getZ()));
+                ItemStack stack = findStack(String.join(" ", Arrays.copyOfRange(args, 4, args.length)));
+                return this.onServer(mc, server -> {
+                    TileEntity tile = server.getWorld(mc.player.dimension).getTileEntity(pos);
+                    if (!(tile instanceof IInventory inventory)) {
+                        throw new IllegalStateException("No inventory at " + pos + ": " + tile);
+                    }
+                    for (int slot = 0; slot < inventory.getSizeInventory(); slot++) {
+                        if (inventory.getStackInSlot(slot).isEmpty() && inventory.isItemValidForSlot(slot, stack)) {
+                            inventory.setInventorySlotContents(slot, stack.copy());
+                            inventory.markDirty();
+                            LOGGER.info("Dev insert: {} into slot {} of {} at {}", stack.getDisplayName(), slot,
+                                tile.getClass().getSimpleName(), pos);
+                            return;
+                        }
+                    }
+                    throw new IllegalStateException("No free slot for " + stack.getDisplayName() + " at " + pos);
+                });
+            }
+            case "use" -> {
+                if (mc.player == null) {
+                    return false;
+                }
+                boolean sneak = args[args.length - 1].equalsIgnoreCase("sneak");
+                BlockPos pos;
+                EnumFacing side;
+                Vec3d hitVec;
+                if (args.length >= 4) {
+                    BlockPos base = new BlockPos(mc.player);
+                    pos = new BlockPos(coordinate(args[1], base.getX()), coordinate(args[2], base.getY()),
+                        coordinate(args[3], base.getZ()));
+                    // The face turned towards the player's eyes, clicked at its centre.
+                    Vec3d centre = new Vec3d(pos).add(0.5, 0.5, 0.5);
+                    Vec3d toEye = mc.player.getPositionEyes(1.0F).subtract(centre);
+                    side = EnumFacing.getFacingFromVector((float) toEye.x, (float) toEye.y, (float) toEye.z);
+                    hitVec = centre.add(new Vec3d(side.getDirectionVec()).scale(0.5));
+                } else {
+                    RayTraceResult hit = mc.objectMouseOver;
+                    if (hit == null || hit.typeOfHit != RayTraceResult.Type.BLOCK) {
+                        throw new IllegalStateException("No block in view to use");
+                    }
+                    pos = hit.getBlockPos();
+                    side = hit.sideHit;
+                    hitVec = hit.hitVec;
+                }
+                mc.player.setSneaking(sneak);
+                if (sneak) {
+                    mc.player.connection.sendPacket(new CPacketEntityAction(mc.player, CPacketEntityAction.Action.START_SNEAKING));
+                }
+                EnumActionResult result = mc.playerController.processRightClickBlock(mc.player, mc.world, pos, side,
+                    hitVec, EnumHand.MAIN_HAND);
+                if (sneak) {
+                    mc.player.connection.sendPacket(new CPacketEntityAction(mc.player, CPacketEntityAction.Action.STOP_SNEAKING));
+                    mc.player.setSneaking(false);
+                }
+                LOGGER.info("Dev use: {} at {} side {} ({}{})", mc.world.getBlockState(pos), pos, side, result,
+                    sneak ? ", sneaking" : "");
                 return true;
             }
             case "chunks" -> {
@@ -364,6 +464,66 @@ public final class DevHarness {
                 return handler.apply(this, args);
             }
         }
+    }
+
+    // Runs the task on the integrated server's thread on the first tick and finishes the step once it has run, so the
+    // task's exception stops the script.
+    private boolean onServer(Minecraft mc, Consumer<IntegratedServer> task) {
+        if (this.serverTask == null) {
+            IntegratedServer server = mc.getIntegratedServer();
+            if (server == null || mc.player == null) {
+                return false;
+            }
+            this.serverTask = server.addScheduledTask(() -> task.accept(server));
+            return false;
+        }
+        if (!this.serverTask.isDone()) {
+            return false;
+        }
+        Future<?> done = this.serverTask;
+        this.serverTask = null;
+        try {
+            done.get();
+        } catch (ExecutionException e) {
+            throw new IllegalStateException(e.getCause().getMessage(), e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+        return true;
+    }
+
+    private static int coordinate(String value, int base) {
+        if (value.startsWith("~")) {
+            return base + (value.length() > 1 ? Integer.parseInt(value.substring(1)) : 0);
+        }
+        return Integer.parseInt(value);
+    }
+
+    // A registry name ("modid:item" or "modid:item@meta"), or the display name of a stack some creative tab lists.
+    private static ItemStack findStack(String name) {
+        if (name.matches("[\\w.-]+:[\\w./-]+(@\\d+)?")) {
+            String[] parts = name.split("@");
+            Item item = Item.REGISTRY.getObject(new ResourceLocation(parts[0]));
+            if (item == null) {
+                throw new IllegalArgumentException("No item " + parts[0]);
+            }
+            return new ItemStack(item, 1, parts.length > 1 ? Integer.parseInt(parts[1]) : 0);
+        }
+        List<String> seen = new ArrayList<>();
+        for (Item item : Item.REGISTRY) {
+            NonNullList<ItemStack> stacks = NonNullList.create();
+            item.getSubItems(CreativeTabs.SEARCH, stacks);
+            for (ItemStack stack : stacks) {
+                if (stack.getDisplayName().equalsIgnoreCase(name)) {
+                    return stack;
+                }
+                if (stack.getDisplayName().toLowerCase(Locale.ROOT).contains(name.toLowerCase(Locale.ROOT))) {
+                    seen.add(stack.getDisplayName());
+                }
+            }
+        }
+        throw new IllegalArgumentException("No creative-tab stack is named '" + name + "'; close: " + seen);
     }
 
     // GuiScreen.actionPerformed is how a click reaches a button's screen, and what mods inject into.
