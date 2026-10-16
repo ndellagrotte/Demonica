@@ -19,8 +19,10 @@ import org.lwjgl.opengl.GL30C;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static com.gtnewhorizons.angelica.glsm.backend.BackendManager.RENDER_BACKEND;
 
@@ -33,11 +35,14 @@ public final class VanillaVertexBufferRenderer {
     // Birth context handle per VAO: container objects do not survive a display context
     // migration (issue #150); entries born on another context must be recreated.
     private static final Map<Integer, Long> VAO_CONTEXTS = new HashMap<>();
+    // VBOs deleted off the main thread, deleted on the next main-thread upload/draw/delete.
+    private static final Queue<Integer> PENDING_DELETES = new ConcurrentLinkedQueue<>();
 
     private VanillaVertexBufferRenderer() {
     }
 
     public static void uploadVertexBuffer(VertexFormat format, int vbo, ByteBuffer data, int usage) {
+        drainPendingDeletes();
         int savedVbo = GLStateManager.getBoundVBO();
         ByteBuffer upload = data.duplicate();
         GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
@@ -51,6 +56,7 @@ public final class VanillaVertexBufferRenderer {
     }
 
     public static void drawVertexBuffer(VertexFormat format, int vbo, int count, int mode) {
+        drainPendingDeletes();
         if (count <= 0 || vbo < 0) {
             return;
         }
@@ -87,7 +93,32 @@ public final class VanillaVertexBufferRenderer {
         }
     }
 
+    /**
+     * Deletes the VBO and its VAO. Calls from other threads are queued for the main thread:
+     * LittleTiles frees its animation buffers from {@code finalize()}, and the GC Finalizer thread
+     * has no GL context, where LWJGL 3 aborts the JVM instead of throwing. The VAO maps are
+     * main-thread state too.
+     */
     public static void deleteVertexBuffer(int vbo) {
+        if (!GLStateManager.isMainThread()) {
+            PENDING_DELETES.add(vbo);
+            return;
+        }
+        drainPendingDeletes();
+        deleteNow(vbo);
+    }
+
+    private static void drainPendingDeletes() {
+        if (PENDING_DELETES.isEmpty() || !GLStateManager.isMainThread()) {
+            return;
+        }
+        Integer vbo;
+        while ((vbo = PENDING_DELETES.poll()) != null) {
+            deleteNow(vbo);
+        }
+    }
+
+    private static void deleteNow(int vbo) {
         Integer vao = VAOS_BY_VBO.remove(vbo);
         FLAGS_BY_VBO.remove(vbo);
         if (vao != null) {
