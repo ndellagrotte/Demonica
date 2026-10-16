@@ -22,6 +22,8 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
+import net.minecraftforge.eventbus.api.bus.EventBus;
+import net.minecraftforge.eventbus.api.event.MutableEvent;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
@@ -149,6 +151,26 @@ public class DisplayListManager {
 
     public static void resumeRecording(CommandRecorder r) {
         currentRecorder = r;
+    }
+
+    /**
+     * Posts a GLSM hook with recording paused. Listeners react to the live state: Iris switches its pass (program,
+     * framebuffer, viewport, blend override) when GL_TEXTURE_2D changes. Under GL_COMPILE_AND_EXECUTE those calls must
+     * not land in the list, or every replay rebinds the pass that was current when it was compiled: OpenComputers'
+     * screen text, compiled during the world pass, drew with a shader pack's gbuffers program in its GUI. Replay runs
+     * the recorded command through GLStateManager, which posts the hook again for the state current then.
+     */
+    public static <E extends MutableEvent> void postHook(EventBus<E> bus, E event) {
+        if (!isRecording()) {
+            bus.post(event);
+            return;
+        }
+        final CommandRecorder recorder = pauseRecording();
+        try {
+            bus.post(event);
+        } finally {
+            resumeRecording(recorder);
+        }
     }
 
     /**

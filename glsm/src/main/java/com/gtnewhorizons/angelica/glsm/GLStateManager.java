@@ -1444,7 +1444,7 @@ public class GLStateManager {
 
     private static void postVanillaBlendChange() {
         if (GLSMHooks.hasActiveConsumers() && GLSMHooks.VANILLA_BLEND_CHANGE.hasListeners()) {
-            GLSMHooks.VANILLA_BLEND_CHANGE.post(GLSMHooks.vanillaBlendChangeEvent);
+            DisplayListManager.postHook(GLSMHooks.VANILLA_BLEND_CHANGE, GLSMHooks.vanillaBlendChangeEvent);
         }
     }
 
@@ -1509,7 +1509,7 @@ public class GLStateManager {
             throw new IllegalStateException("Foreign draw scope underflow");
         }
         if (--foreignDrawDepth == 0 && GLSMHooks.FOREIGN_DRAW_END.hasListeners()) {
-            GLSMHooks.FOREIGN_DRAW_END.post(GLSMHooks.foreignDrawEndEvent);
+            DisplayListManager.postHook(GLSMHooks.FOREIGN_DRAW_END, GLSMHooks.foreignDrawEndEvent);
         }
     }
 
@@ -1647,7 +1647,7 @@ public class GLStateManager {
             GLSMHooks.blendFuncChangeEvent.dstRgb = dstRgb;
             GLSMHooks.blendFuncChangeEvent.srcAlpha = srcAlpha;
             GLSMHooks.blendFuncChangeEvent.dstAlpha = dstAlpha;
-            GLSMHooks.BLEND_FUNC_CHANGE.post(GLSMHooks.blendFuncChangeEvent);
+            DisplayListManager.postHook(GLSMHooks.BLEND_FUNC_CHANGE, GLSMHooks.blendFuncChangeEvent);
         }
     }
 
@@ -2003,7 +2003,7 @@ public class GLStateManager {
         } else {
             ctx().alphaTest.enable();
             if (GLSMHooks.ALPHA_STATE_CHANGE.hasListeners()) {
-                GLSMHooks.ALPHA_STATE_CHANGE.post(GLSMHooks.alphaStateChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.ALPHA_STATE_CHANGE, GLSMHooks.alphaStateChangeEvent);
             }
         }
         ctx().fragmentGeneration++;
@@ -2024,7 +2024,7 @@ public class GLStateManager {
         } else {
             ctx().alphaTest.disable();
             if (GLSMHooks.ALPHA_STATE_CHANGE.hasListeners()) {
-                GLSMHooks.ALPHA_STATE_CHANGE.post(GLSMHooks.alphaStateChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.ALPHA_STATE_CHANGE, GLSMHooks.alphaStateChangeEvent);
             }
         }
         ctx().fragmentGeneration++;
@@ -2048,7 +2048,7 @@ public class GLStateManager {
             ctx().alphaState.setReference(reference);
             ctx().fragmentGeneration++;
             if (GLSMHooks.ALPHA_STATE_CHANGE.hasListeners()) {
-                GLSMHooks.ALPHA_STATE_CHANGE.post(GLSMHooks.alphaStateChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.ALPHA_STATE_CHANGE, GLSMHooks.alphaStateChangeEvent);
             }
         }
     }
@@ -2158,7 +2158,7 @@ public class GLStateManager {
                 lockBindCallback = true;
                 if (GLSMHooks.TEXTURE_BIND.hasListeners()) {
                     GLSMHooks.textureBindEvent.textureId = texture;
-                    GLSMHooks.TEXTURE_BIND.post(GLSMHooks.textureBindEvent);
+                    DisplayListManager.postHook(GLSMHooks.TEXTURE_BIND, GLSMHooks.textureBindEvent);
                 }
                 RenderSystem.bindTextureToUnit(0, texture);
                 lockBindCallback = false;
@@ -2496,7 +2496,7 @@ public class GLStateManager {
         GLSMHooks.textureUnitStateEvent.unit = textureUnit;
         GLSMHooks.textureUnitStateEvent.target = GL11.GL_TEXTURE_2D;
         GLSMHooks.textureUnitStateEvent.enabled = enabled;
-        GLSMHooks.TEXTURE_UNIT_STATE.post(GLSMHooks.textureUnitStateEvent);
+        DisplayListManager.postHook(GLSMHooks.TEXTURE_UNIT_STATE, GLSMHooks.textureUnitStateEvent);
     }
 
     private static final String PIXELTRANSFER_MSG = "glPixelTransfer is not available in GL 3.3 core profile.";
@@ -2927,7 +2927,7 @@ public class GLStateManager {
             GLSMHooks.shaderColorChangeEvent.green = g;
             GLSMHooks.shaderColorChangeEvent.blue = b;
             GLSMHooks.shaderColorChangeEvent.alpha = a;
-            GLSMHooks.SHADER_COLOR_CHANGE.post(GLSMHooks.shaderColorChangeEvent);
+            DisplayListManager.postHook(GLSMHooks.SHADER_COLOR_CHANGE, GLSMHooks.shaderColorChangeEvent);
         }
     }
 
@@ -3686,7 +3686,7 @@ public class GLStateManager {
         }
         ctx().fogMode.enable();
         if (GLSMHooks.FOG_STATE_CHANGE.hasListeners()) {
-            GLSMHooks.FOG_STATE_CHANGE.post(GLSMHooks.fogStateChangeEvent);
+            DisplayListManager.postHook(GLSMHooks.FOG_STATE_CHANGE, GLSMHooks.fogStateChangeEvent);
         }
     }
 
@@ -3700,7 +3700,7 @@ public class GLStateManager {
         }
         ctx().fogMode.disable();
         if (GLSMHooks.FOG_STATE_CHANGE.hasListeners()) {
-            GLSMHooks.FOG_STATE_CHANGE.post(GLSMHooks.fogStateChangeEvent);
+            DisplayListManager.postHook(GLSMHooks.FOG_STATE_CHANGE, GLSMHooks.fogStateChangeEvent);
         }
     }
 
@@ -3724,7 +3724,7 @@ public class GLStateManager {
                 ctx().fogState.getFogColorBuffer().put((FloatBuffer) param.position(0)).flip();
                 ctx().fragmentGeneration++;
                 if (GLSMHooks.FOG_STATE_CHANGE.hasListeners()) {
-                    GLSMHooks.FOG_STATE_CHANGE.post(GLSMHooks.fogStateChangeEvent);
+                    DisplayListManager.postHook(GLSMHooks.FOG_STATE_CHANGE, GLSMHooks.fogStateChangeEvent);
                 }
             }
         } else {
@@ -3746,7 +3746,7 @@ public class GLStateManager {
                 ctx().fogState.getFogColorBuffer().put(red).put(green).put(blue).put(alpha).flip();
                 ctx().fragmentGeneration++;
                 if (GLSMHooks.FOG_STATE_CHANGE.hasListeners()) {
-                    GLSMHooks.FOG_STATE_CHANGE.post(GLSMHooks.fogStateChangeEvent);
+                    DisplayListManager.postHook(GLSMHooks.FOG_STATE_CHANGE, GLSMHooks.fogStateChangeEvent);
                 }
             }
         }
@@ -3771,7 +3771,7 @@ public class GLStateManager {
                 default -> changed = false;
             }
             if (changed && GLSMHooks.FOG_STATE_CHANGE.hasListeners()) {
-                GLSMHooks.FOG_STATE_CHANGE.post(GLSMHooks.fogStateChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.FOG_STATE_CHANGE, GLSMHooks.fogStateChangeEvent);
             }
         }
     }
@@ -3789,7 +3789,7 @@ public class GLStateManager {
             ctx().fogState.setFogMode(param);
             ctx().fragmentGeneration++;
             if (GLSMHooks.FOG_STATE_CHANGE.hasListeners()) {
-                GLSMHooks.FOG_STATE_CHANGE.post(GLSMHooks.fogStateChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.FOG_STATE_CHANGE, GLSMHooks.fogStateChangeEvent);
             }
         }
     }
@@ -3822,7 +3822,7 @@ public class GLStateManager {
         TextureInfoCache.INSTANCE.onDeleteTexture(id);
         if (GLSMHooks.TEXTURE_DELETE.hasListeners()) {
             GLSMHooks.textureDeleteEvent.textureId = id;
-            GLSMHooks.TEXTURE_DELETE.post(GLSMHooks.textureDeleteEvent);
+            DisplayListManager.postHook(GLSMHooks.TEXTURE_DELETE, GLSMHooks.textureDeleteEvent);
         }
 
         // Always delete
@@ -3899,7 +3899,7 @@ public class GLStateManager {
         drawableGL = null;
         if (GLSMHooks.LOADING_CHECKPOINT.hasListeners()) {
             GLSMHooks.loadingCheckpointEvent.requiresSync = true;
-            GLSMHooks.LOADING_CHECKPOINT.post(GLSMHooks.loadingCheckpointEvent);
+            DisplayListManager.postHook(GLSMHooks.LOADING_CHECKPOINT, GLSMHooks.loadingCheckpointEvent);
             GLSMHooks.loadingCheckpointEvent.requiresSync = false;
         }
     }
@@ -5291,7 +5291,7 @@ public class GLStateManager {
                 GLSMHooks.programChangeEvent.previousProgram = prev;
                 GLSMHooks.programChangeEvent.newProgram = 0;
                 GLSMHooks.programChangeEvent.postBind = false;
-                GLSMHooks.PROGRAM_CHANGE.post(GLSMHooks.programChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.PROGRAM_CHANGE, GLSMHooks.programChangeEvent);
             }
             recordGpuCommand(GpuCommandType.PROGRAM_USE, program, 0);
             ffp.activate();
@@ -5299,7 +5299,7 @@ public class GLStateManager {
                 GLSMHooks.programChangeEvent.previousProgram = prev;
                 GLSMHooks.programChangeEvent.newProgram = 0;
                 GLSMHooks.programChangeEvent.postBind = true;
-                GLSMHooks.PROGRAM_CHANGE.post(GLSMHooks.programChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.PROGRAM_CHANGE, GLSMHooks.programChangeEvent);
             }
             return;
         }
@@ -5320,7 +5320,7 @@ public class GLStateManager {
                 GLSMHooks.programChangeEvent.previousProgram = prev;
                 GLSMHooks.programChangeEvent.newProgram = program;
                 GLSMHooks.programChangeEvent.postBind = false;
-                GLSMHooks.PROGRAM_CHANGE.post(GLSMHooks.programChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.PROGRAM_CHANGE, GLSMHooks.programChangeEvent);
             }
             if (initConfig != null && initConfig.isLwjglDebug()) {
                 final String programName = GLDebug.getObjectLabel(KHRDebug.GL_PROGRAM, program);
@@ -5333,7 +5333,7 @@ public class GLStateManager {
                 GLSMHooks.programChangeEvent.previousProgram = prev;
                 GLSMHooks.programChangeEvent.newProgram = program;
                 GLSMHooks.programChangeEvent.postBind = true;
-                GLSMHooks.PROGRAM_CHANGE.post(GLSMHooks.programChangeEvent);
+                DisplayListManager.postHook(GLSMHooks.PROGRAM_CHANGE, GLSMHooks.programChangeEvent);
             }
         }
     }
@@ -6684,7 +6684,7 @@ public class GLStateManager {
             if (GLSMHooks.LIGHTMAP_COORDS.hasListeners()) {
                 GLSMHooks.lightmapCoordsEvent.x = x;
                 GLSMHooks.lightmapCoordsEvent.y = y;
-                GLSMHooks.LIGHTMAP_COORDS.post(GLSMHooks.lightmapCoordsEvent);
+                DisplayListManager.postHook(GLSMHooks.LIGHTMAP_COORDS, GLSMHooks.lightmapCoordsEvent);
             }
         }
     }
@@ -7202,7 +7202,7 @@ public class GLStateManager {
         // cache matches GL_CURRENT_PROGRAM and the next glUseProgram is not skipped as redundant.
         if (GLSMHooks.PROGRAM_DELETE.hasListeners()) {
             GLSMHooks.programDeleteEvent.program = program;
-            GLSMHooks.PROGRAM_DELETE.post(GLSMHooks.programDeleteEvent);
+            DisplayListManager.postHook(GLSMHooks.PROGRAM_DELETE, GLSMHooks.programDeleteEvent);
         }
         RENDER_BACKEND.deleteProgram(program);
     }
