@@ -124,6 +124,11 @@ public abstract class IrisGuiSlot extends GuiSlot {
             this.bindAmountScrolled();
         }
 
+        // Universal Tweaks' smooth scrolling eases GuiSlot.amountScrolled towards a target of its own at the head of
+        // super.drawScreen, and only the vanilla handleMouseInput (never called here) moves that target. Publish our
+        // position first, or the wheel and the scrollbar drag above are undone every frame (#41).
+        SmoothScrollingCompat.syncTarget(this, this.amountScrolled);
+
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 }
