@@ -844,6 +844,9 @@ configurations {
     voxelMap {
         transitive = false
     }
+    movingElevators {
+        transitive = false
+    }
 }
 
 tasks.register('voxelMapWithoutMixin', Zip) {
@@ -851,6 +854,14 @@ tasks.register('voxelMapWithoutMixin', Zip) {
         exclude 'org/spongepowered/**'
     }
     archiveFileName = 'voxelmap-without-mixin.jar'
+    destinationDirectory = layout.buildDirectory.dir('compat')
+}
+
+tasks.register('movingElevatorsWithoutMixin', Zip) {
+    from(zipTree(configurations.movingElevators.singleFile)) {
+        exclude 'org/spongepowered/**'
+    }
+    archiveFileName = 'movingelevators-without-mixin.jar'
     destinationDirectory = layout.buildDirectory.dir('compat')
 }
 
@@ -900,6 +911,10 @@ dependencies {
     // copy without it (voxelMapWithoutMixin).
     voxelMap 'curse.maven:voxelmap-225179:3029445'
     compileOnly files(tasks.named('voxelMapWithoutMixin'))
+    // Moving Elevators 1.4.12 (MovingElevatorsCompat, C3) bundles one too. Only its own classes are referenced, so the
+    // SRG jar needs no deobf.
+    movingElevators 'curse.maven:moving-elevators-373051:7600431'
+    compileOnly files(tasks.named('movingElevatorsWithoutMixin'))
     // CeleritasBlockAccess extends Fluidlogged API's interfaces, so code that calls a WorldSlice needs them.
     modCompileOnly(deobf('maven.modrinth:fluidlogged-api:3.0.6')) {
         transitive = false

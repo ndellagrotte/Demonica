@@ -50,12 +50,22 @@ disables it again for its own draw, so the pair is state-neutral. Under a pack t
 pass match, so the cage takes the pack's terrain program (texture and lightmap, `gbuffers_terrain`) instead of
 `gbuffers_textured`.
 
-## Not fixed: block entities inside a moving cage
+## Block entities inside a moving cage
 
-Moving Elevators also draws a cage's block entities, from a hook after vanilla's
-`TileEntityRendererDispatcher.preDrawBatch()` in `RenderGlobal.renderEntities`. Celeritas cancels `renderEntities`
-before that point, and the mod's `@Pseudo` mixin for Vintagium targets `me.jellysquid...SodiumWorldRenderer`, a class
-Celeritas does not have, so neither hook runs: block entities in a moving cage are not drawn. A separate follow-up.
+Moving Elevators also draws a cage's block entities itself (`ElevatorGroupRenderer.renderBlockEntities`), from a
+hook right after vanilla's `TileEntityRendererDispatcher.preDrawBatch()` in `RenderGlobal.renderEntities`, so that
+they join the batch `drawBatch` closes. Celeritas cancels `renderEntities` before that call, and the mod's `@Pseudo`
+mixin for Vintagium targets `me.jellysquid...SodiumWorldRenderer`, a class Celeritas does not have, so neither hook
+ran: a chest or sign in a moving cage disappeared for the ride, with or without a pack, and reappeared when the cage
+landed.
+
+Celeritas draws block entities in `CeleritasWorldRenderer.renderBlockEntities`, between its own `preDrawBatch()` and
+`drawBatch` calls. The quarantine patch C3 ([`docs/celeritas/patches/C3.md`](../celeritas/patches/C3.md),
+`CeleritasWorldRendererCompatMixin`) calls the mod's method right after that `preDrawBatch()`, with the pass's
+partial tick, only while the mod is installed (`Mods.MOVINGELEVATORS`, through `MovingElevatorsCompat`). S9 has
+entered Iris's block-entity phase at HEAD of the same method, and the mod draws each block entity through
+`TileEntityRendererDispatcher.render`, which sets Iris's block-entity id, so under a pack the cage's block entities
+take the pack's block-entity program like any other.
 
 ## Repro
 
@@ -65,8 +75,9 @@ Celeritas does not have, so neither hook runs: block entities in a moving cage a
 
 `-PwithMovingElevators` loads Moving Elevators 1.4.12 with SuperMartijn642's Core Lib 1.1.25 and Config Lib 1.1.8.
 `scripts/moving-elevators.txt` (copy it into `run/client/scripts`) makes a creative world, places two controllers
-facing north six blocks apart in the open air with a plank floor in the bottom cage, a stone backdrop east of the
-shaft and a roof over it, and shoots the cage at rest and twice mid-ride (a redstone block beside a controller calls
-the cage to its floor), without a pack, under BSL and under Complementary Reimagined. Before the fix the BSL and
-Complementary mid-ride shots had no floor in the shaft, and the no-pack ones a floor brighter than the backdrop;
-after it the planks show at the interpolated height, lit like the terrain around them.
+facing north six blocks apart in the open air with a plank floor in the bottom cage, a chest in it, a stone backdrop
+east of the shaft and a roof over it, and shoots the cage at rest and twice mid-ride (a redstone block beside a
+controller calls the cage to its floor), without a pack, under BSL and under Complementary Reimagined. Before the
+fix the BSL and Complementary mid-ride shots had no floor in the shaft, and the no-pack ones a floor brighter than
+the backdrop; after it the planks show at the interpolated height, lit like the terrain around them. The chest was
+missing from every mid-ride shot until C3; with it the chest rides with the floor.

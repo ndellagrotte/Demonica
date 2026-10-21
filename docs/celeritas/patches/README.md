@@ -59,5 +59,6 @@ The remaining drafts are independent small changes: S7 (two members of
 transformer hook), I2 (finish deprecating the
 `frame` parameters), C1 (two extension points in the meshing task for mods that
 hook vanilla's chunk rebuild), C2 (a per-section translation provider for chunk
-animation mods). I1 is a question for upstream, and S17 needs nothing from
+animation mods), C3 (a block-entity pass callback for mods that draw in vanilla's
+block-entity batch). I1 is a question for upstream, and S17 needs nothing from
 upstream.
