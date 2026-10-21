@@ -4,6 +4,7 @@ import com.gtnewhorizon.gtnhlib.client.renderer.DirectTessellator;
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import com.gtnewhorizon.gtnhlib.client.renderer.vertex.VertexFormatElement.Usage;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
+import com.gtnewhorizons.angelica.glsm.ffp.Uniforms;
 import com.gtnewhorizons.angelica.glsm.states.VertexAttribState;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.opengl.GL11;
@@ -82,7 +83,16 @@ public final class ImmediateModeRecorder {
      * Called by GLStateManager.glColor* when inside a glBegin/glEnd block.
      */
     public static void setColor(float r, float g, float b, float a) {
-        tessellator().setColorRGBA((int) (r * 255.0f), (int) (g * 255.0f), (int) (b * 255.0f), (int) (a * 255.0f));
+        tessellator().setColorRGBA(colorByte(r), colorByte(g), colorByte(b), colorByte(a));
+    }
+
+    /**
+     * A current-color component as the tessellator's 0..255 channel. Fixed-function GL clamps the current color to
+     * [0,1] when it uses it, so a negative or over-range component (AsmodeusCore's sky, see
+     * {@link Uniforms#sanitizeUniformColor}) packs as 0 or 255 instead of wrapping.
+     */
+    private static int colorByte(float component) {
+        return (int) (Uniforms.clamp01(component) * 255.0f);
     }
 
     /**
@@ -105,8 +115,8 @@ public final class ImmediateModeRecorder {
         final DirectTessellator t = tessellator();
         t.reset();
         t.startDrawing(primitiveType);
-        final var c = GLStateManager.getColor();
-        t.setColorRGBA((int) (c.getRed() * 255.0f), (int) (c.getGreen() * 255.0f), (int) (c.getBlue() * 255.0f), (int) (c.getAlpha() * 255.0f));
+        final var c = Uniforms.sanitizeUniformColor(GLStateManager.getColor());
+        t.setColorRGBA(colorByte(c.getRed()), colorByte(c.getGreen()), colorByte(c.getBlue()), colorByte(c.getAlpha()));
     }
 
     /**
@@ -481,7 +491,7 @@ public final class ImmediateModeRecorder {
             final float cg = r.attrib.readComponent(r.data, base, 1);
             final float cb = r.attrib.readComponent(r.data, base, 2);
             final float ca = (r.size >= 4) ? r.attrib.readComponent(r.data, base, 3) : 1.0f;
-            t.setColorRGBA((int) (cr * 255.0f), (int) (cg * 255.0f), (int) (cb * 255.0f), (int) (ca * 255.0f));
+            t.setColorRGBA(colorByte(cr), colorByte(cg), colorByte(cb), colorByte(ca));
         }
     }
 
