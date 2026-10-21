@@ -114,6 +114,7 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         if (RenderWorldRecursionGuard.isNested()) {
             return;
         }
+        ShaderTerrain.resetLayer();
         if (!Iris.enabled) {
             return;
         }
@@ -271,8 +272,16 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         );
     }
 
-    // Every terrain layer of the pass (solid, cutout-mipped, cutout, translucent): the consolidated-cutout skip below
-    // and a skipAllRendering pack's.
+    // Every terrain layer of the pass (solid, cutout-mipped, cutout, translucent): the layer's Iris phase, the
+    // consolidated-cutout skip below and a skipAllRendering pack's.
+    //
+    // The phase is entered here, around the call, rather than only by S8's HEAD/RETURN pair inside renderBlockLayer
+    // (RenderGlobalTerrainMixin). Mixin inserts every HEAD callback before the method's original first instruction in
+    // priority order, so a lower-priority mixin's callback runs first: Moving Elevators (priority 1000) draws its moving
+    // cage at HEAD of this method, and under S8 alone (1100) that draw ran before the phase was set, into whatever the
+    // shadow pass left bound (Actinium #42, docs/compat/moving-elevators.md). S8's pair stays as the fallback for
+    // callers outside renderWorldPass (GregTech CEu's bloom wrapper calls renderBlockLayer itself) and is a no-op
+    // inside this phase (ShaderTerrain.beginLayer returns false).
     @Redirect(
         method = "renderWorldPass(IFJ)V",
         at = @At(
@@ -287,24 +296,25 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         int pass,
         Entity entity
     ) {
-        // Upstream's skipRenderChunks (MixinLevelRenderer_SkipRendering): a skipAllRendering pack draws no chunk layer.
-        // Demonica: a condition inside this existing redirect (widened from the cutout call to all four) rather than
-        // upstream's separate @WrapWithCondition. The translucent call also carries Iris's translucent prelude (S8's
-        // HEAD hook: the hand's solid parts, then the deferred passes), which upstream runs outside the skipped draw
-        // (MixinLevelRenderer.iris$beginTranslucents), so it runs here without the draw.
-        if (demonica$skipAllRendering()) {
-            if (blockLayer == BlockRenderLayer.TRANSLUCENT) {
-                ShaderTerrain.beginLayer(blockLayer, (float) partialTicks);
-                ShaderTerrain.endLayer();
-            }
-            return 0;
-        }
-
         if (blockLayer == BlockRenderLayer.CUTOUT && demonica$cutoutSharesCutoutMippedPass()) {
+            // Nothing to draw and no phase to enter, as when renderBlockLayer was not called at all.
             return 0;
         }
 
-        return renderGlobal.renderBlockLayer(blockLayer, partialTicks, pass, entity);
+        boolean entered = ShaderTerrain.beginLayer(blockLayer, (float) partialTicks);
+        try {
+            // Upstream's skipRenderChunks (MixinLevelRenderer_SkipRendering): a skipAllRendering pack draws no chunk
+            // layer. Demonica: a condition inside this existing redirect (widened from the cutout call to all four)
+            // rather than upstream's separate @WrapWithCondition. The phases and the translucent call's prelude (the
+            // hand's solid parts, then the deferred passes), which upstream runs from separate injections outside the
+            // skipped draw (MixinLevelRenderer.iris$beginTranslucents), still run here without the draw.
+            if (demonica$skipAllRendering()) {
+                return 0;
+            }
+            return renderGlobal.renderBlockLayer(blockLayer, partialTicks, pass, entity);
+        } finally {
+            ShaderTerrain.endLayer(entered);
+        }
     }
 
     // Upstream's skipRenderEntities (MixinLevelRenderer_SkipRendering): a skipAllRendering pack draws no entity. Both of

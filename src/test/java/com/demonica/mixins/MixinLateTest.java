@@ -66,7 +66,8 @@ class MixinLateTest {
                 "mixins.demonica.littletiles.json",
                 "mixins.demonica.obscuretooltips.json",
                 "mixins.demonica.distanthorizons.json",
-                "mixins.demonica.renderlib.json"
+                "mixins.demonica.renderlib.json",
+                "mixins.demonica.movingelevators.json"
             ),
             Set.copyOf(MixinLate.configsFor(modId -> true, className -> true))
         );

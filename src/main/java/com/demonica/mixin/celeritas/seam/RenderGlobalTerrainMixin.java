@@ -12,6 +12,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.util.BlockRenderLayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
@@ -29,6 +30,13 @@ import java.util.Locale;
  * debug option on, the GL state is compared across the draw and across that overload ({@link RenderDebugHooksHolder});
  * the perf-debug report times the draw.
  *
+ * <p>The phases are entered first at the {@code renderWorldPass} call site (EntityRendererIrisMixin's redirect of
+ * this method), around the call: a mod's own HEAD injection into this method (Moving Elevators draws its moving cage
+ * there) runs before this mixin's, whatever the priorities, since Mixin inserts HEAD callbacks before the original
+ * first instruction in priority order. The HEAD/RETURN pair here is the fallback for callers outside
+ * {@code renderWorldPass} (GregTech CEu's bloom wrapper calls this method itself) and a no-op inside the call site's
+ * phase ({@link ShaderTerrain#beginLayer} returns false; {@link ShaderTerrain#endLayer} then does nothing).
+ *
  * <p>The injections inside the overwritten body need a priority above upstream's 1000; HEAD and RETURN do not.
  */
 @Patch(value = "S8", group = PatchGroup.CORE_TERRAIN)
@@ -40,10 +48,14 @@ public abstract class RenderGlobalTerrainMixin {
         throw new AssertionError();
     }
 
+    /** Whether the HEAD injection entered the phase (false inside the call site's). Render thread only. */
+    @Unique
+    private boolean demonica$enteredLayer;
+
     @Inject(method = "renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I", at = @At("HEAD"))
     private void demonica$beginTerrainLayer(BlockRenderLayer layer, double partialTicks, int pass, Entity entity,
                                             CallbackInfoReturnable<Integer> cir) {
-        ShaderTerrain.beginLayer(layer, (float) partialTicks);
+        this.demonica$enteredLayer = ShaderTerrain.beginLayer(layer, (float) partialTicks);
     }
 
     // Its renderContainer draws nothing, since Celeritas owns chunk rendering and never fills it. Distant Horizons
@@ -96,6 +108,8 @@ public abstract class RenderGlobalTerrainMixin {
     @Inject(method = "renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I", at = @At("RETURN"))
     private void demonica$endTerrainLayer(BlockRenderLayer layer, double partialTicks, int pass, Entity entity,
                                           CallbackInfoReturnable<Integer> cir) {
-        ShaderTerrain.endLayer();
+        boolean entered = this.demonica$enteredLayer;
+        this.demonica$enteredLayer = false;
+        ShaderTerrain.endLayer(entered);
     }
 }

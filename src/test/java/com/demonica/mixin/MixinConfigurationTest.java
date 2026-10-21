@@ -61,7 +61,8 @@ class MixinConfigurationTest {
         "mixins.demonica.littletiles.json",
         "mixins.demonica.obscuretooltips.json",
         "mixins.demonica.distanthorizons.json",
-        "mixins.demonica.renderlib.json"
+        "mixins.demonica.renderlib.json",
+        "mixins.demonica.movingelevators.json"
     );
     private static final List<String> CONFIGS = MAIN_CONFIGS;
 
