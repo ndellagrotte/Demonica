@@ -5,11 +5,13 @@ import com.demonica.diagnostics.mixin.GuiScreenAccessor;
 import com.demonica.gui.DemonicaGuiFactory;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.config.IrisConfig;
+import net.coderbot.iris.gui.screen.ShaderPackScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.GuiSlot;
 import net.minecraft.client.gui.inventory.GuiContainerCreative;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.creativetab.CreativeTabs;
@@ -67,6 +69,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Drives a dev client through a scripted session so rendering can be checked without input tools: load a
@@ -103,6 +106,16 @@ import java.util.function.Consumer;
  *   <li>{@code expect-screen <class>}: fail unless the open screen's class has this simple name</li>
  *   <li>{@code press <buttonId>}: press a button of the current vanilla screen, as a click does (Options' Video
  *   Settings button is 101)</li>
+ *   <li>{@code mouse <x> <y>}: move the cursor to these coordinates of the current screen (GUI pixels; a negative value
+ *   counts from the right or bottom edge, so {@code mouse -3 45} is the column of Iris's scrollbar)</li>
+ *   <li>{@code mousedown [<button>]}, {@code mouseup [<button>]}: press or release a mouse button (0 left, 1 right, 2
+ *   middle; 0 by default) at the cursor. Screens see these steps as real input, and {@code Mouse.isButtonDown} reports
+ *   a scripted button as held ({@link ScriptedMouse})</li>
+ *   <li>{@code wheel <notches>}: turn the mouse wheel at the cursor; negative scrolls a list down</li>
+ *   <li>{@code expect-list-scroll <minPixels>}: fail unless the open Shader Packs screen's pack list is scrolled by at
+ *   least this many pixels</li>
+ *   <li>{@code dummy-packs <n>}: put {@code n} empty shader packs ({@code _dummy_scroll_NN}) into the shaderpacks
+ *   folder, so the pack list overflows; {@code dummy-packs 0} removes them</li>
  *   <li>{@code reload}: reload resources (F3+T)</li>
  *   <li>{@code pack <file>|off}: select the shader pack {@code shaderpacks/<file>} (the name may contain spaces), or
  *   turn shaders off, and reload Iris the way its shader toggle key does. Celeritas's renderer is not reloaded here;
@@ -118,6 +131,7 @@ public final class DevHarness {
     private static final Logger LOGGER = LogManager.getLogger("DemonicaDevHarness");
     // The title Celeritas gives its "Shader Packs" tab.
     private static final String SHADER_PACKS_TAB = "options.iris.shaderPackSelection";
+    private static final String DUMMY_PACK_PREFIX = "_dummy_scroll_";
     private static final Map<String, BiFunction<DevHarness, String[], Boolean>> EXTRA_STEPS = new ConcurrentHashMap<>();
 
     private static boolean installed;
@@ -415,6 +429,44 @@ public final class DevHarness {
                 press(mc.currentScreen, Integer.parseInt(args[1]));
                 return true;
             }
+            case "mouse" -> {
+                GuiScreen screen = requireScreen(mc);
+                int x = edgeRelative(Integer.parseInt(args[1]), screen.width);
+                int y = edgeRelative(Integer.parseInt(args[2]), screen.height);
+                // The window bridge works in window pixels with y downwards, as SDL reports the cursor.
+                ScriptedMouse.get().move((float) x * mc.displayWidth / screen.width, (float) y * mc.displayHeight / screen.height);
+                LOGGER.info("Dev mouse: moved to ({}, {})", x, y);
+                return true;
+            }
+            case "mousedown", "mouseup" -> {
+                requireScreen(mc);
+                int button = args.length > 1 ? Integer.parseInt(args[1]) : 0;
+                ScriptedMouse.get().button(button, name.equals("mousedown"));
+                return true;
+            }
+            case "wheel" -> {
+                requireScreen(mc);
+                ScriptedMouse.get().wheel(Float.parseFloat(args[1]));
+                return true;
+            }
+            case "expect-list-scroll" -> {
+                if (!(mc.currentScreen instanceof ShaderPackScreen screen)) {
+                    throw new IllegalStateException("Expected the ShaderPackScreen, found "
+                        + (mc.currentScreen != null ? mc.currentScreen.getClass().getSimpleName() : "none"));
+                }
+                GuiSlot list = (GuiSlot) readField(ShaderPackScreen.class, "shaderPackList", screen);
+                int scrolled = list.getAmountScrolled();
+                int min = Integer.parseInt(args[1]);
+                LOGGER.info("Dev list scroll: {} pixels (at least {} expected)", scrolled, min);
+                if (scrolled < min) {
+                    throw new IllegalStateException("The pack list is scrolled by " + scrolled + " pixels, less than " + min);
+                }
+                return true;
+            }
+            case "dummy-packs" -> {
+                dummyPacks(Integer.parseInt(args[1]));
+                return true;
+            }
             case "reload" -> {
                 mc.refreshResources();
                 return true;
@@ -573,6 +625,38 @@ public final class DevHarness {
                 .flatMap(Optional::stream).findFirst();
         }
         return Optional.empty();
+    }
+
+    private static GuiScreen requireScreen(Minecraft mc) {
+        if (mc.currentScreen == null) {
+            throw new IllegalStateException("No screen is open to send mouse input to");
+        }
+        return mc.currentScreen;
+    }
+
+    // A negative coordinate counts from the far edge: -3 is 3 pixels in from it.
+    private static int edgeRelative(int value, int extent) {
+        return value < 0 ? extent + value : value;
+    }
+
+    // Iris lists a folder as a pack when it holds a "shaders" folder (Iris.isValidShaderpack). The dummies sort after
+    // the real packs' names, and the shaderpacks folder is read again each time the screen opens.
+    private static void dummyPacks(int count) {
+        Path dir = Iris.getShaderpacksDirectory();
+        try {
+            try (Stream<Path> packs = Files.list(dir)) {
+                for (Path pack : packs.filter(p -> p.getFileName().toString().startsWith(DUMMY_PACK_PREFIX)).toList()) {
+                    Files.deleteIfExists(pack.resolve("shaders"));
+                    Files.delete(pack);
+                }
+            }
+            for (int i = 1; i <= count; i++) {
+                Files.createDirectories(dir.resolve(String.format(Locale.ROOT, "%s%02d", DUMMY_PACK_PREFIX, i)).resolve("shaders"));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot write dummy shader packs in " + dir, e);
+        }
+        LOGGER.info("Dev dummy packs: {} in {}", count, dir);
     }
 
     private static Object readField(Class<?> owner, String name, Object instance) {

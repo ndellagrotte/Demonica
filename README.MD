@@ -142,6 +142,7 @@ the injector targets of a mixin without a refmap, so Celeritas runs from
 | `-PwithCompatMods` | also load the mods Demonica has compatibility code for (Chunk Animator among them: its coremod's MCP name tables are unpacked into `run/mcp` first). Since 2026-10-14 not CodeChickenLib CRE 6898525 and CoFH Core/World, which need a class Cleanroom 0.7 removed (`com.cleanroommc.hackery.ReflectionHackery`), nor Distant Horizons 3.3.0, which calls GLFW ([`docs/compat/distant-horizons.md`](docs/compat/distant-horizons.md#not-in-the-dev-compat-set-on-cleanroom-07)); Demonica still compiles against all three |
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
 | `-PwithModernSplash` | also load Modern Splash, a coremod that replaces FML's loading screen |
+| `-PwithUniversalTweaks` | also load Universal Tweaks, whose smooth scrolling eases every `GuiSlot` towards a target of its own ([`docs/compat/universal-tweaks.md`](docs/compat/universal-tweaks.md)) |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
 | `-PwithoutDiagnostics` | leave the diagnostics jar out, as a player without it runs |
 | `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |
