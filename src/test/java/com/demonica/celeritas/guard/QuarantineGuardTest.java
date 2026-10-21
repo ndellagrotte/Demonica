@@ -112,7 +112,7 @@ class QuarantineGuardTest {
         assertFalse(verdict.accepted());
         assertFalse(verdict.shaderReason().contains("remove it"), verdict.shaderReason());
         assertFalse(verdict.shaderReason().contains("takes precedence"), verdict.shaderReason());
-        assertTrue(verdict.shaderReason().contains("mods/1.12.2/" + BUNDLED + ") was not extracted"), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains(BundledCeleritasHook.extractedPath(BUNDLED) + ") was not extracted"), verdict.shaderReason());
         assertTrue(verdict.shaderReason().contains("-Dfml.skipContainedDeps"), verdict.shaderReason());
         assertTrue(verdict.shaderReason().contains("d94ec1e5"), verdict.shaderReason());
 
@@ -153,7 +153,7 @@ class QuarantineGuardTest {
             QuarantineGuard.Verdict verdict = QuarantineGuard.decide(PIN, null, BUNDLED, FOREIGN, false, BUNDLED, bundle);
             assertFalse(verdict.accepted());
             assertTrue(verdict.shaderReason().contains("damaged"), bundle + ": " + verdict.shaderReason());
-            assertTrue(verdict.shaderReason().contains("mods/1.12.2/" + BUNDLED), bundle + ": " + verdict.shaderReason());
+            assertTrue(verdict.shaderReason().contains(BundledCeleritasHook.extractedPath(BUNDLED)), bundle + ": " + verdict.shaderReason());
         }
 
         assertTrue(QuarantineGuard.decide(PIN, null, BUNDLED, PINNED, false, BUNDLED, QuarantineGuard.Bundle.IN_USE).accepted(),
@@ -164,7 +164,7 @@ class QuarantineGuardTest {
     void withoutAnyJarTheBundledCopyIsToBeExtractedAgain() {
         QuarantineGuard.Verdict verdict = QuarantineGuard.decide(PIN, null, null, null, false, BUNDLED, QuarantineGuard.Bundle.IN_USE);
         assertFalse(verdict.accepted());
-        assertTrue(verdict.shaderReason().contains("Delete mods/1.12.2/" + BUNDLED), verdict.shaderReason());
+        assertTrue(verdict.shaderReason().contains("Delete " + BundledCeleritasHook.extractedPath(BUNDLED)), verdict.shaderReason());
     }
 
     @Test
@@ -228,7 +228,7 @@ class QuarantineGuardTest {
     }
 
     private static BundledCeleritasHook.Decision decision(boolean useBundled, boolean bundledPresent, List<String> externals) {
-        return new BundledCeleritasHook.Decision(BUNDLED, useBundled, bundledPresent, externals, List.of(), "report");
+        return new BundledCeleritasHook.Decision(BUNDLED, useBundled, bundledPresent, externals, List.of(), "report", null);
     }
 
     private static InputStream stream(String text) {

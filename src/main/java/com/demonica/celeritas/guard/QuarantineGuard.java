@@ -224,7 +224,7 @@ public final class QuarantineGuard {
         if (bundledName == null) {
             install = " Install the Celeritas build of upstream commit " + upstream + ".";
         } else if (bundledName.equals(jarName)) {
-            install = " The Celeritas bundled with Demonica is damaged; delete mods/1.12.2/" + bundledName
+            install = " The Celeritas bundled with Demonica is damaged; delete " + BundledCeleritasHook.extractedPath(bundledName)
                 + " so it is extracted again.";
         } else if (jarName != null && bundle == Bundle.INSTALLED_TAKES_PRECEDENCE) {
             install = " " + jarName + " is installed in the mods folder and takes precedence over the Celeritas bundled with "
@@ -235,11 +235,12 @@ public final class QuarantineGuard {
             install = " " + jarName + " was loaded instead of the Celeritas bundled with Demonica; remove it from the mods "
                 + "folder if it is still there, and restart the game.";
         } else if (jarName != null) {
-            install = " The Celeritas bundled with Demonica (mods/1.12.2/" + bundledName + ") was not extracted; check that "
-                + "-Dfml.skipContainedDeps does not name it, or install the Celeritas build of upstream commit " + upstream + ".";
+            install = " The Celeritas bundled with Demonica (" + BundledCeleritasHook.extractedPath(bundledName) + ") was not "
+                + "extracted; check that -Dfml.skipContainedDeps does not name it, or install the Celeritas build of upstream "
+                + "commit " + upstream + ".";
         } else {
-            install = " Delete mods/1.12.2/" + bundledName + ", if it is there, so the Celeritas bundled with Demonica is "
-                + "extracted again.";
+            install = " Delete " + BundledCeleritasHook.extractedPath(bundledName) + ", if it is there, so the Celeritas bundled "
+                + "with Demonica is extracted again.";
         }
         if (jarName == null) {
             LOGGER.error("Cannot find the Celeritas jar to compare with the build this Demonica was made for (upstream commit {}, "

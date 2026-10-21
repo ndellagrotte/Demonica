@@ -57,8 +57,9 @@ public final class Environment {
     }
 
     /**
-     * Every Celeritas mod jar in {@code mods} and {@code mods/1.12.2}: the bundled copy Demonica extracted, one the player
-     * installed, and copies older Demonica versions extracted. A jar that only shades Celeritas's classes is not one.
+     * Every Celeritas mod jar in {@code mods}, {@code mods/1.12.2} and the bundled copy's own folder in
+     * {@code mods/memory_repo}: the bundled copy Demonica extracted, one the player installed, and copies older Demonica
+     * versions extracted. A jar that only shades Celeritas's classes is not one.
      */
     public static List<File> celeritasJarsInModsFolders() {
         return modsFolderJarsContaining(CELERITAS_MARKER).stream().filter(BundledCeleritasHook::isCeleritasJar).toList();
@@ -102,11 +103,19 @@ public final class Environment {
         }
     }
 
-    /** The jars in {@code mods}, then {@code mods/1.12.2}, that have the entry. */
+    /**
+     * The jars in {@code mods}, then {@code mods/1.12.2}, then the bundled copy's version folder in {@code mods/memory_repo}
+     * (where Cleanroom extracts it, and which nothing lists for mods), that have the entry.
+     */
     private static List<File> modsFolderJarsContaining(String entry) {
         List<File> found = new ArrayList<>();
         File home = Launch.minecraftHome != null ? Launch.minecraftHome : new File(".");
-        for (File dir : new File[] {new File(home, "mods"), new File(home, "mods/1.12.2")}) {
+        List<File> folders = new ArrayList<>(List.of(new File(home, "mods"), new File(home, "mods/1.12.2")));
+        File bundledFolder = BundledCeleritasHook.bundledVersionFolder(home);
+        if (bundledFolder != null) {
+            folders.add(bundledFolder);
+        }
+        for (File dir : folders) {
             File[] jars = dir.listFiles((parent, name) -> name.endsWith(".jar"));
             if (jars == null) {
                 continue;

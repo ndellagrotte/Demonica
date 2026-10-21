@@ -15,8 +15,8 @@ public final class ActiniumConflictException extends CustomModLoadingErrorDispla
         "The two patch the same parts of the game and cannot run together.",
         "",
         "Remove one of them from the mods folder.",
-        "To keep using Actinium, remove Demonica, and the Celeritas it extracted",
-        "to mods/1.12.2 (zz-demonica-bundled-celeritas-...jar)."
+        "To keep using Actinium, remove Demonica. The Celeritas it extracted to",
+        "mods/memory_repo does not load without Demonica's jar."
     };
 
     public ActiniumConflictException() {

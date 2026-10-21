@@ -42,29 +42,35 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * The hook that decides which Celeritas the game loads when Demonica carries one (docs/celeritas/PIN.md, "Bundled
- * copy"): an installed Celeritas takes precedence, and the bundled copy is then left out and its extracted file deleted;
- * what it leaves out of Cleanroom's list of candidates, what it deletes and never deletes, the fallback and the
+ * copy"): an installed Celeritas takes precedence, and the bundled copy, extracted to its folder in mods/memory_repo,
+ * is then left out (and left on disk, inert); what it leaves out of Cleanroom's list of candidates, what it deletes
+ * (copies in mods/1.12.2 from Demonica 0.8.2 and earlier, older pins' folders) and never deletes, the fallback and the
  * reconciliation of FML's lists in {@code MixinEarly}, and the constraints that come from running before any coremod.
  */
 class BundledCeleritasHookTest {
     private static final String BUNDLED = "zz-demonica-bundled-celeritas-d94ec1e5-20261014T021746.jar";
+    private static final String BUNDLED_VERSION = "d94ec1e5-20261014T021746";
     private static final String STALE = "zz-demonica-bundled-celeritas-06999aab-20260901T000000.jar";
     private static final String OTHER_DEMONICAS = "zz-demonica-bundled-celeritas-12345678-20261001T000000.jar";
     private static final String INSTALLED = "01-celeritas-forge-mc12.2-2.5.0-dev.jar";
     private static final String DEMONICA = "Demonica-0.8.0.jar";
     private static final String CELERITAS_CLASS = BundledCeleritasHook.CELERITAS_MARKER;
     private static final String RELEASE = "commit-d94ec1e59df7b5fe38ee76f1bdcb03f851587aa4-20261014T021746";
+    private static final String REPOSITORY = "mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas";
 
     @TempDir
     Path home;
     private Path mods;
     private Path versionMods;
+    /** The bundled copy's version folder in the repository, where Cleanroom extracts it. */
+    private Path repository;
 
     @BeforeEach
     void layOut() throws IOException {
         BundledCeleritasHook.resetForTests();
         mods = Files.createDirectories(home.resolve("mods"));
         versionMods = Files.createDirectories(mods.resolve("1.12.2"));
+        repository = Files.createDirectories(home.resolve(REPOSITORY).resolve(BUNDLED_VERSION));
     }
 
     @AfterEach
@@ -88,9 +94,9 @@ class BundledCeleritasHookTest {
         File installed = celeritas(mods.resolve(INSTALLED));
         File renamed = celeritas(mods.resolve("my-renderer.jar"));
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
-        List<File> candidates = sorted(installed, renamed, stale, bundled, demonica(mods.resolve(DEMONICA), BUNDLED),
-            plainMod(mods.resolve("plain.jar")));
+        File bundled = celeritas(repository.resolve(BUNDLED));
+        List<File> candidates = candidates(sorted(installed, renamed, stale, demonica(mods.resolve(DEMONICA), BUNDLED),
+            plainMod(mods.resolve("plain.jar"))), bundled);
 
         BundledCeleritasHook.Plan plan = BundledCeleritasHook.plan(candidates, BUNDLED, true, BundledCeleritasHook::isCeleritasJar,
             Set.of(BUNDLED));
@@ -100,14 +106,14 @@ class BundledCeleritasHookTest {
         assertEquals(List.of(stale), plan.dropStale(), "another Celeritas is left, so the stale copy goes");
         assertFalse(plan.useBundled());
         assertTrue(plan.dropBundled());
-        assertTrue(plan.deleteBundled(), "NonModDeps would put the bundled copy on the class path anyway");
     }
 
     @Test
     void planWithoutAnInstalledCeleritasUsesTheBundledCopy() throws IOException {
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
-        List<File> candidates = sorted(stale, bundled, demonica(mods.resolve(DEMONICA), BUNDLED), plainMod(mods.resolve("plain.jar")));
+        File bundled = celeritas(repository.resolve(BUNDLED));
+        List<File> candidates = candidates(sorted(stale, demonica(mods.resolve(DEMONICA), BUNDLED), plainMod(mods.resolve("plain.jar"))),
+            bundled);
 
         BundledCeleritasHook.Plan plan = BundledCeleritasHook.plan(candidates, BUNDLED, true, BundledCeleritasHook::isCeleritasJar,
             Set.of(BUNDLED));
@@ -117,15 +123,14 @@ class BundledCeleritasHookTest {
         assertEquals(List.of(stale), plan.dropStale());
         assertTrue(plan.useBundled());
         assertFalse(plan.dropBundled());
-        assertFalse(plan.deleteBundled());
     }
 
     @Test
-    void planOnADedicatedServerLeavesOutTheBundledCopyWithoutDeletingIt() throws IOException {
+    void planOnADedicatedServerLeavesOutTheBundledCopy() throws IOException {
         File installed = celeritas(mods.resolve(INSTALLED));
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
-        List<File> candidates = sorted(installed, stale, bundled);
+        File bundled = celeritas(repository.resolve(BUNDLED));
+        List<File> candidates = candidates(sorted(installed, stale), bundled);
 
         BundledCeleritasHook.Plan plan = BundledCeleritasHook.plan(candidates, BUNDLED, false, BundledCeleritasHook::isCeleritasJar,
             Set.of(BUNDLED));
@@ -134,7 +139,6 @@ class BundledCeleritasHookTest {
         assertEquals(List.of(stale), plan.dropStale(), "a dedicated server still cleans up after earlier pins");
         assertFalse(plan.useBundled());
         assertTrue(plan.dropBundled());
-        assertFalse(plan.deleteBundled(), "a server leaves the extracted file alone");
     }
 
     @Test
@@ -147,14 +151,103 @@ class BundledCeleritasHookTest {
         assertEquals(List.of(), alone.dropStale(), "a stale copy may be the only Celeritas left");
         assertEquals(List.of(), alone.externals());
         assertNull(alone.bundled());
-        assertFalse(alone.useBundled() || alone.dropBundled() || alone.deleteBundled());
+        assertFalse(alone.useBundled() || alone.dropBundled());
 
         File installed = celeritas(mods.resolve(INSTALLED));
         BundledCeleritasHook.Plan withInstalled = BundledCeleritasHook.plan(sorted(installed, stale, plain), BUNDLED, true,
             BundledCeleritasHook::isCeleritasJar, Set.of(BUNDLED));
         assertEquals(List.of(stale), withInstalled.dropStale(), "the installed Celeritas is left");
         assertEquals(List.of(installed), withInstalled.externals());
-        assertFalse(withInstalled.useBundled() || withInstalled.dropBundled() || withInstalled.deleteBundled());
+        assertFalse(withInstalled.useBundled() || withInstalled.dropBundled());
+    }
+
+    /**
+     * Demonica 0.8.2 and earlier extracted the bundled copy to mods/1.12.2, where it loads as a standalone Celeritas
+     * once Demonica's jar is disabled: on the first launch after the update that copy is still a candidate, next to the
+     * one Cleanroom extracted to the repository. It is a leftover, deleted, and the repository copy is the one used.
+     */
+    @Test
+    void aLeftoverOfTheOldExtractionIsStaleAndDeleted() throws IOException {
+        File leftover = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
+        File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
+        List<File> candidates = candidates(sorted(leftover, demonica), bundled);
+
+        BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, false);
+
+        assertEquals(List.of(demonica, bundled), candidates);
+        assertTrue(bundled.exists());
+        assertFalse(leftover.exists(), "the copy in mods/1.12.2 would load without Demonica's jar");
+        BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
+        assertNotNull(decision);
+        assertTrue(decision.useBundled());
+        assertEquals(bundled, decision.bundledFile());
+        assertEquals(List.of(BUNDLED), decision.droppedStale(), "the leftover is told apart by its folder");
+        assertTrue(decision.report().contains("Removed 1 copy of Celeritas an earlier Demonica extracted to mods/1.12.2: " + BUNDLED),
+            decision.report());
+    }
+
+    /** Without the repository copy (extraction off), a copy in mods/1.12.2 is still the bundled copy, and kept. */
+    @Test
+    void withoutTheRepositoryCopyALeftoverIsTheBundledCopy() throws IOException {
+        File leftover = celeritas(versionMods.resolve(BUNDLED));
+        File copied = celeritas(mods.resolve(BUNDLED));
+        File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
+        List<File> candidates = sorted(leftover, copied, demonica);
+
+        BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, false);
+
+        assertEquals(List.of(demonica, leftover), candidates, "the copy in mods/1.12.2 is preferred to the player's copy");
+        assertTrue(leftover.exists() && copied.exists());
+        BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
+        assertNotNull(decision);
+        assertTrue(decision.useBundled());
+        assertEquals(leftover, decision.bundledFile());
+        assertEquals(List.of(), decision.droppedStale());
+    }
+
+    /** Older pins' version folders in the repository: never candidates, but deleted so that they do not pile up. */
+    @Test
+    void olderPinsInTheRepositoryAreDeleted() throws IOException {
+        Path older = Files.createDirectories(repository.resolveSibling("06999aab-20260901T000000"));
+        File olderJar = celeritas(older.resolve(STALE));
+        Files.writeString(older.resolve(STALE + ".meta"), "Manifest-Version: 1.0\n");
+        Path unrelated = Files.createDirectories(home.resolve("mods/memory_repo/com/example/lib/1.0"));
+        File unrelatedJar = plainMod(unrelated.resolve("lib-1.0.jar"));
+        File bundled = celeritas(repository.resolve(BUNDLED));
+        File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
+        List<File> candidates = candidates(sorted(demonica), bundled);
+
+        BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, false);
+
+        assertFalse(Files.exists(older), "the older pin's folder, jar and sidecar are gone");
+        assertFalse(olderJar.exists());
+        assertTrue(bundled.exists() && unrelatedJar.exists(), "the bundled copy and other artifacts are left alone");
+        BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
+        assertNotNull(decision);
+        assertTrue(decision.useBundled());
+        assertEquals(List.of(), decision.droppedStale(), "a folder nothing lists is not a dropped candidate");
+        assertTrue(decision.report().endsWith("Removed 1 older pin from " + REPOSITORY + ": 06999aab-20260901T000000."),
+            decision.report());
+
+        BundledCeleritasHook.resetForTests();
+        Files.createDirectories(older);
+        celeritas(older.resolve(STALE));
+        BundledCeleritasHook.Decision fallback = BundledCeleritasHook.decideWithoutHook(List.of(bundled), BUNDLED, true);
+        assertTrue(fallback.useBundled());
+        assertFalse(Files.exists(older), "the fallback cleans up too");
+    }
+
+    @Test
+    void theExtractedPathFollowsTheArtifact() {
+        assertEquals(REPOSITORY + "/" + BUNDLED_VERSION + "/" + BUNDLED, BundledCeleritasHook.extractedPath(BUNDLED));
+        assertEquals(BUNDLED_VERSION, BundledCeleritasHook.versionOf(BUNDLED));
+        assertEquals(home.resolve(REPOSITORY).toFile(), BundledCeleritasHook.bundledArtifactFolder(home.toFile()));
+        assertNull(BundledCeleritasHook.bundledVersionFolder(home.toFile()), "the test classes are not a bundled jar");
+        assertTrue(BundledCeleritasHook.inBundledRepository(repository.resolve(BUNDLED).toFile()));
+        assertFalse(BundledCeleritasHook.inBundledRepository(versionMods.resolve(BUNDLED).toFile()));
+        assertFalse(BundledCeleritasHook.inBundledRepository(home.resolve("mods/memory_repo/com/example/lib/1.0/lib-1.0.jar").toFile()));
+        assertEquals(BundledCeleritasHook.BUNDLED_ARTIFACT + "-", BundledCeleritasHook.BUNDLED_PREFIX);
     }
 
     @Test
@@ -172,22 +265,22 @@ class BundledCeleritasHookTest {
         assertFalse(decision.useBundled());
         assertEquals(List.of(), decision.externals());
         assertEquals(List.of(), decision.droppedStale());
-        assertTrue(decision.report().contains("is not in mods/1.12.2"), decision.report());
+        assertTrue(decision.report().contains("is not in " + REPOSITORY), decision.report());
     }
 
-    /** Cleanroom extracts only to mods/1.12.2, so a prefixed copy in mods was put there by the player: it is installed. */
+    /** Only Demonica 0.8.2 and earlier extracted to mods/1.12.2, so a prefixed copy in mods was put there by the player: it is installed. */
     @Test
     void aPrefixedCopyOutsideTheExtractionFolderCountsAsInstalled() throws IOException {
         File placed = celeritas(mods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
-        List<File> candidates = sorted(placed, bundled, demonica);
+        List<File> candidates = candidates(sorted(placed, demonica), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, false);
 
         assertEquals(sorted(placed, demonica), candidates);
         assertTrue(placed.exists(), "a jar the player put in the mods folder is never touched");
-        assertFalse(bundled.exists());
+        assertTrue(bundled.exists(), "the bundled copy stays, inert, for when the installed jar is removed");
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
         assertNotNull(decision);
         assertFalse(decision.useBundled());
@@ -200,8 +293,8 @@ class BundledCeleritasHookTest {
     @Test
     void aCopyAnotherInstalledDemonicaCarriesIsNotStale() throws IOException {
         File others = celeritas(versionMods.resolve(OTHER_DEMONICAS));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
-        List<File> candidates = sorted(others, bundled);
+        File bundled = celeritas(repository.resolve(BUNDLED));
+        List<File> candidates = candidates(sorted(others), bundled);
 
         BundledCeleritasHook.Plan plan = BundledCeleritasHook.plan(candidates, BUNDLED, true, BundledCeleritasHook::isCeleritasJar,
             Set.of(BUNDLED, OTHER_DEMONICAS));
@@ -214,9 +307,9 @@ class BundledCeleritasHookTest {
 
     @Test
     void keepsWhatIsNotACeleritasMod() throws IOException {
-        List<File> candidates = sorted(celeritas(versionMods.resolve(BUNDLED)), plainMod(versionMods.resolve(STALE)),
+        List<File> candidates = candidates(sorted(plainMod(versionMods.resolve(STALE)),
             fat(mods.resolve("fat.jar")), corrupt(mods.resolve("corrupt.jar")),
-            Files.createDirectories(mods.resolve("exploded")).toFile());
+            Files.createDirectories(mods.resolve("exploded")).toFile()), celeritas(repository.resolve(BUNDLED)));
 
         BundledCeleritasHook.Plan plan = BundledCeleritasHook.plan(candidates, BUNDLED, true, BundledCeleritasHook::isCeleritasJar,
             Set.of(BUNDLED));
@@ -227,26 +320,28 @@ class BundledCeleritasHookTest {
     }
 
     @Test
-    void theHookGivesWayToAnInstalledCeleritasAndDeletesTheBundledCopy() throws IOException {
+    void theHookGivesWayToAnInstalledCeleritasAndLeavesTheBundledCopyOnDisk() throws IOException {
         File installed = celeritas(mods.resolve(INSTALLED));
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED, "jcpp-1.4.14.jar");
         File plain = plainMod(mods.resolve("plain.jar"));
-        List<File> candidates = sorted(installed, stale, bundled, demonica, plain);
+        List<File> candidates = candidates(sorted(installed, stale, demonica, plain), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, true);
 
         assertEquals(sorted(installed, demonica, plain), candidates, "the installed jar stays on the list");
         assertTrue(installed.exists(), "the jar the player installed is never touched");
-        assertFalse(bundled.exists(), "the bundled copy is deleted; Cleanroom extracts it again once the installed jar is gone");
+        assertTrue(bundled.exists(), "the bundled copy stays, inert: nothing lists its folder, and it is used again once the "
+            + "installed jar is gone");
         assertFalse(stale.exists(), "a copy an earlier Demonica extracted is deleted");
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
         assertNotNull(decision);
         assertSame(decision, BundledCeleritasHook.decisionOrFallback());
         assertEquals(BUNDLED, decision.bundledName());
         assertFalse(decision.useBundled());
-        assertTrue(decision.bundledPresent(), "it was there before it was deleted");
+        assertTrue(decision.bundledPresent());
+        assertEquals(bundled, decision.bundledFile());
         assertEquals(List.of(INSTALLED), decision.externals());
         assertEquals(List.of(STALE), decision.droppedStale());
         assertTrue(decision.report().startsWith("Using the installed mods/" + INSTALLED + " instead of the Celeritas bundled "
@@ -276,30 +371,30 @@ class BundledCeleritasHookTest {
         assertEquals(List.of(INSTALLED), decision.externals());
         assertFalse(decision.report().contains("to use the bundled build"), decision.report());
         assertEquals("Using the installed mods/" + INSTALLED + "; the Celeritas bundled with Demonica, " + BUNDLED
-            + " (Celeritas-auto-build " + RELEASE + "), is not in mods/1.12.2 (it was not extracted, or -Dfml.skipContainedDeps "
+            + " (Celeritas-auto-build " + RELEASE + "), is not in " + REPOSITORY + " (it was not extracted, or -Dfml.skipContainedDeps "
             + "names it).", decision.report());
     }
 
     /**
-     * A copy of the bundled jar in mods is the bundled copy, not an installed Celeritas: otherwise the extraction would
-     * be deleted and extracted again on every launch, with advice that never resolves.
+     * A copy of the bundled jar in mods is the bundled copy, not an installed Celeritas: otherwise the advice to remove
+     * the "installed" jar would never resolve. Demonica's own extraction is the one kept.
      */
     @Test
     void aCopyOfTheBundledJarElsewhereIsTheBundledCopy() throws IOException {
         File copied = celeritas(mods.resolve(BUNDLED));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
-        // The loader sorts by file name only, so the copy in mods may come first.
-        List<File> candidates = new ArrayList<>(List.of(copied, bundled, demonica));
+        List<File> candidates = candidates(sorted(copied, demonica), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, false);
 
-        assertEquals(List.of(bundled, demonica), candidates, "Demonica's own extraction is kept, the copy left out");
+        assertEquals(List.of(demonica, bundled), candidates, "Demonica's own extraction is kept, the copy left out");
         assertTrue(copied.exists() && bundled.exists(), "nothing is deleted");
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
         assertNotNull(decision);
         assertTrue(decision.useBundled());
         assertTrue(decision.bundledPresent());
+        assertEquals(bundled, decision.bundledFile());
         assertEquals(List.of(), decision.externals());
         assertEquals(List.of(), decision.droppedStale());
     }
@@ -307,19 +402,20 @@ class BundledCeleritasHookTest {
     @Test
     void theHookUsesTheBundledCopyWhenNothingIsInstalled() throws IOException {
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED, "jcpp-1.4.14.jar");
         File plain = plainMod(mods.resolve("plain.jar"));
-        List<File> candidates = sorted(stale, bundled, demonica, plain);
+        List<File> candidates = candidates(sorted(stale, demonica, plain), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, true);
 
-        assertEquals(sorted(bundled, demonica, plain), candidates);
+        assertEquals(candidates(sorted(demonica, plain), bundled), candidates);
         assertTrue(bundled.exists());
         assertFalse(stale.exists());
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
         assertNotNull(decision);
         assertTrue(decision.useBundled());
+        assertEquals(bundled, decision.bundledFile());
         assertEquals(List.of(), decision.externals());
         assertEquals(List.of(STALE), decision.droppedStale());
         assertTrue(decision.report().startsWith("Using the Celeritas bundled with Demonica, " + BUNDLED + " (Celeritas-auto-build "
@@ -335,17 +431,18 @@ class BundledCeleritasHookTest {
     void theHookNeverDeletesACopyAnotherInstalledJarCarries() throws IOException {
         File others = celeritas(versionMods.resolve(OTHER_DEMONICAS));
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File own = demonica(mods.resolve(DEMONICA), BUNDLED);
         File second = containing(mods.resolve("demonica-0.7.9-fork.jar"), "jcpp-1.4.14.jar " + OTHER_DEMONICAS);
-        List<File> candidates = sorted(others, stale, bundled, own, second);
+        List<File> candidates = candidates(sorted(others, stale, own, second), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, true, false);
 
         assertTrue(others.exists(), "another installed jar names it");
         assertTrue(candidates.contains(others), "it is installed, and takes precedence");
         assertFalse(stale.exists(), "no jar names it");
-        assertFalse(bundled.exists());
+        assertTrue(bundled.exists());
+        assertFalse(candidates.contains(bundled));
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decision();
         assertNotNull(decision);
         assertEquals(List.of(OTHER_DEMONICAS), decision.externals());
@@ -359,7 +456,7 @@ class BundledCeleritasHookTest {
         File stale = celeritas(versionMods.resolve(STALE));
         File placed = celeritas(mods.resolve("zz-demonica-bundled-celeritas-00000000-20250101T000000.jar"));
         File installed = celeritas(mods.resolve(INSTALLED));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         demonica(mods.resolve(DEMONICA), BUNDLED);
         containing(mods.resolve("demonica-0.7.9-fork.jar"), "jcpp-1.4.14.jar " + OTHER_DEMONICAS);
 
@@ -371,19 +468,22 @@ class BundledCeleritasHookTest {
         assertEquals(List.of(STALE), decision.droppedStale());
         assertFalse(stale.exists());
         assertTrue(others.exists() && placed.exists() && installed.exists());
-        assertTrue(bundled.exists(), "on the class path already, and extracted again next launch: not deleted here");
+        assertTrue(bundled.exists(), "never deleted");
+        assertEquals(bundled, decision.bundledFile());
         assertNull(BundledCeleritasHook.decision(), "the hook did not run");
         assertSame(decision, BundledCeleritasHook.decisionOrFallback());
     }
 
     /**
-     * Without the hook, an installed jar that sorts after Demonica's loses the class path to the bundled copy, which
-     * NonModDeps added at Demonica's place: MixinEarly then says so instead of repeating the report.
+     * Without the hook, the bundled copy in the repository is listed after every jar of the mods folders, so an installed
+     * jar wins the class path whatever its name. A copy left in mods/1.12.2 by Demonica 0.8.2 or earlier is another
+     * matter: NonModDeps adds it at Demonica's place, so an installed jar that sorts after Demonica's loses to it.
+     * MixinEarly tells the two apart by the leftover among the stale copies, and says so instead of repeating the report.
      */
     @Test
-    void withoutTheHookAnInstalledJarSortingAfterDemonicasLosesTheClassPath() throws IOException {
+    void withoutTheHookOnlyALeftoverInTheOldFolderCanBeatAnInstalledJar() throws IOException {
         File late = celeritas(mods.resolve("zcel.jar"));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         demonica(mods.resolve(DEMONICA), BUNDLED);
 
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decideWithoutHook(List.of(late, bundled), BUNDLED, true);
@@ -391,20 +491,29 @@ class BundledCeleritasHookTest {
         assertFalse(decision.useBundled());
         assertTrue(decision.bundledPresent());
         assertEquals(List.of("zcel.jar"), decision.externals());
+        assertEquals(List.of(), decision.droppedStale(), "no leftover: the installed jar won, whatever its name");
         assertTrue(bundled.exists() && late.exists());
-        assertEquals(List.of(), BundledCeleritasHook.sortedBefore(decision.externals(), DEMONICA),
-            "the bundled classes won");
+
+        BundledCeleritasHook.resetForTests();
+        File leftover = celeritas(versionMods.resolve(BUNDLED));
+        decision = BundledCeleritasHook.decideWithoutHook(List.of(late, leftover, bundled), BUNDLED, true);
+
+        assertEquals(List.of(BUNDLED), decision.droppedStale(), "the leftover is what NonModDeps put on the class path");
+        assertEquals(List.of(), BundledCeleritasHook.sortedBefore(decision.externals(), DEMONICA), "and it won");
+        assertTrue(leftover.exists(), "the Celeritas classes load from it in this launch: deleted at exit, not now");
+        assertTrue(bundled.exists());
     }
 
     @Test
     void withoutTheHookTheBundledCopyIsUsedWhenNothingIsInstalled() throws IOException {
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         demonica(mods.resolve(DEMONICA), BUNDLED);
 
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decideWithoutHook(List.of(stale, bundled), BUNDLED, true);
 
         assertTrue(decision.useBundled());
+        assertEquals(bundled, decision.bundledFile());
         assertEquals(List.of(), decision.externals());
         assertEquals(List.of(STALE), decision.droppedStale());
         assertFalse(stale.exists());
@@ -426,7 +535,7 @@ class BundledCeleritasHookTest {
     @Test
     void withoutTheHookADedicatedServerDoesNotUseTheBundledCopy() throws IOException {
         File installed = celeritas(mods.resolve(INSTALLED));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
 
         BundledCeleritasHook.Decision decision = BundledCeleritasHook.decideWithoutHook(List.of(installed, bundled), BUNDLED, false);
 
@@ -436,8 +545,8 @@ class BundledCeleritasHookTest {
     }
 
     /**
-     * Without the hook, NonModDeps puts the bundled copy on the class path at the place of Demonica's own jar: an
-     * installed jar wins the Celeritas classes only if its name sorts before Demonica's, case aside.
+     * Without the hook, NonModDeps puts a copy left in mods/1.12.2 on the class path at the place of Demonica's own
+     * jar: an installed jar wins the Celeritas classes only if its name sorts before Demonica's, case aside.
      */
     @Test
     void theFallbackTellsWhichJarsCameBeforeDemonicasOwn() {
@@ -492,14 +601,17 @@ class BundledCeleritasHookTest {
     @Test
     void theStaleCopyPolicyCanKeepFiles() throws IOException {
         File stale = celeritas(versionMods.resolve(STALE));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        Path older = Files.createDirectories(repository.resolveSibling("06999aab-20260901T000000"));
+        celeritas(older.resolve(STALE));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
-        List<File> candidates = sorted(stale, bundled, demonica);
+        List<File> candidates = candidates(sorted(stale, demonica), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> true, false, false);
 
-        assertEquals(sorted(bundled, demonica), candidates);
+        assertEquals(List.of(demonica, bundled), candidates);
         assertTrue(stale.exists());
+        assertTrue(Files.exists(older));
     }
 
     @Test
@@ -521,9 +633,9 @@ class BundledCeleritasHookTest {
     @Test
     void aDedicatedServerLeavesOutTheBundledCopyAndKeepsTheInstalledOne() throws IOException {
         File installed = celeritas(mods.resolve(INSTALLED));
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
-        List<File> candidates = sorted(installed, bundled, demonica);
+        List<File> candidates = candidates(sorted(installed, demonica), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> false, true, true);
 
@@ -538,9 +650,9 @@ class BundledCeleritasHookTest {
 
     @Test
     void aDedicatedServerWithoutAnInstalledCeleritasLeavesOutTheBundledCopy() throws IOException {
-        File bundled = celeritas(versionMods.resolve(BUNDLED));
+        File bundled = celeritas(repository.resolve(BUNDLED));
         File demonica = demonica(mods.resolve(DEMONICA), BUNDLED);
-        List<File> candidates = sorted(bundled, demonica);
+        List<File> candidates = candidates(sorted(demonica), bundled);
 
         BundledCeleritasHook.bansoukou(candidates, BundledCeleritasHook::isCeleritasJar, () -> false, true, true);
 
@@ -693,6 +805,13 @@ class BundledCeleritasHookTest {
         List<File> list = new ArrayList<>(List.of(files));
         // Cleanroom's order: by file name only, lower-cased.
         list.sort(Comparator.comparing(file -> file.getName().toLowerCase(Locale.ROOT)));
+        return list;
+    }
+
+    /** Cleanroom's list: the mods folders' jars sorted, then the artifacts of its in-memory list (the bundled copy). */
+    private static List<File> candidates(List<File> sortedModsJars, File... artifacts) {
+        List<File> list = new ArrayList<>(sortedModsJars);
+        list.addAll(List.of(artifacts));
         return list;
     }
 
