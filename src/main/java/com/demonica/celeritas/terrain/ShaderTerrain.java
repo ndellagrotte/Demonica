@@ -51,6 +51,15 @@ public final class ShaderTerrain {
     // draw's matrices, so the camera and the model-view move together: if either patch is missing, neither does.
     private static float pendingEyeHeight = Float.NaN;
 
+    // The terrain layer whose Iris phase is entered, or null. Two callers enter it: the renderWorldPass call site
+    // (EntityRendererIrisMixin's redirect of the four-argument renderBlockLayer) and S8's HEAD injection inside that
+    // method. The call site comes first, so a mod's own HEAD injection into renderBlockLayer draws inside the phase:
+    // Mixin inserts every HEAD callback before the original first instruction in priority order, so the lowest
+    // priority's runs first, and Moving Elevators (priority 1000) draws its moving cage there, before S8 (1100) would
+    // set the phase (Actinium #42, docs/compat/moving-elevators.md). S8's pair stays for callers outside
+    // renderWorldPass, GregTech CEu's bloom wrapper among them, and is a no-op inside the call site's phase.
+    private static BlockRenderLayer activeLayer;
+
     private ShaderTerrain() {
     }
 
@@ -117,11 +126,18 @@ public final class ShaderTerrain {
     /**
      * S8: enters the Iris phase of a terrain layer. Before the translucent layer this also runs Iris's translucent
      * prelude: the hand's solid parts are drawn and the pipeline switches to its translucent programs.
+     *
+     * @return whether this call entered the phase; false when an outer caller already holds it (see
+     *     {@link #activeLayer}). Pass the result to {@link #endLayer(boolean)}.
      */
-    public static void beginLayer(BlockRenderLayer layer, float partialTicks) {
+    public static boolean beginLayer(BlockRenderLayer layer, float partialTicks) {
+        if (activeLayer != null) {
+            return false;
+        }
+        activeLayer = layer;
         WorldRenderingPipeline pipeline = pipeline();
         if (pipeline == null) {
-            return;
+            return true;
         }
         if (layer == BlockRenderLayer.SOLID) {
             pipeline.setPhase(WorldRenderingPhase.TERRAIN_SOLID);
@@ -135,14 +151,33 @@ public final class ShaderTerrain {
             }
             pipeline.setPhase(WorldRenderingPhase.TERRAIN_TRANSLUCENT);
         }
+        return true;
     }
 
-    /** S8: leaves the terrain phase once the layer is drawn. */
-    public static void endLayer() {
+    /**
+     * S8: leaves the terrain phase once the layer is drawn. A no-op unless {@code entered}, the matching
+     * {@link #beginLayer} result, so the inner of two nested callers leaves the phase to the outer one.
+     */
+    public static void endLayer(boolean entered) {
+        if (!entered) {
+            return;
+        }
+        activeLayer = null;
         pendingEyeHeight = Float.NaN;
         WorldRenderingPipeline pipeline = pipeline();
         if (pipeline != null) {
             pipeline.setPhase(WorldRenderingPhase.NONE);
+        }
+    }
+
+    /**
+     * Frame start: drops a layer token a throw inside a caller's draw left behind, so the next layer can enter its
+     * phase. Nothing to do in a normal frame, whose callers leave the phase in a finally block or at RETURN.
+     */
+    public static void resetLayer() {
+        if (activeLayer != null) {
+            LOGGER.warn("Terrain layer {} was never left; resetting", activeLayer);
+            activeLayer = null;
         }
     }
 

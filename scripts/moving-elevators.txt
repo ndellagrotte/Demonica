@@ -1,0 +1,67 @@
+# Moving Elevators' moving cage (docs/compat/moving-elevators.md). Run with -PwithMovingElevators.
+# Two controllers facing north (meta 2) six blocks apart in the open air; the default cage (3x4x3) is one block below
+# a controller and in front of it (x -1..1, z -3..-1). A plank floor in the bottom cage, a stone backdrop east of the
+# shaft, a roof over it so the lightmap is below full. A redstone block beside a controller presses its button on the
+# rising edge and calls the cage to that floor (speed ramps 0.05/tick to 0.2, six blocks take about 35 ticks); it
+# must be removed between rides. Shots: the cage at rest, then twice mid-ride, without a pack, under BSL and under
+# Complementary.
+pack off
+wait 20
+world movingelevators 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /gamerule doWeatherCycle false
+cmd /gamerule doMobSpawning false
+cmd /weather clear
+cmd /time set 6000
+# The site is far from the spawn: teleport first so its chunks are loaded before the server commands build it.
+cmd /tp @p -6 170 -2 -90 45
+wait 20
+scmd /setblock -6 157 -2 minecraft:glass
+cmd /tp @p -6 158 -2 -90 45
+wait 10
+scmd /fill 4 146 -7 4 164 2 minecraft:stone
+scmd /fill -8 164 -7 4 164 2 minecraft:stone
+scmd /fill -1 149 -3 1 149 -1 minecraft:planks
+scmd /setblock 0 150 0 movingelevators:elevator_block 2
+scmd /setblock 0 156 0 movingelevators:elevator_block 2
+chunks 1200
+wait 40
+shot moving-elevators-off-rest
+# Ride up.
+scmd /setblock 0 156 1 minecraft:redstone_block
+wait 10
+shot moving-elevators-off-a
+wait 8
+shot moving-elevators-off-b
+wait 60
+scmd /setblock 0 156 1 minecraft:air
+pack BSL_v10.1.8.zip
+wait 20
+chunks 600
+wait 20
+shot moving-elevators-bsl-rest
+# Ride down.
+scmd /setblock 0 150 1 minecraft:redstone_block
+wait 10
+shot moving-elevators-bsl-a
+wait 8
+shot moving-elevators-bsl-b
+wait 60
+scmd /setblock 0 150 1 minecraft:air
+pack ComplementaryReimagined_r5.9.3.zip
+wait 20
+chunks 600
+wait 20
+shot moving-elevators-complementary-rest
+# Ride up again.
+scmd /setblock 0 156 1 minecraft:redstone_block
+wait 10
+shot moving-elevators-complementary-a
+wait 8
+shot moving-elevators-complementary-b
+wait 60
+scmd /setblock 0 156 1 minecraft:air
+pack off
+wait 20
+exit

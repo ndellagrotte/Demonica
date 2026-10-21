@@ -361,7 +361,9 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   map without terrain: no chunks were ever built); the `renderBlockLayer` redirect lost its `ordinal = 2` and now covers all four layers (renamed
   `demonica$renderTerrainLayer`); a skipped translucent call still runs S8's prelude (`ShaderTerrain.beginLayer` +
   `endLayer`: solid hand, then `beginTranslucents`, i.e. the deferred passes), which upstream runs from a separate
-  inject. Two departures from the text above: entities needed one new injection (`@WrapWithCondition` on both
+  inject. Since the Moving Elevators fix (`docs/compat/moving-elevators.md`) the redirect also enters and leaves the
+  layer phases around every call, skipped or not; S8's HEAD/RETURN pair is the fallback for callers outside
+  `renderWorldPass`. Two departures from the text above: entities needed one new injection (`@WrapWithCondition` on both
   `renderEntities` calls, Forge passes 0 and 1), since no existing site covers them; and because 1.12.2 draws entities,
   `weatherEffects` and block entities in that one call, block entities are skipped too. `skipAllRendering()` is on the
   `WorldRenderingPipeline` interface (upstream: `IrisRenderingPipeline` only, behind `instanceof`); the host condition

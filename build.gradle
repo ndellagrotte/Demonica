@@ -1011,6 +1011,14 @@ dependencies {
     if (project.findProperty('withModernSplash') != null) {
         devRuntimeMods 'curse.maven:modern-splash-629058:8487408'
     }
+    // -PwithMovingElevators: the dev client also loads Moving Elevators 1.4.12 with SuperMartijn642's Core Lib and
+    // Config Lib, the mod whose moving cage is drawn at HEAD of RenderGlobal.renderBlockLayer, before the Iris terrain
+    // phase (docs/compat/moving-elevators.md; scripts/moving-elevators.txt, copied into run/client/scripts, is the scene).
+    if (project.findProperty('withMovingElevators') != null) {
+        devRuntimeMods 'curse.maven:moving-elevators-373051:7600431'            // 1.4.12
+        devRuntimeMods 'curse.maven:supermartijn642s-core-lib-454372:9083407'   // 1.1.25
+        devRuntimeMods 'curse.maven:supermartijn642s-config-lib-438332:4715393' // 1.1.8
+    }
 
     // JUnit, Mockito and AssertJ come from Conventions.
     testImplementation 'com.google.guava:guava:21.0'
