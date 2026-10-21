@@ -133,3 +133,7 @@ run/
 /diagnostics/logs/
 local/
 addon.*.gradle*
+
+# slop
+/.mcp.json
+/.claude/
