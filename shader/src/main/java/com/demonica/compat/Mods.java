@@ -37,6 +37,7 @@ public final class Mods {
     public static final boolean FLUXLOADING = isModPresent("fluxloading");
     public static final boolean HBM = isModPresent("hbm");
     public static final boolean LITTLETILES = isModPresent("littletiles");
+    public static final boolean MOVINGELEVATORS = isModPresent("movingelevators");
     public static final boolean RFP2 = isModPresent("rfp2");
     public static final boolean SNOWREALMAGIC = isModPresent("snowrealmagic");
 

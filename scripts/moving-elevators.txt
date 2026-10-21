@@ -1,7 +1,8 @@
 # Moving Elevators' moving cage (docs/compat/moving-elevators.md). Run with -PwithMovingElevators.
 # Two controllers facing north (meta 2) six blocks apart in the open air; the default cage (3x4x3) is one block below
-# a controller and in front of it (x -1..1, z -3..-1). A plank floor in the bottom cage, a stone backdrop east of the
-# shaft, a roof over it so the lightmap is below full. A redstone block beside a controller presses its button on the
+# a controller and in front of it (x -1..1, z -3..-1). A plank floor in the bottom cage with a chest on it (a block
+# entity the mod draws itself while the cage moves, C3), a stone backdrop east of the shaft, a roof over it so the
+# lightmap is below full. A redstone block beside a controller presses its button on the
 # rising edge and calls the cage to that floor (speed ramps 0.05/tick to 0.2, six blocks take about 35 ticks); it
 # must be removed between rides. Shots: the cage at rest, then twice mid-ride, without a pack, under BSL and under
 # Complementary.
@@ -23,6 +24,7 @@ wait 10
 scmd /fill 4 146 -7 4 164 2 minecraft:stone
 scmd /fill -8 164 -7 4 164 2 minecraft:stone
 scmd /fill -1 149 -3 1 149 -1 minecraft:planks
+scmd /setblock 0 150 -2 minecraft:chest
 scmd /setblock 0 150 0 movingelevators:elevator_block 2
 scmd /setblock 0 156 0 movingelevators:elevator_block 2
 chunks 1200

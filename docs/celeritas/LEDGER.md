@@ -23,7 +23,7 @@ propose them upstream is the maintainer's decision.
   patch whose anchor moved does nothing instead of crashing the game.
   `QuarantinePlugin` logs one line per applied mixin and names every injector
   that found no target: `Applied <mixin> to <class>: n of n injectors found
-  their targets`. A dev run that loads a world lists all 22 lines (a mixin is
+  their targets`. A dev run that loads a world lists all 23 lines (a mixin is
   applied when its target class loads); anything short
   of `n of n` is a moved anchor, and in a dev run it stops the game (see the
   guard below). MixinExtras applies `@ModifyExpressionValue`,
@@ -55,7 +55,7 @@ the guard (below) turns every group off except BASE.
 | SHADOW | S1, S3, S6s, S7, S16, I1, I2 | Shader packs draw terrain into their shadow map. |
 | MESHING | S10, S11, S13 | Shader packs get block IDs from terrain (plants wave, blocks get the pack's materials), and water is drawn in the pack's water pass. |
 | DEGRADE | S4, S17, S19, S20 | One feature each; see the row. |
-| COMPAT | C1, C2 | The mods it serves; see the rows. |
+| COMPAT | C1, C2, C3 | The mods it serves; see the rows. |
 
 BASE applies on any Celeritas: each of S15's seven getters stands alone, Mixin
 skips any that no longer match, and every one that still applies keeps fog right.
@@ -131,6 +131,7 @@ saying so. Production only logs the miss.
 | [S20](patches/S20.md) | `seam.VintageBlockRendererQuadsMixin` | the `IBakedModel.getQuads` calls in `VintageBlockRenderer.renderModel` | `@WrapOperation`: registered `BlockQuadTransformer`s see the quads of each face the fast renderer draws, and the unassigned quads | DEGRADE: addons' transformers do not run | not proposed |
 | [C1](patches/C1.md) | `seam.ChunkBuilderMeshingTaskCompatMixin` | `ChunkBuilderMeshingTask.execute` (full descriptor): the whole method, its `canRenderInLayer` call, its `convertVanillaDataToCeleritasData` call | Only while the mod is installed: the Component Model Hider's build flag around the build (`@WrapMethod`) and no geometry for its hidden positions; LittleTiles' cached tile geometry appended to the vanilla-format buffers before they are converted | COMPAT: hidden multiblock parts are drawn, or LittleTiles blocks that are not full blocks are invisible | not proposed |
 | [C2](patches/C2.md) | `internal.DefaultChunkRendererCompatMixin`, `internal.RenderSectionManagerCompatMixin` | the `BatchAssembler.createCachedBatch` call in `DefaultChunkRenderer.render`; `RenderSectionManager.onSectionAdded` (TAIL) | Only while Chunk Animator is installed (`ChunkAnimatorCompat` sets a `ChunkAnimationProvider`): a region whose sections are animating gets its cached batch built from the static sections, and the animating ones are drawn one by one with the animation offset added to the region offset (`@WrapOperation`); a new section is reported to the provider, the counterpart of vanilla's `RenderChunk.setOrigin` | COMPAT: Chunk Animator's chunk animations never play | not proposed |
+| [C3](patches/C3.md) | `seam.CeleritasWorldRendererCompatMixin` | the `TileEntityRendererDispatcher.preDrawBatch()` call in `CeleritasWorldRenderer.renderBlockEntities(TileEntityRenderContext)` | Only while Moving Elevators is installed: after the call (inside the batch, as in vanilla's `renderEntities`), `ElevatorGroupRenderer.renderBlockEntities` with the context's partial tick | COMPAT: block entities in a moving Moving Elevators cage are not drawn while it moves | not proposed |
 | [I1](patches/I1.md) | `seam.VintageRenderSectionManagerShadowMixin` | `VintageRenderSectionManager.getAsyncOcclusionMode` | RETURN: "Everything" becomes "Only Shadows" when the manager gets a shadow pass | SHADOW | a question for upstream |
 | [I2](patches/I2.md) | `internal.SimpleWorldRendererMixin` | `SimpleWorldRenderer.setupTerrain`, `setupShadowTerrain` | `@ModifyVariable(HEAD)` of `frame` to `DemonicaFrameClock.next()` | SHADOW | not proposed |
 
