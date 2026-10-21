@@ -1,5 +1,6 @@
 package com.gtnewhorizons.angelica.glsm;
 
+import com.gtnewhorizons.angelica.glsm.ffp.Uniforms;
 import com.gtnewhorizons.angelica.glsm.stacks.FogStateStack;
 import com.gtnewhorizons.angelica.glsm.stacks.LightStateStack;
 import com.gtnewhorizons.angelica.glsm.states.ClipPlaneState;
@@ -357,7 +358,9 @@ public class CompatUniformManager {
             return;
         }
 
-        final var color = GLStateManager.getColor();
+        // The sentinel clearCurrentColor leaves, and any out-of-range component, must not reach the pack's
+        // iris_ColorModulator either (see Uniforms.sanitizeUniformColor).
+        final var color = Uniforms.sanitizeUniformColor(GLStateManager.getColor());
         FloatBuffer vec4Buf = UPLOAD_BUFFERS.get().vec4Buf;
         vec4Buf.clear();
         vec4Buf.put(color.getRed()).put(color.getGreen()).put(color.getBlue()).put(color.getAlpha());

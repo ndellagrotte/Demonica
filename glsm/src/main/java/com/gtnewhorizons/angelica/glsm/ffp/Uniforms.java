@@ -325,20 +325,39 @@ public class Uniforms {
     }
 
     /**
-     * Normalizes the GLSM current color for FFP uniform upload.
+     * Normalizes the GLSM current color for a shader uniform or a captured vertex.
      *
-     * <p>{@link GLStateManager#clearCurrentColor()} marks the cached color with a
-     * (-1,-1,-1,-1) sentinel so the next real {@code glColor*} call bypasses the cache.
-     * That sentinel must never reach a shader uniform: a negative alpha clamps to 0 in
-     * GLSL, making every vertex-color-less draw (e.g. JourneyMap map tiles/grids)
-     * fully transparent. Per GL semantics the current color defaults to opaque white,
-     * so the sentinel is normalized back to (1,1,1,1) here.</p>
+     * <p>{@link GLStateManager#clearCurrentColor()} marks the cached color with a (-1,-1,-1,-1) sentinel so the next
+     * real {@code glColor*} call bypasses the cache. That sentinel must never reach a shader: per GL semantics the
+     * current color defaults to opaque white, so it is normalized back to (1,1,1,1) here (JourneyMap's map tiles were
+     * drawn after {@code resetColor} and went transparent when the raw sentinel was uploaded).</p>
+     *
+     * <p>Every other out-of-range component is clamped to [0,1], as fixed-function GL does when it uses the current
+     * color: a negative alpha is a transparent draw, not the sentinel. AsmodeusCore's sky sets {@code glColor4f(1,1,1,
+     * starBrightness - 0.2)} on its galaxy images and {@code glColor3f(skyColor - posY/400)} on its sky dome; treating
+     * those as the sentinel drew the images at full strength by day and the dome white at night.</p>
      */
-    static Color4 sanitizeUniformColor(Color4 color) {
-        if (color.getRed() < 0.0F || color.getGreen() < 0.0F || color.getBlue() < 0.0F || color.getAlpha() < 0.0F) {
+    public static Color4 sanitizeUniformColor(Color4 color) {
+        final float r = color.getRed();
+        final float g = color.getGreen();
+        final float b = color.getBlue();
+        final float a = color.getAlpha();
+        if (r == -1.0F && g == -1.0F && b == -1.0F && a == -1.0F) {
             return new Color4(1.0F, 1.0F, 1.0F, 1.0F);
         }
-        return color;
+        final float cr = clamp01(r);
+        final float cg = clamp01(g);
+        final float cb = clamp01(b);
+        final float ca = clamp01(a);
+        if (cr == r && cg == g && cb == b && ca == a) {
+            return color;
+        }
+        return new Color4(cr, cg, cb, ca);
+    }
+
+    /** Clamps a current-color component to [0,1]; NaN becomes 0. */
+    public static float clamp01(float value) {
+        return value > 1.0F ? 1.0F : (value >= 0.0F ? value : 0.0F);
     }
 
     private void uploadCurrentTexCoords(Program program, boolean unit0, boolean unit2, boolean unit3) {
