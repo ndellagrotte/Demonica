@@ -58,6 +58,7 @@ import com.gtnewhorizons.angelica.glsm.states.TextureUnitArray;
 import com.gtnewhorizons.angelica.glsm.states.VertexAttribState;
 import com.gtnewhorizons.angelica.glsm.texture.TextureInfo;
 import com.gtnewhorizons.angelica.glsm.texture.TextureInfoCache;
+import com.gtnewhorizons.angelica.glsm.texture.TextureTargets;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import net.minecraft.client.renderer.GlStateManager;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -266,7 +267,9 @@ public class GLStateManager {
 
     // Deferred texture deletion: names kept valid until glGenTextures recycles them.
     // Emulates Mesa/compat-profile behavior where delete-then-bind doesn't error.
+    // Only GL_TEXTURE_2D names GLSM saw bound take that path; textureTargets says which those are.
     private static final IntOpenHashSet deferredDeleteTextures = new IntOpenHashSet();
+    private static final TextureTargets textureTargets = new TextureTargets();
     private static long loggedUncachedTextureTargets = 0;
 
     @Getter private static Vendor VENDOR;
@@ -2132,12 +2135,14 @@ public class GLStateManager {
         if (target != GL11.GL_TEXTURE_2D) {
             // Non-2D targets (e.g. GL_TEXTURE_2D_ARRAY) pass through without caching
             logUncachedTextureTarget(target);
+            textureTargets.record(texture, target);
             recordGpuCommand(GpuCommandType.TEXTURE_BIND, target, texture);
             RENDER_BACKEND.bindTexture(target, texture);
             return;
         }
 
         if (!isCachingEnabled()) {
+            textureTargets.record(texture, target);
             recordGpuCommand(GpuCommandType.TEXTURE_BIND, target, texture);
             RENDER_BACKEND.bindTexture(target, texture);
             return;
@@ -2148,6 +2153,7 @@ public class GLStateManager {
         final int cachedBinding = textureUnit.getBinding();
 
         if (cachedBinding != texture) {
+            textureTargets.record(texture, target);
             recordGpuCommand(GpuCommandType.TEXTURE_BIND, target, texture);
             RENDER_BACKEND.bindTexture(target, texture);
             textureUnit.setBinding(texture);
@@ -2388,9 +2394,22 @@ public class GLStateManager {
         }
     }
 
-    /** Shrink texture to 1x1 to free GPU memory, unbind from all units, but keep the name valid. */
+    /**
+     * Shrink a GL_TEXTURE_2D to 1x1 to free GPU memory, unbind it from all units, but keep the name valid.
+     * Any other texture is deleted outright: see {@link TextureTargets}.
+     */
     private static void deferDeleteTexture(int id) {
         if (id == 0) return;
+
+        final int target = textureTargets.remove(id);
+        if (!TextureTargets.isDeferrable(target)) {
+            // GL_TEXTURE_2D_ARRAY / 3D / cube map / rectangle / buffer, or a DSA texture GLSM never saw bound
+            // (Kirino's glyph atlas): the 2D shrink below would be an INVALID_OPERATION bind followed by a
+            // texImage2D on whatever 2D texture really is bound, which is how the vanilla font got corrupted.
+            // Delete it as the spec says.
+            RENDER_BACKEND.deleteTextures(id);
+            return;
+        }
 
         final int savedUnit = ctx().activeTextureUnit.getValue();
         final int savedBinding = ctx().textures.getTextureUnitBindings(savedUnit).getBinding();
