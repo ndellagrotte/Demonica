@@ -82,53 +82,84 @@ classpath, and because a player may still have installed either jar.
 The release asset is nested unmodified at the root of `Demonica-<version>.jar`
 under the name `zz-demonica-bundled-celeritas-<sha8>-<timestamp>.jar` (the commit's
 first eight characters and the release's timestamp) and listed in the manifest's
-`ContainedDeps`, like the three contained libraries. Cleanroom extracts every
-`ContainedDeps` jar into `mods/1.12.2/` before any mod code runs, where it is a
-normal candidate that provides mod id `celeritas`, so `required-after:celeritas`
-holds. The manifest also records `Demonica-Celeritas-Jar`,
+`ContainedDeps`, like the three contained libraries. Next to it sits a sidecar,
+`<that name>.meta`: the asset's own main manifest attributes plus
+`Maven-Artifact: com.demonica:zz-demonica-bundled-celeritas:<sha8>-<timestamp>`
+(generated from the asset by `generateBundledCeleritasMeta`). A `ContainedDeps`
+jar without a coordinate is extracted into `mods/1.12.2/`, where it is a normal
+candidate on every launch; one with a coordinate Cleanroom's `LibraryManager`
+extracts to its in-memory repository instead,
+`mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/<sha8>-<timestamp>/<name>`
+(the artifact's file name is `<artifact>-<version>.jar`, so the file keeps the
+bundled name), copies the sidecar next to it as `<name>.meta`, and adds the
+artifact to its `MEMORY` mod list. That list is rebuilt from scratch on every
+launch from the jars in `mods` and `mods/1.12.2`, never saved, and its artifacts
+are appended to the candidates after those jars. Nothing ever lists
+`mods/memory_repo` itself, so the extracted copy is a candidate only on a launch
+that read Demonica's jar: disable or remove `Demonica-<version>.jar` and the copy
+is inert. On a launch with Demonica it is a normal candidate that provides mod id
+`celeritas`, so `required-after:celeritas` holds. The manifest also records
+`Demonica-Celeritas-Jar`, `Demonica-Celeritas-Artifact`,
 `Demonica-Celeritas-SHA256` and `Demonica-Celeritas-Release`.
 
 The bundled copy is there so that players need to install nothing else. It does
 not override a Celeritas the player installed: an installed Celeritas takes
 precedence, and the bundled copy steps aside.
 
+- **The sidecar stands in for the manifest.** Cleanroom's mod discoverer reads
+  `<file>.meta` in place of a jar's own manifest when it exists, so the sidecar
+  carries the asset's attributes (`FMLCorePlugin`, `FMLCorePluginContainsFMLMod`,
+  `ForceLoadAsMod`, `FMLAT`, …) and nothing else but the coordinate;
+  `verifyDistributedJar` checks that. The asset itself stays byte for byte the
+  release.
 - **The name encodes the pin.** Cleanroom never overwrites an extracted file and
   never deletes an old one, so a fixed name would keep the first Celeritas it ever
-  extracted. A new pin is a new name and extracts afresh.
-- **The name starts with `zz-`.** Cleanroom sorts candidates by lower-cased file
-  name and adds each coremod to the class path in that order; the first jar added
-  wins class resolution. `zz-` puts the bundled copy after `01-celeritas-…`,
-  `celeritas-…`, `demonica-…` and nearly every other jar, so its own place in
-  that order never puts it ahead of an installed Celeritas. (`NonModDeps` still
-  adds it at Demonica's own place; the next points say how that is handled.)
+  extracted. A new pin is a new version folder and extracts afresh; the hook
+  deletes the older pins' folders.
+- **The name starts with `zz-`.** Demonica 0.8.2 and earlier extracted the copy
+  to `mods/1.12.2`, where it is a sorted candidate. Cleanroom sorts candidates by
+  lower-cased file name and adds each coremod to the class path in that order;
+  the first jar added wins class resolution. `zz-` puts such a copy after
+  `01-celeritas-…`, `celeritas-…`, `demonica-…` and nearly every other jar, so
+  its own place in that order never puts it ahead of an installed Celeritas. The
+  copy in the repository is appended after every jar of the mods folders, so it
+  never wins against an installed jar on its own.
+- **`NonModDeps`.** Demonica's manifest sets it for the three libraries: Cleanroom
+  then adds `mods/1.12.2/<each ContainedDeps name>` to the class path at
+  Demonica's own place in the order. For the bundled Celeritas that URL is
+  dangling (the file is in the repository) and harmless. `MixinEarly` adds the
+  repository copy to the class path itself, at the same moment, when the hook
+  decided to use it, so class resolution is as it was when `NonModDeps` resolved
+  the file. A copy left in `mods/1.12.2` by an earlier Demonica *does* resolve
+  there, which is why the hook deletes such copies.
 - **Which jars are which.** Every candidate that contains Celeritas's marker class
   and declares mod id `celeritas` (or Celeritas's coremod) is a Celeritas jar,
   whatever its name. The *bundled* copy is the jar named by
-  `Demonica-Celeritas-Jar`. A *stale* copy is a jar in a folder named `1.12.2`
-  whose name starts with `zz-demonica-bundled-celeritas-` but is not the bundled
-  name, and that no candidate's `ContainedDeps` names: the leftover of an earlier
-  Demonica pin. Every other Celeritas jar is *installed*: the player put it there.
-  That includes a prefixed copy outside `mods/1.12.2` and the bundled copy of a
-  second Demonica jar, but not a file with the bundled name itself: wherever it
-  is, that is the bundled copy. Of several files with that name the one in
-  `mods/1.12.2` is kept; the others are left out of the list and never deleted.
+  `Demonica-Celeritas-Jar`: of several files with that name, the one in the
+  repository, else the one in `mods/1.12.2`, else any. The others are *stale* if
+  they are in `mods/1.12.2` (the leftover of the old extraction) and *duplicates*
+  otherwise (the player's files, left out of the list and never deleted). A
+  *stale* copy is also a jar in a folder named `1.12.2` whose name starts with
+  `zz-demonica-bundled-celeritas-` but is not the bundled name, and that no
+  candidate's `ContainedDeps` names: the leftover of an earlier Demonica pin.
+  Every other Celeritas jar is *installed*: the player put it there. That
+  includes a prefixed copy in `mods` and the bundled copy of a second Demonica
+  jar.
 - **The hook.** The manifest's `Bansoukou` attribute names
   `com.demonica.loading.bundle.BundledCeleritasHook`. Cleanroom calls its
   `bansoukou(List)` after extraction and before any coremod is scanned, with the
   live list of candidate jars.
   - With no installed Celeritas, on a client, the bundled copy is used.
   - With one or more installed, the bundled copy is turned off: it is removed
-    from the list and its extracted file, `mods/1.12.2/<bundled name>`, is
-    deleted. Deleting is needed because `NonModDeps` adds every `ContainedDeps`
-    name to the class path at Demonica's place in the order; left on disk, the
-    bundled copy could win the class race against an installed jar that sorts
-    after Demonica's. Cleanroom extracts it again on the next start on which it
-    is missing, so removing the installed jar brings the bundled copy back with
-    no other step. The installed jars stay on the list and on disk; the hook
-    never touches them.
+    from the list. Its file stays where it is, inert, and is used again, with no
+    other step and no second extraction, once the installed jar is removed. The
+    installed jars stay on the list and on disk; the hook never touches them.
   - Stale copies are removed from the list and deleted from `mods/1.12.2`
     whenever another Celeritas remains (the bundled copy or an installed one).
     When nothing else is left they are kept, so that some Celeritas still loads.
+    Older pins' version folders in the repository (jar and sidecar) are deleted
+    whenever the bundled copy is in its own; nothing lists them, so nothing holds
+    them open.
   - If another jar carries `Bansoukou` too, the hook calls it afterwards, so
     Demonica never disables another mod's hook. The hook has no dependencies on
     Minecraft, Forge or the rest of Demonica, and never throws, since an
@@ -138,42 +169,50 @@ precedence, and the bundled copy steps aside.
   so two `celeritas` mods never reach `Loader.identifyDuplicates` (which would
   crash with `DuplicateModsFoundException`). When the bundled copy is turned off,
   its name joins the ignored list, so the installed jar is the identified mod.
-- **When the hook did not run.** Then `MixinEarly` scans the mods folders itself.
-  If an installed Celeritas is there, it reconciles the same way: the bundled copy
-  is ignored and the installed jar is the identified mod, with no duplicate
-  crash. Stale copies are deleted. The bundled file was not deleted in time,
-  though, and `NonModDeps` has added it to the class path at Demonica's place, so
+- **When the hook did not run.** Then `MixinEarly` scans the mods folders and the
+  bundled copy's version folder itself. If an installed Celeritas is there, it
+  reconciles the same way: the bundled copy is ignored and the installed jar is
+  the identified mod, with no duplicate crash. Stale copies are deleted, except
+  a leftover with the bundled name in `mods/1.12.2`, which `NonModDeps` has put
+  on the class path and the Celeritas classes may be loading from: that one is
+  deleted when the game exits (Linux deletes an open file at once, and the
+  loader then fails; on Windows the open file may stay, and the warning below
+  names it). The repository copy was listed after every installed jar, so the installed
+  jar's classes load, whatever its name. Only a leftover of the old extraction
+  in `mods/1.12.2` can still win: `NonModDeps` added it at Demonica's place, so
   the installed jar's classes load only if its lower-cased name sorts before
   Demonica's own jar (`01-celeritas-…` and `celeritas-…` do, before
   `demonica-…`). Otherwise the log warns, on a client, that this launch loaded
-  the bundled Celeritas classes although the installed jar is there, because
-  another mod's `Bansoukou` hook ran first and that jar sorts after Demonica's;
-  the "Using the installed …" report is then not logged, since it would say the
-  opposite of what loaded. Either way,
-  `QuarantineGuard` judges the jar whose classes loaded. Without an installed
-  Celeritas, the bundled copy is used as on the hook's path.
+  the bundled Celeritas classes from that leftover although the installed jar is
+  there, because another mod's `Bansoukou` hook ran first and that jar sorts
+  after Demonica's; the "Using the installed …" report is then not logged, since
+  it would say the opposite of what loaded. Either way, `QuarantineGuard` judges
+  the jar whose classes loaded, and the leftover is gone on the next launch.
+  Without an installed Celeritas, the bundled copy is used as on the hook's
+  path; it reaches the class path when the fallback decides, or at the latest
+  when Cleanroom reaches its coremod.
 - **Dedicated servers.** Celeritas is client-only, so on a server Demonica stays
   inactive, the bundled copy is dropped from the candidates (its file is kept)
-  and an installed Celeritas is left alone. Stale copies in `mods/1.12.2` are
-  still deleted there.
+  and an installed Celeritas is left alone. Stale copies in `mods/1.12.2` and
+  older pins' folders are still deleted there.
 - **In the log.** The logger `DemonicaBundle` reports the outcome in one line at
   INFO: the bundled copy in use ("Using the Celeritas bundled with Demonica,
   …"), or the installed jar used in its place ("Using the installed
   mods/<jar> instead of the Celeritas bundled with Demonica; remove it from the
-  mods folder to use the bundled build."); and the stale copies removed. If an
-  installed jar is used and the bundled copy was not there to begin with, the
-  line says so instead of advising removal, since removing the installed jar
-  would leave no Celeritas ("Using the installed mods/<jar>; the Celeritas
-  bundled with Demonica, <bundled name> (Celeritas-auto-build <release>), is not
-  in mods/1.12.2 (it was not extracted, or -Dfml.skipContainedDeps names it).").
-  If the
+  mods folder to use the bundled build."); and the stale copies and older pins
+  removed. If an installed jar is used and the bundled copy was not there to
+  begin with, the line says so instead of advising removal, since removing the
+  installed jar would leave no Celeritas ("Using the installed mods/<jar>; the
+  Celeritas bundled with Demonica, <bundled name> (Celeritas-auto-build
+  <release>), is not in mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas
+  (it was not extracted, or -Dfml.skipContainedDeps names it)."). If the
   bundled copy was not extracted (`-Dfml.skipContainedDeps`, a failed
   extraction) and nothing is installed, the hook leaves the candidates alone and
   `MixinEarly` reports that Celeritas is missing.
 - **Installed jar, other build.** Shaders need the pinned build. An installed
   Celeritas of any other build still takes precedence; `QuarantineGuard` then
   turns shaders off, and the reason, in the log and on the shader pack screen,
-  names the jar and says to remove it (the bundled copy returns on the next
+  names the jar and says to remove it (the bundled copy is used on the next
   start) or to install the pinned build (below, "At runtime"). When the bundled
   copy was skipped or not extracted, the reason says that instead, and never
   advises removing what may be the only Celeritas.
@@ -181,12 +220,20 @@ precedence, and the bundled copy steps aside.
   candidate, in name order, whose manifest has the attribute. A mod that sorts
   before `demonica-…` and has one keeps Demonica's hook from running, unless that
   mod chains to it. Then the fallback above prevents the crash, with its
-  class-race caveat. A stale copy cannot win that race on its own name, which
-  sorts after Demonica's jar, where the bundled copy is already on the class
-  path. Because the attribute also makes Cleanroom add Demonica's jar to the
-  class path early, its merged GTNHLib classes come before other jars' copies.
-- **Uninstalling Demonica** leaves `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar`
-  behind, which then loads as a standalone Celeritas. Delete it too.
+  class-race caveat for a leftover in `mods/1.12.2`. A stale copy cannot win
+  that race on its own name, which sorts after Demonica's jar. Because the
+  attribute also makes Cleanroom add Demonica's jar to the class path early, its
+  merged GTNHLib classes come before other jars' copies.
+- **Caveat: `-Dforge.enable_auto_mod_movement=true`.** With that (off by
+  default, and marked for removal in Forge) Cleanroom records extracted
+  artifacts in `mods/mod_list.json` and lists them on every launch, Demonica's
+  jar or not. Not supported.
+- **Uninstalling Demonica** leaves
+  `mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/` behind, which
+  nothing loads without Demonica's jar; delete it to free the space. Demonica
+  0.8.2 and earlier left `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar`
+  instead, which loads as a standalone Celeritas: a Demonica from 0.8.3 on
+  deletes it on its first launch, or delete it by hand.
 
 ## In Demonica's build
 
@@ -261,7 +308,8 @@ says which jar it was and what to do about it:
 - no installed Celeritas, and the bundled copy was not extracted: check
   `-Dfml.skipContainedDeps`;
 - the bundled copy itself, with the wrong hash: it is damaged; delete
-  `mods/1.12.2/<name>` so that it is extracted again.
+  `mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/<version>/<name>`
+  so that it is extracted again.
 
 Details in [`LEDGER.md`](LEDGER.md#the-guard).
 
@@ -300,16 +348,26 @@ jar's hash, only in a deobfuscated environment;
    matrix.
 5. Run the production-shaped smoke test (`LEDGER.md`, after Checkpoint 10) with the
    built Demonica jar before accepting the new pin:
-   - alone: the bundled copy is used, the guard accepts it, shaders work;
+   - alone: the bundled copy is extracted to
+     `mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/<version>/`
+     with its `.meta`, nothing new appears in `mods/1.12.2` but the three
+     libraries, the bundled copy is used, the guard accepts it, shaders work;
+   - with `Demonica-<version>.jar` disabled (renamed `.jar.disabled`): no
+     `celeritas` mod, no `CeleritasLoadingPlugin`, nothing named
+     `zz-demonica-bundled-celeritas` in the log;
    - next to an installed copy of the new pin: the installed jar is used, the
-     extracted `mods/1.12.2/zz-demonica-bundled-celeritas-…jar` is deleted, there
-     is no `DuplicateModsFoundException`, shaders work;
+     repository copy is left out and stays on disk, there is no
+     `DuplicateModsFoundException`, shaders work;
    - next to an installed Celeritas of another build: the installed jar is used,
      shaders are off, and the reason names that jar;
-   - after removing the installed jar: the bundled copy is extracted again on the
-     next start and used;
+   - after removing the installed jar: the bundled copy is used on the next
+     start, without another extraction;
    - with a stale `mods/1.12.2/zz-demonica-bundled-celeritas-<other pin>.jar`:
      it is deleted, with and without an installed Celeritas;
+   - with a leftover `mods/1.12.2/zz-demonica-bundled-celeritas-<this pin>.jar`
+     (an update from 0.8.2 or earlier): it is deleted, the repository copy is
+     used, no duplicate crash;
+   - with an older pin's folder in the repository: it is deleted;
    - with another mod's `Bansoukou` hook sorting first (the fallback) and an
      installed Celeritas named before and after `demonica-…`: no crash, the
      installed jar is the identified mod, and the log says which jar's classes

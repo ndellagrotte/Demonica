@@ -13,9 +13,11 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -25,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -34,16 +37,20 @@ import java.util.zip.ZipEntry;
 /**
  * Decides which Celeritas the game loads when Demonica's jar carries one (docs/celeritas/PIN.md, "Bundled copy").
  *
- * <p>Cleanroom extracts the nested jar to {@code mods/1.12.2} before any mod code runs, and then fails the launch with
- * {@code DuplicateModsFoundException} if a second jar provides the mod id {@code celeritas}: it has no rule that lets
- * one copy win. The jar's {@code Bansoukou} manifest attribute names this class, so Cleanroom's loader calls
- * {@link #bansoukou(List)} with its live list of mod candidates after the extraction and before any coremod is
- * scanned. A Celeritas the player installed takes precedence: while one is on the list, the bundled copy is dropped
- * from it and its extracted file deleted, and the installed jar is never touched. Without one, the bundled copy is the
- * Celeritas this game loads. Copies older Demonica versions extracted under another name are dropped and deleted
- * whenever another Celeritas is left. A later fallback, {@code MixinEarly.injectData}, reconciles FML's own lists from
- * the {@link #decision()} recorded here, or, if this hook never ran, from the mods folders
- * ({@link #decideWithoutHook}).
+ * <p>The nested jar's {@code .meta} sidecar names a Maven artifact, so Cleanroom extracts it to
+ * {@code mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/<version>/} ({@link #bundledArtifactFolder}),
+ * not to {@code mods/1.12.2}, and lists it as a mod candidate only on a launch that read Demonica's own jar: the mods
+ * folders are listed by name, the repository never is. Disable or remove Demonica's jar, and the extracted copy is
+ * inert. Cleanroom then fails the launch with {@code DuplicateModsFoundException} if a second jar provides the mod id
+ * {@code celeritas}: it has no rule that lets one copy win. The jar's {@code Bansoukou} manifest attribute names this
+ * class, so Cleanroom's loader calls {@link #bansoukou(List)} with its live list of mod candidates after the extraction
+ * and before any coremod is scanned. A Celeritas the player installed takes precedence: while one is on the list, the
+ * bundled copy is dropped from it (its file stays, inert), and the installed jar is never touched. Without one, the
+ * bundled copy is the Celeritas this game loads, and {@code MixinEarly} adds it to the class path at Demonica's own
+ * place. Copies Demonica 0.8.2 and earlier extracted to {@code mods/1.12.2} (under this pin's name or an older one) are
+ * dropped and deleted whenever another Celeritas is left, and older pins' folders in the repository are deleted. A
+ * later fallback, {@code MixinEarly.injectData}, reconciles FML's own lists from the {@link #decision()} recorded
+ * here, or, if this hook never ran, from the mods folders ({@link #decideWithoutHook}).
  *
  * <p>The loader loads this class with a transformer exclusion before any coremod exists, and turns anything this
  * class throws, from its static initializer on, into a crash of the launch. So the class has no static initializer
@@ -53,12 +60,21 @@ import java.util.zip.ZipEntry;
  */
 public final class BundledCeleritasHook {
     /**
-     * The start of the nested jar's name; build.gradle's {@code bundledCeleritasJarName} must start with it too. The
-     * loader orders its candidates by lower-cased file name, and {@code zz-} puts the bundled copy after any Celeritas a
-     * player installs, so that when this hook did not run, an installed jar is not beaten to the class path by the
-     * bundled copy's own place in that order.
+     * The Maven group and artifact of the bundled copy, as build.gradle's sidecar names them: Cleanroom extracts it to
+     * {@code mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/<version>/<artifact>-<version>.jar}. The
+     * version is {@code <sha8>-<timestamp>}, so the file keeps the name the pin encodes ({@link #BUNDLED_PREFIX}).
      */
-    public static final String BUNDLED_PREFIX = "zz-demonica-bundled-celeritas-";
+    public static final String BUNDLED_GROUP = "com.demonica";
+    public static final String BUNDLED_ARTIFACT = "zz-demonica-bundled-celeritas";
+    /** The folder under {@code mods} that Cleanroom's in-memory artifact list extracts to. */
+    public static final String REPOSITORY_FOLDER = "memory_repo";
+    /**
+     * The start of the nested jar's name; build.gradle's {@code bundledCeleritasJarName} must start with it too. The
+     * loader orders its candidates by lower-cased file name, and {@code zz-} puts a copy in {@code mods/1.12.2} (which
+     * Demonica 0.8.2 and earlier extracted there) after any Celeritas a player installs, so that when this hook did not
+     * run, an installed jar is not beaten to the class path by such a copy's own place in that order.
+     */
+    public static final String BUNDLED_PREFIX = BUNDLED_ARTIFACT + "-";
     /** A class only Celeritas's mod has (the same one {@code Environment} looks for). */
     public static final String CELERITAS_MARKER = "org/taumc/celeritas/CeleritasVintage.class";
     /** Celeritas's coremod, as its manifest names it. */
@@ -72,15 +88,18 @@ public final class BundledCeleritasHook {
     public static final String SHA256_ATTRIBUTE = "Demonica-Celeritas-SHA256";
     /** The Celeritas-auto-build release the nested jar was taken from. */
     public static final String RELEASE_ATTRIBUTE = "Demonica-Celeritas-Release";
+    /** The Maven coordinate the nested jar's sidecar gives it ({@code group:artifact:version}). */
+    public static final String ARTIFACT_ATTRIBUTE = "Demonica-Celeritas-Artifact";
 
     /**
-     * Whether copies of Celeritas that an older Demonica extracted under another name are deleted from disk, rather than
-     * only left out of this launch. Cleanroom never deletes an extracted jar, so without this every update of the pin
-     * would leave one more copy behind. The Celeritas jar the player installed is never deleted or changed, whatever
-     * this says: it takes precedence over the bundled copy, and the log says how to use the bundled one instead. The
-     * bundled copy's own extracted file is deleted, whatever this says, while an installed Celeritas takes precedence:
-     * Demonica's {@code NonModDeps} would otherwise put it on the class path anyway, and Cleanroom extracts it again on
-     * the first launch after the installed jar is removed.
+     * Whether copies of Celeritas that an older Demonica extracted to {@code mods/1.12.2} (under an older pin's name, or
+     * this pin's name before 0.8.3 moved the extraction to the repository) are deleted from disk, rather than only left
+     * out of this launch. Cleanroom never deletes an extracted jar, so without this they would stay, and a copy in
+     * {@code mods/1.12.2} loads as a standalone Celeritas once Demonica's jar is disabled. Older pins' folders in the
+     * repository are deleted too. The Celeritas jar the player installed is never deleted or changed, whatever this
+     * says: it takes precedence over the bundled copy, and the log says how to use the bundled one instead. The bundled
+     * copy's own extracted file is never deleted: inert while an installed Celeritas takes precedence, it is used
+     * again, without another extraction, once that jar is removed.
      */
     static final boolean DELETE_STALE_BUNDLED = true;
 
@@ -105,33 +124,35 @@ public final class BundledCeleritasHook {
      *                       skipped or not extracted, and then removing an installed jar would leave no Celeritas at all
      * @param externals      the file names of the Celeritas jars the player installed, which take precedence over the
      *                       bundled copy and are never touched; empty when there is none
-     * @param droppedStale   the file names of older Demonica's extracted copies left out (and deleted, by policy)
+     * @param droppedStale   the file names of older Demonica's extracted copies in {@code mods/1.12.2} left out (and
+     *                       deleted, by policy); the bundled name among them is the copy 0.8.2 and earlier extracted
      * @param report         one line for the log, saying what is used and what was left out
+     * @param bundledFile    the bundled copy's file, when it is among the candidates; null otherwise
      */
     public record Decision(String bundledName, boolean useBundled, boolean bundledPresent, List<String> externals,
-                           List<String> droppedStale, String report) {
+                           List<String> droppedStale, String report, File bundledFile) {
     }
 
     /**
      * The Celeritas candidates, sorted out.
      *
      * @param bundled       the bundled copy, null if it is not among the candidates (skipped, or not extracted); of
-     *                      several files with its name, the one in {@code mods/1.12.2}
+     *                      several files with its name, the one in the repository, else the one in {@code mods/1.12.2}
      * @param duplicates    the other files with the bundled copy's name (a player or a pack export copied it into
      *                      {@code mods}): the same jar, so never an installed Celeritas; left out, and never deleted,
      *                      since they are the player's files
      * @param externals     every Celeritas jar the player installed: every one that is neither the bundled copy nor
      *                      stale, in the candidates' order; these are never dropped or deleted
-     * @param dropStale     copies an older Demonica extracted to {@code mods/1.12.2} under another name, which no jar
-     *                      names any more; only while another Celeritas is left (the bundled copy or an installed one)
+     * @param dropStale     copies an older Demonica extracted to {@code mods/1.12.2}: under another name, which no jar
+     *                      names any more, or under the bundled name, which 0.8.2 and earlier extracted there; only
+     *                      while another Celeritas is left (the bundled copy or an installed one)
      * @param useBundled    whether the bundled copy is the Celeritas this game loads: a client, the bundled copy present,
      *                      and nothing installed that takes precedence
-     * @param dropBundled   whether the bundled copy is left out (an installed Celeritas, or a dedicated server)
-     * @param deleteBundled whether the bundled copy's extracted file is deleted: a client with an installed Celeritas,
-     *                      and the bundled copy in {@code mods/1.12.2}, the only folder Demonica extracts to
+     * @param dropBundled   whether the bundled copy is left out (an installed Celeritas, or a dedicated server); its
+     *                      file is never deleted
      */
     record Plan(File bundled, List<File> duplicates, List<File> externals, List<File> dropStale, boolean useBundled,
-                boolean dropBundled, boolean deleteBundled) {
+                boolean dropBundled) {
     }
 
     private BundledCeleritasHook() {
@@ -186,26 +207,22 @@ public final class BundledCeleritasHook {
                     drop.add(plan.bundled());
                 }
                 candidates.removeIf(drop::contains);
-                if (plan.deleteBundled()) {
-                    // Demonica's NonModDeps adds every name in its ContainedDeps to the class path at Demonica's own
-                    // place in the order, list or no list, so the bundled copy would race the installed jar for the
-                    // Celeritas classes, and win against any installed jar whose name sorts after Demonica's.
-                    delete(plan.bundled());
-                }
+                List<File> staleVersions = List.of();
                 if (deleteStale) {
                     for (File stale : plan.dropStale()) {
                         delete(stale);
                     }
+                    staleVersions = deleteStaleVersions(plan.bundled());
                 }
 
-                String report = report(bundledName, release, client, plan, deleteStale);
+                String report = report(bundledName, release, client, plan, deleteStale, staleVersions);
                 if (client && plan.bundled() == null && plan.externals().isEmpty()) {
                     logger().warn(report);
                 } else {
                     logger().info(report);
                 }
                 decision = new Decision(bundledName, plan.useBundled(), plan.bundled() != null,
-                    List.copyOf(names(plan.externals())), List.copyOf(names(plan.dropStale())), report);
+                    List.copyOf(names(plan.externals())), List.copyOf(names(plan.dropStale())), report, plan.bundled());
             }
         } catch (Throwable t) {
             try {
@@ -228,8 +245,7 @@ public final class BundledCeleritasHook {
      */
     static Plan plan(List<File> candidates, String bundledName, boolean client, Predicate<File> isCeleritas,
                      Set<String> namesInAnyContainedDeps) {
-        File bundled = null;
-        List<File> duplicates = new ArrayList<>();
+        List<File> named = new ArrayList<>();
         List<File> stale = new ArrayList<>();
         List<File> externals = new ArrayList<>();
         for (File candidate : candidates) {
@@ -238,22 +254,33 @@ public final class BundledCeleritasHook {
             }
             String name = candidate.getName();
             if (bundledName.equals(name)) {
-                // Every file with the bundled name is the bundled copy, wherever it is. Were a copy in mods counted as
-                // installed, the extraction would be deleted, Cleanroom would extract it again on the next launch, and
-                // the advice to remove the "installed" jar would never end. Demonica's own extraction is the one kept,
-                // since it is the one NonModDeps puts on the class path.
-                if (bundled == null || (!inExtractionFolder(bundled) && inExtractionFolder(candidate))) {
-                    if (bundled != null) {
-                        duplicates.add(bundled);
-                    }
-                    bundled = candidate;
-                } else {
-                    duplicates.add(candidate);
-                }
+                named.add(candidate);
             } else if (name.startsWith(BUNDLED_PREFIX) && !namesInAnyContainedDeps.contains(name) && inExtractionFolder(candidate)) {
                 stale.add(candidate);
             } else {
                 externals.add(candidate);
+            }
+        }
+        // Every file with the bundled name is the bundled copy, wherever it is. Were a copy in mods counted as
+        // installed, the advice to remove the "installed" jar would never end. Demonica's own extraction, in the
+        // repository, is the one kept; the next best is a copy in mods/1.12.2 (Demonica 0.8.2 and earlier extracted
+        // there), which is otherwise the leftover of that extraction: stale, and deleted, or it would load as a
+        // standalone Celeritas once Demonica's jar is disabled. Any other copy is the player's, left out, never deleted.
+        File bundled = null;
+        for (File candidate : named) {
+            if (bundled == null || rank(candidate) < rank(bundled)) {
+                bundled = candidate;
+            }
+        }
+        List<File> duplicates = new ArrayList<>();
+        for (File candidate : named) {
+            if (candidate.equals(bundled)) {
+                continue;
+            }
+            if (inExtractionFolder(candidate)) {
+                stale.add(candidate);
+            } else {
+                duplicates.add(candidate);
             }
         }
         boolean installed = !externals.isEmpty();
@@ -262,13 +289,18 @@ public final class BundledCeleritasHook {
         // be the only Celeritas the player has, and the version gate judges whichever is loaded.
         List<File> dropStale = bundled != null || installed ? stale : List.of();
         return new Plan(bundled, List.copyOf(duplicates), List.copyOf(externals), List.copyOf(dropStale), useBundled,
-            bundled != null && !useBundled, client && installed && bundled != null && inExtractionFolder(bundled));
+            bundled != null && !useBundled);
+    }
+
+    /** The order of preference among files with the bundled name: the repository, then {@code mods/1.12.2}, then any. */
+    private static int rank(File jar) {
+        return inBundledRepository(jar) ? 0 : inExtractionFolder(jar) ? 1 : 2;
     }
 
     /**
-     * Whether a jar is in {@code mods/1.12.2}, the only folder Cleanroom extracts nested jars to. A copy with the
-     * bundled prefix, but not the bundled name, anywhere else was put there by the player, so it is treated as one they
-     * installed, and never deleted.
+     * Whether a jar is in {@code mods/1.12.2}, the folder Cleanroom extracts nested jars without a Maven coordinate to,
+     * where Demonica 0.8.2 and earlier put the bundled copy. A copy with the bundled prefix, but not the bundled name,
+     * anywhere else was put there by the player, so it is treated as one they installed, and never deleted.
      */
     private static boolean inExtractionFolder(File jar) {
         File parent = jar.getParentFile();
@@ -276,13 +308,84 @@ public final class BundledCeleritasHook {
     }
 
     /**
+     * Whether a jar is in a version folder of the bundled artifact's folder, {@code mods/memory_repo/com/demonica/
+     * zz-demonica-bundled-celeritas/<version>/}, where Cleanroom extracts the bundled copy.
+     */
+    static boolean inBundledRepository(File jar) {
+        File version = jar.getParentFile();
+        File artifact = version != null ? version.getParentFile() : null;
+        return artifact != null && isBundledArtifactFolder(artifact);
+    }
+
+    private static boolean isBundledArtifactFolder(File folder) {
+        File group = folder.getParentFile();
+        File top = group != null ? group.getParentFile() : null;
+        File repository = top != null ? top.getParentFile() : null;
+        return BUNDLED_ARTIFACT.equals(folder.getName()) && group != null && "demonica".equals(group.getName())
+            && top != null && "com".equals(top.getName()) && repository != null && REPOSITORY_FOLDER.equals(repository.getName());
+    }
+
+    /**
+     * {@code mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas} under the game folder: the artifact folder
+     * Cleanroom extracts the bundled copy to, one version folder per pin.
+     */
+    public static File bundledArtifactFolder(File minecraftHome) {
+        return new File(new File(minecraftHome, "mods"), REPOSITORY_FOLDER + File.separator + BUNDLED_GROUP.replace('.', File.separatorChar)
+            + File.separator + BUNDLED_ARTIFACT);
+    }
+
+    /**
+     * The version folder of this Demonica's bundled copy, {@link #bundledArtifactFolder} plus the version its name
+     * encodes; null in a build without a nested Celeritas.
+     */
+    public static File bundledVersionFolder(File minecraftHome) {
+        String name = bundledJarName();
+        return name != null ? new File(bundledArtifactFolder(minecraftHome), versionOf(name)) : null;
+    }
+
+    /** The version a bundled name encodes: the name without the prefix and {@code .jar}; the name itself if it has neither. */
+    static String versionOf(String bundledName) {
+        String version = bundledName.startsWith(BUNDLED_PREFIX) ? bundledName.substring(BUNDLED_PREFIX.length()) : bundledName;
+        return version.endsWith(".jar") ? version.substring(0, version.length() - 4) : version;
+    }
+
+    /** Where the bundled copy is extracted to, as the player finds it: {@code mods/memory_repo/.../<version>/<name>}. */
+    public static String extractedPath(String bundledName) {
+        return "mods/" + REPOSITORY_FOLDER + "/" + BUNDLED_GROUP.replace('.', '/') + "/" + BUNDLED_ARTIFACT + "/" + versionOf(bundledName)
+            + "/" + bundledName;
+    }
+
+    /**
+     * Deletes the other version folders of the bundled artifact, older pins' copies, when the bundled copy is in its
+     * repository folder. Nothing lists them, so nothing holds them open. Returns the folders deleted, or scheduled for
+     * deletion at exit.
+     */
+    private static List<File> deleteStaleVersions(File bundled) {
+        if (bundled == null || !inBundledRepository(bundled)) {
+            return List.of();
+        }
+        File[] versions = bundled.getParentFile().getParentFile().listFiles(File::isDirectory);
+        if (versions == null) {
+            return List.of();
+        }
+        List<File> deleted = new ArrayList<>();
+        for (File version : versions) {
+            if (!version.equals(bundled.getParentFile())) {
+                deleteFolder(version);
+                deleted.add(version);
+            }
+        }
+        return deleted;
+    }
+
+    /**
      * The decision for the fallback in {@code MixinEarly}, when this hook never ran: another mod's {@code Bansoukou}
      * hook sorted first, so the loader put every Celeritas on its list and the class path. {@code celeritasJars}: every
      * Celeritas mod jar in {@code mods} and {@code mods/1.12.2}. The jars are sorted out by the same rules as in
      * {@link #plan}, with the {@code ContainedDeps} of every jar in those folders; stale copies are deleted (by policy)
-     * so that the next launch is right, but the bundled copy is not: it is on the class path already, and Cleanroom
-     * would extract it again on the next launch. The decision is recorded for {@link #decisionOrFallback()}. Throws
-     * only what reading the folders throws.
+     * so that the next launch is right, except a leftover with the bundled name, which {@code NonModDeps} has put on
+     * the class path: that one is deleted when the game exits. The decision is recorded for
+     * {@link #decisionOrFallback()}. Throws only what reading the folders throws.
      */
     public static Decision decideWithoutHook(List<File> celeritasJars, String bundledName, boolean client) {
         // The folders to read ContainedDeps from: mods/1.12.2 and mods, found from the copies themselves, since only a
@@ -308,14 +411,22 @@ public final class BundledCeleritasHook {
             containedAnywhere.addAll(containedDeps(attributes));
         }
         Plan plan = plan(celeritasJars, bundledName, client, jar -> true, containedAnywhere);
+        List<File> staleVersions = List.of();
         if (DELETE_STALE_BUNDLED) {
             for (File stale : plan.dropStale()) {
-                delete(stale);
+                if (bundledName.equals(stale.getName())) {
+                    // The leftover of the old extraction: NonModDeps has put it on the class path already, and the
+                    // Celeritas classes may be loading from it (Linux deletes an open file, and the loader then fails).
+                    deleteAtExit(stale);
+                } else {
+                    delete(stale);
+                }
             }
+            staleVersions = deleteStaleVersions(plan.bundled());
         }
         Decision fallback = new Decision(bundledName, plan.useBundled(), plan.bundled() != null,
             List.copyOf(names(plan.externals())), List.copyOf(names(plan.dropStale())),
-            report(bundledName, null, client, plan, DELETE_STALE_BUNDLED));
+            report(bundledName, null, client, plan, DELETE_STALE_BUNDLED, staleVersions), plan.bundled());
         fallbackDecision = fallback;
         return fallback;
     }
@@ -323,10 +434,11 @@ public final class BundledCeleritasHook {
     /**
      * Brings FML's lists of jars in line with the decision: a jar on {@code ignored} and not on {@code reparseable} is
      * never identified as a mod. With the bundled copy in use, every other Celeritas jar is ignored. Otherwise the
-     * bundled copy is, and so is every stale copy in {@code staleNames}: Demonica's {@code NonModDeps} attribute adds
-     * the bundled copy to the class path, and FML would identify it as a second {@code celeritas} next to the one the
-     * player installed. Changes the two lists in place, without adding a name twice, and returns the names it ignored
-     * that were not ignored before; a second call changes nothing.
+     * bundled copy is, and so is every stale copy in {@code staleNames}: when the hook did not run they are candidates
+     * (and a copy in {@code mods/1.12.2} is on the class path through Demonica's {@code NonModDeps} too), and FML would
+     * identify one as a second {@code celeritas} next to the one the player installed. Changes the two lists in place,
+     * without adding a name twice, and returns the names it ignored that were not ignored before; a second call changes
+     * nothing.
      */
     public static List<String> reconcile(List<String> reparseable, List<String> ignored, Collection<String> celeritasJarNames,
                                          String bundledName, boolean useBundled, Collection<String> staleNames) {
@@ -358,9 +470,10 @@ public final class BundledCeleritasHook {
 
     /**
      * The names that come before {@code demonicaJarName} in the loader's order (lower-cased file names), in their own
-     * order. When this hook did not run, Demonica's {@code NonModDeps} put the bundled copy on the class path at the
-     * place of Demonica's own jar, and the first jar on the class path supplies the Celeritas classes: a jar named here
-     * was added before the bundled copy, and won.
+     * order. When this hook did not run and a copy with the bundled name was still in {@code mods/1.12.2}, Demonica's
+     * {@code NonModDeps} put that copy on the class path at the place of Demonica's own jar, and the first jar on the
+     * class path supplies the Celeritas classes: a jar named here was added before that copy, and won. (The bundled copy
+     * in the repository is listed after every jar of the mods folders, so it never wins against an installed jar.)
      */
     public static List<String> sortedBefore(Collection<String> names, String demonicaJarName) {
         String key = demonicaJarName.toLowerCase(Locale.ROOT);
@@ -465,9 +578,11 @@ public final class BundledCeleritasHook {
         return ClassLoader.getSystemResource(CLIENT_MARKER) != null;
     }
 
-    private static String report(String bundledName, String release, boolean client, Plan plan, boolean deleteStale) {
+    private static String report(String bundledName, String release, boolean client, Plan plan, boolean deleteStale,
+                                 List<File> staleVersions) {
         StringBuilder report = new StringBuilder();
         String bundled = bundledName + (release != null ? " (Celeritas-auto-build " + release + ")" : "");
+        String folder = "mods/" + REPOSITORY_FOLDER + "/" + BUNDLED_GROUP.replace('.', '/') + "/" + BUNDLED_ARTIFACT;
         if (!client) {
             report.append("Dedicated server: Celeritas is client-only, so the Celeritas bundled with Demonica, ").append(bundled)
                 .append(", is not loaded.");
@@ -485,29 +600,37 @@ public final class BundledCeleritasHook {
                 // Removing the installed jar would leave no Celeritas at all: the bundled copy is not there to take over.
                 report.append("Using the installed ").append(String.join(" and ", paths))
                     .append("; the Celeritas bundled with Demonica, ").append(bundled)
-                    .append(", is not in mods/1.12.2 (it was not extracted, or -Dfml.skipContainedDeps names it).");
+                    .append(", is not in ").append(folder).append(" (it was not extracted, or -Dfml.skipContainedDeps names it).");
             }
             if (!one) {
                 report.append(" FML cannot load more than one Celeritas.");
             }
         } else if (plan.bundled() == null) {
-            report.append("The Celeritas bundled with Demonica, ").append(bundled).append(", is not in mods/1.12.2 (it was not ")
-                .append("extracted, or -Dfml.skipContainedDeps names it), and no other Celeritas is installed; Demonica checks ")
-                .append("whether any Celeritas that loads is the build it was made for.");
+            report.append("The Celeritas bundled with Demonica, ").append(bundled).append(", is not in ").append(folder)
+                .append(" (it was not extracted, or -Dfml.skipContainedDeps names it), and no other Celeritas is installed; ")
+                .append("Demonica checks whether any Celeritas that loads is the build it was made for.");
         } else {
             report.append("Using the Celeritas bundled with Demonica, ").append(bundled).append('.');
         }
         if (!plan.dropStale().isEmpty()) {
             report.append(deleteStale ? " Removed " : " Left out ").append(plan.dropStale().size())
                 .append(plan.dropStale().size() == 1 ? " copy" : " copies")
-                .append(" of Celeritas an earlier Demonica extracted: ").append(String.join(", ", names(plan.dropStale())))
+                .append(" of Celeritas an earlier Demonica extracted to mods/1.12.2: ").append(String.join(", ", names(plan.dropStale())))
                 .append('.');
+        }
+        if (!staleVersions.isEmpty()) {
+            report.append(" Removed ").append(staleVersions.size()).append(staleVersions.size() == 1 ? " older pin" : " older pins")
+                .append(" from ").append(folder).append(": ").append(String.join(", ", names(staleVersions))).append('.');
         }
         return report.toString();
     }
 
-    /** {@code mods/<name>} or {@code mods/1.12.2/<name>}, as the player finds it. */
+    /** {@code mods/<name>}, {@code mods/1.12.2/<name>} or {@code mods/memory_repo/.../<version>/<name>}, as the player finds it. */
     private static String path(File jar) {
+        if (inBundledRepository(jar)) {
+            return "mods/" + REPOSITORY_FOLDER + "/" + BUNDLED_GROUP.replace('.', '/') + "/" + BUNDLED_ARTIFACT + "/"
+                + jar.getParentFile().getName() + "/" + jar.getName();
+        }
         File parent = jar.getParentFile();
         if (parent == null) {
             return jar.getName();
@@ -529,6 +652,27 @@ public final class BundledCeleritasHook {
                 // Then it stays, and is found again next time.
             }
             logger().info("Could not delete {} now ({}); it is deleted when the game exits", path(jar), e.toString());
+        }
+    }
+
+    /** Schedules a jar that is on the class path for deletion when the game exits (on Windows it may stay open and remain). */
+    private static void deleteAtExit(File jar) {
+        try {
+            jar.deleteOnExit();
+            logger().info("{} is on the class path; it is deleted when the game exits", path(jar));
+        } catch (RuntimeException e) {
+            logger().info("Could not schedule {} for deletion ({}); it is found again next time", path(jar), e.toString());
+        }
+    }
+
+    /** Deletes a folder and everything in it (an older pin's version folder: its jar and {@code .meta}); logs a failure. */
+    private static void deleteFolder(File folder) {
+        try (Stream<Path> paths = Files.walk(folder.toPath())) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(path);
+            }
+        } catch (IOException | RuntimeException e) {
+            logger().info("Could not delete {} ({}); it is tried again next time", folder, e.toString());
         }
     }
 
@@ -607,7 +751,7 @@ public final class BundledCeleritasHook {
     /**
      * The file name of the jar this class was loaded from, which is Demonica's own; null in a development workspace,
      * where it is loaded from a directory. The fallback in {@code MixinEarly} needs it: Demonica's {@code NonModDeps}
-     * puts the bundled copy on the class path at this name's place in the loader's order. Never throws.
+     * puts a copy left in {@code mods/1.12.2} on the class path at this name's place in the loader's order. Never throws.
      */
     public static String demonicaJarName() {
         try {

@@ -15,10 +15,11 @@
  * against (celeritas_version), the Celeritas-auto-build GitHub release and asset the mod jar carries
  * (celeritas_release, celeritas_release_asset, celeritas_asset_sha256), and the SHA-256 of every accepted jar
  * (celeritas_sha256). The asset is nested unmodified at the jar's root as
- * zz-demonica-bundled-celeritas-<sha8>-<timestamp>.jar and listed in ContainedDeps, so Cleanroom extracts it to
- * mods/1.12.2; BundledCeleritasHook, named by the manifest's Bansoukou attribute, then uses the bundled copy unless the
- * player installed a Celeritas, which takes precedence. verifyBundledCeleritasPin checks the asset, and
- * celeritasPinCandidate prints the values for another auto-build.
+ * zz-demonica-bundled-celeritas-<sha8>-<timestamp>.jar and listed in ContainedDeps, with a .meta sidecar naming a Maven
+ * coordinate, so Cleanroom extracts it to mods/memory_repo, where it loads only while Demonica's own jar does;
+ * BundledCeleritasHook, named by the manifest's Bansoukou attribute, then uses the bundled copy unless the player
+ * installed a Celeritas, which takes precedence. verifyBundledCeleritasPin checks the asset, and celeritasPinCandidate
+ * prints the values for another auto-build.
  *
  * The root project holds the mod: com.demonica.* and Actinium's com.gtnewhorizons.angelica.* glue, derived from
  * actinium@4a19c959. :shader (the Iris tree) and :glsm are merged into its jar, and so is GTNHLib, from the latest
@@ -594,13 +595,14 @@ if (!celeritasPinProblems.isEmpty()) {
         throw new GradleException(message)
     }
 }
-// The asset's name inside the mod jar, and so in mods/1.12.2 once Cleanroom extracts it. It must start with
+// The asset's name inside the mod jar, and so once Cleanroom extracts it. It must start with
 // BundledCeleritasHook.BUNDLED_PREFIX, which is how the hook tells its own copies from an installed Celeritas. It names
 // the pin because Cleanroom never extracts over a file that exists: a fixed name would keep the first pin a player ever
-// had. The zz- makes it sort after the jars a player installs (01-celeritas-..., celeritas-..., demonica-...), since
-// Cleanroom's candidates are sorted by lower-cased file name: an installed Celeritas takes precedence over the bundled
-// copy, and when Demonica's hook did not run, the installed jar's classes win whenever it also sorts before Demonica's
-// own jar (docs/celeritas/PIN.md, "Bundled copy").
+// had. The zz- makes a copy in mods/1.12.2 (where Demonica 0.8.2 and earlier extracted it) sort after the jars a player
+// installs (01-celeritas-..., celeritas-..., demonica-...), since Cleanroom's candidates are sorted by lower-cased file
+// name: an installed Celeritas takes precedence over the bundled copy, and when Demonica's hook did not run, the
+// installed jar's classes win over such a copy whenever it also sorts before Demonica's own jar (docs/celeritas/PIN.md,
+// "Bundled copy").
 // celeritasReleaseParts is null only when the check above merely warned, and then nothing packages the name.
 def bundledCeleritasTimestamp = celeritasReleaseParts?.getAt(1) ?: 'invalid'
 def bundledCeleritasJarName =
@@ -608,6 +610,21 @@ def bundledCeleritasJarName =
 // The release as an ivy module: the asset's name without .jar is the module, the release tag the revision.
 def celeritasAssetModule = celeritasReleaseAsset.replaceFirst(/\.jar$/, '')
 def bundledCeleritasCoordinate = "io.github.kappa-maintainer:${celeritasAssetModule}:${celeritasRelease}@jar".toString()
+// The Maven coordinate the nested jar's .meta sidecar gives it (Maven-Artifact). With one, Cleanroom extracts the jar to
+// mods/memory_repo/<group>/<artifact>/<version>/<artifact>-<version>.jar instead of mods/1.12.2, and lists it as a mod
+// candidate only on a launch that read Demonica's own jar: the mods folders are listed by name, the repository never is,
+// so the extracted copy is inert once Demonica's jar is disabled or removed. Group and artifact are
+// BundledCeleritasHook.BUNDLED_GROUP and BUNDLED_ARTIFACT, which is how the hook finds the folder; the version is what
+// the name encodes, so the file keeps the name bundledCeleritasJarName (docs/celeritas/PIN.md, "Bundled copy").
+def bundledCeleritasGroup = 'com.demonica'
+def bundledCeleritasArtifact = 'zz-demonica-bundled-celeritas'
+def bundledCeleritasVersion = "${pinnedCeleritasSha.take(8)}-${bundledCeleritasTimestamp}".toString()
+def bundledCeleritasMavenArtifact = "${bundledCeleritasGroup}:${bundledCeleritasArtifact}:${bundledCeleritasVersion}".toString()
+def bundledCeleritasMetaName = "${bundledCeleritasJarName}.meta".toString()
+if (bundledCeleritasJarName != "${bundledCeleritasArtifact}-${bundledCeleritasVersion}.jar".toString()) {
+    throw new GradleException("bundledCeleritasJarName (${bundledCeleritasJarName}) is not the file name of " +
+        "${bundledCeleritasMavenArtifact}; Cleanroom would extract the bundled Celeritas under another name.")
+}
 // -PceleritasAssetDir=<dir>: take the asset from a local directory instead of GitHub (a pruned release, or no network),
 // as -Ps8tnlibDir does for S8TNLib. The file there must still have the pinned name and hash.
 def celeritasAssetDir = project.findProperty('celeritasAssetDir')
@@ -1119,6 +1136,42 @@ tasks.withType(Jar).configureEach {
     )
 }
 
+/*
+ * The nested Celeritas's .meta sidecar (bundledCeleritasMetaName): the asset's own main manifest attributes plus
+ * Maven-Artifact. Cleanroom reads the sidecar in place of the jar's manifest when the jar is a contained dep, and copies it
+ * next to the extracted file, where its mod discoverer reads it as the jar's manifest again, so it must say what the
+ * jar's own manifest says (FMLCorePlugin, FMLAT, ...). Generated from the asset, so it moves with the pin.
+ */
+def generatedBundledCeleritasMetaDir = layout.buildDirectory.dir('generated/bundled-celeritas-meta')
+def generateBundledCeleritasMeta = tasks.register('generateBundledCeleritasMeta') {
+    description = 'Writes the .meta sidecar that makes Cleanroom extract the bundled Celeritas to mods/memory_repo.'
+    def asset = configurations.bundledCeleritas
+    def outputFile = generatedBundledCeleritasMetaDir.map { it.file(bundledCeleritasMetaName) }
+    def mavenArtifact = bundledCeleritasMavenArtifact
+    inputs.files(asset).withPropertyName('asset')
+    inputs.property('mavenArtifact', mavenArtifact)
+    inputs.property('metaName', bundledCeleritasMetaName)
+    outputs.dir(generatedBundledCeleritasMetaDir)
+    dependsOn 'verifyBundledCeleritasPin'
+
+    doLast {
+        def manifest = new java.util.jar.Manifest()
+        new java.util.jar.JarFile(asset.singleFile).withCloseable { jar ->
+            def main = jar.manifest?.mainAttributes
+            if (main == null || main.getValue('FMLCorePlugin') == null) {
+                throw new GradleException("${asset.singleFile.name} has no manifest naming its FMLCorePlugin; the sidecar " +
+                    "would hide Celeritas's coremod from Cleanroom")
+            }
+            main.each { key, value -> manifest.mainAttributes.putValue(key.toString(), value.toString()) }
+        }
+        manifest.mainAttributes.putValue('Maven-Artifact', mavenArtifact)
+        def file = outputFile.get().asFile
+        delete(generatedBundledCeleritasMetaDir)
+        file.parentFile.mkdirs()
+        file.withOutputStream { manifest.write(it) }
+    }
+}
+
 tasks.named('jar', Jar).configure {
     // The MCP-named jar, for dev use only (Demonica-<version>-mcp.jar). build/libs holds only what is distributed:
     // reobfJar's SRG jar, the diagnostics jar and the sources jar.
@@ -1139,10 +1192,11 @@ tasks.named('jar', Jar).configure {
 
     into('/') {
         from configurations.contain
-        // Byte for byte, under the name that encodes the pin (bundledCeleritasJarName).
+        // Byte for byte, under the name that encodes the pin (bundledCeleritasJarName), with its .meta sidecar.
         from(configurations.bundledCeleritas) {
             rename { bundledCeleritasJarName }
         }
+        from generateBundledCeleritasMeta
     }
 
     // The license texts and the notices a binary copy must carry (THIRD_PARTY_NOTICES.md, "In the jars").
@@ -1164,17 +1218,19 @@ tasks.named('jar', Jar).configure {
                 'ForceLoadAsMod': 'true',
                 'FMLAT': access_transformers,
                 'ContainedDeps': (configurations.contain.collect { it.name } + bundledCeleritasJarName).join(' '),
-                // The libraries need it. It also adds the extracted Celeritas to the class path, which is harmless
-                // when it is used. When an installed Celeritas takes precedence, the hook deletes the extracted file
-                // so that it never reaches the class path; when the hook did not run, MixinEarly's reconciliation
-                // keeps FML from identifying it as a second Celeritas.
+                // The libraries need it: it adds mods/1.12.2/<each ContainedDeps name> to the class path at Demonica's
+                // place in the order. For the bundled Celeritas, which is extracted to mods/memory_repo instead, that
+                // URL is dangling and harmless; MixinEarly adds the copy itself when it is the one used. A copy left in
+                // mods/1.12.2 by Demonica 0.8.2 or earlier does resolve, which is why the hook deletes such copies.
                 'NonModDeps': 'true',
                 // Cleanroom calls this class's bansoukou(List) with the mod candidates before it scans any coremod; it
                 // drops the bundled Celeritas when the player installed one, and stale bundled copies of earlier pins
                 // (docs/celeritas/PIN.md, "Bundled copy").
                 'Bansoukou': 'com.demonica.loading.bundle.BundledCeleritasHook',
-                // The bundled Celeritas: its name in the jar and in mods/1.12.2, its SHA-256, and its release.
+                // The bundled Celeritas: its name in the jar and once extracted, the Maven coordinate its sidecar gives
+                // it (so where it is extracted to), its SHA-256, and its release.
                 'Demonica-Celeritas-Jar': bundledCeleritasJarName,
+                'Demonica-Celeritas-Artifact': bundledCeleritasMavenArtifact,
                 'Demonica-Celeritas-SHA256': celeritasAssetSha256,
                 'Demonica-Celeritas-Release': celeritasRelease,
                 // The S8TNLib release whose GTNHLib classes are merged in, and the commit it was built from.
@@ -1507,9 +1563,13 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
     def containedJars = provider { configurations.contain.collect { it.name } + bundledCeleritasJarName }
     def bundledCeleritas = [
         jar: bundledCeleritasJarName,
+        meta: bundledCeleritasMetaName,
+        artifact: bundledCeleritasMavenArtifact,
         sha256: celeritasAssetSha256,
         release: celeritasRelease
     ]
+    def assetJar = configurations.bundledCeleritas
+    inputs.files(assetJar).withPropertyName('assetJar')
     def celeritasPin = [
         celeritas_sha: project.property('celeritas_sha').toString().trim(),
         celeritas_version: project.property('celeritas_version').toString().trim(),
@@ -1600,6 +1660,7 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 'NonModDeps': 'true',
                 'Bansoukou': 'com.demonica.loading.bundle.BundledCeleritasHook',
                 'Demonica-Celeritas-Jar': bundledCeleritas.jar,
+                'Demonica-Celeritas-Artifact': bundledCeleritas.artifact,
                 'Demonica-Celeritas-SHA256': bundledCeleritas.sha256,
                 'Demonica-Celeritas-Release': bundledCeleritas.release
             ]
@@ -1631,6 +1692,28 @@ def verifyDistributedJar = tasks.register('verifyDistributedJar') {
                 if (bundledSha256 != bundledCeleritas.sha256) {
                     problems << "${bundledCeleritas.jar} has SHA-256 ${bundledSha256}, expected celeritas_asset_sha256 " +
                         "${bundledCeleritas.sha256}"
+                }
+            }
+            // The sidecar that sends the bundled Celeritas to mods/memory_repo: the asset's own main attributes, so that
+            // Cleanroom's discoverer, which reads it in place of the jar's manifest, still finds Celeritas's coremod, plus
+            // the Maven coordinate whose file name is the bundled name.
+            def metaEntry = jar.getEntry(bundledCeleritas.meta)
+            if (metaEntry == null) {
+                problems << "missing entry ${bundledCeleritas.meta}"
+            } else {
+                def sidecar = jar.getInputStream(metaEntry).withCloseable { new java.util.jar.Manifest(it).mainAttributes }
+                def expectedSidecar = new java.util.jar.JarFile(assetJar.singleFile).withCloseable { asset ->
+                    asset.manifest.mainAttributes.collectEntries { key, value -> [(key.toString()): value.toString()] }
+                }
+                expectedSidecar['Maven-Artifact'] = bundledCeleritas.artifact
+                def actualSidecar = sidecar.collectEntries { key, value -> [(key.toString()): value.toString()] }
+                if (actualSidecar != expectedSidecar) {
+                    problems << "${bundledCeleritas.meta} has ${actualSidecar}, expected the asset's attributes plus " +
+                        "Maven-Artifact: ${expectedSidecar}"
+                }
+                def parts = bundledCeleritas.artifact.split(':')
+                if (parts.length != 3 || "${parts[1]}-${parts[2]}.jar".toString() != bundledCeleritas.jar) {
+                    problems << "Maven-Artifact ${bundledCeleritas.artifact} does not extract as ${bundledCeleritas.jar}"
                 }
             }
             // The notices name the bundled Celeritas's source by its full commit, because gradle.properties is not in

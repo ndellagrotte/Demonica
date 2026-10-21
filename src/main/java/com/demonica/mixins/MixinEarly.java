@@ -67,14 +67,21 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         } else if (!celeritas) {
             String bundled = BundledCeleritasHook.bundledJarName();
             if (bundled != null) {
-                LOGGER.error("The Celeritas bundled with Demonica, {}, was not extracted to mods/1.12.2, and no other Celeritas "
+                LOGGER.error("The Celeritas bundled with Demonica, {}, was not extracted to {}, and no other Celeritas "
                     + "is installed; Demonica stays inactive. Check that -Dfml.skipContainedDeps does not name it, or delete "
-                    + "mods/1.12.2/{} if it is there but damaged, so that it is extracted again.", bundled, bundled);
+                    + "that file if it is there but damaged, so that it is extracted again.", bundled,
+                    BundledCeleritasHook.extractedPath(bundled));
             } else {
                 LOGGER.error("Celeritas is not installed. Demonica needs it; Demonica stays inactive until it is added.");
             }
         }
         ACTIVE = client && celeritas && !actinium;
+        if (ACTIVE) {
+            // The bundled copy sits in mods/memory_repo, which the loader puts on the class path only when it reaches the
+            // copy's own coremod, last of all candidates. This coremod is loaded at Demonica's own place in the order, where
+            // NonModDeps put the copy when it was extracted to mods/1.12.2; adding it here keeps class resolution as it was.
+            addBundledCeleritasToTheClassPath(BundledCeleritasHook.decision());
+        }
         File staleS8tnlib = Environment.staleS8tnlibJar();
         if (staleS8tnlib != null) {
             // Harmless while its GTNHLib classes are the ones Demonica carries, wrong once they differ.
@@ -157,6 +164,9 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         if (!hookRan) {
             // Deletes stale copies too: the hook deletes them itself, and without it they would stay.
             decision = BundledCeleritasHook.decideWithoutHook(jars, bundled, FMLLaunchHandler.side().isClient());
+            if (ACTIVE) {
+                addBundledCeleritasToTheClassPath(decision);
+            }
         }
         List<String> changed = BundledCeleritasHook.reconcile(CoreModManager.getReparseableCoremods(),
             CoreModManager.getIgnoredMods(), present, bundled, decision.useBundled(), decision.droppedStale());
@@ -190,10 +200,13 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
 
     /**
      * Says which Celeritas classes this launch loaded when the hook did not run, if they are not the decided ones. The
-     * loader adds jars to the class path in lower-cased file name order, and the first jar added wins a class. Demonica's
-     * {@code NonModDeps} adds the bundled copy at the place of Demonica's own jar, so an installed Celeritas wins only if
-     * its name sorts before Demonica's, and a stale copy whose name sorts before Demonica's wins over the bundled one.
-     * Nothing can change that any more; the version gate judges whichever jar loaded.
+     * loader adds jars to the class path in lower-cased file name order, and the first jar added wins a class. The
+     * bundled copy in the repository is listed after every jar of the mods folders, so it never wins against an
+     * installed jar; but a copy with its name left in {@code mods/1.12.2} by Demonica 0.8.2 or earlier is added by
+     * Demonica's {@code NonModDeps} at the place of Demonica's own jar, so an installed Celeritas wins against that copy
+     * only if its name sorts before Demonica's, and a stale copy whose name sorts before Demonica's wins over the bundled
+     * one. Nothing can change that any more; the version gate judges whichever jar loaded, and the leftover is deleted
+     * for the next launch.
      */
     private static void warnAboutTheClassPath(List<File> jars, String bundled, BundledCeleritasHook.Decision decision,
                                               @Nullable String demonica, boolean bundledWon) {
@@ -208,8 +221,10 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
         if (!decision.externals().isEmpty()) {
             if (bundledWon) {
                 String external = String.join(" and ", decision.externals());
-                LOGGER.warn("This launch loaded the bundled Celeritas classes although {} is installed, because another mod's "
-                    + "Bansoukou hook ran first and {} sorts after {}.", external, external, demonica);
+                LOGGER.warn("This launch loaded the bundled Celeritas classes from a copy left in mods/1.12.2 although {} is "
+                    + "installed, because another mod's Bansoukou hook ran first and {} sorts after {}. That copy is deleted "
+                    + "when the game exits (delete it by hand if it is still there); restart the game to use the installed jar.",
+                    external, external, demonica);
             }
         } else if (decision.useBundled()) {
             List<String> first = BundledCeleritasHook.sortedBefore(decision.droppedStale(), demonica);
@@ -223,14 +238,31 @@ public class MixinEarly implements IFMLLoadingPlugin, IEarlyMixinLoader {
 
     /**
      * Whether, with the hook not run, the bundled copy's classes loaded although an installed Celeritas was chosen: on a
-     * client, with the bundled copy in the mods folders, Demonica's own jar known, and every installed jar sorting after
-     * it ({@link #warnAboutTheClassPath}).
+     * client, with a copy of the bundled name left in {@code mods/1.12.2} (the one {@code NonModDeps} resolves; it is
+     * among the stale copies dropped), Demonica's own jar known, and every installed jar sorting after it
+     * ({@link #warnAboutTheClassPath}).
      */
     private static boolean bundledWonOverTheInstalledJar(List<File> jars, String bundled, BundledCeleritasHook.Decision decision,
                                                          @Nullable String demonica) {
         return FMLLaunchHandler.side().isClient() && demonica != null && !decision.externals().isEmpty()
-            && jars.stream().anyMatch(jar -> jar.getName().equals(bundled))
+            && decision.droppedStale().contains(bundled)
             && BundledCeleritasHook.sortedBefore(decision.externals(), demonica).isEmpty();
+    }
+
+    /**
+     * Adds the bundled copy to the launch class path when it is the Celeritas this launch uses. Cleanroom adds it again
+     * when it reaches the copy's own coremod, which the class loader ignores as a duplicate.
+     */
+    private static void addBundledCeleritasToTheClassPath(@Nullable BundledCeleritasHook.Decision decision) {
+        if (decision == null || !decision.useBundled() || decision.bundledFile() == null || Launch.classLoader == null) {
+            return;
+        }
+        try {
+            Launch.classLoader.addURL(decision.bundledFile().toURI().toURL());
+        } catch (Exception e) {
+            LOGGER.warn("Could not add {} to the class path now; Cleanroom adds it when it reaches its coremod",
+                decision.bundledFile(), e);
+        }
     }
 
     @Override

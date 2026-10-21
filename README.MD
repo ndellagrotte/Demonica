@@ -44,23 +44,24 @@ shader pack screen say why
 
 Download `Demonica-<version>.jar` from the
 [releases](https://github.com/ndellagrotte/Demonica/releases) and put it in
-`mods/`. That is the only jar to install. On start Demonica extracts the bundled
-Celeritas to `mods/1.12.2/zz-demonica-bundled-celeritas-<commit>-<timestamp>.jar`
-and deletes the copies of earlier Demonica versions there.
+`mods/`. That is the only jar to install. On start Cleanroom extracts the bundled
+Celeritas to
+`mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/<commit>-<timestamp>/zz-demonica-bundled-celeritas-<commit>-<timestamp>.jar`,
+which loads only while Demonica's jar does: disable or remove Demonica and the
+extracted copy stays inert (delete the folder to free the space). Demonica
+deletes the copies of earlier Demonica versions: older pins' folders there, and
+the `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar` that Demonica 0.8.2 and
+earlier extracted, which did load on its own.
 
 A Celeritas jar you installed yourself takes precedence: Demonica uses it, leaves
-its file alone, deletes the extracted bundled copy and logs which jar it uses
+its file alone, leaves the bundled copy out and logs which jar it uses
 (unless another mod's Bansoukou hook runs first; see
 [`docs/celeritas/PIN.md`](docs/celeritas/PIN.md)).
 Shaders need the pinned build, so with any other build of Celeritas installed
 they are off, and the log and the shader pack screen name that jar. Remove it
-from `mods/` to use the bundled build (it is extracted again on the next start),
-or install the pinned build. Demonica 0.3.0 to 0.5.0 needed
-`s8tnlib-<version>.jar` beside them; it can go now (Demonica logs a warning while
-it is there).
-
-**To uninstall Demonica, also delete `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar`.**
-Otherwise it keeps loading as a standalone Celeritas.
+from `mods/` to use the bundled build, or install the pinned build. Demonica
+0.3.0 to 0.5.0 needed `s8tnlib-<version>.jar` beside them; it can go now
+(Demonica logs a warning while it is there).
 
 Demonica runs on Cleanroom's own OpenGL context. `advanced.opengl_profile`
 (Video Settings → Advanced → OpenGL Profile) selects a core context instead,
