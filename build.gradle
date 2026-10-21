@@ -973,6 +973,14 @@ dependencies {
         }
         devRuntimeMods project.files({ project.fileTree(scalarLibraries).files }).builtBy(extractScalarLibraries)
     }
+    // -PwithUniversalTweaks: the dev client also loads Universal Tweaks 1.21.0, whose smooth scrolling (on by default)
+    // eases every GuiSlot towards a target of its own, which broke the shader pack list's wheel and scrollbar (#41,
+    // docs/compat/universal-tweaks.md, script run/client/scripts/shaderpacks-scroll.txt). Its dependencies, MixinBooter
+    // and ConfigAnytime, are built into Cleanroom. Not in -PwithCompatMods: its tweaks change many GUIs and HUD defaults,
+    // which would shift every script's shots.
+    if (project.findProperty('withUniversalTweaks') != null) {
+        devRuntimeMods 'curse.maven:universal-tweaks-705000:8941250'
+    }
     // -PwithModernSplash: the dev client also loads Modern Splash 1.5.3, a coremod that replaces FML's SplashProgress
     // and draws its text with colour 0 after a raw glColor4f (MixinFontRendererSplashColor).
     if (project.findProperty('withModernSplash') != null) {
