@@ -1,0 +1,36 @@
+# AsmodeusCore's overworld sky (docs/compat/asmodeuscore.md). Run with -PwithAsmodeusCore.
+# Shoots the sky straight up and towards the horizon at noon, at dusk and at midnight.
+pack off
+wait 20
+world asmodeussky 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /gamerule doWeatherCycle false
+cmd /gamerule doMobSpawning false
+cmd /weather clear
+cmd /time set 6000
+cmd /tp @p ~ ~ ~ 0 -90
+chunks 1200
+wait 40
+shot asmodeus-sky-day-up
+cmd /tp @p ~ ~ ~ 0 -20
+wait 10
+shot asmodeus-sky-day-horizon
+# Dusk: star brightness is about 0.1, so AsmodeusCore's galaxy band gets alpha brightness - 0.2 < 0.
+cmd /time set 12300
+wait 40
+cmd /tp @p ~ ~ ~ 0 -90
+wait 10
+shot asmodeus-sky-dusk-up
+cmd /tp @p ~ ~ ~ 0 -20
+wait 10
+shot asmodeus-sky-dusk-horizon
+cmd /time set 18000
+wait 40
+cmd /tp @p ~ ~ ~ 0 -90
+wait 10
+shot asmodeus-sky-night-up
+cmd /tp @p ~ ~ ~ 0 -20
+wait 10
+shot asmodeus-sky-night-horizon
+exit

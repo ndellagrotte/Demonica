@@ -144,6 +144,7 @@ the injector targets of a mixin without a refmap, so Celeritas runs from
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
 | `-PwithModernSplash` | also load Modern Splash, a coremod that replaces FML's loading screen |
 | `-PwithUniversalTweaks` | also load Universal Tweaks, whose smooth scrolling eases every `GuiSlot` towards a target of its own ([`docs/compat/universal-tweaks.md`](docs/compat/universal-tweaks.md)) |
+| `-PwithAsmodeusCore` | also load Galacticraft and AsmodeusCore (with Fugue), whose overworld sky sets the current color outside [0,1] ([`docs/compat/asmodeuscore.md`](docs/compat/asmodeuscore.md)) |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
 | `-PwithoutDiagnostics` | leave the diagnostics jar out, as a player without it runs |
 | `-PmixinVerbose`, `-PmixinExport` | Mixin's verbose log; the transformed classes in `run/client/.mixin.out` |

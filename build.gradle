@@ -998,6 +998,14 @@ dependencies {
     if (project.findProperty('withUniversalTweaks') != null) {
         devRuntimeMods 'curse.maven:universal-tweaks-705000:8941250'
     }
+    // -PwithAsmodeusCore: the dev client also loads Galacticraft 4.0.7, AsmodeusCore 1.0.5 and Fugue 0.25.5, the files of
+    // the Prism instance asmodeuscore-testing, whose overworld sky AsmodeusCore draws with out-of-range glColor values
+    // (docs/compat/asmodeuscore.md; scripts/asmodeus-sky.txt, copied into run/client/scripts, is the scene).
+    if (project.findProperty('withAsmodeusCore') != null) {
+        devRuntimeMods 'curse.maven:galacticraft-legacy-564236:6364107'
+        devRuntimeMods 'curse.maven:asmodeuscore-303101:7180991'
+        devRuntimeMods 'curse.maven:fugue-1005815:9216207'
+    }
     // -PwithModernSplash: the dev client also loads Modern Splash 1.5.3, a coremod that replaces FML's SplashProgress
     // and draws its text with colour 0 after a raw glColor4f (MixinFontRendererSplashColor).
     if (project.findProperty('withModernSplash') != null) {
