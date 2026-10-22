@@ -428,6 +428,9 @@ public class RenderSystem {
 
     public static void blendFuncSeparatei(int buffer, int srcRGB, int dstRGB, int srcAlpha, int dstAlpha) {
         RENDER_BACKEND.blendFuncSeparatei(buffer, srcRGB, dstRGB, srcAlpha, dstAlpha);
+        // GLSM's cached global function no longer covers this buffer: a later non-indexed call with the cached
+        // factors (Iris restoring the vanilla function after a pass) must still reach GL to reset it.
+        GLStateManager.getBlendState().setFuncUnknown();
     }
 
     public static void bindTextureToUnit(int unit, int texture) {

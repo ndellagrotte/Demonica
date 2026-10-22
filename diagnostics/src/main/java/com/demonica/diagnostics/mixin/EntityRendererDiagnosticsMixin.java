@@ -283,16 +283,19 @@ public class EntityRendererDiagnosticsMixin {
     )
     private void demonica$checkAfterParticles(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
         IrisGlDiagnostics.markStage("render-world-pass:" + pass + ":after-particles");
-        IrisGlDiagnostics.recordWorldPassStage("particles-to-weather");
+        IrisGlDiagnostics.recordWorldPassStage("particles-to-weather-call");
     }
 
+    // Marks vanilla's renderRainSnow call site. While a shader pack is in use the Iris mixin skips
+    // the draw here and draws weather at the finalize hook instead (the "weather" stage after
+    // entities-1), so this stage only holds the weather cost when no pack is active.
     @Inject(
         method = "renderWorldPass(IFJ)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;renderRainSnow(F)V", shift = At.Shift.AFTER)
     )
     private void demonica$checkAfterWeather(int pass, float partialTicks, long finishTimeNano, CallbackInfo ci) {
-        IrisGlDiagnostics.markStage("render-world-pass:" + pass + ":after-weather");
-        IrisGlDiagnostics.recordWorldPassStage("weather-to-terrain-translucent");
+        IrisGlDiagnostics.markStage("render-world-pass:" + pass + ":after-weather-call");
+        IrisGlDiagnostics.recordWorldPassStage("weather-call-to-terrain-translucent");
     }
 
     // GTCEu's GregTechTransformer rewrites renderWorldPass via ASM and replaces the 4th

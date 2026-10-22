@@ -12,6 +12,12 @@ public class BlendStateStack extends BlendState implements IStateStack<BlendStat
 
     protected int pointer;
     @Setter private VanillaStateLayer<BlendState> vanillaLayer;
+    /**
+     * Set after an indexed blend function call: GL then blends that draw buffer with a function the cached global
+     * function does not describe, so a non-indexed call must not be skipped because it matches the cache. Mirrors
+     * {@link com.gtnewhorizons.angelica.glsm.states.BooleanState#setUnknownState()} for the enable flag.
+     */
+    private boolean funcUnknown;
 
     public BlendStateStack() {
         stack = new BlendState[GLStateManager.MAX_ATTRIB_STACK_DEPTH];
@@ -48,6 +54,25 @@ public class BlendStateStack extends BlendState implements IStateStack<BlendStat
         out.set(this);
         VanillaStateLayer.capture(vanillaLayer, out);
         return out;
+    }
+
+    /** Marks the cached function stale for at least one draw buffer (see {@link #funcUnknown}). */
+    public void setFuncUnknown() {
+        funcUnknown = true;
+    }
+
+    /** Called once a non-indexed blend function reached the backend, which sets every draw buffer to it. */
+    public void clearFuncUnknown() {
+        funcUnknown = false;
+    }
+
+    /** Returns whether a non-indexed blend function call with these factors has to reach the backend. */
+    public boolean needsFuncUpdate(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
+        return funcUnknown
+            || this.srcRgb != srcRgb
+            || this.dstRgb != dstRgb
+            || this.srcAlpha != srcAlpha
+            || this.dstAlpha != dstAlpha;
     }
 
     public boolean isEmpty() {

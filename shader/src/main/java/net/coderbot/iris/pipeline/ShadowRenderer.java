@@ -204,24 +204,26 @@ public class ShadowRenderer {
 	// shadow modelview without allocating a MatrixStack every frame. Static and touching only the target, like the
 	// overload above, so the pass's own shadowModelView is never disturbed.
 	public static MatrixStack createShadowModelView(MatrixStack target, float sunPathRotation, float intervalSize) {
-		final Vector3d entityPos = getShadowCameraAnchor(CapturedRenderingState.INSTANCE.getTickDelta());
+		final Vector3d cameraPos = getShadowCameraAnchor(CapturedRenderingState.INSTANCE.getTickDelta());
 
 		target.reset();
-		ShadowMatrices.createModelViewMatrix(target, getShadowAngle(), intervalSize, sunPathRotation, entityPos.x, entityPos.y, entityPos.z);
+		ShadowMatrices.createModelViewMatrix(target, getShadowAngle(), intervalSize, sunPathRotation, cameraPos.x, cameraPos.y, cameraPos.z);
 
 		return target;
 	}
 
 	private MatrixStack getShadowModelView() {
-		final Vector3d entityPos = getShadowCameraAnchor(CapturedRenderingState.INSTANCE.getTickDelta());
+		final Vector3d cameraPos = getShadowCameraAnchor(CapturedRenderingState.INSTANCE.getTickDelta());
 
 		shadowModelView.reset();
-		ShadowMatrices.createModelViewMatrix(shadowModelView, getShadowAngle(), this.intervalSize, this.sunPathRotation, entityPos.x, entityPos.y, entityPos.z);
+		ShadowMatrices.createModelViewMatrix(shadowModelView, getShadowAngle(), this.intervalSize, this.sunPathRotation, cameraPos.x, cameraPos.y, cameraPos.z);
 		return shadowModelView;
 	}
 
+	// The camera's render origin, the origin of gbufferModelView and cameraPosition (the real camera in third person),
+	// so shadowModelView * playerPos stays consistent with the main pass, as on upstream.
 	private static Vector3d getShadowCameraAnchor(float tickDelta) {
-		return Camera.INSTANCE.getEntityPos();
+		return Camera.INSTANCE.getPos();
 	}
 
 	private static WorldClient getLevel() {
@@ -837,21 +839,21 @@ public class ShadowRenderer {
 		terrainFrustumHolder = createShadowFrustum(renderDistanceMultiplier, terrainFrustumHolder);
 		FRUSTUM = terrainFrustumHolder.getFrustum();
 
-		// Use the player/entity position for shadow rendering
+		// Anchor the shadow pass on the camera's render origin, like getShadowCameraAnchor
 		final float tickDelta = CapturedRenderingState.INSTANCE.getTickDelta();
-		final Vector3d entityPos = playerCamera.getEntityPos();
-		final double entityX = entityPos.x;
-		final double entityY = entityPos.y;
-		final double entityZ = entityPos.z;
-		final double terrainX = entityX;
-		final double terrainY = entityY;
-		final double terrainZ = entityZ;
-		final double renderOriginX = entityX;
-		final double renderOriginY = entityY;
-		final double renderOriginZ = entityZ;
+		final Vector3d cameraPos = playerCamera.getPos();
+		final double cameraX = cameraPos.x;
+		final double cameraY = cameraPos.y;
+		final double cameraZ = cameraPos.z;
+		final double terrainX = cameraX;
+		final double terrainY = cameraY;
+		final double terrainZ = cameraZ;
+		final double renderOriginX = cameraX;
+		final double renderOriginY = cameraY;
+		final double renderOriginZ = cameraZ;
 
-		// Center the frustum on the player position
-		terrainFrustumHolder.getFrustum().setPosition(entityX, entityY, entityZ);
+		// Center the frustum on the camera
+		terrainFrustumHolder.getFrustum().setPosition(cameraX, cameraY, cameraZ);
 
 		profiler.endSection();
 
@@ -879,9 +881,9 @@ public class ShadowRenderer {
 				terrainRenderer.getPlayerViewport(),
 				terrainViewport,
 				new SimpleWorldRenderer.CameraState(
-					entityX,
-					entityY,
-					entityZ,
+					cameraX,
+					cameraY,
+					cameraZ,
 					playerCamera.getPitch(),
 					playerCamera.getYaw(),
 					halfPlaneLength
@@ -918,8 +920,9 @@ public class ShadowRenderer {
 		GLStateManager.glViewport(0, 0, resolution, resolution);
 
 		// Demonica: after the viewport reset, which upstream does after the callbacks, so they draw into the whole
-		// shadow map whatever the terrain draw left; the render origin is the eye position the pass is centred on
-		// (upstream's camera position)
+		// shadow map whatever the terrain draw left; the render origin is the camera's render origin the pass is
+		// centred on (Camera.getPos(): the eye in first person, the real camera in third person), upstream's camera
+		// position
 		if (!ShadowRenderCallbacks.isEmpty()) {
 			profiler.endStartSection("iris_shadow_callbacks");
 			renderShadowCallbacks(renderingPipeline, modelView, renderOriginX, renderOriginY, renderOriginZ, tickDelta);
@@ -941,7 +944,7 @@ public class ShadowRenderer {
 		}
 
 		Frustum entityShadowFrustum = entityFrustumHolder.getFrustum();
-		entityShadowFrustum.setPosition(entityX, entityY, entityZ);
+		entityShadowFrustum.setPosition(cameraX, cameraY, cameraZ);
 
 		// Set viewport for entity visibility checks during shadow pass (matches modern Celeritas)
 		if (terrainRenderer != null) {

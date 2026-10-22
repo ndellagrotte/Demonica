@@ -20,7 +20,8 @@ import org.taumc.celeritas.impl.render.terrain.CeleritasWorldRenderer;
  * The shader-pack hooks of Celeritas's 1.12.2 world renderer:
  * <ul>
  *   <li>S5 (docs/celeritas/patches/S5.md): sections are meshed in the vertex format the pack needs.</li>
- *   <li>S6m (docs/celeritas/patches/S6m.md): terrain drawn relative to the eye gets an eye-anchored model-view.</li>
+ *   <li>S6m (docs/celeritas/patches/S6m.md): terrain drawn relative to the camera's render origin gets a model-view
+ *   anchored on that origin.</li>
  *   <li>S9 (docs/celeritas/patches/S9.md): block entities are drawn in Iris's block-entity phase (and timed for the
  *   perf-debug report).</li>
  * </ul>
@@ -36,10 +37,10 @@ public abstract class CeleritasWorldRendererMixin {
         }
     }
 
-    // Takes effect only for the draw that S8 moved to the eye, so the two shifts apply together or not at all.
+    // Takes effect only for the draw that S8 moved to the render origin, so both shifts apply or neither does.
     @Inject(method = "createChunkRenderMatrices", at = @At("HEAD"), cancellable = true)
-    private void demonica$eyeMatrices(CallbackInfoReturnable<ChunkRenderMatrices> cir) {
-        ChunkRenderMatrices matrices = ShaderTerrain.takeEyeMatrices();
+    private void demonica$originMatrices(CallbackInfoReturnable<ChunkRenderMatrices> cir) {
+        ChunkRenderMatrices matrices = ShaderTerrain.takeOriginMatrices();
         if (matrices != null) {
             cir.setReturnValue(matrices);
         }

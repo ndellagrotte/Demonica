@@ -21,7 +21,11 @@ public class Camera {
     private final Vector3d pos = new Vector3d();
     private final Vector3d entityPos = new Vector3d();
     private BlockPos blockPos = BlockPos.ORIGIN;
-    private final Vector3f offset = new Vector3f();
+    /**
+     * The render origin relative to the interpolated feet, the origin of vanilla's model-view: pos = feet + origin.
+     * gbufferModelView, the terrain draw and the shadow pass are all anchored on it.
+     */
+    private final Vector3f origin = new Vector3f();
     private final Matrix4f inverseModelView = new Matrix4f();
 
     private float pitch;
@@ -42,7 +46,7 @@ public class Camera {
         this.partialTicks = partialTicks;
         this.isSleeping = entity.isPlayerSleeping();
 
-        // Entity position (interpolated, at eye level)
+        // The interpolated feet, the origin of vanilla's model-view; entityPos is the eye above them.
         final double entityX = entity.lastTickPosX + (entity.posX - entity.lastTickPosX) * partialTicks;
         final double entityY = entity.lastTickPosY + (entity.posY - entity.lastTickPosY) * partialTicks;
         final double entityZ = entity.lastTickPosZ + (entity.posZ - entity.lastTickPosZ) * partialTicks;
@@ -52,17 +56,23 @@ public class Camera {
 
         thirdPerson = Minecraft.getMinecraft().gameSettings.thirdPersonView > 0;
 
-        final double camX, camY, camZ;
-        offset.set(0, 0, 0);
-
         if (thirdPerson) {
-            // Third person: use inverse modelview to find camera offset
+            // The real camera: vanilla's model-view (captured at the end of updateRenderInfo) maps it to the view-space
+            // origin. orientCamera's eye height, the third-person distance and view bobbing's translation are all in
+            // it, so the camera bobs while walking in F5, and gbufferModelViewInverse still maps view space onto it
+            // exactly.
             inverseModelView.set(RenderingState.INSTANCE.getModelViewMatrix()).invert();
-            inverseModelView.transformPosition(offset);
+            inverseModelView.transformPosition(origin.set(0f, 0f, 0f));
+        } else {
+            // The eye, without view bobbing, as before. This is wrong while sleeping (orientCamera lifts and turns the
+            // camera there) and under camera mods that translate the first-person model-view; both were already off
+            // with the old eye anchor.
+            origin.set(0f, (float) eyeHeight, 0f);
         }
-        camX = entityX + offset.x;
-        camY = entityY + eyeHeight + offset.y;
-        camZ = entityZ + offset.z;
+
+        final double camX = entityX + origin.x;
+        final double camY = entityY + origin.y;
+        final double camZ = entityZ + origin.z;
 
         pos.set(camX, camY, camZ);
         blockPos = new BlockPos(MathHelper.floor(camX), MathHelper.floor(camY), MathHelper.floor(camZ));

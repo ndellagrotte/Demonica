@@ -1561,19 +1561,21 @@ public class GLStateManager {
         // Cache thread check - only update state on main thread, but always make GL call if needed
         final boolean caching = isCachingEnabled();
         if (GLSMConfig.hudCacheOverride) {
-            if (caching) ctx().blendState.setAll(srcFactor, dstFactor, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            if (caching) {
+                ctx().blendState.setAll(srcFactor, dstFactor, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+                ctx().blendState.clearFuncUnknown();
+            }
             RENDER_BACKEND.blendFuncSeparate(srcFactor, dstFactor, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
             postBlendFuncChange(srcFactor, dstFactor, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
             postVanillaBlendChangeIfMoved(snapshotted);
             return;
         }
         final boolean bypass = BYPASS_CACHE || !caching;
-        if (bypass
-                || ctx().blendState.getSrcRgb() != srcFactor
-                || ctx().blendState.getDstRgb() != dstFactor
-                || ctx().blendState.getSrcAlpha() != srcFactor
-                || ctx().blendState.getDstAlpha() != dstFactor) {
-            if (caching) ctx().blendState.setAll(srcFactor, dstFactor, srcFactor, dstFactor);
+        if (bypass || ctx().blendState.needsFuncUpdate(srcFactor, dstFactor, srcFactor, dstFactor)) {
+            if (caching) {
+                ctx().blendState.setAll(srcFactor, dstFactor, srcFactor, dstFactor);
+                ctx().blendState.clearFuncUnknown();
+            }
             RENDER_BACKEND.blendFunc(srcFactor, dstFactor);
             postBlendFuncChange(srcFactor, dstFactor, srcFactor, dstFactor);
         }
@@ -1632,8 +1634,11 @@ public class GLStateManager {
         // Cache thread check - only update state on main thread, but always make GL call if needed
         final boolean caching = isCachingEnabled();
         final boolean bypass = BYPASS_CACHE || !caching;
-        if (bypass || ctx().blendState.getSrcRgb() != srcRgb || ctx().blendState.getDstRgb() != dstRgb || ctx().blendState.getSrcAlpha() != srcAlpha || ctx().blendState.getDstAlpha() != dstAlpha) {
-            if (caching) ctx().blendState.setAll(srcRgb, dstRgb, srcAlpha, dstAlpha);
+        if (bypass || ctx().blendState.needsFuncUpdate(srcRgb, dstRgb, srcAlpha, dstAlpha)) {
+            if (caching) {
+                ctx().blendState.setAll(srcRgb, dstRgb, srcAlpha, dstAlpha);
+                ctx().blendState.clearFuncUnknown();
+            }
             RENDER_BACKEND.blendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
             postBlendFuncChange(srcRgb, dstRgb, srcAlpha, dstAlpha);
         }
@@ -4111,6 +4116,7 @@ public class GLStateManager {
             final DeferredBlendHandler restoreBlendHandler = GLSMHooks.blendHandler;
             if (restoreBlendHandler == null || !restoreBlendHandler.isOverrideHeld()) {
                 RENDER_BACKEND.blendFuncSeparate(ctx().blendState.getSrcRgb(), ctx().blendState.getDstRgb(), ctx().blendState.getSrcAlpha(), ctx().blendState.getDstAlpha());
+                ctx().blendState.clearFuncUnknown();
             }
             RENDER_BACKEND.blendEquationSeparate(ctx().blendState.getEquationRgb(), ctx().blendState.getEquationAlpha());
             RENDER_BACKEND.blendColor(ctx().blendState.getBlendColorR(), ctx().blendState.getBlendColorG(), ctx().blendState.getBlendColorB(), ctx().blendState.getBlendColorA());
@@ -7753,6 +7759,7 @@ public class GLStateManager {
         RENDER_BACKEND.clearDepth(glCtx.depthState.getClearValue());
 
         RENDER_BACKEND.blendFuncSeparate(glCtx.blendState.getSrcRgb(), glCtx.blendState.getDstRgb(), glCtx.blendState.getSrcAlpha(), glCtx.blendState.getDstAlpha());
+        glCtx.blendState.clearFuncUnknown();
         RENDER_BACKEND.blendEquationSeparate(glCtx.blendState.getEquationRgb(), glCtx.blendState.getEquationAlpha());
         RENDER_BACKEND.blendColor(glCtx.blendState.getBlendColorR(), glCtx.blendState.getBlendColorG(), glCtx.blendState.getBlendColorB(), glCtx.blendState.getBlendColorA());
         RENDER_BACKEND.colorMask(glCtx.colorMask.red, glCtx.colorMask.green, glCtx.colorMask.blue, glCtx.colorMask.alpha);

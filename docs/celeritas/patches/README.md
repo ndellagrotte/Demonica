@@ -33,7 +33,7 @@ public interface TerrainShaderProvider {
                                                                 RenderPassConfiguration<?> configuration); // S2
     default void beginTerrainLayer(Object layer, float partialTicks) {}                   // S8
     default void endTerrainLayer(Object layer) {}                                         // S8
-    default float terrainEyeOffset() { return 0f; }                                       // S6m, S8
+    default @Nullable Vector3fc terrainOrigin() { return null; }                          // S6m, S8
     default @Nullable ChunkRenderMatrices shadowMatrices() { return null; }               // S6s
     default void beginBlockEntities() {}                                                  // S9
     default void endBlockEntities() {}                                                    // S9

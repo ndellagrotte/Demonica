@@ -9,21 +9,53 @@ import lombok.Getter;
 
 import java.util.Objects;
 
+/**
+ * Holds the blend state a shader pass imposes ({@code blend.<program>} and {@code blend.<program>.<buffer>}) against
+ * the application's own blend calls.
+ * <p>
+ * While an override is held, GLSM routes vanilla {@code glEnable/glDisable(GL_BLEND)} and blend function calls here
+ * ({@link #isBlendLocked()}): they are recorded as the vanilla state ({@link #ENABLE_LAYER}, {@link #FUNC_LAYER}) and
+ * reach GL later. What "later" means depends on the override:
+ * <ul>
+ * <li>A global override owns the non-indexed blend state, so vanilla changes wait until {@link #restoreBlend()}.</li>
+ * <li>Per-buffer overrides own only their draw buffers. Vanilla changes still reach GL at the next draw through
+ * {@link #flushDeferredBlend()}, which then re-applies the per-buffer overrides, because a non-indexed
+ * {@code glEnable(GL_BLEND)} or {@code glBlendFuncSeparate} resets every buffer's indexed state. The pass is bound
+ * before vanilla sets up its blending (the glint and particle setup runs after the pass switch), so holding those
+ * calls back until the pass ends drew glint and additive effects with stale state, usually with blending off.</li>
+ * </ul>
+ */
 public class BlendModeStorage {
+	/** Iris's colour attachments; the draw-buffer index of a per-buffer override is below this. */
+	private static final int MAX_DRAW_BUFFERS = 16;
+
 	private static boolean originalBlendEnable;
 	private static final BlendState originalBlend = new BlendState();
 	@Getter private static boolean blendLocked;
 	@Getter private static boolean hasDeferredChanges;
 	@Getter private static boolean overrideHeld;
 	private static boolean hasGlobalOverride;
+	// The per-buffer overrides currently held, keyed by draw-buffer index, so the flush can re-apply them. A bit in
+	// bufferOverrideOffMask means "blending off" for that buffer; otherwise bufferOverrideStates holds its function.
+	private static int bufferOverrideMask;
+	private static int bufferOverrideOffMask;
+	private static final BlendState[] bufferOverrideStates = new BlendState[MAX_DRAW_BUFFERS];
 	private static final BlendStateAccess DEFAULT_STATE_ACCESS = new BlendStateAccessImpl();
 	private static BlendStateAccess stateAccess = DEFAULT_STATE_ACCESS;
+
+	static {
+		for (int i = 0; i < MAX_DRAW_BUFFERS; i++) {
+			bufferOverrideStates[i] = new BlendState();
+		}
+	}
 
 	public static void overrideBlend(BlendState override) {
 		captureVanilla();
 
 		overrideHeld = true;
 		hasGlobalOverride = true;
+		// The non-indexed calls below reset every buffer's indexed state, so earlier buffer overrides are gone.
+		clearBufferOverrides();
 		blendLocked = false;
 		try {
 			if (override == null) {
@@ -40,11 +72,20 @@ public class BlendModeStorage {
 	public static void overrideBufferBlend(int index, BlendState override) {
 		captureVanilla();
 
-		if (override == null) {
-			stateAccess.setBufferBlendEnabled(index, false);
-		} else {
-			stateAccess.setBufferBlendEnabled(index, true);
-			stateAccess.setBufferBlendFunction(index, override);
+		applyBufferOverride(index, override);
+		// Passes are re-used and Celeritas's terrain applies its buffer overrides without a restore in between, so a
+		// later override of the same buffer replaces the stored one.
+		if (index >= 0 && index < MAX_DRAW_BUFFERS) {
+			final int bit = 1 << index;
+			bufferOverrideMask |= bit;
+			if (override == null) {
+				bufferOverrideOffMask |= bit;
+			} else {
+				bufferOverrideOffMask &= ~bit;
+				bufferOverrideStates[index].setAll(
+					override.getSrcRgb(), override.getDstRgb(), override.getSrcAlpha(), override.getDstAlpha()
+				);
+			}
 		}
 
 		blendLocked = true;
@@ -63,13 +104,29 @@ public class BlendModeStorage {
 		hasDeferredChanges = true;
 	}
 
+	/**
+	 * Applies deferred vanilla blend changes before a draw, unless a global override holds the non-indexed state.
+	 * Under per-buffer overrides the vanilla enable and function go to GL and the buffer overrides are re-applied on
+	 * top. {@link #isOverrideHeld()} stays true throughout: the vanilla value GLSM reports does not move, so no
+	 * VANILLA_BLEND_CHANGE (and no pass re-match) starts from inside the pre-draw.
+	 */
 	public static void flushDeferredBlend() {
-		if (!hasDeferredChanges || blendLocked) {
+		if (!hasDeferredChanges || hasGlobalOverride) {
 			return;
 		}
 
-		applyOriginalBlend();
+		final boolean locked = blendLocked;
+		blendLocked = false;
+		try {
+			applyOriginalBlend();
+		} finally {
+			blendLocked = locked;
+		}
 		hasDeferredChanges = false;
+
+		if (locked) {
+			reapplyBufferOverrides();
+		}
 	}
 
 	public static void restoreBlend() {
@@ -79,6 +136,7 @@ public class BlendModeStorage {
 
 		hasGlobalOverride = false;
 		blendLocked = false;
+		clearBufferOverrides();
 		applyOriginalBlend();
 		hasDeferredChanges = false;
 		overrideHeld = false;
@@ -106,6 +164,29 @@ public class BlendModeStorage {
 		stateAccess.setBlendFunction(originalBlend);
 	}
 
+	private static void applyBufferOverride(int index, BlendState override) {
+		if (override == null) {
+			stateAccess.setBufferBlendEnabled(index, false);
+		} else {
+			stateAccess.setBufferBlendEnabled(index, true);
+			stateAccess.setBufferBlendFunction(index, override);
+		}
+	}
+
+	private static void reapplyBufferOverrides() {
+		int mask = bufferOverrideMask;
+		while (mask != 0) {
+			final int index = Integer.numberOfTrailingZeros(mask);
+			mask &= mask - 1;
+			applyBufferOverride(index, (bufferOverrideOffMask & (1 << index)) != 0 ? null : bufferOverrideStates[index]);
+		}
+	}
+
+	private static void clearBufferOverrides() {
+		bufferOverrideMask = 0;
+		bufferOverrideOffMask = 0;
+	}
+
 	static void setBlendStateAccessForTesting(BlendStateAccess access) {
 		stateAccess = Objects.requireNonNull(access, "access");
 		resetStorageState();
@@ -122,6 +203,7 @@ public class BlendModeStorage {
 		hasDeferredChanges = false;
 		overrideHeld = false;
 		hasGlobalOverride = false;
+		clearBufferOverrides();
 	}
 
 	/** Exposes the deferred vanilla enable state to GLSM without replacing the shader override. */

@@ -215,6 +215,16 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   with upstream's `-1` rule (I `IrisInternalUniforms.java:72-73,79-80`).
 - **Verify.** V-build. Probe pack: `iris_DefaultModelViewMatrixInverse` minus `gbufferModelViewInverse` is
   near zero. V-game.
+- **Camera-origin contract (2026-10-21).** One render origin serves every consumer: `Camera.getOrigin` in glsm, the
+  eye in first person and the real camera (`MV^-1 * 0`) in third person, so that world position = feet + origin.
+  `cameraPosition`, `gbufferModelView` (hence `gbufferModelViewInverse[3] = 0` in F5), the S8/S6m terrain draw
+  (`ShaderTerrain.terrainOrigin` and `takeOriginMatrices`) and the shadow pass (`ShadowRenderer`) all use it, where
+  before they were anchored on different points and drifted apart in third person (Complementary's world-position water
+  effects, the pool-rim band, were missing in F5, and shadows were not displaced).
+  `eyePosition` is interpolated so `relativeEyePosition` is 0 in first person. Accepted limitations: F5 view bobbing is
+  included in the origin; first person is wrong while sleeping and under camera mods that translate the model-view,
+  since the eye is taken as the origin there; `MatrixUniforms.getGbufferModelView` re-derives from `RenderingState`, so
+  inside the shadow and portal windows it returns the translated matrix.
 
 ### 1.3 Player, vehicle and look uniforms (lane A)
 
@@ -286,6 +296,13 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   is optional, only if it stays readable.
 - **Verify.** V-build. Unit test over `ProgramFallbackResolver.resolve(id)` for every id against a fixture
   pack in `src/test/resources`: the file when present, the fallback chain otherwise.
+- **Blend-lock contract (2026-10-21).** `BlendModeStorage` has two lock levels. A global override (`blend.<program>`
+  with a function or `off`) defers every vanilla blend change until `restoreBlend`, as before. A buffer-only override
+  (`blend.<program>.colortexN`) no longer holds vanilla back: `flushDeferredBlend` pushes the deferred vanilla enable and
+  function at the next draw and then re-applies the indexed overrides. Complementary's `blend.<program>.colortexN=off`
+  used to lock the whole state and made the enchantment glint draw opaque. `RenderSystem.blendFuncSeparatei` marks
+  GLSM's cached blend function unknown, so the next vanilla `blendFunc` is not skipped as redundant. Tests:
+  `BlendModeStorageTest`, `BlendStateStackTest`.
 
 ### 2.2 Celeritas terrain pass split
 
@@ -313,6 +330,17 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   only through fallback. `// Demonica:` note; revisit if a pack ships `gbuffers_particles_translucent` with
   different blending. (Corrected in 2.3: no id falls back to `ParticlesTrans`, so it is never drawn; §11 item 4.)
 - **Verify.** V-build. Probe pack with `gbuffers_particles.fsh` tinting particles. Sweep unchanged.
+- **Ordering (2026-10-21).** Demonica parses `particles.ordering` but does not consume it:
+  `DeferredWorldRenderingPipeline.shouldRenderParticlesBeforeDeferred` has no caller. Particles always draw at the vanilla
+  1.12 position, before the deferred passes, which equals Iris's `mixed` for 1.12's opaque sheets. Vanilla particles
+  write depth (`ParticleManagerIrisMixin` drops the `depthMask(false)`), so they were never behind the clouds in any
+  scene; a report of Complementary Unbound with Euphoria Patches showing clouds over particles could not be reproduced
+  in the dev client or a production run. What did reproduce is weather: vanilla 1.12 draws rain and snow before the
+  translucent layer and the deferred passes, so packs that composite clouds in deferred (Complementary) drew the clouds
+  over the rain. `EntityRendererIrisMixin.demonica$renderWeather` now defers the draw while a pack is in use and
+  `demonica$renderLateWeather` draws it from `demonica$finalizeIrisWorld`, after the translucent layer and the late
+  clouds, as upstream Iris does. Particles drawn without depth (modded additive particles) would still go under deferred
+  clouds, because `particles.ordering` stays parsed but unused until it is wired up.
 
 ### 2.4 `Lightning`, `ShadowEntities`, `ShadowLightning`, `ShadowBlock`
 
@@ -643,9 +671,10 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   position) and runs them in `TerrainPhaseScope.runCutout` (`TERRAIN_CUTOUT` -> `getShadowCondition` default ->
   `shadow`). The projection stack already holds the shadow projection from `setupGlState`. (2) Placement: after the opaque
   terrain draw and after D's viewport reset (upstream resets the viewport after the callbacks), before entities, profiler
-  section `iris_shadow_callbacks`, skipped when none is registered. (3) Arguments: render origin = `Camera.getEntityPos()`
-  (eye position, the point the shadow model-view and the entity pass are centred on), where upstream passes the camera
-  position (they differ in third person); tick delta = `CapturedRenderingState.getTickDelta()`. (4) Javadoc: the
+  section `iris_shadow_callbacks`, skipped when none is registered. (3) Arguments: render origin = `Camera.getPos()`
+  (the camera's render origin, the point the shadow model-view and the entity pass are centred on: the eye in first
+  person, the real camera in third person, as upstream's camera position); tick delta =
+  `CapturedRenderingState.getTickDelta()`. (4) Javadoc: the
   `RenderPipeline` paragraph and upstream's "any render target may be passed when creating a render pass" sentence are
   gone; a Demonica paragraph documents the state (shadow framebuffer bound and full-map viewport, `shadow` program in use,
   both GLSM matrix stacks loaded, positions relative to the render origin, texture unit 0 left as terrain left it).

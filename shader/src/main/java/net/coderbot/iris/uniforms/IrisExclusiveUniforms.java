@@ -288,9 +288,10 @@ public class IrisExclusiveUniforms {
 		return GameModeUtil.isSpectator();
 	}
 
+	// Upstream's getEyePosition(tickDelta): the view entity's eye, interpolated the way Camera interpolates the
+	// feet under cameraPosition, so relativeEyePosition is 0 in first person and the camera offset in third person.
 	private static Vector3d getEyePosition() {
-        final EntityLivingBase eye = (EntityLivingBase) Minecraft.getMinecraft().getRenderViewEntity();
-        return eyePositionCache.set(eye.posX, eye.posY + eye.getEyeHeight(), eye.posZ);
+		return eyePositionCache.set(Camera.INSTANCE.getEntityPos());
 	}
 
 	private static Vector3d getRelativeEyePosition() {
