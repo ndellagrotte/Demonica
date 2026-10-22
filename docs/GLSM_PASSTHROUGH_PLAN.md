@@ -208,7 +208,10 @@ draw (`diagnostics/.../probe/GlStateDiffProbe.java:25-27`) and is the model.
 Iris's `BlendModeStorage`, `AlphaTestStorage` and `DepthColorStorage` lock a state and want the application's calls to it
 deferred while locked and reapplied at unlock (`B:113-184`, `D/gl/blending/*Storage.java`). On passthrough this is the one
 place a call does not reach the driver, and it is by design: while `isBlendLocked()`, `PassthroughGl.glBlendFunc`
-records the request in the mirror's "requested" slot and returns; `restoreBlend` reapplies the requested value. Nothing
+records the request in the mirror's "requested" slot and returns; `restoreBlend` reapplies the requested value. That
+wait holds only for a global override (`blend.<program>`): under per-buffer overrides alone, `flushDeferredBlend` pushes
+the requested enable and function at the next draw and re-applies the indexed overrides on top, because the pass binds
+before vanilla sets up glint and particle blending and holding the requests back draws them with stale state. Nothing
 else changes in the Iris side: the three handlers and `flushDeferredBlend` keep their contract, the six vanilla layers
 (`setVanillaLayer` on the stacks, `B:140-145`) are the part that goes, because there are no stacks; `isEffectiveBlendEnabled`
 and `getEffectiveBlendState` (used by `TranslucentBlendMatcher`, `D/gbuffer_overrides/matching/TranslucentBlendMatcher.java:15-18`)

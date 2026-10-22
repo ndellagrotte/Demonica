@@ -3,6 +3,8 @@ package com.demonica.render;
 import com.gtnewhorizons.angelica.client.rendering.GlUniformFloat2v;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.RenderSystem;
+import com.gtnewhorizons.angelica.glsm.hooks.DeferredBlendHandler;
+import com.gtnewhorizons.angelica.glsm.hooks.GLSMHooks;
 import com.gtnewhorizons.angelica.glsm.states.Color4;
 import com.gtnewhorizons.angelica.glsm.states.ColorMask;
 import com.gtnewhorizons.angelica.glsm.states.ViewportState;
@@ -211,6 +213,13 @@ public final class EndPortalCompositeRenderer {
     }
 
     private static void update(CacheEntry entry, List<EndPortalLayers.Layer> layers) {
+        // Under per-buffer blend overrides the draw below would first push pending vanilla blend state with a
+        // non-indexed glEnable(GL_BLEND) and re-apply the pass's buffer overrides, undoing the disableBufferBlend(0)
+        // the composite relies on. Flushing here makes that draw-time flush a no-op.
+        final DeferredBlendHandler blendHandler = GLSMHooks.blendHandler;
+        if (blendHandler != null) {
+            blendHandler.flushDeferredBlend();
+        }
         SavedState saved = SavedState.capture();
         try {
             TextureManager textures = Minecraft.getMinecraft().getTextureManager();
