@@ -344,8 +344,8 @@ public class CompatShaderTransformer {
         boolean continuation = false;
         boolean inBlockComment = false;
         boolean shaderStarted = false;
-        boolean macroDirectiveSeen = false;
         int conditionalDepth = 0;
+        final Map<String, String> macros = new HashMap<>();
 
         for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
             final String line = lines[lineIndex];
@@ -362,9 +362,12 @@ public class CompatShaderTransformer {
                     classification.directiveOffset(),
                     directiveName,
                     shader,
-                    macroDirectiveSeen
+                    macros
                 )) {
                     throw unsafePreprocessorLayout(lineIndex, "directive appears after GLSL tokens");
+                }
+                if (isMacroDirective(directiveName)) {
+                    applyMacroDirective(line, classification.directiveOffset(), directiveName, macros);
                 }
                 if ("line".equals(directiveName)) {
                     throw unsafePreprocessorLayout(lineIndex, "#line cannot be relocated without changing line semantics");
@@ -378,7 +381,6 @@ public class CompatShaderTransformer {
                 }
 
                 conditionalDepth = updateConditionalDepth(directiveName, conditionalDepth, lineIndex);
-                macroDirectiveSeen |= isMacroDirective(directiveName);
                 continuation = classification.trailingBackslash();
             } else {
                 if (classification.shaderToken()) {
@@ -448,7 +450,6 @@ public class CompatShaderTransformer {
         final StringBuilder leadingComments = new StringBuilder();
         boolean inBlockComment = false;
         boolean shaderStarted = false;
-        boolean macroDirectiveSeen = false;
         final Deque<ConditionalState> conditionals = new ArrayDeque<>();
         final Map<String, String> macros = new HashMap<>();
 
@@ -501,13 +502,15 @@ public class CompatShaderTransformer {
                     }
                     case "define", "undef" -> {
                         if (live) {
+                            // Decided before the directive updates the macro table: a late #define of a
+                            // name that is already defined is a redefinition and must keep its point.
+                            final boolean relocatable = !shaderStarted || canRelocateLateMacro(
+                                    line, classification.directiveOffset(), directiveName, shader, macros);
                             applyMacroDirective(line, classification.directiveOffset(), directiveName, macros);
-                            if (shaderStarted && !canRelocateLateMacro(
-                                    line, classification.directiveOffset(), directiveName, shader, macroDirectiveSeen)) {
+                            if (!relocatable) {
                                 throw unsafePreprocessorLayout(lineIndex, "directive appears after GLSL tokens");
                             }
                             preprocessor.append(line).append('\n');
-                            macroDirectiveSeen = true;
                         }
                     }
                     default -> {
@@ -881,14 +884,23 @@ public class CompatShaderTransformer {
         return matcher.lookingAt() ? matcher.group(1).toLowerCase(Locale.ROOT) : "";
     }
 
+    /**
+     * Whether a {@code #define}/{@code #undef} that appears after GLSL tokens can move into the preamble
+     * without changing what the shader means. Macros expand at their use sites, so the directive's point
+     * in the file only matters relative to uses of its name and to other definitions of it: a name that
+     * nothing before this line mentions (not as an identifier, not as a declaration) and that is not
+     * currently defined behaves the same whether it is defined here or at the top. GasPunk's gas_overlay
+     * shader, for example, defines its {@code bayer4(a)..bayer128(a)} helper macros right before
+     * {@code main}, after the {@code bayer2} function they expand to, with other macros in the preamble.
+     */
     private static boolean canRelocateLateMacro(
         String line,
         int directiveOffset,
         String directiveName,
         CharSequence precedingShader,
-        boolean macroDirectiveSeen
+        Map<String, String> macros
     ) {
-        if (macroDirectiveSeen || !isMacroDirective(directiveName)) {
+        if (!isMacroDirective(directiveName)) {
             return false;
         }
 
@@ -896,8 +908,14 @@ public class CompatShaderTransformer {
         if (!matcher.lookingAt()) {
             return false;
         }
+        final String name = matcher.group(1);
 
-        final Pattern previousUse = Pattern.compile("\\b" + Pattern.quote(matcher.group(1)) + "\\b");
+        if ("define".equals(directiveName) && macros.containsKey(name)) {
+            // A redefinition: moving it in front of the earlier definition would swap their order.
+            return false;
+        }
+
+        final Pattern previousUse = Pattern.compile("\\b" + Pattern.quote(name) + "\\b");
         return !previousUse.matcher(precedingShader).find();
     }
 

@@ -64,6 +64,7 @@ public class GLSMRedirector {
     private static final String GLSYNC_TYPE = "Lorg/lwjgl/opengl/GLSync;";
 
     private static final String DRAWABLE = "org/lwjgl/opengl/Drawable";
+    private static final String DISPLAY = "org/lwjgl/opengl/Display";
     private static final String GL_STATE_MANAGER = "com/gtnewhorizons/angelica/glsm/GLStateManager";
     private static final String GL_PREFIX = "org/lwjgl/opengl/GL";
     private static final String ARB_VERTEX_ARRAY_OBJECT = "org/lwjgl/opengl/ARBVertexArrayObject";
@@ -495,6 +496,7 @@ public class GLSMRedirector {
             .add("glClearTexImage");
         Map<String, String> gl45 = RedirectMap.newMap()
             .add("glCreateBuffers")
+            .add("glCreateTextures")
             .add("glNamedBufferData")
             .add("glNamedBufferSubData");
         Map<String, String> gl46 = RedirectMap.newMap()
@@ -771,6 +773,11 @@ public class GLSMRedirector {
             .add("disableBlendProfile")
         );
         METHOD_REDIRECTS.put(EXT_BLEND_FUNC, RedirectMap.newMap().add("glBlendFuncSeparateEXT", "tryBlendFuncSeparate"));
+        // lwjgly (Cleanroom 0.7) switches the window context with these statics; GLSM tracks which thread owns it.
+        METHOD_REDIRECTS.put(DISPLAY, RedirectMap.newMap()
+            .add("makeCurrent", "makeCurrentDisplay")
+            .add("releaseContext", "releaseContextDisplay")
+            .add("update", "updateDisplay"));
         METHOD_REDIRECTS.put(EXT_SECONDARY_COLOR, RedirectMap.newMap()
             .add("glSecondaryColor3bEXT", "glSecondaryColor3b")
             .add("glSecondaryColor3fEXT", "glSecondaryColor3f")

@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -155,6 +156,52 @@ class CompatShaderTransformerTest {
             "#define PORTAL_SCALE 2.0",
             "const float secondScale"
         );
+    }
+
+    @Test
+    void lateFunctionLikeMacrosAfterTheirHelperFunctionMoveIntoThePreamble() {
+        // GasPunk's gas_overlay.fsh: macros in the preamble, a helper function, then the function-like
+        // macros that expand to it, defined right before main. Nothing before line 7 names bayer4..bayer8.
+        String source = """
+            #version 120
+            #define totalSteps 4
+            uniform sampler2D noise;
+            float bayer2(vec2 a){
+                a = floor(a);
+                return fract( dot(a, vec2(.5, a.y * .75)) );
+            }
+              #define bayer4(a)   (bayer2( .5*(a))*.25+bayer2(a))
+              #define bayer8(a)   (bayer4( .5*(a))*.25+bayer2(a))
+
+            void main() {
+                float d = bayer8(gl_FragCoord.xy) * float(totalSteps);
+                gl_FragColor = texture2D(noise, vec2(d));
+            }
+            """;
+
+        String transformed = CompatShaderTransformer.transform(source, true);
+
+        assertNotEquals("#version 330 core\n" + source, transformed, "the AST path must not fall back:\n" + transformed);
+        assertOrdered(transformed, "#version 330 core", "#define totalSteps 4", "#define bayer4(a)", "#define bayer8(a)", "float bayer2(vec2 a)", "bayer8(gl_FragCoord.xy)");
+        assertTrue(hasIdentifier(transformed, "bayer8"));
+    }
+
+    @Test
+    void lateMacroWhoseNameWasAlreadyUsedKeepsItsPointInSource() {
+        // bayer4 is a real function here; a later macro of the same name must not move in front of it.
+        String source = """
+            #define totalSteps 4
+            float bayer4(vec2 a){ return fract(a.x); }
+            #define bayer4(a) (0.5)
+
+            void main() {
+                gl_FragColor = vec4(bayer4(gl_FragCoord.xy));
+            }
+            """;
+
+        String transformed = CompatShaderTransformer.transform(source, true);
+
+        assertEquals("#version 330 core\n" + source, transformed);
     }
 
     @Test

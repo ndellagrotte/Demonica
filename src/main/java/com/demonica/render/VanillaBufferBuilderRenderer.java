@@ -12,6 +12,9 @@ import net.minecraft.client.renderer.vertex.VertexFormatElement;
 import com.demonica.celeritas.api.debug.RenderDebugHooksHolder;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL30;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
@@ -20,7 +23,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class VanillaBufferBuilderRenderer {
+    private static final Logger LOGGER = LogManager.getLogger("DemonicaBufferBuilder");
     private static final Map<VertexFormat, Integer> VAOS = new HashMap<>();
+    /** -Ddemonica.debug.splashDraws=true logs the first BufferBuilder draws issued while the splash screen runs. */
+    private static final boolean SPLASH_DRAW_DEBUG = Boolean.getBoolean("demonica.debug.splashDraws");
+    private static int splashDrawsLogged;
     private static final Map<VertexFormat, Integer> VBOS = new HashMap<>();
     private static final Map<VertexFormat, Integer> VERTEX_FLAGS = new HashMap<>();
     /**
@@ -86,6 +93,13 @@ public final class VanillaBufferBuilderRenderer {
 
         int savedVbo = GLStateManager.getBoundVBO();
         GLStateManager.glBindVertexArray(vao);
+        if (SPLASH_DRAW_DEBUG && !GLStateManager.isSplashComplete() && splashDrawsLogged < 40) {
+            splashDrawsLogged++;
+            LOGGER.info("[splashDraw] {} mode {} verts {} flags 0x{} vao {} (born on this context: {}) vbo {}; {}; real VAO binding {}",
+                format, drawMode, vertexCount, Integer.toHexString(vertexFlags), vao,
+                VanillaVertexBufferRenderer.vaoMatchesCurrentContext(vao), vbo,
+                GLStateManager.describeSplashStateForDebug(), GLStateManager.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING));
+        }
         GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
         GLStateManager.glBufferData(GL15.GL_ARRAY_BUFFER, upload, GL15.GL_STREAM_DRAW);
         if (sideLayout != null) {

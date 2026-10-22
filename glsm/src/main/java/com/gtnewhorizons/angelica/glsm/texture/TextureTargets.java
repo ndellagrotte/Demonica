@@ -21,6 +21,12 @@ public final class TextureTargets {
     /** Returned by {@link #remove} for a name GLSM never saw bound. */
     public static final int UNKNOWN = 0;
 
+    /**
+     * A name from glGenTextures that no bind has turned into a texture object yet (glIsTexture is false). Not a
+     * target: GLSM keeps such a name reserved instead of deleting or shrinking it.
+     */
+    public static final int FRESH = -1;
+
     private final Int2IntOpenHashMap targets = new Int2IntOpenHashMap();
 
     public TextureTargets() {
@@ -44,5 +50,10 @@ public final class TextureTargets {
      */
     public static boolean isDeferrable(int target) {
         return target == GL11.GL_TEXTURE_2D;
+    }
+
+    /** Whether {@code target} names a kind of texture at all, rather than {@link #UNKNOWN} or {@link #FRESH}. */
+    public static boolean isKnown(int target) {
+        return target > 0;
     }
 }

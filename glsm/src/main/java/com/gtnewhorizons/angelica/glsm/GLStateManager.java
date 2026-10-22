@@ -270,6 +270,10 @@ public class GLStateManager {
     // Only GL_TEXTURE_2D names GLSM saw bound take that path; textureTargets says which those are.
     private static final IntOpenHashSet deferredDeleteTextures = new IntOpenHashSet();
     private static final TextureTargets textureTargets = new TextureTargets();
+    /** -Ddemonica.debug.textureDeletes=true logs every texture delete decision, generation and flush with its thread. */
+    private static final boolean DEBUG_TEXTURE_DELETES = Boolean.getBoolean("demonica.debug.textureDeletes");
+    /** GL_TEXTURE_TARGET: the target a texture object was created for (GL 4.5 / ARB_direct_state_access). */
+    private static final int GL_TEXTURE_TARGET = 0x1006;
     private static long loggedUncachedTextureTargets = 0;
 
     @Getter private static Vendor VENDOR;
@@ -2406,15 +2410,28 @@ public class GLStateManager {
     private static void deferDeleteTexture(int id) {
         if (id == 0) return;
 
-        final int target = textureTargets.remove(id);
+        final int recorded = textureTargets.remove(id);
+        final int target = resolveDeletedTextureTarget(id, recorded);
+        if (target == TextureTargets.FRESH) {
+            // A name from glGenTextures that no bind turned into a texture object yet: vanilla's
+            // TextureUtil.allocateTextureImpl deletes every new name right before binding it. There is nothing
+            // to shrink, and a real delete would hand the name to the next glGenTextures on any thread (the
+            // splash thread's, for one) while this thread is about to bind it. Reserve it instead: the bind
+            // rescues it, and the next glGenTextures flush drops it if nothing did.
+            if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] reserve fresh name {} on {}", id, Thread.currentThread().getName());
+            deferredDeleteTextures.add(id);
+            return;
+        }
         if (!TextureTargets.isDeferrable(target)) {
             // GL_TEXTURE_2D_ARRAY / 3D / cube map / rectangle / buffer, or a DSA texture GLSM never saw bound
             // (Kirino's glyph atlas): the 2D shrink below would be an INVALID_OPERATION bind followed by a
             // texImage2D on whatever 2D texture really is bound, which is how the vanilla font got corrupted.
             // Delete it as the spec says.
+            if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] delete {} target 0x{} (recorded 0x{}) on {}", id, Integer.toHexString(target), Integer.toHexString(recorded), Thread.currentThread().getName());
             RENDER_BACKEND.deleteTextures(id);
             return;
         }
+        if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] shrink 2D {} (recorded 0x{}) on {}, cached unit {} binding {}", id, Integer.toHexString(recorded), Thread.currentThread().getName(), ctx().activeTextureUnit.getValue(), ctx().textures.getTextureUnitBindings(ctx().activeTextureUnit.getValue()).getBinding());
 
         final int savedUnit = ctx().activeTextureUnit.getValue();
         final int savedBinding = ctx().textures.getTextureUnitBindings(savedUnit).getBinding();
@@ -2445,9 +2462,26 @@ public class GLStateManager {
         deferredDeleteTextures.add(id);
     }
 
+    /**
+     * What kind of texture a name about to be deleted is. With direct state access the driver is asked
+     * (the name may have been created with glCreateTextures, bound on another context, or recycled since GLSM
+     * last saw it bound); without it the target GLSM recorded at the last bind is all there is.
+     */
+    private static int resolveDeletedTextureTarget(int id, int recorded) {
+        if (!RenderSystem.hasDirectStateAccess()) {
+            return recorded;
+        }
+        if (!RENDER_BACKEND.isTexture(id)) {
+            return TextureTargets.FRESH;
+        }
+        final int target = RENDER_BACKEND.getTextureParameteri(id, 0, GL_TEXTURE_TARGET);
+        return target != 0 ? target : recorded;
+    }
+
     /** Flush deferred deletes so the driver can recycle names. */
     private static void flushDeferredTextureDeletes() {
         if (deferredDeleteTextures.isEmpty()) return;
+        if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] flush {} on {}", deferredDeleteTextures, Thread.currentThread().getName());
         final var it = deferredDeleteTextures.iterator();
         while (it.hasNext()) {
             RENDER_BACKEND.deleteTextures(it.nextInt());
@@ -2455,22 +2489,90 @@ public class GLStateManager {
         deferredDeleteTextures.clear();
     }
 
+    /** A name the driver just handed out is a new object: whatever GLSM recorded for that number is stale. */
+    private static int generatedTexture(int texture) {
+        textureTargets.remove(texture);
+        if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] gen {} on {}", texture, Thread.currentThread().getName());
+        return texture;
+    }
+
     public static int glGenTextures() {
         flushDeferredTextureDeletes();
-        return RENDER_BACKEND.genTextures();
+        return generatedTexture(RENDER_BACKEND.genTextures());
     }
 
     public static void glGenTextures(IntBuffer textures) {
         flushDeferredTextureDeletes();
         RENDER_BACKEND.genTextures(textures);
+        for (int i = 0; i < textures.remaining(); i++) {
+            generatedTexture(textures.get(textures.position() + i));
+        }
     }
 
     /** Array form of {@link #glGenTextures(IntBuffer)}: the redirect target for LWJGL 3's {@code GL11C.glGenTextures(int[])}. */
     public static void glGenTextures(int[] textures) {
         flushDeferredTextureDeletes();
         for (int i = 0; i < textures.length; i++) {
-            textures[i] = RENDER_BACKEND.genTextures();
+            textures[i] = generatedTexture(RENDER_BACKEND.genTextures());
         }
+    }
+
+    /**
+     * DSA texture creation (GL 4.5 {@code glCreateTextures}): the object exists with its target from the start and
+     * never passes through {@link #glBindTexture}, so the target is recorded here. Kirino's glyph atlas is one.
+     */
+    public static int glCreateTextures(int target) {
+        final int texture = generatedTexture(RENDER_BACKEND.createTextures(target));
+        textureTargets.record(texture, target);
+        return texture;
+    }
+
+    public static void glCreateTextures(int target, IntBuffer textures) {
+        for (int i = textures.position(); i < textures.limit(); i++) {
+            textures.put(i, glCreateTextures(target));
+        }
+    }
+
+    public static void glCreateTextures(int target, int[] textures) {
+        for (int i = 0; i < textures.length; i++) {
+            textures[i] = glCreateTextures(target);
+        }
+    }
+
+    /** GLSM's view of the calling thread while the splash runs: who caches, and what unit 0 looks like cached and real. */
+    public static String describeSplashStateForDebug() {
+        final Thread holder = drawableGLHolder;
+        final int unit = ctx().activeTextureUnit.getValue();
+        return "caching " + isCachingEnabled() + " (holder " + (holder == null ? "none" : holder.getName())
+            + ", splashComplete " + splashComplete + "), cached unit " + unit
+            + " binding " + ctx().textures.getTextureUnitBindings(unit).getBinding()
+            + " texture2D " + (ctx().textures.getTextureUnitStates(unit).isEnabled() ? "on" : "off")
+            + ", real active unit " + (RENDER_BACKEND.getInteger(GL13.GL_ACTIVE_TEXTURE) - GL13.GL_TEXTURE0)
+            + " binding " + RENDER_BACKEND.getInteger(GL11.GL_TEXTURE_BINDING_2D)
+            + " texture2D " + (RENDER_BACKEND.getBoolean(GL11.GL_TEXTURE_2D) ? "on" : "off")
+            + ", real program " + RENDER_BACKEND.getInteger(GL20.GL_CURRENT_PROGRAM)
+            + ", blend " + (RENDER_BACKEND.getBoolean(GL11.GL_BLEND) ? "on" : "off");
+    }
+
+    /** One line about a texture name for diagnostics: existence, target, level-0 size, and GLSM's unit-0 view of it. */
+    public static String describeTextureForDebug(int id) {
+        final StringBuilder sb = new StringBuilder("texture ").append(id);
+        if (RenderSystem.hasDirectStateAccess()) {
+            final boolean exists = RENDER_BACKEND.isTexture(id);
+            sb.append(exists ? " exists" : " is not a texture object");
+            if (exists) {
+                sb.append(", target 0x").append(Integer.toHexString(RENDER_BACKEND.getTextureParameteri(id, 0, GL_TEXTURE_TARGET)))
+                  .append(", level 0 ").append(RENDER_BACKEND.getTextureLevelParameteri(id, 0, GL11.GL_TEXTURE_WIDTH))
+                  .append('x').append(RENDER_BACKEND.getTextureLevelParameteri(id, 0, GL11.GL_TEXTURE_HEIGHT));
+            }
+        }
+        sb.append("; cached unit 0 binding ").append(ctx().textures.getTextureUnitBindings(0).getBinding())
+          .append(", texture2D ").append(ctx().textures.getTextureUnitStates(0).isEnabled() ? "enabled" : "disabled")
+          .append(", active unit ").append(ctx().activeTextureUnit.getValue())
+          .append("; real binding ").append(RENDER_BACKEND.getInteger(GL11.GL_TEXTURE_BINDING_2D))
+          .append(", deferred ").append(deferredDeleteTextures.size())
+          .append(", caching ").append(isCachingEnabled());
+        return sb.toString();
     }
 
     public static void enableTexture() {
@@ -3854,6 +3956,38 @@ public class GLStateManager {
             if (ctx().textures.getTextureUnitBindings(i).getBinding() == id) {
                 ctx().textures.getTextureUnitBindings(i).setBinding(0);
             }
+        }
+    }
+
+    /**
+     * Redirect target for lwjgly's static {@code Display.makeCurrent()}, which is how Cleanroom 0.7's FML splash
+     * (and anything else on lwjgly) takes the window context: the splash thread at its start, the main thread at
+     * finish. Cleanroom 0.6's lwjglx went through {@link Drawable#makeCurrent()} instead, which
+     * {@link #makeCurrent(Drawable)} covers; without this, GLSM kept treating the main thread as the window
+     * context's owner for the whole splash, so the splash thread's binds and enables never reached the cache
+     * and its textured quads drew flat white.
+     */
+    public static void makeCurrentDisplay() throws LWJGLException {
+        Display.makeCurrent();
+        CurrentThread = Thread.currentThread();
+        if (splashComplete) return;
+        if (drawableGL == null) {
+            drawableGL = Display.getDrawable();
+        }
+        drawableGLHolder = CurrentThread;
+    }
+
+    /** Redirect target for the static {@code Display.update()}: the frame is complete, the swap comes next. */
+    public static void updateDisplay() {
+        SplashFrameDump.beforeSwap();
+        Display.update();
+    }
+
+    /** Redirect target for the static {@code Display.releaseContext()}: the thread gives the window context up. */
+    public static void releaseContextDisplay() throws LWJGLException {
+        Display.releaseContext();
+        if (!splashComplete && drawableGLHolder == Thread.currentThread()) {
+            drawableGLHolder = null;
         }
     }
 

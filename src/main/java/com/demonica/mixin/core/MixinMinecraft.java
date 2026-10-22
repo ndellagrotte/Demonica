@@ -1,5 +1,6 @@
 package com.demonica.mixin.core;
 
+import com.demonica.debug.FontTextureProbe;
 import com.demonica.render.EndPortalCompositeRenderer;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
 import net.coderbot.iris.debug.GlFlight;
@@ -15,6 +16,7 @@ public class MixinMinecraft {
     // recorder's frame markers are in the diagnostics jar (MinecraftFlightRecorderMixin).
     @Inject(method = "runGameLoop", at = @At("HEAD"))
     private void beginRenderFrame(CallbackInfo ci) {
+        FontTextureProbe.onFrame();
         EndPortalCompositeRenderer.beginFrame();
     }
 
