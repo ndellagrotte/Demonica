@@ -232,7 +232,7 @@ precedence, and the bundled copy steps aside.
   `mods/memory_repo/com/demonica/zz-demonica-bundled-celeritas/` behind, which
   nothing loads without Demonica's jar; delete it to free the space. Demonica
   0.8.2 and earlier left `mods/1.12.2/zz-demonica-bundled-celeritas-*.jar`
-  instead, which loads as a standalone Celeritas: a Demonica from 0.8.3 on
+  instead, which loads as a standalone Celeritas: a Demonica from 0.9.0 on
   deletes it on its first launch, or delete it by hand.
 
 ## In Demonica's build
