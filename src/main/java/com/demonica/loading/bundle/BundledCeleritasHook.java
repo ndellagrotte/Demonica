@@ -93,7 +93,7 @@ public final class BundledCeleritasHook {
 
     /**
      * Whether copies of Celeritas that an older Demonica extracted to {@code mods/1.12.2} (under an older pin's name, or
-     * this pin's name before 0.8.3 moved the extraction to the repository) are deleted from disk, rather than only left
+     * this pin's name before 0.9.0 moved the extraction to the repository) are deleted from disk, rather than only left
      * out of this launch. Cleanroom never deletes an extracted jar, so without this they would stay, and a copy in
      * {@code mods/1.12.2} loads as a standalone Celeritas once Demonica's jar is disabled. Older pins' folders in the
      * repository are deleted too. The Celeritas jar the player installed is never deleted or changed, whatever this
