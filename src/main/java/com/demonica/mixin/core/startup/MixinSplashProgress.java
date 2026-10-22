@@ -3,6 +3,7 @@ package com.demonica.mixin.core.startup;
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
 import com.gtnewhorizons.angelica.glsm.recording.ImmediateModeRecorder;
 import com.gtnewhorizons.angelica.glsm.streaming.TessellatorStreamingDrawer;
+import com.demonica.debug.FontTextureProbe;
 import com.demonica.render.VanillaBufferBuilderRenderer;
 import com.demonica.render.VanillaVertexBufferRenderer;
 import org.apache.logging.log4j.LogManager;
@@ -58,5 +59,6 @@ public class MixinSplashProgress {
         GLStateManager.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
         GLStateManager.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
         GLStateManager.markSplashComplete();
+        FontTextureProbe.probe("splash finish");
     }
 }

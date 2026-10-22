@@ -52,6 +52,16 @@ class TextureTargetsTest {
     }
 
     @Test
+    void freshAndUnknownNamesAreNeitherDeferrableNorKnown() {
+        // FRESH: a glGenTextures name no bind has turned into an object yet (GLSM reserves it instead).
+        assertFalse(TextureTargets.isDeferrable(TextureTargets.FRESH));
+        assertFalse(TextureTargets.isKnown(TextureTargets.FRESH));
+        assertFalse(TextureTargets.isKnown(TextureTargets.UNKNOWN));
+        assertTrue(TextureTargets.isKnown(GL11.GL_TEXTURE_2D));
+        assertTrue(TextureTargets.isKnown(GL30.GL_TEXTURE_2D_ARRAY));
+    }
+
+    @Test
     void nameZeroIsNeverRecorded() {
         TextureTargets targets = new TextureTargets();
         targets.record(0, GL11.GL_TEXTURE_2D);

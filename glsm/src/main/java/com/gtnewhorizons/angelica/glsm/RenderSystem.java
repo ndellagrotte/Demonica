@@ -63,6 +63,11 @@ public class RenderSystem {
 
     private static boolean rendererInitialized;
 
+    /** Whether named-texture queries (glGetTextureParameteriv and friends) can be issued: GL 4.5 or ARB_direct_state_access. */
+    public static boolean hasDirectStateAccess() {
+        return dsaState != null && !(dsaState.getClass() == com.gtnewhorizons.angelica.glsm.dsa.DSAUnsupported.class);
+    }
+
     public static void initRenderer() {
         if (rendererInitialized) return;
         rendererInitialized = true;

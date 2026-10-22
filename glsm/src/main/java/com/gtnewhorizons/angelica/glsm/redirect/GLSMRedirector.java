@@ -495,6 +495,7 @@ public class GLSMRedirector {
             .add("glClearTexImage");
         Map<String, String> gl45 = RedirectMap.newMap()
             .add("glCreateBuffers")
+            .add("glCreateTextures")
             .add("glNamedBufferData")
             .add("glNamedBufferSubData");
         Map<String, String> gl46 = RedirectMap.newMap()
