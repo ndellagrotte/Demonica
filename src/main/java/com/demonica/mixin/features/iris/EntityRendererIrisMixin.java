@@ -67,6 +67,16 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
     protected abstract void renderRainSnow(float partialTicks);
 
     @Shadow
+    private void setupFog(int startCoords, float partialTicks) {
+    }
+
+    // Set when demonica$renderWeather skips the vanilla-position weather draw so the finalize hook draws it instead. The
+    // finalize hook reads and clears it every pass, so weather is drawn exactly once per pass and a flag left behind by an
+    // exception cannot cause a stray draw in a later pass.
+    @Unique
+    private boolean demonica$weatherDeferred;
+
+    @Shadow
     private void addRainParticles() {
     }
 
@@ -363,6 +373,8 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         if (RenderWorldRecursionGuard.isNested()) {
             return;
         }
+        boolean weatherDeferred = this.demonica$weatherDeferred;
+        this.demonica$weatherDeferred = false;
         if (!Iris.enabled || !IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
             return;
         }
@@ -370,6 +382,9 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
         if (pipeline != null) {
             demonica$renderLateClouds(partialTicks, pass, pipeline);
+            if (weatherDeferred) {
+                demonica$renderLateWeather(partialTicks, pipeline);
+            }
         }
 
         MinecraftFramebufferHelper.restoreMinecraftFramebufferBuffers();
@@ -519,6 +534,13 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
         }
     }
 
+    // 1.12.2 draws rain and snow before the translucent terrain layer, and so before ShaderTerrain.beginLayer runs the
+    // pipeline's beginTranslucents (the hand's solid parts, then the deferred passes). Upstream draws weather in the
+    // modern vanilla order, after the translucent layer, the deferred passes and the clouds (MixinLevelRenderer,
+    // RENDER_WEATHER). Packs rely on that: Complementary draws its volumetric clouds in a deferred pass limited by
+    // depthtex0, which weather does not write, so weather drawn before it ends at the cloud silhouette. While a pack is
+    // in use the draw therefore moves to the finalize hook (demonica$renderLateWeather), after the late clouds. Without
+    // a pack (the vanilla pipeline has no deferred passes), with Iris off and in a nested pass it stays here.
     @Redirect(
         method = "renderWorldPass(IFJ)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;renderRainSnow(F)V")
@@ -538,7 +560,33 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
             this.renderRainSnow(partialTicks);
             return;
         }
+        if (IrisApiV0Impl.INSTANCE.isShaderPackInUse()) {
+            this.demonica$weatherDeferred = true;
+            return;
+        }
 
+        demonica$drawWeatherPhase(partialTicks, pipeline);
+    }
+
+    // The moved weather draw, with the state vanilla's renderWorldPass gives it at its own position: depth writes off,
+    // culling on and the terrain fog of setupFog(0), on a flat shade model with blending off (which the end of the
+    // translucent section already leaves). Afterwards the state the finalize hook found is put back: depth writes on
+    // and fog off. renderRainSnow sets up and restores its own blend, alpha, cull and lightmap state.
+    @Unique
+    private void demonica$renderLateWeather(float partialTicks, WorldRenderingPipeline pipeline) {
+        IrisGlDebug.recordWorldPassStage("weather");
+        this.mc.profiler.endStartSection("weather");
+        GLStateManager.glDepthMask(false);
+        GLStateManager.enableCull();
+        this.setupFog(0, partialTicks);
+        demonica$drawWeatherPhase(partialTicks, pipeline);
+        GLStateManager.glDepthMask(true);
+        GLStateManager.disableFog();
+        IrisGlDebug.recordWorldPassStage("weather-to-finalize");
+    }
+
+    @Unique
+    private void demonica$drawWeatherPhase(float partialTicks, WorldRenderingPipeline pipeline) {
         pipeline.setPhase(WorldRenderingPhase.RAIN_SNOW);
         if (pipeline.shouldWriteRainAndSnowToDepthBuffer()) {
             GLStateManager.glDepthMask(true);
