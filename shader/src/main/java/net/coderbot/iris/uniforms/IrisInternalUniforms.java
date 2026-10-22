@@ -79,8 +79,8 @@ public class IrisInternalUniforms {
         final Matrix4f shadowProjectionInverse = new Matrix4f();
 
         // Demonica: D has no CapturedRenderingState.getGbufferModelView()/getGbufferProjection(); the default
-        // matrices invert what gbufferModelView and gbufferProjection upload (MatrixUniforms: RenderingState plus
-        // the eye-height translate for the modelview).
+        // matrices invert what gbufferModelView and gbufferProjection upload (MatrixUniforms: RenderingState, the
+        // modelview translated by the camera's render origin, Camera.getOrigin()).
         uniforms.uniformMatrix3(PER_FRAME, "iris_DefaultNormalMat", () -> {
             return normalMatScratch.set(MatrixUniforms.getGbufferModelView()).invert().transpose3x3(normalMat);
         });

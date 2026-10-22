@@ -643,9 +643,10 @@ Effort: S an afternoon, M a few days. Lanes are independent branches; within a l
   position) and runs them in `TerrainPhaseScope.runCutout` (`TERRAIN_CUTOUT` -> `getShadowCondition` default ->
   `shadow`). The projection stack already holds the shadow projection from `setupGlState`. (2) Placement: after the opaque
   terrain draw and after D's viewport reset (upstream resets the viewport after the callbacks), before entities, profiler
-  section `iris_shadow_callbacks`, skipped when none is registered. (3) Arguments: render origin = `Camera.getEntityPos()`
-  (eye position, the point the shadow model-view and the entity pass are centred on), where upstream passes the camera
-  position (they differ in third person); tick delta = `CapturedRenderingState.getTickDelta()`. (4) Javadoc: the
+  section `iris_shadow_callbacks`, skipped when none is registered. (3) Arguments: render origin = `Camera.getPos()`
+  (the camera's render origin, the point the shadow model-view and the entity pass are centred on: the eye in first
+  person, the real camera in third person, as upstream's camera position); tick delta =
+  `CapturedRenderingState.getTickDelta()`. (4) Javadoc: the
   `RenderPipeline` paragraph and upstream's "any render target may be passed when creating a render pass" sentence are
   gone; a Demonica paragraph documents the state (shadow framebuffer bound and full-map viewport, `shadow` program in use,
   both GLSM matrix stacks loaded, positions relative to the render origin, texture unit 0 left as terrain left it).

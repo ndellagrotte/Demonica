@@ -1,5 +1,6 @@
 package net.coderbot.iris.uniforms;
 
+import com.gtnewhorizons.angelica.compat.mojang.Camera;
 import com.gtnewhorizons.angelica.rendering.RenderingState;
 import net.coderbot.iris.compat.dh.DHCompat;
 import net.coderbot.iris.gl.uniform.UniformHolder;
@@ -7,9 +8,9 @@ import net.coderbot.iris.pipeline.ShadowRenderer;
 import net.coderbot.iris.shaderpack.PackDirectives;
 import net.coderbot.iris.shadow.ShadowMatrices;
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.Entity;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
+import org.joml.Vector3fc;
 
 import java.util.function.Supplier;
 
@@ -22,14 +23,19 @@ public final class MatrixUniforms {
 	private static final Matrix4f GBUFFER_MODELVIEW_SCRATCH = new Matrix4f();
 
 	// Package-private: IrisInternalUniforms.addOtherUniforms inverts this same gbufferModelView.
+	// Vanilla's model-view is relative to the view entity's feet; translating it by the camera's render origin makes
+	// gbufferModelView relative to cameraPosition, so gbufferModelViewInverse * viewPos + cameraPosition is the world
+	// position (in third person its translation is ~0, as on modern Iris). It is re-derived from RenderingState on
+	// every read, so inside the shadow pass or a portal render, which swap that matrix, the origin is applied to
+	// theirs; the old eye-height translate had the same flaw.
 	static Matrix4fc getGbufferModelView() {
 		final Matrix4fc raw = RenderingState.INSTANCE.getModelViewMatrix();
-		final Entity view = Minecraft.getMinecraft().getRenderViewEntity();
-		if (view == null) {
+		if (Minecraft.getMinecraft().getRenderViewEntity() == null) {
 			return raw;
 		}
 
-		return GBUFFER_MODELVIEW_SCRATCH.set(raw).translate(0f, view.getEyeHeight(), 0f);
+		final Vector3fc origin = Camera.INSTANCE.getOrigin();
+		return GBUFFER_MODELVIEW_SCRATCH.set(raw).translate(origin.x(), origin.y(), origin.z());
 	}
 
 	public static void addMatrixUniforms(UniformHolder uniforms, PackDirectives directives) {

@@ -14,7 +14,6 @@ import net.coderbot.iris.pipeline.WorldRenderingPhase;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.shadows.ShadowRenderingState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.Entity;
 import net.minecraft.util.BlockRenderLayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,6 +27,8 @@ import org.embeddedt.embeddium.impl.render.chunk.vertex.format.ChunkVertexType;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.lwjgl.BufferUtils;
 import org.taumc.celeritas.impl.render.terrain.CeleritasWorldRenderer;
 
@@ -36,7 +37,7 @@ import java.util.Collection;
 
 /**
  * What the quarantined terrain patches share: whether a shader pack drives terrain, the pack's programs, the
- * eye-height camera it needs, the Iris phases of the terrain layers, and the check that the renderer was built for
+ * camera origin it needs, the Iris phases of the terrain layers, and the check that the renderer was built for
  * the current pack.
  */
 public final class ShaderTerrain {
@@ -47,9 +48,11 @@ public final class ShaderTerrain {
     private static final FloatBuffer MODEL_VIEW = BufferUtils.createFloatBuffer(16);
     private static final Matrix4f SCRATCH = new Matrix4f();
 
-    // The eye height S8 added to the camera of the terrain draw it is about to make, or NaN. S6m takes it for that
-    // draw's matrices, so the camera and the model-view move together: if either patch is missing, neither does.
-    private static float pendingEyeHeight = Float.NaN;
+    // The render origin S8 added to the camera of the terrain draw it is about to make, valid while originPending.
+    // S6m takes it for that draw's matrices, so the camera and the model-view move together: if either patch is
+    // missing, neither does.
+    private static final Vector3f PENDING_ORIGIN = new Vector3f();
+    private static boolean originPending;
 
     // The terrain layer whose Iris phase is entered, or null. Two callers enter it: the renderWorldPass call site
     // (EntityRendererIrisMixin's redirect of the four-argument renderBlockLayer) and S8's HEAD injection inside that
@@ -163,7 +166,7 @@ public final class ShaderTerrain {
             return;
         }
         activeLayer = null;
-        pendingEyeHeight = Float.NaN;
+        originPending = false;
         WorldRenderingPipeline pipeline = pipeline();
         if (pipeline != null) {
             pipeline.setPhase(WorldRenderingPhase.NONE);
@@ -195,29 +198,30 @@ public final class ShaderTerrain {
     }
 
     /**
-     * S8: the camera Y of a terrain draw. Upstream draws terrain relative to the view entity's feet, the origin of
-     * vanilla's model-view. Shader packs reconstruct world positions from gbufferModelView, whose origin is the eye,
-     * so while a pack is active terrain is drawn relative to the eye, and S6m restores the eye height in the
-     * model-view of the same draw ({@link #takeEyeMatrices}).
+     * S8: the offset to add to the camera of a terrain draw, or null to leave it alone. Upstream draws terrain relative
+     * to the view entity's feet, the origin of vanilla's model-view. Shader packs reconstruct world positions from
+     * gbufferModelView and cameraPosition, whose origin is the camera's render origin ({@link Camera#getOrigin()}: the
+     * eye in first person, the real camera in third person), so while a pack is active terrain is drawn relative to
+     * it, and S6m translates the model-view of the same draw by the same offset ({@link #takeOriginMatrices}). That
+     * draw is the next {@code createChunkRenderMatrices} call, the first thing {@code drawChunkLayer} does.
      */
-    public static double eyeCameraY(double feetY, Entity view) {
+    public static @Nullable Vector3fc terrainOrigin() {
         if (!isPackActive()) {
-            return feetY;
-        }
-        float eyeHeight = view.getEyeHeight();
-        pendingEyeHeight = eyeHeight;
-        return feetY + eyeHeight;
-    }
-
-    /** S6m: the eye-anchored matrices for the draw S8 just moved to the eye, or null if it did not. */
-    public static @Nullable ChunkRenderMatrices takeEyeMatrices() {
-        float eyeHeight = pendingEyeHeight;
-        if (Float.isNaN(eyeHeight)) {
             return null;
         }
-        pendingEyeHeight = Float.NaN;
+        PENDING_ORIGIN.set(Camera.INSTANCE.getOrigin());
+        originPending = true;
+        return PENDING_ORIGIN;
+    }
+
+    /** S6m: the origin-anchored matrices for the draw S8 just moved to the render origin, or null if it did not. */
+    public static @Nullable ChunkRenderMatrices takeOriginMatrices() {
+        if (!originPending) {
+            return null;
+        }
+        originPending = false;
         Matrix4fc projection = RenderingState.INSTANCE.getProjectionMatrix();
-        SCRATCH.set(RenderingState.INSTANCE.getModelViewMatrix()).translate(0f, eyeHeight, 0f);
+        SCRATCH.set(RenderingState.INSTANCE.getModelViewMatrix()).translate(PENDING_ORIGIN);
         return matrices(projection, SCRATCH);
     }
 

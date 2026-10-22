@@ -41,7 +41,6 @@ import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.BlockRenderLayer;
-import org.joml.Vector3d;
 import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -396,17 +395,19 @@ public abstract class EntityRendererIrisMixin implements IResourceManagerReloadL
             return;
         }
 
-        Vector3d entityPos = Camera.INSTANCE.getEntityPos();
+        // RenderGlobal.renderClouds draws relative to the model-view's origin, the view entity's interpolated feet, and
+        // takes its height as cloudHeight - y; vanilla passes those feet (renderWorldPass's d0..d2). The eye would draw
+        // the clouds an eye height too low, and the camera's render origin would move them with the F5 camera.
+        Entity view = this.mc.getRenderViewEntity();
+        if (view == null) {
+            return;
+        }
+        double feetX = view.lastTickPosX + (view.posX - view.lastTickPosX) * partialTicks;
+        double feetY = view.lastTickPosY + (view.posY - view.lastTickPosY) * partialTicks;
+        double feetZ = view.lastTickPosZ + (view.posZ - view.lastTickPosZ) * partialTicks;
         pipeline.setPhase(WorldRenderingPhase.CLOUDS);
         try {
-            this.renderCloudsCheck(
-                this.mc.renderGlobal,
-                partialTicks,
-                pass,
-                entityPos.x,
-                entityPos.y,
-                entityPos.z
-            );
+            this.renderCloudsCheck(this.mc.renderGlobal, partialTicks, pass, feetX, feetY, feetZ);
         } finally {
             pipeline.setPhase(WorldRenderingPhase.NONE);
         }

@@ -10,13 +10,15 @@ import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.BlockRenderLayer;
+import org.joml.Vector3fc;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 import org.taumc.celeritas.impl.render.terrain.CeleritasWorldRenderer;
 
 import java.util.Locale;
@@ -26,9 +28,10 @@ import java.util.Locale;
  * {@code @Overwrite}s {@code renderBlockLayer(BlockRenderLayer, double, int, Entity)} to draw through Celeritas; this
  * wraps that draw with Iris's terrain phases and translucent prelude, runs vanilla's one-argument overload for the
  * translucent layer (third-party injections, Distant Horizons' deferred LOD pass among them, are anchored inside it),
- * and moves the camera of the draw to the eye while a pack is active (see S6m). With the diagnostics jar and the GL
- * debug option on, the GL state is compared across the draw and across that overload ({@link RenderDebugHooksHolder});
- * the perf-debug report times the draw.
+ * and moves the camera of the draw from the feet to the render origin of gbufferModelView and cameraPosition while a
+ * pack is active (the eye in first person, the real camera in third person; see S6m). With the diagnostics jar and
+ * the GL debug option on, the GL state is compared across the draw and across that overload
+ * ({@link RenderDebugHooksHolder}); the perf-debug report times the draw.
  *
  * <p>The phases are entered first at the {@code renderWorldPass} call site (EntityRendererIrisMixin's redirect of
  * this method), around the call: a mod's own HEAD injection into this method (Moving Elevators draws its moving cage
@@ -75,13 +78,18 @@ public abstract class RenderGlobalTerrainMixin {
         }
     }
 
-    @ModifyArg(method = "renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
+    // One handler for all three camera arguments, so the origin S6m takes is handed over exactly once per draw.
+    @ModifyArgs(method = "renderBlockLayer(Lnet/minecraft/util/BlockRenderLayer;DILnet/minecraft/entity/Entity;)I",
         at = @At(value = "INVOKE",
             target = "Lorg/taumc/celeritas/impl/render/terrain/CeleritasWorldRenderer;drawChunkLayer(Lnet/minecraft/util/BlockRenderLayer;DDD)V",
-            remap = false),
-        index = 2)
-    private double demonica$eyeCameraY(double y, @Local(argsOnly = true) Entity entity) {
-        return ShaderTerrain.eyeCameraY(y, entity);
+            remap = false))
+    private void demonica$originCamera(Args args) {
+        Vector3fc origin = ShaderTerrain.terrainOrigin();
+        if (origin != null) {
+            args.set(1, args.<Double>get(1) + origin.x());
+            args.set(2, args.<Double>get(2) + origin.y());
+            args.set(3, args.<Double>get(3) + origin.z());
+        }
     }
 
     // Debug only: the draw's GL state difference and its time in the perf-debug report.
