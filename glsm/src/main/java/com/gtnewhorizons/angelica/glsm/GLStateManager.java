@@ -2539,6 +2539,21 @@ public class GLStateManager {
         }
     }
 
+    /** GLSM's view of the calling thread while the splash runs: who caches, and what unit 0 looks like cached and real. */
+    public static String describeSplashStateForDebug() {
+        final Thread holder = drawableGLHolder;
+        final int unit = ctx().activeTextureUnit.getValue();
+        return "caching " + isCachingEnabled() + " (holder " + (holder == null ? "none" : holder.getName())
+            + ", splashComplete " + splashComplete + "), cached unit " + unit
+            + " binding " + ctx().textures.getTextureUnitBindings(unit).getBinding()
+            + " texture2D " + (ctx().textures.getTextureUnitStates(unit).isEnabled() ? "on" : "off")
+            + ", real active unit " + (RENDER_BACKEND.getInteger(GL13.GL_ACTIVE_TEXTURE) - GL13.GL_TEXTURE0)
+            + " binding " + RENDER_BACKEND.getInteger(GL11.GL_TEXTURE_BINDING_2D)
+            + " texture2D " + (RENDER_BACKEND.getBoolean(GL11.GL_TEXTURE_2D) ? "on" : "off")
+            + ", real program " + RENDER_BACKEND.getInteger(GL20.GL_CURRENT_PROGRAM)
+            + ", blend " + (RENDER_BACKEND.getBoolean(GL11.GL_BLEND) ? "on" : "off");
+    }
+
     /** One line about a texture name for diagnostics: existence, target, level-0 size, and GLSM's unit-0 view of it. */
     public static String describeTextureForDebug(int id) {
         final StringBuilder sb = new StringBuilder("texture ").append(id);
@@ -3941,6 +3956,38 @@ public class GLStateManager {
             if (ctx().textures.getTextureUnitBindings(i).getBinding() == id) {
                 ctx().textures.getTextureUnitBindings(i).setBinding(0);
             }
+        }
+    }
+
+    /**
+     * Redirect target for lwjgly's static {@code Display.makeCurrent()}, which is how Cleanroom 0.7's FML splash
+     * (and anything else on lwjgly) takes the window context: the splash thread at its start, the main thread at
+     * finish. Cleanroom 0.6's lwjglx went through {@link Drawable#makeCurrent()} instead, which
+     * {@link #makeCurrent(Drawable)} covers; without this, GLSM kept treating the main thread as the window
+     * context's owner for the whole splash, so the splash thread's binds and enables never reached the cache
+     * and its textured quads drew flat white.
+     */
+    public static void makeCurrentDisplay() throws LWJGLException {
+        Display.makeCurrent();
+        CurrentThread = Thread.currentThread();
+        if (splashComplete) return;
+        if (drawableGL == null) {
+            drawableGL = Display.getDrawable();
+        }
+        drawableGLHolder = CurrentThread;
+    }
+
+    /** Redirect target for the static {@code Display.update()}: the frame is complete, the swap comes next. */
+    public static void updateDisplay() {
+        SplashFrameDump.beforeSwap();
+        Display.update();
+    }
+
+    /** Redirect target for the static {@code Display.releaseContext()}: the thread gives the window context up. */
+    public static void releaseContextDisplay() throws LWJGLException {
+        Display.releaseContext();
+        if (!splashComplete && drawableGLHolder == Thread.currentThread()) {
+            drawableGLHolder = null;
         }
     }
 
