@@ -763,7 +763,7 @@ def withDiagnostics = project.findProperty('withoutDiagnostics') == null
  * The dev client's mods: Cleanroom loads them from -Dcrl.dev.extrapath, as in production where no mod jar is on
  * java.class.path (docs/celeritas/SPIKE.md). They are the mod's own output (the merged GLSM, Iris and S8TNLib classes
  * included), the jars of devRuntimeMods (the pinned Celeritas's dev remap, and the raw jars of the
- * -PwithCompatMods/-PwithHudCache/-PwithModernSplash/-PwithOpenComputers mods), and the diagnostics' classes unless -PwithoutDiagnostics. Resolved when the client starts.
+ * -PwithCompatMods/-PwithHudCache/-PwithModernSplash/-PwithOpenComputers/-PwithForcedResourcePacks mods), and the diagnostics' classes unless -PwithoutDiagnostics. Resolved when the client starts.
  */
 def devExtraPath = provider {
     def extraPaths = new LinkedHashSet<String>(sourceSets.main.output.files.collect { it.absolutePath })
@@ -1012,6 +1012,13 @@ dependencies {
     // which would shift every script's shots.
     if (project.findProperty('withUniversalTweaks') != null) {
         devRuntimeMods 'curse.maven:universal-tweaks-705000:8941250'
+    }
+    // -PwithForcedResourcePacks: the dev client also loads Forced Resourcepacks 1.1, whose preInit handler enables the
+    // packs of config/forcedresourcepacks.cfg and calls Minecraft.scheduleResourcesRefresh(): a full resource reload
+    // on the main thread while the splash thread owns the window context (#57, docs/compat/forced-resourcepacks.md;
+    // scripts/forced-packs.txt, copied into run/client/scripts, is the scene).
+    if (project.findProperty('withForcedResourcePacks') != null) {
+        devRuntimeMods 'curse.maven:forced-resourcepacks-997732:5241646'
     }
     // -PwithAsmodeusCore: the dev client also loads Galacticraft 4.0.7, AsmodeusCore 1.0.5 and Fugue 0.25.5, the files of
     // the Prism instance asmodeuscore-testing, whose overworld sky AsmodeusCore draws with out-of-range glColor values
