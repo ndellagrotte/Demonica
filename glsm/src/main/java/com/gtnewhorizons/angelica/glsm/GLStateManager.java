@@ -267,9 +267,15 @@ public class GLStateManager {
 
     // Deferred texture deletion: names kept valid until glGenTextures recycles them.
     // Emulates Mesa/compat-profile behavior where delete-then-bind doesn't error.
-    // Only GL_TEXTURE_2D names GLSM saw bound take that path; textureTargets says which those are.
-    private static final IntOpenHashSet deferredDeleteTextures = new IntOpenHashSet();
+    // Only GL_TEXTURE_2D names GLSM saw bound take that path; textureTargets says which those are, and holds the
+    // deferred set: both threads of the splash touch it (issue #57).
     private static final TextureTargets textureTargets = new TextureTargets();
+    // Vertex array names generated on another context while the splash runs (Kirino's text runtime, rebuilt
+    // from a preInit resource reload on FML's shared off-screen context, issue #57). VAOs are per context and
+    // every context numbers them from 1, so such a name doubles as a window-context VAO's (GLSM's default VAO,
+    // for the first). The off-screen context dies with the splash; a later delete of the name on the window
+    // context can only hit the window's object, so the first such delete is skipped.
+    private static final IntOpenHashSet offContextVertexArrays = new IntOpenHashSet();
     /** -Ddemonica.debug.textureDeletes=true logs every texture delete decision, generation and flush with its thread. */
     private static final boolean DEBUG_TEXTURE_DELETES = Boolean.getBoolean("demonica.debug.textureDeletes");
     /** GL_TEXTURE_TARGET: the target a texture object was created for (GL 4.5 / ARB_direct_state_access). */
@@ -285,15 +291,6 @@ public class GLStateManager {
     @Setter @Getter private static boolean runningSplash = true;
 
     private static volatile boolean splashComplete = false;
-    // Set by markSplashComplete(): the next frame on the owning context must re-seed the
-    // driver with the full cached state (see RenderBackend.onFrameBegin / replayStateToBackend).
-    private static volatile boolean stateSeedPending = false;
-
-    public static boolean takeStateSeedPending() {
-        if (!stateSeedPending) return false;
-        stateSeedPending = false;
-        return true;
-    }
     @Getter @Setter private static Thread drawableGLHolder = MainThread;
     // Reference to DrawableGL (main display context) - works with both FML and BLS splash
     @Setter private static Drawable drawableGL = null;
@@ -2099,7 +2096,7 @@ public class GLStateManager {
     }
 
     public static void glClientActiveTexture(int texture) {
-        ctx().clientActiveTextureUnit = texture - GL13.GL_TEXTURE0;
+        if (isCachingEnabled()) ctx().clientActiveTextureUnit = texture - GL13.GL_TEXTURE0;
     }
 
     public static int getClientActiveTextureUnit() {
@@ -2138,7 +2135,7 @@ public class GLStateManager {
         }
         // Rebinding a deferred-delete texture rescues it (Mesa/compat-profile behavior)
         if (texture != 0) {
-            deferredDeleteTextures.remove(texture);
+            textureTargets.rescue(texture);
         }
 
         if (target != GL11.GL_TEXTURE_2D) {
@@ -2419,7 +2416,7 @@ public class GLStateManager {
             // splash thread's, for one) while this thread is about to bind it. Reserve it instead: the bind
             // rescues it, and the next glGenTextures flush drops it if nothing did.
             if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] reserve fresh name {} on {}", id, Thread.currentThread().getName());
-            deferredDeleteTextures.add(id);
+            textureTargets.defer(id);
             return;
         }
         if (!TextureTargets.isDeferrable(target)) {
@@ -2429,6 +2426,20 @@ public class GLStateManager {
             // Delete it as the spec says.
             if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] delete {} target 0x{} (recorded 0x{}) on {}", id, Integer.toHexString(target), Integer.toHexString(recorded), Thread.currentThread().getName());
             RENDER_BACKEND.deleteTextures(id);
+            return;
+        }
+        if (!isCachingEnabled()) {
+            // Another thread holds the window context, and the cached units describe that context, not this
+            // one (the main thread on FML's shared off-screen context during the splash, issue #57). Shrink
+            // through this context's real unit-0 binding and leave the cache alone; nothing is unbound, since
+            // the name stays valid.
+            if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] shrink 2D {} (recorded 0x{}) on {} off the cache", id, Integer.toHexString(recorded), Thread.currentThread().getName());
+            final int realBinding = RENDER_BACKEND.getInteger(GL11.GL_TEXTURE_BINDING_2D);
+            RENDER_BACKEND.bindTexture(GL11.GL_TEXTURE_2D, id);
+            RENDER_BACKEND.texParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0);
+            RENDER_BACKEND.texImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R8, 1, 1, 0, GL11.GL_RED, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null);
+            RENDER_BACKEND.bindTexture(GL11.GL_TEXTURE_2D, realBinding == id ? 0 : realBinding);
+            textureTargets.defer(id);
             return;
         }
         if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] shrink 2D {} (recorded 0x{}) on {}, cached unit {} binding {}", id, Integer.toHexString(recorded), Thread.currentThread().getName(), ctx().activeTextureUnit.getValue(), ctx().textures.getTextureUnitBindings(ctx().activeTextureUnit.getValue()).getBinding());
@@ -2459,7 +2470,7 @@ public class GLStateManager {
         // Restore previous binding on active unit
         RENDER_BACKEND.bindTexture(GL11.GL_TEXTURE_2D, savedBinding == id ? 0 : savedBinding);
 
-        deferredDeleteTextures.add(id);
+        textureTargets.defer(id);
     }
 
     /**
@@ -2480,13 +2491,9 @@ public class GLStateManager {
 
     /** Flush deferred deletes so the driver can recycle names. */
     private static void flushDeferredTextureDeletes() {
-        if (deferredDeleteTextures.isEmpty()) return;
-        if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] flush {} on {}", deferredDeleteTextures, Thread.currentThread().getName());
-        final var it = deferredDeleteTextures.iterator();
-        while (it.hasNext()) {
-            RENDER_BACKEND.deleteTextures(it.nextInt());
-        }
-        deferredDeleteTextures.clear();
+        if (textureTargets.deferredCount() == 0) return;
+        if (DEBUG_TEXTURE_DELETES) LOGGER.info("[texdel] flush {} on {}", textureTargets.deferredNames(), Thread.currentThread().getName());
+        textureTargets.drainDeferred(RENDER_BACKEND::deleteTextures);
     }
 
     /** A name the driver just handed out is a new object: whatever GLSM recorded for that number is stale. */
@@ -2570,7 +2577,7 @@ public class GLStateManager {
           .append(", texture2D ").append(ctx().textures.getTextureUnitStates(0).isEnabled() ? "enabled" : "disabled")
           .append(", active unit ").append(ctx().activeTextureUnit.getValue())
           .append("; real binding ").append(RENDER_BACKEND.getInteger(GL11.GL_TEXTURE_BINDING_2D))
-          .append(", deferred ").append(deferredDeleteTextures.size())
+          .append(", deferred ").append(textureTargets.deferredCount())
           .append(", caching ").append(isCachingEnabled());
         return sb.toString();
     }
@@ -3408,7 +3415,7 @@ public class GLStateManager {
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, long offset) {
-        VertexAttribState.set(index, size, type, normalized, stride, offset, ctx().boundVBO);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, normalized, stride, offset, ctx().boundVBO);
         RENDER_BACKEND.vertexAttribPointer(index, size, type, normalized, stride, offset);
     }
 
@@ -3417,40 +3424,40 @@ public class GLStateManager {
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, FloatBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, DoubleBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, IntBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, ShortBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, normalized, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, ByteBuffer pointer) {
-        VertexAttribState.set(index, size, type, normalized, stride, pointer, 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, normalized, stride, pointer, 0);
     }
 
     public static void glVertexAttribIPointer(int index, int size, int type, int stride, long offset) {
-        VertexAttribState.set(index, size, type, false, stride, offset, ctx().boundVBO);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, false, stride, offset, ctx().boundVBO);
         RENDER_BACKEND.vertexAttribIPointer(index, size, type, stride, offset);
     }
 
     public static void glVertexAttribIPointer(int index, int size, int type, int stride, ByteBuffer pointer) {
-        VertexAttribState.set(index, size, type, false, stride, pointer, 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, false, stride, pointer, 0);
     }
 
     public static void glVertexAttribIPointer(int index, int size, int type, int stride, IntBuffer pointer) {
-        VertexAttribState.set(index, size, type, false, stride, MemoryUtil.memByteBuffer(pointer), 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, false, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribIPointer(int index, int size, int type, int stride, ShortBuffer pointer) {
-        VertexAttribState.set(index, size, type, false, stride, MemoryUtil.memByteBuffer(pointer), 0);
+        if (isCachingEnabled()) VertexAttribState.set(index, size, type, false, stride, MemoryUtil.memByteBuffer(pointer), 0);
     }
 
     public static void glVertexAttribDivisor(int index, int divisor) { RENDER_BACKEND.vertexAttribDivisor(index, divisor); }
@@ -3461,12 +3468,12 @@ public class GLStateManager {
     public static void glVertexAttribBinding(int attribindex, int bindingindex) { RENDER_BACKEND.vertexAttribBinding(attribindex, bindingindex); }
 
     public static void glEnableVertexAttribArray(int index) {
-        VertexAttribState.setEnabled(index, true);
+        if (isCachingEnabled()) VertexAttribState.setEnabled(index, true);
         RENDER_BACKEND.enableVertexAttribArray(index);
     }
 
     public static void glDisableVertexAttribArray(int index) {
-        VertexAttribState.setEnabled(index, false);
+        if (isCachingEnabled()) VertexAttribState.setEnabled(index, false);
         RENDER_BACKEND.disableVertexAttribArray(index);
     }
 
@@ -3951,7 +3958,8 @@ public class GLStateManager {
             DisplayListManager.postHook(GLSMHooks.TEXTURE_DELETE, GLSMHooks.textureDeleteEvent);
         }
 
-        // Always delete
+        // The cached units describe the window context; a thread on another context leaves them alone (#57).
+        if (!isCachingEnabled()) return;
         for (int i = 0; i <= ctx().maxBoundTextureUnit; i++) {
             if (ctx().textures.getTextureUnitBindings(i).getBinding() == id) {
                 ctx().textures.getTextureUnitBindings(i).setBinding(0);
@@ -4052,9 +4060,13 @@ public class GLStateManager {
     public static void markSplashComplete() {
         if (splashComplete) return;
         splashComplete = true;
-        stateSeedPending = true;
         drawableGLHolder = null;
         drawableGL = null;
+        // The window context's driver state is whatever the splash thread left, and the cache may carry what
+        // the main thread recorded elsewhere: push the cache into the driver once, here, on the thread that now
+        // owns the context, so no later bind is skipped against a stale cache (#57; the frame-begin hook that
+        // was meant to do this was never called).
+        replayStateToBackend();
         if (GLSMHooks.LOADING_CHECKPOINT.hasListeners()) {
             GLSMHooks.loadingCheckpointEvent.requiresSync = true;
             DisplayListManager.postHook(GLSMHooks.LOADING_CHECKPOINT, GLSMHooks.loadingCheckpointEvent);
@@ -6222,7 +6234,7 @@ public class GLStateManager {
     }
 
     private static void invalidateDeletedBuffer(int buffer) {
-        if (buffer == 0) return;
+        if (buffer == 0 || !isCachingEnabled()) return;
         if (ctx().boundVBO == buffer) {
             ctx().boundVBO = 0;
         }
@@ -6233,7 +6245,9 @@ public class GLStateManager {
     }
 
     public static void glBindBuffer(int target, int buffer) {
-        if (target == GL15.GL_ARRAY_BUFFER) {
+        if (!isCachingEnabled()) {
+            // Bindings are per context; a thread off the window context does not describe it (#57).
+        } else if (target == GL15.GL_ARRAY_BUFFER) {
             // if (boundVBO == buffer) return; TODO figure out why this breaks switching async occlusion mode
             ctx().boundVBO = buffer;
         } else if (target == GL15.GL_ELEMENT_ARRAY_BUFFER) {
@@ -6552,6 +6566,13 @@ public class GLStateManager {
             // Since the vao needs to be bound to do stuff like state setup & data upload, it'll still execute the bind call.
             // This is technically wrong, but I'm not sure if there's a better solution here.
         }
+        if (!isCachingEnabled()) {
+            // Vertex array names are per context. On FML's shared off-screen context (the main thread during the
+            // splash, issue #57) the default VAO does not exist and the cache describes the window context's
+            // objects, whose numbers this context reuses: bind what was asked for and record nothing.
+            RENDER_BACKEND.bindVertexArray(array);
+            return;
+        }
         if (array == 0) {
             array = defaultVAO;
         }
@@ -6567,6 +6588,22 @@ public class GLStateManager {
     }
 
     public static void glDeleteVertexArrays(int array) {
+        final boolean offContext;
+        synchronized (offContextVertexArrays) {
+            offContext = offContextVertexArrays.remove(array);
+        }
+        if (!isCachingEnabled()) {
+            // A per-context name that aliases a window-context VAO's record (#57): delete it, forget nothing.
+            RENDER_BACKEND.deleteVertexArrays(array);
+            return;
+        }
+        if (offContext) {
+            // The caller's object lived on the off-screen context, which is gone; this name is now a window-context
+            // VAO it never created (#57: Kirino closing its preInit text runtime after the splash deleted GLSM's
+            // default VAO, and the Video Settings frame and the world went with it).
+            warnOnce("vao-alias-delete-" + array, "VAO {} was generated off the window context; its delete on the window context is skipped, the name belongs to a window-context VAO", array);
+            return;
+        }
         ShaderManager.getInstance().onDeleteVertexArray(array);
         VertexAttribState.onDeleteVertexArray(array);
         vaoEboMap.remove(array);
@@ -6582,6 +6619,18 @@ public class GLStateManager {
 
     public static int glGenVertexArrays() {
         final int array = RENDER_BACKEND.genVertexArrays();
+        if (!isCachingEnabled()) {
+            // A name on another context: the record it aliases belongs to a live window-context VAO, the one
+            // the splash thread is drawing with (issue #57, Kirino's font rebuild from a preInit resource
+            // reload). Forgetting it there nulled the splash thread's attribute state mid-draw.
+            synchronized (offContextVertexArrays) {
+                offContextVertexArrays.add(array);
+            }
+            if (VertexAttribState.isKnown(array)) {
+                warnOnce("vao-alias-" + array, "VAO {} generated off the window context aliases a cached window-context VAO; its record is kept", array);
+            }
+            return array;
+        }
         // The driver recycles ids of deleted VAOs, and the splash screen's separate GL context
         // hands out the same numeric ids as the main context. Forget whatever this id meant
         // before: any cached state for it describes a dead object and must not leak into the
@@ -6622,6 +6671,12 @@ public class GLStateManager {
 
 
     public static void glBindFramebuffer(int target, int framebuffer) {
+        if (!isCachingEnabled()) {
+            // Framebuffer names and bindings are per context (#57): no compare, no record.
+            recordGpuCommand(GpuCommandType.FRAMEBUFFER_BIND, target, framebuffer);
+            RENDER_BACKEND.bindFramebuffer(target, framebuffer);
+            return;
+        }
         if (target == GL30.GL_FRAMEBUFFER) {
             if (ctx().drawFramebuffer == framebuffer && ctx().readFramebuffer == framebuffer) return;
             if (ctx().drawFramebuffer != framebuffer) ctx().drawFramebufferGeneration++;
@@ -6640,8 +6695,10 @@ public class GLStateManager {
     }
 
     public static void glDeleteFramebuffers(int framebuffer) {
-        if (ctx().drawFramebuffer == framebuffer) ctx().drawFramebuffer = 0;
-        if (ctx().readFramebuffer == framebuffer) ctx().readFramebuffer = 0;
+        if (isCachingEnabled()) {
+            if (ctx().drawFramebuffer == framebuffer) ctx().drawFramebuffer = 0;
+            if (ctx().readFramebuffer == framebuffer) ctx().readFramebuffer = 0;
+        }
         RENDER_BACKEND.deleteFramebuffers(framebuffer);
     }
 
@@ -7917,6 +7974,21 @@ public class GLStateManager {
         applyPolygonOffset(glCtx);
         RENDER_BACKEND.cullFace(glCtx.polygonState.getCullFaceMode());
         RENDER_BACKEND.frontFace(glCtx.polygonState.getFrontFace());
+
+        // Texture units: a cached 2D binding the driver no longer knows is dropped, the rest are bound for real.
+        // Through activeTexture + bindTexture rather than DSA, which would also unbind the unit's other targets.
+        final int activeUnit = glCtx.activeTextureUnit.getValue();
+        for (int i = 0; i <= glCtx.maxBoundTextureUnit; i++) {
+            final TextureBinding binding = glCtx.textures.getTextureUnitBindings(i);
+            int id = binding.getBinding();
+            if (id != 0 && !RENDER_BACKEND.isTexture(id)) {
+                binding.setBinding(0);
+                id = 0;
+            }
+            RENDER_BACKEND.activeTexture(GL13.GL_TEXTURE0 + i);
+            RENDER_BACKEND.bindTexture(GL11.GL_TEXTURE_2D, id);
+        }
+        RENDER_BACKEND.activeTexture(GL13.GL_TEXTURE0 + activeUnit);
     }
 
     private static void applyPolygonOffset(GLContextState glCtx) {

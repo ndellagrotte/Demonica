@@ -65,16 +65,8 @@ public abstract class RenderBackend {
     public abstract void flush();
     public abstract void finish();
 
-    /**
-     * Called by the frame loop before the first GL work of a frame. Consumes the splash state
-     * seed: after the splash screen finishes, the game loop inherits a context whose driver
-     * state predates GLSM caching, so the full cached state is replayed once.
-     */
-    public void onFrameBegin() {
-        if (GLStateManager.takeStateSeedPending()) {
-            GLStateManager.replayStateToBackend();
-        }
-    }
+    /** Called by the frame loop before the first GL work of a frame. No caller yet; the post-splash state re-seed runs from GLStateManager.markSplashComplete. */
+    public void onFrameBegin() {}
     public void onFrameEnd() {}
 
     public abstract void enable(int cap);

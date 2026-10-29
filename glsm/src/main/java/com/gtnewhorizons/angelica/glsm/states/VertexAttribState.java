@@ -34,6 +34,11 @@ public class VertexAttribState {
         recomputeClientSideCount();
     }
 
+    /** Whether a record exists for {@code vaoId}: a VAO of the window context GLSM has seen bound or created. */
+    public static boolean isKnown(int vaoId) {
+        return vaoAttribs.containsKey(vaoId);
+    }
+
     public static void onDeleteVertexArray(int vaoId) {
         final Attrib[] arr = vaoAttribs.remove(vaoId);
         if (arr != null) {

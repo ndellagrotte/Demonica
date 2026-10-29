@@ -1,6 +1,10 @@
 package com.gtnewhorizons.angelica.glsm.texture;
 
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntIterator;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+
+import java.util.function.IntConsumer;
 import org.lwjgl.opengl.GL11;
 
 /**
@@ -14,7 +18,9 @@ import org.lwjgl.opengl.GL11;
  * GLSM never saw bound at all: DSA code (glCreateTextures + glBindTextureUnit) never passes through glBindTexture, so
  * the delete is the first call GLSM sees for it.
  *
- * <p>Main-thread state, like GLSM's deferred-delete set.
+ * <p>Also holds the deferred-delete set: the names shrunk to 1x1 (or reserved fresh) that the next glGenTextures
+ * really deletes. While FML's splash runs, the splash thread binds textures and the main thread generates and
+ * deletes them on another context (issue #57), so every method is synchronized.
  */
 public final class TextureTargets {
 
@@ -28,20 +34,50 @@ public final class TextureTargets {
     public static final int FRESH = -1;
 
     private final Int2IntOpenHashMap targets = new Int2IntOpenHashMap();
+    private final IntOpenHashSet deferred = new IntOpenHashSet();
 
     public TextureTargets() {
         targets.defaultReturnValue(UNKNOWN);
     }
 
     /** Records that {@code texture} was bound to {@code target}. Name 0 is never a texture object. */
-    public void record(int texture, int target) {
+    public synchronized void record(int texture, int target) {
         if (texture == 0) return;
         targets.put(texture, target);
     }
 
     /** Forgets {@code texture} and returns the target it was last bound to, or {@link #UNKNOWN}. */
-    public int remove(int texture) {
+    public synchronized int remove(int texture) {
         return targets.remove(texture);
+    }
+
+    /** Keeps {@code texture} valid until {@link #drainDeferred} deletes it, unless a bind rescues it first. */
+    public synchronized void defer(int texture) {
+        deferred.add(texture);
+    }
+
+    /** A bind of a deferred name keeps it alive: it leaves the deferred set. */
+    public synchronized void rescue(int texture) {
+        deferred.remove(texture);
+    }
+
+    public synchronized int deferredCount() {
+        return deferred.size();
+    }
+
+    /** The deferred names, for logging. */
+    public synchronized int[] deferredNames() {
+        return deferred.toIntArray();
+    }
+
+    /** Hands every deferred name to {@code delete} exactly once and empties the set. */
+    public synchronized void drainDeferred(IntConsumer delete) {
+        if (deferred.isEmpty()) return;
+        final IntIterator it = deferred.iterator();
+        while (it.hasNext()) {
+            delete.accept(it.nextInt());
+        }
+        deferred.clear();
     }
 
     /**
