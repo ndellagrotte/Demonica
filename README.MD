@@ -146,6 +146,7 @@ the injector targets of a mixin without a refmap, so Celeritas runs from
 | `-PwithUniversalTweaks` | also load Universal Tweaks, whose smooth scrolling eases every `GuiSlot` towards a target of its own ([`docs/compat/universal-tweaks.md`](docs/compat/universal-tweaks.md)) |
 | `-PwithForcedResourcePacks` | also load Forced Resourcepacks, whose preInit handler reloads resources while the splash thread owns the window context ([`docs/compat/forced-resourcepacks.md`](docs/compat/forced-resourcepacks.md)) |
 | `-PwithAsmodeusCore` | also load Galacticraft and AsmodeusCore (with Fugue), whose overworld sky sets the current color outside [0,1] ([`docs/compat/asmodeuscore.md`](docs/compat/asmodeuscore.md)) |
+| `-PwithOpenBlocks` | also load OpenBlocks Reopened, whose Sky Block renderer validates a GLSL program from preInit, on the splash's shared off-screen context ([`docs/compat/openblocks.md`](docs/compat/openblocks.md)) |
 | `-PwithMovingElevators` | also load Moving Elevators (with SuperMartijn642's Core Lib and Config Lib), which draws its moving cage at HEAD of `RenderGlobal.renderBlockLayer` and the cage's block entities in vanilla's block-entity batch ([`docs/compat/moving-elevators.md`](docs/compat/moving-elevators.md)) |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |
 | `-PwithoutDiagnostics` | leave the diagnostics jar out, as a player without it runs |

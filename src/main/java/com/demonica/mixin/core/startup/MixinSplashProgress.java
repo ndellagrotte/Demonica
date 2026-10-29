@@ -42,6 +42,18 @@ public class MixinSplashProgress {
         ImmediateModeRecorder.initSplashTessellator();
     }
 
+    // Cleanroom's start() hands the window context to the splash thread and puts the main thread on a hidden
+    // SharedGLContext for the whole of mod loading. On a core profile that context has no VAO bound, which a
+    // legacy mod's glValidateProgram or draw from preInit trips over (#42, OpenBlocks Reopened's Sky Block shader
+    // on macOS): give it a default VAO the moment it is current.
+    @Inject(
+        method = "start",
+        at = @At(value = "INVOKE", target = "Lcom/cleanroommc/client/sdl/SharedGLContext;makeCurrent()V", shift = At.Shift.AFTER)
+    )
+    private static void demonica$sharedContextCurrent(CallbackInfo ci) {
+        GLStateManager.onSharedContextCurrent();
+    }
+
     @Inject(method = "finish", at = @At("RETURN"))
     private static void demonica$finishSplash(CallbackInfo ci) {
         ImmediateModeRecorder.destroySplashTessellator();

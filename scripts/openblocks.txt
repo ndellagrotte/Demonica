@@ -1,0 +1,18 @@
+# #42: OpenBlocks Reopened's Sky Block renderer compiles and validates a GLSL program from preInit, while the
+# main thread sits on FML's shared off-screen context. Main menu, then a world at a fixed view. Run with
+# -PwithOpenBlocks, on the compat profile and on core (-PdevProps=demonica.openglProfile=core).
+pack off
+wait 60
+shot ob-0-menu
+world ob 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 3000
+cmd /weather clear
+cmd /gamemode spectator
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+shot ob-1-world
+exit

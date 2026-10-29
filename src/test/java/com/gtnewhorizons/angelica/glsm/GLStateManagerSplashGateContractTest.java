@@ -87,6 +87,32 @@ class GLStateManagerSplashGateContractTest {
         );
     }
 
+    @Test
+    void theSharedContextGetsADefaultVertexArrayOnACoreProfile() throws IOException {
+        ClassNode glsm = loadClassNode(GL_STATE_MANAGER);
+        assertTrue(
+            invokes(glsm, "onSharedContextCurrent", "()V", RENDER_BACKEND, "genVertexArrays"),
+            "onSharedContextCurrent must create the shared context's default VAO through the backend, not through "
+                + "glGenVertexArrays, whose off-context bookkeeping is for names a mod may delete later (#42)"
+        );
+        assertTrue(
+            invokes(glsm, "onSharedContextCurrent", "()V", RENDER_BACKEND, "bindVertexArray"),
+            "onSharedContextCurrent must bind the shared context's default VAO (#42)"
+        );
+        assertTrue(
+            invokes(glsm, "onSharedContextCurrent", "()V", "com/gtnewhorizons/angelica/glsm/RenderSystem", "getContextProfile"),
+            "the shared context's default VAO is for the core profile only; VAO 0 is a legal vertex array on compatibility"
+        );
+        assertTrue(
+            readsField(glsm, "glBindVertexArray", "(I)V", "offContextDefaultVAO"),
+            "glBindVertexArray(0) on the shared context must bind that context's default VAO, as it does on the window (#42)"
+        );
+        assertTrue(
+            readsField(glsm, "markSplashComplete", "()V", "offContextDefaultVAO"),
+            "markSplashComplete must forget the shared context's default VAO: finish closed the context it lived on"
+        );
+    }
+
     private static boolean invokes(ClassNode owner, String methodName, String descriptor, String calledOwner, String calledName) {
         for (MethodNode method : owner.methods) {
             if (!method.name.equals(methodName) || !method.desc.equals(descriptor)) {
