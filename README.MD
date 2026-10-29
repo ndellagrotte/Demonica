@@ -144,6 +144,7 @@ the injector targets of a mixin without a refmap, so Celeritas runs from
 | `-PwithHudCache=stellarcore` or `=gnetum` | also load StellarCore (with JourneyMap) or Gnetum, whose HUD caches Demonica bridges to GLSM |
 | `-PwithModernSplash` | also load Modern Splash, a coremod that replaces FML's loading screen |
 | `-PwithUniversalTweaks` | also load Universal Tweaks, whose smooth scrolling eases every `GuiSlot` towards a target of its own ([`docs/compat/universal-tweaks.md`](docs/compat/universal-tweaks.md)) |
+| `-PwithForcedResourcePacks` | also load Forced Resourcepacks, whose preInit handler reloads resources while the splash thread owns the window context ([`docs/compat/forced-resourcepacks.md`](docs/compat/forced-resourcepacks.md)) |
 | `-PwithAsmodeusCore` | also load Galacticraft and AsmodeusCore (with Fugue), whose overworld sky sets the current color outside [0,1] ([`docs/compat/asmodeuscore.md`](docs/compat/asmodeuscore.md)) |
 | `-PwithMovingElevators` | also load Moving Elevators (with SuperMartijn642's Core Lib and Config Lib), which draws its moving cage at HEAD of `RenderGlobal.renderBlockLayer` and the cage's block entities in vanilla's block-entity batch ([`docs/compat/moving-elevators.md`](docs/compat/moving-elevators.md)) |
 | `-PwithoutCeleritas` | leave Celeritas out, to see what a player without it sees |

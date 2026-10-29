@@ -1,0 +1,24 @@
+# #57: Forced Resourcepacks reloads resources at preInit, while the splash thread owns the window context.
+# Main menu, Video Settings (the dark list frame), then a world at a fixed view. Run with and without
+# -PwithForcedResourcePacks; config/forcedresourcepacks.cfg must force the demonica-custom-font folder pack.
+pack off
+wait 60
+shot fp-0-menu
+screen video
+wait 10
+expect-screen CeleritasVideoOptionsScreen
+shot fp-1-video hud
+screen close
+wait 5
+world fp 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 3000
+cmd /weather clear
+cmd /gamemode spectator
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+shot fp-2-world
+exit
