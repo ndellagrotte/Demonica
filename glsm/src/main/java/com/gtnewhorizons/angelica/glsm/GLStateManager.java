@@ -276,6 +276,14 @@ public class GLStateManager {
     // for the first). The off-screen context dies with the splash; a later delete of the name on the window
     // context can only hit the window's object, so the first such delete is skipped.
     private static final IntOpenHashSet offContextVertexArrays = new IntOpenHashSet();
+    // The default VAO of FML's shared off-screen context, on a core profile (issue #42). The main thread sits on
+    // Cleanroom's SharedGLContext from SplashProgress.start to finish, so every mod preInit runs there, and the
+    // shared context inherits the window's core profile request. A core context with VAO 0 bound rejects
+    // glValidateProgram ("No vertex array object bound", the macOS driver) and every draw; GLSM's default VAO
+    // lives on the window context and vertex arrays are not shared. Created and bound once the shared context
+    // is current, never deleted: it dies with that context at finish.
+    private static int offContextDefaultVAO = 0;
+    private static long offContextHandle = 0;
     /** -Ddemonica.debug.textureDeletes=true logs every texture delete decision, generation and flush with its thread. */
     private static final boolean DEBUG_TEXTURE_DELETES = Boolean.getBoolean("demonica.debug.textureDeletes");
     /** GL_TEXTURE_TARGET: the target a texture object was created for (GL 4.5 / ARB_direct_state_access). */
@@ -3999,6 +4007,34 @@ public class GLStateManager {
         }
     }
 
+    /**
+     * The main thread has just made Cleanroom's {@code SharedGLContext} current, at {@code SplashProgress.start}
+     * (issue #42). On a core profile that context has VAO 0 bound and no default VAO of its own, so a mod that
+     * validates a program or draws from preInit fails ("Validation Failed: No vertex array object bound" from
+     * OpenBlocks Reopened's Sky Block shader on macOS). Give it one, bound, the way {@code init} does for the
+     * window context; {@link #glBindVertexArray} maps 0 to it while that context is current. The binding is
+     * per-context state, so the {@code pause}/{@code resume} swaps need nothing. No-op on a compatibility profile,
+     * where VAO 0 is a legal vertex array, and after the splash.
+     */
+    public static void onSharedContextCurrent() {
+        if (splashComplete) return;
+        if (!"core".equals(RenderSystem.getContextProfile())) return;
+        final long handle = RENDER_BACKEND.getContextHandle();
+        if (offContextDefaultVAO != 0 && handle == offContextHandle) {
+            RENDER_BACKEND.bindVertexArray(offContextDefaultVAO);
+            return;
+        }
+        offContextDefaultVAO = RENDER_BACKEND.genVertexArrays();
+        offContextHandle = handle;
+        RENDER_BACKEND.bindVertexArray(offContextDefaultVAO);
+        LOGGER.info("Shared off-screen context on a core profile: default VAO {} created and bound for the splash (#42)", offContextDefaultVAO);
+    }
+
+    /** Whether the calling thread is on the shared off-screen context that owns {@link #offContextDefaultVAO}. */
+    private static boolean isOffContextDefaultVAOCurrent() {
+        return offContextDefaultVAO != 0 && !splashComplete && RENDER_BACKEND.getContextHandle() == offContextHandle;
+    }
+
     public static void makeCurrent(Drawable drawable) throws LWJGLException {
         drawable.makeCurrent();
         CurrentThread = Thread.currentThread();
@@ -4062,6 +4098,9 @@ public class GLStateManager {
         splashComplete = true;
         drawableGLHolder = null;
         drawableGL = null;
+        // SplashProgress.finish closed the shared context, and its default VAO with it (#42).
+        offContextDefaultVAO = 0;
+        offContextHandle = 0;
         // The window context's driver state is whatever the splash thread left, and the cache may carry what
         // the main thread recorded elsewhere: push the cache into the driver once, here, on the thread that now
         // owns the context, so no later bind is skipped against a stale cache (#57; the frame-begin hook that
@@ -6569,7 +6608,11 @@ public class GLStateManager {
         if (!isCachingEnabled()) {
             // Vertex array names are per context. On FML's shared off-screen context (the main thread during the
             // splash, issue #57) the default VAO does not exist and the cache describes the window context's
-            // objects, whose numbers this context reuses: bind what was asked for and record nothing.
+            // objects, whose numbers this context reuses: bind what was asked for and record nothing. Binding 0
+            // on a core profile there means that context's own default VAO (#42), as it does on the window.
+            if (array == 0 && isOffContextDefaultVAOCurrent()) {
+                array = offContextDefaultVAO;
+            }
             RENDER_BACKEND.bindVertexArray(array);
             return;
         }
@@ -6593,6 +6636,11 @@ public class GLStateManager {
             offContext = offContextVertexArrays.remove(array);
         }
         if (!isCachingEnabled()) {
+            if (array == offContextDefaultVAO && isOffContextDefaultVAOCurrent()) {
+                // Nobody but GLSM owns that one (#42); it goes with its context at splash finish.
+                warnOnce("vao-off-context-default-delete", "VAO {} is the shared context's default VAO; its delete is skipped", array);
+                return;
+            }
             // A per-context name that aliases a window-context VAO's record (#57): delete it, forget nothing.
             RENDER_BACKEND.deleteVertexArrays(array);
             return;

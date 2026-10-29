@@ -1033,6 +1033,12 @@ dependencies {
     if (project.findProperty('withModernSplash') != null) {
         devRuntimeMods 'curse.maven:modern-splash-629058:8487408'
     }
+    // -PwithOpenBlocks: the dev client also loads OpenBlocks Reopened 1.8.4 (OpenModsLib nested), whose Sky Block
+    // renderer compiles and validates a GLSL program from preInit, on FML's shared off-screen context (#42,
+    // docs/compat/openblocks.md; scripts/openblocks.txt, copied into run/client/scripts, is the scene).
+    if (project.findProperty('withOpenBlocks') != null) {
+        devRuntimeMods 'curse.maven:openblocks-reopened-1342654:9106076' // 1.8.4
+    }
     // -PwithMovingElevators: the dev client also loads Moving Elevators 1.4.12 with SuperMartijn642's Core Lib and
     // Config Lib, the mod whose moving cage is drawn at HEAD of RenderGlobal.renderBlockLayer, before the Iris terrain
     // phase (docs/compat/moving-elevators.md; scripts/moving-elevators.txt, copied into run/client/scripts, is the scene).
