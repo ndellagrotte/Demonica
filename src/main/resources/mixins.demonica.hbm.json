@@ -9,7 +9,10 @@
   "server": [],
   "client": [
     "MixinRenderUtil",
-    "MixinItemRenderWeaponBase"
+    "MixinItemRenderWeaponBase",
+    "GeneralConfigAccessor",
+    "MixinGeneralConfig",
+    "MixinInstancedParticleRenderer"
   ],
   "injectors": {
     "defaultRequire": 1

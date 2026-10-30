@@ -1,7 +1,6 @@
 package com.demonica.compat.hbm;
 
 import com.gtnewhorizons.angelica.glsm.GLStateManager;
-import net.coderbot.iris.apiimpl.IrisApiV0Impl;
 import net.coderbot.iris.pipeline.HandRenderer;
 
 /**
@@ -35,7 +34,7 @@ public final class HbmWeaponDepthCompat {
      * renderer's intended way of keeping the held weapon unclipped, and stays in place.</p>
      */
     public static boolean shouldSkipWeaponDepthClear() {
-        return IrisApiV0Impl.INSTANCE.isShaderPackInUse();
+        return HbmShaderStateCompat.isShaderPackActive();
     }
 
     /**
