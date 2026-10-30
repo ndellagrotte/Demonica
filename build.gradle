@@ -382,6 +382,43 @@ def remapCeleritasForDev = tasks.register('remapCeleritasForDev') {
 def celeritasDevJar = files(remapCeleritasForDev)
 
 /*
+ * -PwithHbm=<jar>: NTM-CE renamed to MCP names the same way (its mixins access vanilla members by SRG name in their
+ * bodies, which Cleanroom's load-time remap does not touch, so the raw jar dies on the first chunk decoration). Its
+ * refmap is dropped: after the rename the mixins' targets are MCP names, which the refmap would map back to SRG.
+ */
+def remapHbmForDev = tasks.register('remapHbmForDev') {
+    group = 'build'
+    description = 'Renames the NTM-CE jar given by -PwithHbm, its mixins included, to MCP names for the dev client.'
+    def input = project.findProperty('withHbm')?.with { file(it) }
+    def srgToMcp = tasks.named('extractUserdevSrgToMcp').flatMap { it.output }
+    def libraries = project.extensions.getByType(com.cleanroommc.gradle.api.ext.DeobfExtension).srgLibraries
+    def output = layout.buildDirectory.file("hbm-dev/${input?.name?.replace('.jar', '') ?: 'none'}-dev.jar")
+    onlyIf { input != null }
+    if (input != null) inputs.file(input).withPropertyName('hbm')
+    inputs.file(srgToMcp).withPropertyName('srgToMcp')
+    inputs.files(libraries).withPropertyName('srgLibraries').withNormalizer(ClasspathNormalizer)
+    outputs.file(output)
+    doLast {
+        def remapped = new File(temporaryDir, 'remapped.jar')
+        remapSrgModJarToMcp(input, srgToMcp.get().asFile, libraries.files, remapped)
+        def target = output.get().asFile
+        target.parentFile.mkdirs()
+        new java.util.zip.ZipFile(remapped).withCloseable { zip ->
+            new java.util.zip.ZipOutputStream(new FileOutputStream(target)).withCloseable { out ->
+                zip.entries().each { java.util.zip.ZipEntry entry ->
+                    if (entry.name.endsWith('.refmap.json')) return
+                    def copy = new java.util.zip.ZipEntry(entry.name)
+                    copy.timeLocal = entry.timeLocal
+                    out.putNextEntry(copy)
+                    if (!entry.directory) out.write(zip.getInputStream(entry).withCloseable { it.bytes })
+                    out.closeEntry()
+                }
+            }
+        }
+    }
+}
+
+/*
  * META-INF/demonica/celeritas-pin: the Celeritas build this Demonica was made for. QuarantineGuard compares the
  * installed jar's SHA-256 with it at startup (docs/celeritas/LEDGER.md, "The guard"). dev_sha256 is the hash of
  * remapCeleritasForDev's mixin-aware MCP remap of the pinned Maven jar, which the dev client runs and the compile
@@ -1038,6 +1075,19 @@ dependencies {
     // docs/compat/openblocks.md; scripts/openblocks.txt, copied into run/client/scripts, is the scene).
     if (project.findProperty('withOpenBlocks') != null) {
         devRuntimeMods 'curse.maven:openblocks-reopened-1342654:9106076' // 1.8.4
+    }
+    // -PwithHbm=<path to an NTM-CE jar>: the dev client also loads NTM-CE (HBM's Nuclear Tech Mod: Community
+    // Edition) and CTM, which it requires. The jar is given by path: CurseForge's 2.6.1.0 (project 1312314, file
+    // 8873889) carries a Celeritas mixin that redirects camera reads in RenderSectionManager.update, which the pinned
+    // Celeritas keeps in updateCameraPosition, so it crashes at RenderGlobal's constructor; the GitHub CI build of
+    // the same version (NTM-CE-1.12.2-2.6.1.0-java25.jar, master 635df451) targets updateCameraPosition and loads.
+    // NTM-CE's instanced particles draw with its own program from RenderWorldLastEvent and come out black under a
+    // shader pack (docs/compat/hbm.md; scripts/hbm-nuke.txt, copied into run/client/scripts, is the scene). The jar's
+    // landmine and structure generation are best turned off in run/client/config/hbm/hbm.cfg for the scene: a landmine
+    // TESR's VAO model, built on the splash's shared context, crashes the driver on this machine (not yet investigated).
+    if (project.findProperty('withHbm') != null) {
+        devRuntimeMods files(remapHbmForDev)
+        devRuntimeMods 'curse.maven:ctm-267602:2915363' // CTM 1.0.2.31
     }
     // -PwithMovingElevators: the dev client also loads Moving Elevators 1.4.12 with SuperMartijn642's Core Lib and
     // Config Lib, the mod whose moving cage is drawn at HEAD of RenderGlobal.renderBlockLayer, before the Iris terrain

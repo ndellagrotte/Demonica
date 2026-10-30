@@ -1,0 +1,79 @@
+# NTM-CE (HBM's Nuclear Tech: Community Edition) nuke and bomb particles, shot without a pack, under Complementary
+# Reimagined and under Complementary Unbound + Euphoria Patches. Run with -PwithHbm=<NTM-CE jar>; the camera is the
+# profile one (absolute tp, so runs are comparable; it looks north-east, yaw 225, so the effects sit at +x -z of it). The effects are spawned client-side with the harness's hbmfx step
+# (HbmEffectNT.summonParticle), which is what NTM-CE's effect packet does:
+#   Muke        = ParticleMukeWave + ParticleMukeFlash (layer 3, NTMImmediate client arrays, additive blend)
+#   TinyTot     = ParticleMukeCloud (layer 3, NTMImmediate, normal blend, explosion.png) + a wave
+#   Smoke_Cloud = ParticleExSmoke (instanced: InstancedParticleRenderer + lit_particles in RenderWorldLastEvent;
+#                 otherwise a layer-1 particle written into vanilla's buffer)
+#   hbm:entity_effect_torex = the mushroom cloud entity (instanced cloudlets, flash, flare)
+pack off
+wait 60
+world hbm 1234567
+wait 40
+cmd /gamerule doDaylightCycle false
+cmd /time set 3000
+cmd /weather clear
+cmd /gamemode spectator
+wait 5
+cmd /tp @p -164.5 100.82940159667969 218.5 225 15
+chunks 1200
+wait 60
+shot hbm-0-nopack
+hbmfx Muke -146 93 200
+hbmfx TinyTot -151 92 205
+hbmfx Smoke_Cloud -140 95 192 {count:40}
+wait 3
+shot hbm-0-fx-3
+wait 5
+shot hbm-0-fx-8
+wait 12
+shot hbm-0-fx-20
+wait 40
+cmd /summon hbm:entity_effect_torex -150 84 190 {scale:1.0f}
+wait 80
+shot hbm-0-torex-80
+cmd /kill @e[type=hbm:entity_effect_torex]
+wait 20
+pack ComplementaryReimagined_r5.9.3.zip
+wait 120
+shot hbm-1-cr
+hbmfx Muke -146 93 200
+hbmfx TinyTot -151 92 205
+hbmfx Smoke_Cloud -140 95 192 {count:40}
+wait 3
+shot hbm-1-fx-3
+wait 5
+shot hbm-1-fx-8
+wait 12
+shot hbm-1-fx-20
+wait 40
+cmd /summon hbm:entity_effect_torex -150 84 190 {scale:1.0f}
+wait 80
+shot hbm-1-torex-80
+cmd /kill @e[type=hbm:entity_effect_torex]
+wait 20
+pack ComplementaryUnbound_r5.9.3 + EuphoriaPatches_1.10.5
+wait 120
+shot hbm-2-ep
+hbmfx Muke -146 93 200
+hbmfx TinyTot -151 92 205
+hbmfx Smoke_Cloud -140 95 192 {count:40}
+wait 3
+shot hbm-2-fx-3
+wait 5
+shot hbm-2-fx-8
+wait 12
+shot hbm-2-fx-20
+wait 40
+cmd /summon hbm:entity_effect_torex -150 84 190 {scale:1.0f}
+wait 80
+shot hbm-2-torex-80
+cmd /kill @e[type=hbm:entity_effect_torex]
+wait 20
+pack off
+wait 60
+hbmfx Smoke_Cloud -140 95 192 {count:40}
+wait 20
+shot hbm-3-nopack-again-20
+exit

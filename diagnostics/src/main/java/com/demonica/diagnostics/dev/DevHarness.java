@@ -282,6 +282,29 @@ public final class DevHarness {
                     }
                 });
             }
+            case "hbmfx" -> {
+                // hbmfx <HbmEffectNT name> <x> <y> <z> [json nbt]: spawns an NTM-CE effect on the client, the way its
+                // AuxParticlePacketNT handler does, through reflection (NTM-CE is not on this module's classpath).
+                if (mc.player == null || mc.world == null) {
+                    return false;
+                }
+                try {
+                    Class<?> effects = Class.forName("com.hbm.particle.helper.HbmEffectNT");
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Object effect = Enum.valueOf((Class<? extends Enum>) effects, args[1]);
+                    net.minecraft.nbt.NBTTagCompound data = args.length > 5
+                        ? net.minecraft.nbt.JsonToNBT.getTagFromJson(String.join(" ", Arrays.copyOfRange(args, 5, args.length)))
+                        : new net.minecraft.nbt.NBTTagCompound();
+                    effects.getMethod("summonParticle", net.minecraft.world.World.class, double.class, double.class, double.class,
+                            net.minecraft.nbt.NBTTagCompound.class)
+                        .invoke(effect, mc.world, Double.parseDouble(args[2]), Double.parseDouble(args[3]),
+                            Double.parseDouble(args[4]), data);
+                    LOGGER.info("Dev hbmfx: {} at {} {} {} {}", args[1], args[2], args[3], args[4], data);
+                } catch (ReflectiveOperationException | net.minecraft.nbt.NBTException e) {
+                    throw new IllegalStateException("hbmfx " + args[1] + " failed", e);
+                }
+                return true;
+            }
             case "insert" -> {
                 if (mc.player == null) {
                     return false;
